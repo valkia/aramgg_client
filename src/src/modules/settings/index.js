@@ -4,7 +4,7 @@ import s from './style.module.scss';
 //import { ipcRenderer } from 'electron';
 const ipcRenderer = window.electron.ipcRenderer;
 //const remote = window.electron.remote;
-import _get from 'lodash/get';
+import _get from 'lodash-es/get';
 import React, { useEffect, useState, useRef } from 'react';
 import { useHistory } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';

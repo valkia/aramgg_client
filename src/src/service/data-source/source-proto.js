@@ -1,4 +1,4 @@
-import _noop from 'lodash/noop';
+import _noop from 'lodash-es/noop';
 
 export default class SourceProto {
   cancelHandlers = {};

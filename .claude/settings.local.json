@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(find:*)",
+      "Bash(tree:*)",
+      "Bash(node:*)",
+      "Bash(if [ -d \"electron\" ])",
+      "Bash(then echo \"electron directory exists\")",
+      "Bash(else echo \"electron directory does not exist\")",
+      "Bash(fi)",
+      "Bash(pkill:*)"
+    ]
+  }
+}

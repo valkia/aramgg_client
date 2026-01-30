@@ -1,12 +1,12 @@
 module.exports = {
     presets: [
-        '@vue/cli-plugin-babel/preset'
+        ['@babel/preset-env', {targets: {node: 'current'}}]
     ],
     plugins: [
         [
             "component",
             {
-                "libraryName": "element-ui",
+                "libraryName": "element-plus",
                 "styleLibraryName": "theme-chalk"
             }
         ]

@@ -1,5 +1,7 @@
-const _upperFirst = require('lodash/upperFirst');
-const http = require('./http');
+import upperFirst from 'lodash-es/upperFirst';
+import http from './http';
+
+const _upperFirst = upperFirst;
 
 const ChampionNames = [
   {
@@ -74,7 +76,7 @@ const getItemIcon = (id, ver) => `${DDragonCDNUrl}/${ver}/img/item/${id}.png`;
 const getItemList = (version, language = 'en_US') =>
   http.get(`${DDragonCDNUrl}/${version}/data/${language}/item.json`);
 
-module.exports = {
+export {
   getLolVer,
   getChampions,
   getAvatar,

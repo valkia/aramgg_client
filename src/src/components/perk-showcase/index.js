@@ -1,6 +1,6 @@
 import s from './style.module.scss';
 
-import _noop from 'lodash/noop';
+import _noop from 'lodash-es/noop';
 
 import React, { useRef } from 'react';
 import cn from 'classnames';

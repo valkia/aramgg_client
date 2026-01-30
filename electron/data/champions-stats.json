@@ -1,0 +1,1722 @@
+[
+  {
+    "championId": "7",
+    "tier": "5",
+    "winRate": 0.43655241578667925,
+    "numWinGames": 22200,
+    "numGames": 50853,
+    "pickRate": 0.004266345178559294,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "154",
+    "tier": "4",
+    "winRate": 0.47005439005439004,
+    "numWinGames": 30248,
+    "numGames": 64350,
+    "pickRate": 0.005398684684095148,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "432",
+    "tier": "5",
+    "winRate": 0.40699388631140787,
+    "numWinGames": 18773,
+    "numGames": 46126,
+    "pickRate": 0.003869770469907891,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "350",
+    "tier": "5",
+    "winRate": 0.45259775040171396,
+    "numWinGames": 26195,
+    "numGames": 57877,
+    "pickRate": 0.004855628181217947,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "888",
+    "tier": "3",
+    "winRate": 0.5056269421348787,
+    "numWinGames": 24082,
+    "numGames": 47628,
+    "pickRate": 0.003995781727025387,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "203",
+    "tier": "2",
+    "winRate": 0.513305196604038,
+    "numWinGames": 31500,
+    "numGames": 61367,
+    "pickRate": 0.005148423978381771,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "236",
+    "tier": "4",
+    "winRate": 0.47703345096094957,
+    "numWinGames": 49071,
+    "numGames": 102867,
+    "pickRate": 0.008630093199670794,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "893",
+    "tier": "2",
+    "winRate": 0.5228252335400343,
+    "numWinGames": 32629,
+    "numGames": 62409,
+    "pickRate": 0.005235843239311485,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "79",
+    "tier": "4",
+    "winRate": 0.48155387246518444,
+    "numWinGames": 27594,
+    "numGames": 57302,
+    "pickRate": 0.004807388185983219,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "24",
+    "tier": "1",
+    "winRate": 0.5338681692463624,
+    "numWinGames": 31077,
+    "numGames": 58211,
+    "pickRate": 0.004883649326276032,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "142",
+    "tier": "4",
+    "winRate": 0.4708687471614871,
+    "numWinGames": 29030,
+    "numGames": 61652,
+    "pickRate": 0.005172334236889418,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "31",
+    "tier": "4",
+    "winRate": 0.47916168765511535,
+    "numWinGames": 52128,
+    "numGames": 108790,
+    "pickRate": 0.009127007098410429,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "18",
+    "tier": "2",
+    "winRate": 0.516538346539094,
+    "numWinGames": 55282,
+    "numGames": 107024,
+    "pickRate": 0.008978847391306902,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "61",
+    "tier": "3",
+    "winRate": 0.4992247450856722,
+    "numWinGames": 37993,
+    "numGames": 76104,
+    "pickRate": 0.006384794082336863,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "27",
+    "tier": "1",
+    "winRate": 0.5309468933064438,
+    "numWinGames": 44230,
+    "numGames": 83304,
+    "pickRate": 0.006988842718319537,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "75",
+    "tier": "3",
+    "winRate": 0.49830033619723574,
+    "numWinGames": 26679,
+    "numGames": 53540,
+    "pickRate": 0.004491772773682272,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "26",
+    "tier": "4",
+    "winRate": 0.4819702637525397,
+    "numWinGames": 25382,
+    "numGames": 52663,
+    "pickRate": 0.004418196293993827,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "876",
+    "tier": "1",
+    "winRate": 0.5729365128142093,
+    "numWinGames": 37289,
+    "numGames": 65084,
+    "pickRate": 0.005460264086707826,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "83",
+    "tier": "3",
+    "winRate": 0.5063077469793887,
+    "numWinGames": 11398,
+    "numGames": 22512,
+    "pickRate": 0.0018886587351724937,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "77",
+    "tier": "5",
+    "winRate": 0.4647210420004179,
+    "numWinGames": 20016,
+    "numGames": 43071,
+    "pickRate": 0.003613469277834687,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "91",
+    "tier": "2",
+    "winRate": 0.5160028713582019,
+    "numWinGames": 20846,
+    "numGames": 40399,
+    "pickRate": 0.0033893001173700057,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "60",
+    "tier": "4",
+    "winRate": 0.48221174453493354,
+    "numWinGames": 11250,
+    "numGames": 23330,
+    "pickRate": 0.0019572853718716364,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "68",
+    "tier": "2",
+    "winRate": 0.5241309428473369,
+    "numWinGames": 32070,
+    "numGames": 61187,
+    "pickRate": 0.005133322762482203,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "901",
+    "tier": "4",
+    "winRate": 0.48405174039295545,
+    "numWinGames": 64178,
+    "numGames": 132585,
+    "pickRate": 0.01112330394468928,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "57",
+    "tier": "2",
+    "winRate": 0.515220921495916,
+    "numWinGames": 42515,
+    "numGames": 82518,
+    "pickRate": 0.006922900742224762,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "25",
+    "tier": "2",
+    "winRate": 0.5128503524012457,
+    "numWinGames": 62578,
+    "numGames": 122020,
+    "pickRate": 0.010236946467028593,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "51",
+    "tier": "2",
+    "winRate": 0.5153335307305106,
+    "numWinGames": 73098,
+    "numGames": 141846,
+    "pickRate": 0.011900261502721995,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "233",
+    "tier": "2",
+    "winRate": 0.5204823036462513,
+    "numWinGames": 23353,
+    "numGames": 44868,
+    "pickRate": 0.003764229749898696,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "115",
+    "tier": "3",
+    "winRate": 0.4876831895348967,
+    "numWinGames": 43693,
+    "numGames": 89593,
+    "pickRate": 0.007516462422721625,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "54",
+    "tier": "4",
+    "winRate": 0.46816156636992734,
+    "numWinGames": 54325,
+    "numGames": 116039,
+    "pickRate": 0.009735166620943541,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "69",
+    "tier": "3",
+    "winRate": 0.49029555778420153,
+    "numWinGames": 16622,
+    "numGames": 33902,
+    "pickRate": 0.002844230119039529,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "360",
+    "tier": "5",
+    "winRate": 0.4653140896723057,
+    "numWinGames": 39333,
+    "numGames": 84530,
+    "pickRate": 0.0070916987777243645,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "910",
+    "tier": "2",
+    "winRate": 0.5179304539273457,
+    "numWinGames": 39992,
+    "numGames": 77215,
+    "pickRate": 0.006478002142694745,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "133",
+    "tier": "4",
+    "winRate": 0.47871095905529193,
+    "numWinGames": 21688,
+    "numGames": 45305,
+    "pickRate": 0.0038008921462770887,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "81",
+    "tier": "5",
+    "winRate": 0.4521128043227491,
+    "numWinGames": 59574,
+    "numGames": 131768,
+    "pickRate": 0.011054761203634024,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "33",
+    "tier": "3",
+    "winRate": 0.49004255319148937,
+    "numWinGames": 23032,
+    "numGames": 47000,
+    "pickRate": 0.003943095262664677,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "48",
+    "tier": "3",
+    "winRate": 0.4980832031804629,
+    "numWinGames": 17540,
+    "numGames": 35215,
+    "pickRate": 0.0029543850994624807,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "141",
+    "tier": "2",
+    "winRate": 0.5189187215945389,
+    "numWinGames": 28430,
+    "numGames": 54787,
+    "pickRate": 0.0045963906416087155,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "240",
+    "tier": "2",
+    "winRate": 0.5280841241343934,
+    "numWinGames": 6177,
+    "numGames": 11697,
+    "pickRate": 0.0009813273465401856,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "427",
+    "tier": "4",
+    "winRate": 0.47710779786251484,
+    "numWinGames": 10848,
+    "numGames": 22737,
+    "pickRate": 0.0019075352550469522,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "16",
+    "tier": "4",
+    "winRate": 0.48500343432801646,
+    "numWinGames": 31775,
+    "numGames": 65515,
+    "pickRate": 0.0054964231092229,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "35",
+    "tier": "5",
+    "winRate": 0.4577612059836438,
+    "numWinGames": 51440,
+    "numGames": 112373,
+    "pickRate": 0.009427605190455697,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "106",
+    "tier": "3",
+    "winRate": 0.4906338661074594,
+    "numWinGames": 27842,
+    "numGames": 56747,
+    "pickRate": 0.0047608261036262214,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "84",
+    "tier": "5",
+    "winRate": 0.45134439874817717,
+    "numWinGames": 27546,
+    "numGames": 61031,
+    "pickRate": 0.005120235042035912,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "143",
+    "tier": "2",
+    "winRate": 0.5266197214684578,
+    "numWinGames": 46965,
+    "numGames": 89182,
+    "pickRate": 0.007481981313084281,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "223",
+    "tier": "2",
+    "winRate": 0.5144950987044712,
+    "numWinGames": 49284,
+    "numGames": 95791,
+    "pickRate": 0.008036447623530044,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "9",
+    "tier": "4",
+    "winRate": 0.4780773966822087,
+    "numWinGames": 34554,
+    "numGames": 72277,
+    "pickRate": 0.0060637254531832946,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "110",
+    "tier": "4",
+    "winRate": 0.4816408647086696,
+    "numWinGames": 62005,
+    "numGames": 128737,
+    "pickRate": 0.010800473507014095,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "267",
+    "tier": "4",
+    "winRate": 0.48575000856369677,
+    "numWinGames": 28361,
+    "numGames": 58386,
+    "pickRate": 0.0048983310639561664,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "897",
+    "tier": "5",
+    "winRate": 0.4390995260663507,
+    "numWinGames": 12971,
+    "numGames": 29540,
+    "pickRate": 0.0024782773204066926,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "56",
+    "tier": "3",
+    "winRate": 0.5006716032374721,
+    "numWinGames": 14537,
+    "numGames": 29035,
+    "pickRate": 0.002435910020244019,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "36",
+    "tier": "1",
+    "winRate": 0.568594745934354,
+    "numWinGames": 66815,
+    "numGames": 117509,
+    "pickRate": 0.00985849321745667,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "17",
+    "tier": "4",
+    "winRate": 0.4777639410696948,
+    "numWinGames": 45271,
+    "numGames": 94756,
+    "pickRate": 0.007949615632107535,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "63",
+    "tier": "1",
+    "winRate": 0.5481333982752199,
+    "numWinGames": 76526,
+    "numGames": 139612,
+    "pickRate": 0.011712838634279592,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "235",
+    "tier": "4",
+    "winRate": 0.4781042004794592,
+    "numWinGames": 64218,
+    "numGames": 134318,
+    "pickRate": 0.011268695095544554,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "39",
+    "tier": "4",
+    "winRate": 0.4710853111911235,
+    "numWinGames": 12822,
+    "numGames": 27218,
+    "pickRate": 0.00228347163530228,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "89",
+    "tier": "1",
+    "winRate": 0.5309825083736509,
+    "numWinGames": 39949,
+    "numGames": 75236,
+    "pickRate": 0.006311972663443396,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "136",
+    "tier": "2",
+    "winRate": 0.5218863474494144,
+    "numWinGames": 44698,
+    "numGames": 85647,
+    "pickRate": 0.007185410211945565,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "6",
+    "tier": "4",
+    "winRate": 0.4826803611364201,
+    "numWinGames": 29137,
+    "numGames": 60365,
+    "pickRate": 0.005064360543207515,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "201",
+    "tier": "3",
+    "winRate": 0.4984431412252383,
+    "numWinGames": 26093,
+    "numGames": 52349,
+    "pickRate": 0.004391853061813471,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "161",
+    "tier": "3",
+    "winRate": 0.5078674103296603,
+    "numWinGames": 44800,
+    "numGames": 88212,
+    "pickRate": 0.007400602538514393,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "76",
+    "tier": "5",
+    "winRate": 0.45256544037654584,
+    "numWinGames": 40768,
+    "numGames": 90082,
+    "pickRate": 0.007557487392582115,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "103",
+    "tier": "2",
+    "winRate": 0.5151711732963761,
+    "numWinGames": 52413,
+    "numGames": 101739,
+    "pickRate": 0.008535458913366841,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "711",
+    "tier": "3",
+    "winRate": 0.5097575932472405,
+    "numWinGames": 28263,
+    "numGames": 55444,
+    "pickRate": 0.004651510079642135,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "15",
+    "tier": "3",
+    "winRate": 0.5046860356138707,
+    "numWinGames": 43080,
+    "numGames": 85360,
+    "pickRate": 0.007161332162150144,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "53",
+    "tier": "5",
+    "winRate": 0.46119070571419074,
+    "numWinGames": 55496,
+    "numGames": 120332,
+    "pickRate": 0.01009533062014821,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "29",
+    "tier": "3",
+    "winRate": 0.5045688953225369,
+    "numWinGames": 55770,
+    "numGames": 110530,
+    "pickRate": 0.00927298551877291,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "64",
+    "tier": "5",
+    "winRate": 0.44936499693121196,
+    "numWinGames": 28554,
+    "numGames": 63543,
+    "pickRate": 0.005330980899478756,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "113",
+    "tier": "2",
+    "winRate": 0.5154192365394232,
+    "numWinGames": 21644,
+    "numGames": 41993,
+    "pickRate": 0.003523029773725059,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "895",
+    "tier": "1",
+    "winRate": 0.5317435642333043,
+    "numWinGames": 17103,
+    "numGames": 32164,
+    "pickRate": 0.0026984194899648227,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "114",
+    "tier": "2",
+    "winRate": 0.5275812700016843,
+    "numWinGames": 12529,
+    "numGames": 23748,
+    "pickRate": 0.001992353751016186,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "85",
+    "tier": "4",
+    "winRate": 0.48399893568128494,
+    "numWinGames": 20009,
+    "numGames": 41341,
+    "pickRate": 0.0034683298139110722,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "266",
+    "tier": "5",
+    "winRate": 0.4643542066205286,
+    "numWinGames": 22276,
+    "numGames": 47972,
+    "pickRate": 0.004024641828522337,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "98",
+    "tier": "2",
+    "winRate": 0.5287045229792328,
+    "numWinGames": 30474,
+    "numGames": 57639,
+    "pickRate": 0.004835661017972964,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "99",
+    "tier": "3",
+    "winRate": 0.49478484861281197,
+    "numWinGames": 58585,
+    "numGames": 118405,
+    "pickRate": 0.009933663714378958,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "902",
+    "tier": "3",
+    "winRate": 0.48679272648162586,
+    "numWinGames": 26851,
+    "numGames": 55159,
+    "pickRate": 0.004627599821134487,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "134",
+    "tier": "2",
+    "winRate": 0.5188893946290396,
+    "numWinGames": 37620,
+    "numGames": 72501,
+    "pickRate": 0.006082518077413866,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "1",
+    "tier": "3",
+    "winRate": 0.4885057471264368,
+    "numWinGames": 21335,
+    "numGames": 43674,
+    "pickRate": 0.003664058351098236,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "20",
+    "tier": "5",
+    "winRate": 0.458396685418884,
+    "numWinGames": 24119,
+    "numGames": 52616,
+    "pickRate": 0.0044142531987311625,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "96",
+    "tier": "3",
+    "winRate": 0.5091835262521225,
+    "numWinGames": 45881,
+    "numGames": 90107,
+    "pickRate": 0.007559584783679277,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "221",
+    "tier": "5",
+    "winRate": 0.46625806872269676,
+    "numWinGames": 28604,
+    "numGames": 61348,
+    "pickRate": 0.005146829961147927,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "804",
+    "tier": "2",
+    "winRate": 0.5264632316158079,
+    "numWinGames": 52620,
+    "numGames": 99950,
+    "pickRate": 0.008385369606453924,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "516",
+    "tier": "2",
+    "winRate": 0.5121596780604134,
+    "numWinGames": 41235,
+    "numGames": 80512,
+    "pickRate": 0.0067546060805884775,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "131",
+    "tier": "3",
+    "winRate": 0.4921596941162114,
+    "numWinGames": 24199,
+    "numGames": 49169,
+    "pickRate": 0.004125064914254457,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "498",
+    "tier": "1",
+    "winRate": 0.542480602464628,
+    "numWinGames": 47543,
+    "numGames": 87640,
+    "pickRate": 0.007352614230211324,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "62",
+    "tier": "3",
+    "winRate": 0.5039571543181769,
+    "numWinGames": 23242,
+    "numGames": 46119,
+    "pickRate": 0.0038691832004006856,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "78",
+    "tier": "3",
+    "winRate": 0.5020168600435098,
+    "numWinGames": 22153,
+    "numGames": 44128,
+    "pickRate": 0.003702146973422699,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "875",
+    "tier": "2",
+    "winRate": 0.5230023969222712,
+    "numWinGames": 51931,
+    "numGames": 99294,
+    "pickRate": 0.008330334064064391,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "517",
+    "tier": "3",
+    "winRate": 0.4976252570871234,
+    "numWinGames": 46939,
+    "numGames": 94326,
+    "pickRate": 0.007913540505236346,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "21",
+    "tier": "4",
+    "winRate": 0.482829603460506,
+    "numWinGames": 69428,
+    "numGames": 143794,
+    "pickRate": 0.012063690217012863,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "104",
+    "tier": "1",
+    "winRate": 0.5384728242747583,
+    "numWinGames": 40372,
+    "numGames": 74975,
+    "pickRate": 0.006290075900389024,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "429",
+    "tier": "1",
+    "winRate": 0.5539659886170194,
+    "numWinGames": 32217,
+    "numGames": 58157,
+    "pickRate": 0.004879118961506162,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "23",
+    "tier": "3",
+    "winRate": 0.5075933574255722,
+    "numWinGames": 23597,
+    "numGames": 46488,
+    "pickRate": 0.0039001406929947977,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "111",
+    "tier": "3",
+    "winRate": 0.5009626013836619,
+    "numWinGames": 40333,
+    "numGames": 80511,
+    "pickRate": 0.0067545221849445915,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "145",
+    "tier": "4",
+    "winRate": 0.48413183394573317,
+    "numWinGames": 61004,
+    "numGames": 126007,
+    "pickRate": 0.010571438399203999,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "234",
+    "tier": "3",
+    "winRate": 0.4913031550068587,
+    "numWinGames": 26862,
+    "numGames": 54675,
+    "pickRate": 0.0045869943294934296,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "200",
+    "tier": "4",
+    "winRate": 0.47370407218086386,
+    "numWinGames": 13808,
+    "numGames": 29149,
+    "pickRate": 0.002445474123647078,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "11",
+    "tier": "1",
+    "winRate": 0.5328753555465258,
+    "numWinGames": 41965,
+    "numGames": 78752,
+    "pickRate": 0.006606949747348268,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "101",
+    "tier": "3",
+    "winRate": 0.5020153509712276,
+    "numWinGames": 46830,
+    "numGames": 93284,
+    "pickRate": 0.007826121244306632,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "245",
+    "tier": "2",
+    "winRate": 0.5226301369863013,
+    "numWinGames": 38152,
+    "numGames": 73000,
+    "pickRate": 0.006124382003713221,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "92",
+    "tier": "2",
+    "winRate": 0.5204797288489115,
+    "numWinGames": 19963,
+    "numGames": 38355,
+    "pickRate": 0.0032178174212660355,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "122",
+    "tier": "3",
+    "winRate": 0.49036002046297483,
+    "numWinGames": 30673,
+    "numGames": 62552,
+    "pickRate": 0.0052478403163872525,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "42",
+    "tier": "3",
+    "winRate": 0.49211365872566265,
+    "numWinGames": 33010,
+    "numGames": 67078,
+    "pickRate": 0.005627552000617472,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "86",
+    "tier": "4",
+    "winRate": 0.47902761188786624,
+    "numWinGames": 40908,
+    "numGames": 85398,
+    "pickRate": 0.007164520196617831,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "58",
+    "tier": "4",
+    "winRate": 0.46907941902764133,
+    "numWinGames": 17666,
+    "numGames": 37661,
+    "pickRate": 0.0031595938444088168,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "59",
+    "tier": "3",
+    "winRate": 0.4868377513879187,
+    "numWinGames": 26483,
+    "numGames": 54398,
+    "pickRate": 0.004563755236136874,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "526",
+    "tier": "1",
+    "winRate": 0.5444298905221624,
+    "numWinGames": 33667,
+    "numGames": 61839,
+    "pickRate": 0.00518802272229619,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "8",
+    "tier": "5",
+    "winRate": 0.43473931289565404,
+    "numWinGames": 24448,
+    "numGames": 56236,
+    "pickRate": 0.004717955429600229,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "950",
+    "tier": "4",
+    "winRate": 0.48021863612701715,
+    "numWinGames": 18450,
+    "numGames": 38420,
+    "pickRate": 0.003223270638118657,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "67",
+    "tier": "1",
+    "winRate": 0.5617146437397751,
+    "numWinGames": 64550,
+    "numGames": 114916,
+    "pickRate": 0.009640951812859021,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "497",
+    "tier": "4",
+    "winRate": 0.4768162530538768,
+    "numWinGames": 18541,
+    "numGames": 38885,
+    "pickRate": 0.0032622821125258715,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "107",
+    "tier": "1",
+    "winRate": 0.5596720630967207,
+    "numWinGames": 21572,
+    "numGames": 38544,
+    "pickRate": 0.0032336736979605807,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "105",
+    "tier": "1",
+    "winRate": 0.5289956157831806,
+    "numWinGames": 42472,
+    "numGames": 80288,
+    "pickRate": 0.006735813456357906,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "202",
+    "tier": "4",
+    "winRate": 0.4752988899850296,
+    "numWinGames": 68896,
+    "numGames": 144953,
+    "pickRate": 0.012160925268277296,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "421",
+    "tier": "3",
+    "winRate": 0.49129653401797174,
+    "numWinGames": 9568,
+    "numGames": 19475,
+    "pickRate": 0.0016338676646892464,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "5",
+    "tier": "4",
+    "winRate": 0.4817652712516019,
+    "numWinGames": 18045,
+    "numGames": 37456,
+    "pickRate": 0.003142395237412088,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "163",
+    "tier": "3",
+    "winRate": 0.4893910579110266,
+    "numWinGames": 26248,
+    "numGames": 53634,
+    "pickRate": 0.004499658964207601,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "523",
+    "tier": "1",
+    "winRate": 0.5324547390841321,
+    "numWinGames": 39998,
+    "numGames": 75120,
+    "pickRate": 0.006302240768752564,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "37",
+    "tier": "3",
+    "winRate": 0.5011796488068437,
+    "numWinGames": 27828,
+    "numGames": 55525,
+    "pickRate": 0.00465830562679694,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "222",
+    "tier": "1",
+    "winRate": 0.5481958203774676,
+    "numWinGames": 75810,
+    "numGames": 138290,
+    "pickRate": 0.011601928593061663,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "126",
+    "tier": "4",
+    "winRate": 0.4842266938183826,
+    "numWinGames": 56118,
+    "numGames": 115892,
+    "pickRate": 0.009722833961292228,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "268",
+    "tier": "4",
+    "winRate": 0.4705393994022487,
+    "numWinGames": 19837,
+    "numGames": 42158,
+    "pickRate": 0.0035368725549663285,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "164",
+    "tier": "5",
+    "winRate": 0.4466719077568134,
+    "numWinGames": 6818,
+    "numGames": 15264,
+    "pickRate": 0.0012805831082832687,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "518",
+    "tier": "4",
+    "winRate": 0.4717356580122912,
+    "numWinGames": 34849,
+    "numGames": 73874,
+    "pickRate": 0.006197706796470007,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "904",
+    "tier": "1",
+    "winRate": 0.5731384670177313,
+    "numWinGames": 45059,
+    "numGames": 78618,
+    "pickRate": 0.00659570773106748,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "13",
+    "tier": "1",
+    "winRate": 0.5519157580144295,
+    "numWinGames": 47276,
+    "numGames": 85658,
+    "pickRate": 0.007186333064028316,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "157",
+    "tier": "2",
+    "winRate": 0.5157080892984047,
+    "numWinGames": 42089,
+    "numGames": 81614,
+    "pickRate": 0.006847059080151381,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "14",
+    "tier": "2",
+    "winRate": 0.5173125282094267,
+    "numWinGames": 40115,
+    "numGames": 77545,
+    "pickRate": 0.006505687705177284,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "799",
+    "tier": "2",
+    "winRate": 0.5175073457394711,
+    "numWinGames": 21135,
+    "numGames": 40840,
+    "pickRate": 0.0034262980963239444,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "74",
+    "tier": "2",
+    "winRate": 0.5225169099323602,
+    "numWinGames": 35226,
+    "numGames": 67416,
+    "pickRate": 0.005655908728251103,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "90",
+    "tier": "1",
+    "winRate": 0.5369384514803399,
+    "numWinGames": 51741,
+    "numGames": 96363,
+    "pickRate": 0.008084435931833112,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "19",
+    "tier": "4",
+    "winRate": 0.47996522361725524,
+    "numWinGames": 18770,
+    "numGames": 39107,
+    "pickRate": 0.0032809069454686705,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "41",
+    "tier": "2",
+    "winRate": 0.5137466542534621,
+    "numWinGames": 35317,
+    "numGames": 68744,
+    "pickRate": 0.005767322143332352,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "102",
+    "tier": "2",
+    "winRate": 0.5108539886417919,
+    "numWinGames": 19250,
+    "numGames": 37682,
+    "pickRate": 0.003161355652930433,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "55",
+    "tier": "5",
+    "winRate": 0.451646295337819,
+    "numWinGames": 34032,
+    "numGames": 75351,
+    "pickRate": 0.006321620662490341,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "254",
+    "tier": "4",
+    "winRate": 0.4833866474048086,
+    "numWinGames": 18738,
+    "numGames": 38764,
+    "pickRate": 0.003252130739615607,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "80",
+    "tier": "3",
+    "winRate": 0.5006241301634217,
+    "numWinGames": 34892,
+    "numGames": 69697,
+    "pickRate": 0.00584727469195617,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "412",
+    "tier": "5",
+    "winRate": 0.4400253556027238,
+    "numWinGames": 45815,
+    "numGames": 104119,
+    "pickRate": 0.00873513054581667,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "45",
+    "tier": "2",
+    "winRate": 0.5169187520480141,
+    "numWinGames": 59945,
+    "numGames": 115966,
+    "pickRate": 0.009729042238939828,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "800",
+    "tier": "3",
+    "winRate": 0.5021923160408075,
+    "numWinGames": 57840,
+    "numGames": 115175,
+    "pickRate": 0.00966268078462562,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "44",
+    "tier": "2",
+    "winRate": 0.5231032515687393,
+    "numWinGames": 15589,
+    "numGames": 29801,
+    "pickRate": 0.0025001740834610644,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "82",
+    "tier": "3",
+    "winRate": 0.48768161718256475,
+    "numWinGames": 39372,
+    "numGames": 80733,
+    "pickRate": 0.0067731470178873905,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "112",
+    "tier": "2",
+    "winRate": 0.5222835555989774,
+    "numWinGames": 32075,
+    "numGames": 61413,
+    "pickRate": 0.005152283178000549,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "117",
+    "tier": "5",
+    "winRate": 0.45006063998507323,
+    "numWinGames": 24121,
+    "numGames": 53595,
+    "pickRate": 0.004496387034096028,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "3",
+    "tier": "2",
+    "winRate": 0.5232563256325633,
+    "numWinGames": 35673,
+    "numGames": 68175,
+    "pickRate": 0.005719585521960943,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "30",
+    "tier": "3",
+    "winRate": 0.4916494052198615,
+    "numWinGames": 41537,
+    "numGames": 84485,
+    "pickRate": 0.007087923473749472,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "34",
+    "tier": "3",
+    "winRate": 0.49113487409451534,
+    "numWinGames": 28476,
+    "numGames": 57980,
+    "pickRate": 0.004864269432538254,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "555",
+    "tier": "3",
+    "winRate": 0.4883480396910049,
+    "numWinGames": 45327,
+    "numGames": 92817,
+    "pickRate": 0.007786941978611644,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "150",
+    "tier": "5",
+    "winRate": 0.46737907761529807,
+    "numWinGames": 20775,
+    "numGames": 44450,
+    "pickRate": 0.0037291613707541465,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "22",
+    "tier": "1",
+    "winRate": 0.5359182893423651,
+    "numWinGames": 75714,
+    "numGames": 141279,
+    "pickRate": 0.011852692672638358,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "28",
+    "tier": "4",
+    "winRate": 0.47397196533472924,
+    "numWinGames": 8149,
+    "numGames": 17193,
+    "pickRate": 0.0014424178053402932,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "777",
+    "tier": "3",
+    "winRate": 0.49407671588188345,
+    "numWinGames": 39621,
+    "numGames": 80192,
+    "pickRate": 0.0067277594745448034,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "32",
+    "tier": "3",
+    "winRate": 0.4902387841404089,
+    "numWinGames": 30837,
+    "numGames": 62902,
+    "pickRate": 0.005277203791747521,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "43",
+    "tier": "4",
+    "winRate": 0.46826616539443433,
+    "numWinGames": 36868,
+    "numGames": 78733,
+    "pickRate": 0.006605355730114425,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "127",
+    "tier": "4",
+    "winRate": 0.4689606038433396,
+    "numWinGames": 24355,
+    "numGames": 51934,
+    "pickRate": 0.004357036369600581,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "420",
+    "tier": "4",
+    "winRate": 0.48517384394743984,
+    "numWinGames": 25034,
+    "numGames": 51598,
+    "pickRate": 0.004328847433254723,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "10",
+    "tier": "1",
+    "winRate": 0.5424610866372981,
+    "numWinGames": 46177,
+    "numGames": 85125,
+    "pickRate": 0.007141616685836821,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "166",
+    "tier": "3",
+    "winRate": 0.4948282445916555,
+    "numWinGames": 29804,
+    "numGames": 60231,
+    "pickRate": 0.005053118526926727,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "120",
+    "tier": "3",
+    "winRate": 0.5056295459829286,
+    "numWinGames": 30448,
+    "numGames": 60218,
+    "pickRate": 0.005052027883556202,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "121",
+    "tier": "4",
+    "winRate": 0.47923723794859646,
+    "numWinGames": 20231,
+    "numGames": 42215,
+    "pickRate": 0.003541654606667858,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "4",
+    "tier": "3",
+    "winRate": 0.5024332190368459,
+    "numWinGames": 42640,
+    "numGames": 84867,
+    "pickRate": 0.007119971609714109,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "12",
+    "tier": "3",
+    "winRate": 0.49386856417958325,
+    "numWinGames": 33870,
+    "numGames": 68581,
+    "pickRate": 0.005753647153378855,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "147",
+    "tier": "2",
+    "winRate": 0.528491661428096,
+    "numWinGames": 42876,
+    "numGames": 81129,
+    "pickRate": 0.0068063696928664374,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "887",
+    "tier": "1",
+    "winRate": 0.5936221764843811,
+    "numWinGames": 22785,
+    "numGames": 38383,
+    "pickRate": 0.003220166499294857,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "72",
+    "tier": "4",
+    "winRate": 0.4682430925141018,
+    "numWinGames": 14693,
+    "numGames": 31379,
+    "pickRate": 0.002632561409513934,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "246",
+    "tier": "5",
+    "winRate": 0.4670237810911324,
+    "numWinGames": 13688,
+    "numGames": 29309,
+    "pickRate": 0.002458897426668915,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "2",
+    "tier": "3",
+    "winRate": 0.4961747246119171,
+    "numWinGames": 15630,
+    "numGames": 31501,
+    "pickRate": 0.0026427966780680845,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "238",
+    "tier": "2",
+    "winRate": 0.5147684222745165,
+    "numWinGames": 48781,
+    "numGames": 94763,
+    "pickRate": 0.00795020290161474,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "50",
+    "tier": "5",
+    "winRate": 0.4477203141965587,
+    "numWinGames": 45770,
+    "numGames": 102229,
+    "pickRate": 0.008576567778871218,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "119",
+    "tier": "4",
+    "winRate": 0.47419955807807285,
+    "numWinGames": 21890,
+    "numGames": 46162,
+    "pickRate": 0.003872790713087804,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "38",
+    "tier": "1",
+    "winRate": 0.5527207094790321,
+    "numWinGames": 24805,
+    "numGames": 44878,
+    "pickRate": 0.003765068706337561,
+    "version": "16.2",
+    "date": "2026-01-24"
+  },
+  {
+    "championId": "40",
+    "tier": "3",
+    "winRate": 0.5074319140774837,
+    "numWinGames": 21166,
+    "numGames": 41712,
+    "pickRate": 0.003499455097792957,
+    "version": "16.2",
+    "date": "2026-01-24"
+  }
+]

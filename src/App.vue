@@ -4,61 +4,31 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import config from "./src/native/config"
+import { getLolVer } from "./src/service/data-source/lol-qq"
+import { onMounted } from 'vue'
 
+const init = async () => {
+  console.log(`app`)
 
-import config from "./src/native/config";
+  const shell = window.electron?.shell
 
-import { getLolVer } from "./src/service/data-source/lol-qq";
+  const getVerAndItems = async () => {
+    try {
+      const v = await getLolVer()
+      config.set(`lolVer`, v)
+    } catch (error) {
+      console.error('Error getting LoL version:', error)
+    }
+  }
 
-var PromisePool = require("es6-promise-pool");
-export default {
-  name: "app",
-  components: {  },
-  data: function () {
-    return {
-      GameTypes: [`pick`],
-    };
-  },
-  mounted: function () {
+  await getVerAndItems()
+}
 
-  },
-
-  methods: {
-    backHistory: function () {
-      this.$router.go(-1); //返回上一层
-    },
-
-    init: function () {
-      console.log(`app`);
-
-
-      const shell = window.electron.shell;
-
-      const getVerAndItems = async () => {
-        const v = await getLolVer();
-        // dispatch(setLolVersion(v));
-        config.set(`lolVer`, v);
-
-      };
-
-      getVerAndItems();
-
-      // ipcRenderer.on(`update-available`, (ev, info) => {
-      //   const notify = new Notification(
-      //     `New version available: ${info.version}`
-      //   );
-
-      //   notify.onclick = () => {
-      //     shell.openItem(`https://github.com/cangzhang/champ-r/releases`);
-      //   };
-      // });
-
-      // ipcRenderer.on(`update-downloaded`, () => {});
-      //}, []);
-    },
-  },
-};
+onMounted(() => {
+  init()
+})
 </script>
 
 <style>

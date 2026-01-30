@@ -2,51 +2,58 @@
   "name": "client",
   "version": "0.1.0",
   "private": true,
-  "main": "main.js",
+  "main": "electron/main.js",
   "scripts": {
-    "serve": "vue-cli-service serve",
-    "alpha": "vue-cli-service build --mode alpha",
-    "buildtest": "vue-cli-service build --mode test",
-    "build": "vue-cli-service build --mode build",
-    "lint": "vue-cli-service lint",
-    "pack": "electron-builder --win --x64",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "pack": "electron-vite build && electron-builder",
     "start": "electron .",
-    "electron:serve": "vue-cli-service serve electron ."
+    "lint": "eslint src --ext .js,.vue"
   },
   "build": {
     "productName": "client",
     "directories": {
       "output": "build"
     },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "electron/data",
+        "to": "data",
+        "filter": ["**/*"]
+      }
+    ],
     "win": {
       "icon": "xxx/icon.ico"
     }
   },
   "dependencies": {
-    "axios": "^0.19.2",
-    "babel-preset-env": "^1.7.0",
-    "cheerio": "^1.0.0-rc.3",
-    "core-js": "^3.6.5",
-    "electron": "^8.3.0",
-    "electron-is-dev": "^1.2.0",
-    "electron-store": "^5.1.1",
-    "element-ui": "^2.13.2",
+    "@electron/remote": "^2.0.1",
+    "axios": "^1.6.2",
+    "cheerio": "^1.1.2",
+    "electron-is-dev": "^2.0.0",
+    "electron-store": "^9.0.0",
+    "element-plus": "^2.3.8",
     "es6-promise-pool": "^2.5.0",
-    "nanoid": "^3.1.9",
-    "vue": "^2.6.11",
-    "vue-router": "^3.2.0"
+    "fs-extra": "^11.3.3",
+    "lodash-es": "^4.17.22",
+    "nanoid": "^3.3.7",
+    "screenshot-desktop": "^1.15.3",
+    "vue": "^3.4.21",
+    "vue-router": "^4.2.5"
   },
   "devDependencies": {
-    "@vue/cli-plugin-babel": "^4.3.1",
-    "@vue/cli-plugin-eslint": "^4.3.1",
-    "@vue/cli-service": "^4.3.1",
-    "babel-eslint": "^10.1.0",
-    "babel-plugin-component": "^1.1.1",
-    "electron": "^8.2.4",
-    "electron-builder": "^22.5.1",
-    "eslint": "^5.16.0",
-    "eslint-plugin-vue": "^5.0.0",
-    "vue-template-compiler": "^2.6.11"
+    "@vitejs/plugin-vue": "^5.0.2",
+    "autoprefixer": "^10.4.23",
+    "electron": "39.2.7",
+    "electron-builder": "^24.1.1",
+    "electron-vite": "^5.0.0",
+    "eslint": "^8.56.0",
+    "eslint-plugin-vue": "^10.3.0",
+    "postcss": "^8.5.6"
   },
   "eslintConfig": {
     "root": true,
@@ -54,14 +61,26 @@
       "node": true
     },
     "extends": [
-      "plugin:vue/essential",
+      "plugin:vue/vue3-essential",
       "eslint:recommended"
     ],
     "rules": {
       "no-console": "off"
     },
     "parserOptions": {
-      "parser": "babel-eslint"
+      "parser": "@babel/eslint-parser",
+      "requireConfigFile": false,
+      "babelOptions": {
+        "plugins": [
+          [
+            "component",
+            {
+              "libraryName": "element-plus",
+              "styleLibraryName": "theme-chalk"
+            }
+          ]
+        ]
+      }
     }
   },
   "postcss": {

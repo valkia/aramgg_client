@@ -1,7 +1,7 @@
 /* eslint react-hooks/exhaustive-deps: 0 */
 import s from './style.module.scss';
 
-import _noop from 'lodash/noop';
+import _noop from 'lodash-es/noop';
 
 import React, { useCallback, useContext, useEffect, useState, useRef, useMemo } from 'react';
 import { useHistory } from 'react-router-dom';

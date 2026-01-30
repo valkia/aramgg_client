@@ -1,26 +1,26 @@
-import Vue from 'vue/dist/vue.js'
+import { createApp } from 'vue'
 import App from './App.vue'
-import api from './request/api/api' // 导入api接口
-//import ElementUI from 'element-ui';
-import 'element-ui/lib/theme-chalk/index.css';
-import { Button,Row,Col,Form,FormItem,Input} from 'element-ui';
-import router from './router/index.js'
+import api from './request/api/api'
+import 'element-plus/dist/index.css'
+import { createRouter, createWebHashHistory } from 'vue-router'
 
- 
-Vue.prototype.$api = api; // 将api挂载到vue的原型上
+import Display from './components/Display.vue'
+import ShowDetail from './components/ShowDetail.vue'
+import ChampionStats from './components/ChampionStats.vue'
 
-Vue.config.productionTip = false
-//Vue.use(ElementUI);
+const router = createRouter({
+  history: createWebHashHistory(),
+  routes: [
+    { path: '/', name: 'Display', component: Display },
+    { path: '/display', name: 'Display', component: Display },
+    { path: '/showDetail', name: 'ShowDetail', component: ShowDetail },
+    { path: '/champion-stats/:id', name: 'ChampionStats', component: ChampionStats },
+  ],
+})
 
-Vue.use(Button)
-Vue.use(Row)
-Vue.use(Col)
-Vue.use(Form)
-Vue.use(FormItem)
-Vue.use(Input)
-Vue.use(router)
+const app = createApp(App)
 
-new Vue({
-  router,
-  render: h => h(App),
-}).$mount('#app')
+app.config.globalProperties.$api = api
+
+app.use(router)
+app.mount('#app')

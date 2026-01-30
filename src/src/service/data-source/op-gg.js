@@ -1,5 +1,5 @@
 import {nanoid as uuid} from 'nanoid';
-import _noop from 'lodash/noop';
+import _noop from 'lodash-es/noop';
 
 import {requestHtml} from '../utils';
 
@@ -7,7 +7,7 @@ import {addFetched, addFetching, fetchSourceDone} from '../../share/actions';
 import {saveToFile} from '../../share/file';
 import Sources from '../../share/constants/sources';
 import SourceProto from './source-proto';
-import _find from 'lodash/find';
+import _find from 'lodash-es/find';
 
 
 const OpggUrl = 'https://www.op.gg';

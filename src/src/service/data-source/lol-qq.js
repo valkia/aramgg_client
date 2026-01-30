@@ -1,8 +1,8 @@
 import { nanoid as uuid } from 'nanoid';
-import _get from 'lodash/get';
-import _find from 'lodash/find';
-import _orderBy from 'lodash/orderBy';
-import _noop from 'lodash/noop';
+import _get from 'lodash-es/get';
+import _find from 'lodash-es/find';
+import _orderBy from 'lodash-es/orderBy';
+import _noop from 'lodash-es/noop';
 import { CancelToken } from 'axios';
 
 import http from '../http';

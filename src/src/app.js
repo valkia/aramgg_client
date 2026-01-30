@@ -1,6 +1,6 @@
 const ipcRenderer = window.electron.ipcRenderer;
 const shell = window.electron.shell;
-import _find from 'lodash/find';
+import _find from 'lodash-es/find';
 
 import React, { useReducer, useMemo, useRef, useEffect } from 'react';
 import { HashRouter as Router, Switch, Route } from 'react-router-dom';
