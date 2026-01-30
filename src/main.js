@@ -1,7 +1,7 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import api from './request/api/api'
-import 'element-plus/dist/index.css'
+import './styles/index.css'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
 import Display from './components/Display.vue'

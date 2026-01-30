@@ -1,36 +1,50 @@
 <template>
-  <div class="champion-stats">
+  <div class="max-w-7xl mx-auto p-lg md:p-xl">
     <!-- Loading State -->
-    <el-skeleton v-if="loading" :rows="10" animated />
+    <div v-if="loading" class="space-y-md">
+      <Skeleton class="h-32 w-full" />
+      <Skeleton class="h-8 w-3/4" />
+      <Skeleton class="h-8 w-1/2" />
+      <Skeleton class="h-64 w-full" />
+    </div>
 
     <!-- Error State -->
-    <el-alert v-if="error" type="error" :title="error" show-icon />
+    <Alert v-if="error" variant="destructive" class="mb-lg">
+      <AlertTitle>错误</AlertTitle>
+      <AlertDescription>{{ error }}</AlertDescription>
+    </Alert>
 
     <!-- Main Content -->
-    <template v-if="championData">
+    <template v-if="championData && !loading">
       <!-- Champion Header -->
       <ChampionStatsHeader
         :champion-id="championId"
         :stats="championData"
+        class="mb-xl"
       />
 
       <!-- Tabs for different data sections -->
-      <el-tabs v-model="activeTab" class="stats-tabs">
-        <el-tab-pane label="海克斯增益" name="augments">
+      <Tabs v-model="activeTab" class="w-full">
+        <TabsList class="grid w-full grid-cols-2">
+          <TabsTrigger value="augments">海克斯增益</TabsTrigger>
+          <TabsTrigger value="builds">装备Build</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="augments" class="mt-lg">
           <AugmentsList
             :augments="augmentBase"
             :stats="augmentStats"
             :items="itemsData"
           />
-        </el-tab-pane>
+        </TabsContent>
 
-        <el-tab-pane label="装备Build" name="builds">
+        <TabsContent value="builds" class="mt-lg">
           <BuildCard
             :build-data="buildData"
             :items="itemsData"
           />
-        </el-tab-pane>
-      </el-tabs>
+        </TabsContent>
+      </Tabs>
     </template>
   </div>
 </template>
@@ -38,14 +52,9 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElSkeleton, ElAlert, ElTabs, ElTabPane } from 'element-plus'
-import {
-  loadChampionStats,
-  loadAugmentBase,
-  loadChampionAugments,
-  loadChampionBuild,
-  loadItems
-} from '../src/service/champion-stats'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ChampionStatsHeader from './ChampionStatsHeader.vue'
 import AugmentsList from './AugmentsList.vue'
 import BuildCard from './BuildCard.vue'
@@ -63,27 +72,27 @@ const itemsData = ref({})
 const activeTab = ref('augments')
 
 /**
- * Load all champion data
+ * Load all champion data via IPC
  */
 const loadData = async () => {
   loading.value = true
   error.value = null
 
   try {
-    // Load all data in parallel
-    const [stats, augments, augmentStatsData, build, items] = await Promise.all([
-      Promise.resolve(loadChampionStats(championId.value)),
-      Promise.resolve(loadAugmentBase()),
-      Promise.resolve(loadChampionAugments(championId.value)),
-      Promise.resolve(loadChampionBuild(championId.value)),
-      Promise.resolve(loadItems())
-    ])
+    // Call IPC to load data in main process
+    const result = await window.ipcRenderer.invoke('load-champion-data', championId.value)
 
-    championData.value = stats
-    augmentBase.value = augments
-    augmentStats.value = augmentStatsData
-    buildData.value = build
-    itemsData.value = items
+    if (result.success) {
+      const { stats, augments, augmentStats: augmentStatsData, build, items } = result.data
+      championData.value = stats
+      augmentBase.value = augments
+      augmentStats.value = augmentStatsData
+      buildData.value = build
+      itemsData.value = items
+    } else {
+      error.value = `数据加载失败: ${result.error}`
+      console.error('Failed to load champion data:', result.error)
+    }
   } catch (err) {
     error.value = `数据加载失败: ${err.message}`
     console.error('Failed to load champion data:', err)
@@ -106,20 +115,10 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.champion-stats {
-  padding: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.stats-tabs {
-  margin-top: 20px;
-}
-
 /* Responsive design */
 @media (max-width: 768px) {
-  .champion-stats {
-    padding: 10px;
+  .max-w-7xl {
+    @apply p-md;
   }
 }
 </style>

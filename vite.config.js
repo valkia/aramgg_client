@@ -1,5 +1,6 @@
 import { defineConfig } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
+import tailwindcss from '@tailwindcss/vite'
 
 import path from 'path'
 
@@ -12,6 +13,9 @@ export default defineConfig({
         formats: ['cjs']
       },
       outDir: 'dist-electron'
+    },
+    rollupOptions: {
+      external: ['electron']
     }
   },
   preload: {
@@ -40,6 +44,6 @@ export default defineConfig({
     optimizeDeps: {
       exclude: ['cheerio']
     },
-    plugins: [vue()]
+    plugins: [tailwindcss(), vue()]
   }
 })

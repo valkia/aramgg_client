@@ -1,5 +1,5 @@
 <template>
-  <div id="app">
+  <div id="app" class="h-full w-full">
     <router-view></router-view>
   </div>
 </template>
@@ -33,45 +33,22 @@ onMounted(() => {
 
 <style>
 #app {
-  font-family: "Avenir", Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-  height: 100%;
+  @apply font-sans antialiased h-full w-full;
 }
 
 html {
-  height: 100%;
-  background: #ededed;
+  @apply h-full bg-neutral-100;
 }
 
 body {
-  margin: 0px;
-  height: 100%;
+  @apply m-0 h-full;
 }
 
 .return-btn {
-  left: 0px;
-  position: absolute;
-  border: unset !important;
-}
-
-.return-btn:hover {
-  color: #606266 !important;
+  @apply absolute left-0 text-white hover:text-neutral-400 border-none;
 }
 
 .nav {
-  padding: 5px;
-  line-height: 40px;
-  text-align: center;
-  background: #2472b2;
-  color: #fff;
-}
-
-.nav > .el-button {
-  background: #2472b2;
-  color: #fff;
-  padding-left: 10px;
+  @apply py-xs px-sm h-10 text-center bg-secondary-500 text-white;
 }
 </style>

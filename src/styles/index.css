@@ -1,0 +1,187 @@
+@import "tailwindcss";
+
+@layer base {
+  html {
+    @apply h-full bg-neutral-100;
+  }
+
+  body {
+    @apply h-full m-0 p-0;
+  }
+
+  #app {
+    @apply h-full;
+  }
+
+  button {
+    @apply transition-all;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply transition-colors;
+  }
+}
+
+@layer components {
+  /* 按钮变体 */
+  .btn-primary {
+    @apply bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 disabled:bg-neutral-300 disabled:text-neutral-500 transition-all;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary-500 text-white hover:bg-secondary-600 active:bg-secondary-700 disabled:bg-neutral-300 disabled:text-neutral-500 transition-all;
+  }
+
+  .btn-ghost {
+    @apply text-neutral-700 hover:bg-neutral-200 active:bg-neutral-300 disabled:text-neutral-300 transition-all;
+  }
+
+  .btn-outline {
+    @apply border border-neutral-300 text-neutral-700 hover:bg-neutral-50 active:bg-neutral-100 disabled:border-neutral-300 disabled:text-neutral-300 transition-all;
+  }
+
+  /* 卡片 */
+  .card {
+    @apply bg-white rounded-md border border-neutral-200 shadow-sm p-lg;
+  }
+
+  .card-hover {
+    @apply card hover:shadow-md transition-shadow;
+  }
+
+  /* 输入框 */
+  .input-base {
+    @apply w-full px-md py-sm border border-neutral-300 rounded-sm bg-white text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-neutral-100 disabled:text-neutral-400 disabled:cursor-not-allowed transition-all;
+  }
+
+  /* 标签 */
+  .tag {
+    @apply inline-flex items-center gap-xs px-sm py-xs rounded-sm text-xs font-medium;
+  }
+
+  .tag-primary {
+    @apply tag bg-primary-100 text-primary-700;
+  }
+
+  .tag-secondary {
+    @apply tag bg-secondary-100 text-secondary-700;
+  }
+
+  .tag-success {
+    @apply tag bg-success-100 text-success-700;
+  }
+
+  .tag-warning {
+    @apply tag bg-warning-100 text-warning-700;
+  }
+
+  .tag-error {
+    @apply tag bg-error-100 text-error-700;
+  }
+
+  /* 文本 */
+  .text-muted {
+    @apply text-neutral-500;
+  }
+
+  .text-subtle {
+    @apply text-neutral-400;
+  }
+}
+
+@layer utilities {
+  /* Flexbox 工具 */
+  .flex-center {
+    @apply flex items-center justify-center;
+  }
+
+  .flex-between {
+    @apply flex items-center justify-between;
+  }
+
+  .flex-col-center {
+    @apply flex flex-col items-center justify-center;
+  }
+
+  /* 网格 */
+  .grid-auto {
+    @apply grid auto-cols-fr;
+  }
+
+  /* 文本省略 */
+  .truncate-1 {
+    @apply truncate;
+  }
+
+  .truncate-2 {
+    @apply line-clamp-2;
+  }
+
+  .truncate-3 {
+    @apply line-clamp-3;
+  }
+
+  /* 高度全屏 */
+  .h-screen-minus {
+    @apply h-screen-[calc(100vh-60px)];
+  }
+}
+
+/* 动画 */
+@keyframes slideInDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.animate-slideInDown {
+  animation: slideInDown 0.3s ease-out;
+}
+
+.animate-slideInUp {
+  animation: slideInUp 0.3s ease-out;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-fadeOut {
+  animation: fadeOut 0.3s ease-out;
+}

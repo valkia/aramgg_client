@@ -211,6 +211,35 @@ function registerMainListeners() {
         return result
     })
 
+    // 数据加载 IPC 处理程序
+    ipcMain.handle('load-champion-data', async (event, championId) => {
+        const { loadChampionStats, loadAugmentBase, loadChampionAugments, loadChampionBuild, loadItems } = await import('./data-loader.js')
+        try {
+            const [stats, augments, augmentStats, build, items] = await Promise.all([
+                Promise.resolve(loadChampionStats(championId)),
+                Promise.resolve(loadAugmentBase()),
+                Promise.resolve(loadChampionAugments(championId)),
+                Promise.resolve(loadChampionBuild(championId)),
+                Promise.resolve(loadItems())
+            ])
+            return {
+                success: true,
+                data: {
+                    stats,
+                    augments,
+                    augmentStats,
+                    build,
+                    items
+                }
+            }
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            }
+        }
+    })
+
     // 定时截图服务 IPC 处理程序
     ipcMain.handle('auto-screenshot-start', async (event, config = {}) => {
         const interval = config.interval || 5000

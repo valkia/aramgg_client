@@ -1,8 +1,12 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Cache for loaded data
-const cache = new Map();
+const cache = new Map()
 
 /**
  * Get the data directory path
@@ -11,16 +15,15 @@ const cache = new Map();
 function getDataPath(filename) {
   // In Electron main/preload context
   if (typeof process !== 'undefined' && process.resourcesPath) {
-    const resourcePath = path.join(process.resourcesPath, 'data', filename);
-    // 检查该路径是否存在
+    const resourcePath = path.join(process.resourcesPath, 'data', filename)
+    // Check if path exists
     if (fs.existsSync(resourcePath)) {
-      return resourcePath;
+      return resourcePath
     }
   }
 
-  // Development: use relative path from src/src/service to electron/data
-  // src/src/service/champion-stats.js -> electron/data
-  return path.resolve(__dirname, '../../..', 'electron', 'data', filename);
+  // Development: use relative path from electron/ to electron/data
+  return path.resolve(__dirname, 'data', filename)
 }
 
 /**
@@ -28,20 +31,20 @@ function getDataPath(filename) {
  */
 function loadJsonFile(filename) {
   if (cache.has(filename)) {
-    return cache.get(filename);
+    return cache.get(filename)
   }
 
-  const filePath = getDataPath(filename);
+  const filePath = getDataPath(filename)
 
   if (!fs.existsSync(filePath)) {
-    throw new Error(`Data file not found: ${filePath}`);
+    throw new Error(`Data file not found: ${filePath}`)
   }
 
-  const content = fs.readFileSync(filePath, 'utf-8');
-  const data = JSON.parse(content);
+  const content = fs.readFileSync(filePath, 'utf-8')
+  const data = JSON.parse(content)
 
-  cache.set(filename, data);
-  return data;
+  cache.set(filename, data)
+  return data
 }
 
 /**
@@ -50,14 +53,14 @@ function loadJsonFile(filename) {
  * @returns {Object} Champion stats object
  */
 export function loadChampionStats(championId) {
-  const allStats = loadJsonFile('champions-stats.json');
-  const stat = allStats.find(s => s.championId === String(championId));
+  const allStats = loadJsonFile('champions-stats.json')
+  const stat = allStats.find(s => s.championId === String(championId))
 
   if (!stat) {
-    throw new Error(`Champion stats not found for ID: ${championId}`);
+    throw new Error(`Champion stats not found for ID: ${championId}`)
   }
 
-  return stat;
+  return stat
 }
 
 /**
@@ -65,7 +68,7 @@ export function loadChampionStats(championId) {
  * @returns {Array} Array of augment objects
  */
 export function loadAugmentBase() {
-  return loadJsonFile('augments-base.json');
+  return loadJsonFile('augments-base.json')
 }
 
 /**
@@ -73,7 +76,7 @@ export function loadAugmentBase() {
  * @returns {Object} Augment details object keyed by augment ID
  */
 export function loadAugmentDetail() {
-  return loadJsonFile('augment-detail.json');
+  return loadJsonFile('augment-detail.json')
 }
 
 /**
@@ -82,26 +85,26 @@ export function loadAugmentDetail() {
  * @returns {Object} Augment stats for the champion
  */
 export function loadChampionAugments(championId) {
-  const championIdStr = String(championId);
-  const filename = `champion-augments/${championIdStr}.json`;
+  const championIdStr = String(championId)
+  const filename = `champion-augments/${championIdStr}.json`
 
   try {
-    const allData = loadJsonFile(filename);
+    const allData = loadJsonFile(filename)
 
     // Parse the data structure [[championId, JSON string]]
     if (Array.isArray(allData) && allData.length > 0) {
-      const firstElement = allData[0];
+      const firstElement = allData[0]
       if (Array.isArray(firstElement) && firstElement.length >= 2) {
-        const augmentDataStr = firstElement[1];
-        const augmentData = JSON.parse(augmentDataStr);
-        return augmentData.augments || {};
+        const augmentDataStr = firstElement[1]
+        const augmentData = JSON.parse(augmentDataStr)
+        return augmentData.augments || {}
       }
     }
 
-    return {};
+    return {}
   } catch (error) {
-    console.warn(`Failed to load augments for champion ${championId}:`, error.message);
-    return {};
+    console.warn(`Failed to load augments for champion ${championId}:`, error.message)
+    return {}
   }
 }
 
@@ -111,18 +114,18 @@ export function loadChampionAugments(championId) {
  * @returns {Object} Build data for the champion
  */
 export function loadChampionBuild(championId) {
-  const championIdStr = String(championId);
-  const filename = `builds_aram/${championIdStr}.json`;
+  const championIdStr = String(championId)
+  const filename = `builds_aram/${championIdStr}.json`
 
   try {
-    const buildData = loadJsonFile(filename);
+    const buildData = loadJsonFile(filename)
 
     // Extract the core build data from the result
     if (buildData.data && buildData.data.result && buildData.data.result.dataArray) {
-      const rows = buildData.data.result.dataArray;
+      const rows = buildData.data.result.dataArray
       if (rows.length > 0) {
         // Parse the build row data
-        const row = rows[0];
+        const row = rows[0]
         const builds = {
           patch: row[0],
           championId: row[1],
@@ -133,16 +136,16 @@ export function loadChampionBuild(championId) {
           tags: row[7] ? JSON.parse(row[7]) : {},
           recommended: row[8] ? JSON.parse(row[8]) : [],
           itemSequences: row[9] ? JSON.parse(row[9]) : {}
-        };
+        }
 
-        return builds;
+        return builds
       }
     }
 
-    return null;
+    return null
   } catch (error) {
-    console.warn(`Failed to load build for champion ${championId}:`, error.message);
-    return null;
+    console.warn(`Failed to load build for champion ${championId}:`, error.message)
+    return null
   }
 }
 
@@ -151,7 +154,7 @@ export function loadChampionBuild(championId) {
  * @returns {Object} Items data keyed by item ID
  */
 export function loadItems() {
-  return loadJsonFile('items-i18n.json');
+  return loadJsonFile('items-i18n.json')
 }
 
 /**
@@ -167,12 +170,12 @@ export function getChampionDetailData(championId) {
     augments: loadChampionAugments(championId),
     build: loadChampionBuild(championId),
     items: loadItems()
-  };
+  }
 }
 
 /**
  * Clear cache (useful for memory management in long-running apps)
  */
 export function clearCache() {
-  cache.clear();
+  cache.clear()
 }

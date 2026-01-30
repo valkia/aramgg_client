@@ -11,7 +11,14 @@
       "Bash(then echo \"electron directory exists\")",
       "Bash(else echo \"electron directory does not exist\")",
       "Bash(fi)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git -C \"E:/ideaProject/lol_tips_client\" commit -m \"fix: 修复数据加载问题\")",
+      "Bash(wc:*)",
+      "Bash(npx shadcn-vue@latest init)",
+      "Bash(npx shadcn-vue@latest add:*)",
+      "Bash(npx shadcn-vue@latest init:*)"
     ]
   }
 }
