@@ -2,13 +2,17 @@
   "name": "client",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "main": "electron/main.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "pack": "electron-vite build && electron-builder",
     "start": "electron .",
-    "lint": "eslint src --ext .js,.vue"
+    "lint": "eslint src --ext .js,.vue",
+    "type-check": "tsc --noEmit",
+    "type-check:watch": "tsc --noEmit --watch",
+    "test:screenshots": "node electron/test-screenshot-analysis.js"
   },
   "build": {
     "productName": "client",
@@ -46,12 +50,15 @@
     "nanoid": "^3.3.7",
     "reka-ui": "^2.8.0",
     "screenshot-desktop": "^1.15.3",
+    "sharp": "^0.34.5",
+    "tesseract.js": "^7.0.0",
     "vue": "^3.4.21",
     "vue-router": "^4.2.5"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
     "@vitejs/plugin-vue": "^5.0.2",
+    "@vue/tsconfig": "^0.5.1",
     "autoprefixer": "^10.4.23",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -65,7 +72,9 @@
     "radix-vue": "^1.9.17",
     "shadcn-vue": "^2.4.3",
     "tailwind-merge": "^3.4.0",
-    "tailwindcss": "^4.1.18"
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.4.5",
+    "vue-tsc": "^1.8.27"
   },
   "eslintConfig": {
     "root": true,
