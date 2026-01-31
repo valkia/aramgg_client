@@ -112,7 +112,9 @@ class MainProcessLCU {
  * 初始化应用
  */
 export async function init() {
-    console.log(`ChampR starting...`)
+    console.log(`\n${'='.repeat(50)}`)
+    console.log(`ChampR 应用启动中...`)
+    console.log(`${'='.repeat(50)}\n`)
 
     // 设置应用菜单为空
     const { Menu } = await import('electron')
@@ -129,13 +131,14 @@ export async function init() {
 
     const mainWindow = await createMainWindow(isDev, devServerUrl)
     const popupWindow = await createPopupWindow(isDev, devServerUrl)
-    console.log('Windows created:', {
+    console.log('✅ 窗口已创建:', {
         main: !!mainWindow,
         popup: !!popupWindow
     })
 
     // 初始化游戏流程监控
-    initGameFlowMonitor()
+    console.log('\n⏳ 正在初始化游戏流程监控...')
+    await initGameFlowMonitor()
 
     // 注册 F1 全局快捷键
     registerF1Shortcut(isDev)

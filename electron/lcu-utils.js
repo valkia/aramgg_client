@@ -19,7 +19,11 @@ export async function getLcuToken(dirPath) {
             return [null, null, null]
         }
 
-        const dir = path.join(dirPath, 'LeagueClient')
+        // 规范化路径（处理混合的正斜杠和反斜杠）
+        const normalizedPath = dirPath.replace(/\//g, '\\')
+        console.log('[getLcuToken] 规范化后的路径:', normalizedPath)
+
+        const dir = path.join(normalizedPath, 'LeagueClient')
 
         // 检查目录是否存在
         if (!fs.existsSync(dir)) {
