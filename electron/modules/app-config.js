@@ -156,17 +156,31 @@ async function initGameFlowMonitor() {
         const store = new Store()
         const lolPath = store.get('lolPath')
 
+        console.log('\n============ 初始化游戏流程监控 ============')
+        console.log('📁 读取配置的游戏目录:', lolPath)
+
         if (!lolPath) {
             console.warn('⚠️ 未设置游戏目录，游戏流程监控不可用')
+            console.log('💡 请在应用设置中配置游戏目录')
             return
         }
 
         // 初始化 LCU 服务（主进程版本）
+        console.log('\n🔧 初始化 LCU 服务...')
         const lcuService = new MainProcessLCU(lolPath)
-        await lcuService.getAuthToken()
+        console.log('⏳ 获取 LCU Token...')
+        const authResult = await lcuService.getAuthToken()
 
         if (!lcuService.active) {
-            console.warn('⚠️ LCU 连接失败，游戏客户端可能未运行')
+            console.error('\n❌ LCU 连接失败！')
+            console.warn('⚠️ 可能的原因:')
+            console.warn('   1. 游戏客户端未运行 - 请启动 League of Legends 客户端')
+            console.warn('   2. LeagueClientUx.log 文件不存在 - 请重启游戏客户端')
+            console.warn('   3. 游戏目录配置错误 - 请在应用设置中检查')
+            console.warn('\n💡 调试步骤:')
+            console.warn('   1. 运行: node electron/lcu-debug.js "你的游戏目录"')
+            console.warn('   2. 检查输出中是否找到了 LeagueClientUx.log')
+            console.warn('   3. 检查日志中是否包含 LCU URL')
             return
         }
 
