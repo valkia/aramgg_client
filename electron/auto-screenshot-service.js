@@ -1,9 +1,11 @@
 /**
  * 定时截图服务
- * 功能：定期自动截图，并支持在UI中配置
+ * 功能：定期自动截图、分析和识别海克斯卡片
  */
 
 import { captureScreenshot, cleanupOldScreenshots } from './screenshot.js'
+import { analyzeScreenshot } from './image-analyzer.js'
+import { BrowserWindow } from 'electron'
 
 class AutoScreenshotService {
     constructor() {
@@ -13,6 +15,9 @@ class AutoScreenshotService {
         this.maxScreenshots = 50 // 最多保留50张
         this.screenshotCount = 0
         this.lastScreenshotTime = null
+        this.enableAnalysis = true // 是否启用自动分析
+        this.analysisCount = 0 // 分析次数
+        this.detectionCount = 0 // 成功检测次数
         this.performanceMetrics = {
             captureTime: [], // 截图耗时数组
             memoryUsage: [],  // 内存使用量
@@ -82,14 +87,21 @@ class AutoScreenshotService {
                 // 记录性能数据
                 this._recordPerformance(captureTimeMs)
 
+                console.log(
+                    `[Auto Screenshot ${this.screenshotCount}] Captured in ${captureTimeMs.toFixed(2)}ms`
+                )
+
+                // 异步分析截图（不阻塞截图流程）
+                if (this.enableAnalysis) {
+                    setImmediate(async () => {
+                        await this._analyzeScreenshot(result.filepath)
+                    })
+                }
+
                 // 清理旧截图
                 if (this.screenshotCount % 5 === 0) {
                     await cleanupOldScreenshots(this.maxScreenshots)
                 }
-
-                console.log(
-                    `[Auto Screenshot ${this.screenshotCount}] Captured in ${captureTimeMs.toFixed(2)}ms`
-                )
 
                 return result
             } else {
@@ -102,6 +114,62 @@ class AutoScreenshotService {
                 success: false,
                 error: error.message,
             }
+        }
+    }
+
+    /**
+     * 内部方法：分析截图
+     * @private
+     */
+    async _analyzeScreenshot(imagePath) {
+        try {
+            this.analysisCount++
+            const analysisResult = await analyzeScreenshot(imagePath)
+
+            if (analysisResult.success && analysisResult.analysis.cardCount > 0) {
+                this.detectionCount++
+                console.log(`✨ [自动分析 ${this.analysisCount}] 检测到 ${analysisResult.analysis.cardCount} 个海克斯卡片，置信度: ${(analysisResult.analysis.confidence * 100).toFixed(1)}%`)
+
+                // 如果检测到有效的海克斯卡片，通知所有窗口
+                if (analysisResult.analysis.cardCount >= 3 && analysisResult.analysis.confidence > 0.7) {
+                    this._notifyAugmentDetected(analysisResult)
+                }
+            }
+        } catch (error) {
+            console.error('Auto screenshot analysis error:', error)
+        }
+    }
+
+    /**
+     * 通知所有窗口有新的海克斯检测
+     * @private
+     */
+    _notifyAugmentDetected(analysisResult) {
+        try {
+            const windows = BrowserWindow.getAllWindows()
+            const winrateData = {
+                success: true,
+                gamePhase: 'augment-select',
+                augments: analysisResult.analysis.augments.slice(0, 3).map(aug => ({
+                    id: aug.id,
+                    name: aug.name,
+                    rarity: aug.rarity,
+                    confidence: aug.confidence,
+                })),
+                analysisConfidence: analysisResult.analysis.confidence,
+                timestamp: analysisResult.timestamp,
+                dataSource: 'auto-analysis',
+            }
+
+            windows.forEach(window => {
+                if (!window.isDestroyed()) {
+                    window.webContents.send('augment-detected', winrateData)
+                }
+            })
+
+            console.log('📢 已通知UI窗口有新的海克斯检测')
+        } catch (error) {
+            console.error('Failed to notify windows:', error)
         }
     }
 
@@ -140,6 +208,8 @@ class AutoScreenshotService {
             return {
                 isRunning: this.isRunning,
                 screenshotCount: this.screenshotCount,
+                analysisCount: this.analysisCount,
+                detectionCount: this.detectionCount,
                 averageCaptureTime: 0,
                 maxCaptureTime: 0,
                 minCaptureTime: 0,
@@ -162,6 +232,9 @@ class AutoScreenshotService {
         return {
             isRunning: this.isRunning,
             screenshotCount: this.screenshotCount,
+            analysisCount: this.analysisCount,
+            detectionCount: this.detectionCount,
+            detectionRate: this.analysisCount > 0 ? (this.detectionCount / this.analysisCount * 100).toFixed(1) : 0,
             interval: this.interval,
             lastScreenshotTime: this.lastScreenshotTime,
             averageCaptureTime: parseFloat(avgCapture.toFixed(2)),
@@ -226,6 +299,9 @@ class AutoScreenshotService {
         if (config.maxScreenshots !== undefined && config.maxScreenshots > 0) {
             this.maxScreenshots = config.maxScreenshots
         }
+        if (config.enableAnalysis !== undefined) {
+            this.enableAnalysis = config.enableAnalysis
+        }
     }
 
     /**
@@ -236,7 +312,10 @@ class AutoScreenshotService {
             isRunning: this.isRunning,
             interval: this.interval,
             maxScreenshots: this.maxScreenshots,
+            enableAnalysis: this.enableAnalysis,
             screenshotCount: this.screenshotCount,
+            analysisCount: this.analysisCount,
+            detectionCount: this.detectionCount,
         }
     }
 
@@ -246,6 +325,8 @@ class AutoScreenshotService {
     reset() {
         this.stop()
         this.screenshotCount = 0
+        this.analysisCount = 0
+        this.detectionCount = 0
         this.lastScreenshotTime = null
         this.performanceMetrics = {
             captureTime: [],

@@ -11,35 +11,67 @@ const getScreenshotDir = () => {
     return tempDir
 }
 
-// 获取LOL客户端窗口信息
-const getLolClientWindow = () => {
-    const allWindows = BrowserWindow.getAllWindows()
-    // 过滤掉我们自己的应用窗口，找外部的LOL客户端
-    // 这里暂时返回所有窗口，实际可以通过窗口标题识别
-    return allWindows
+// 尝试通过窗口标题识别 LoL 游戏窗口
+const getLolGameWindowId = () => {
+    try {
+        // LoL 游戏窗口通常包含 "League of Legends" 或游戏进程名称
+        if (process.platform === 'win32') {
+            const { execSync } = require('child_process')
+
+            try {
+                // 方法1: 查找游戏进程
+                const tasklist = execSync('tasklist /v', { encoding: 'utf8' })
+
+                // 查找包含游戏相关进程的窗口
+                const gameProcesses = [
+                    'League of Legends.exe',
+                    'LeagueClient.exe',
+                    'RiotClientServices.exe',
+                ]
+
+                for (const process of gameProcesses) {
+                    if (tasklist.includes(process)) {
+                        return true
+                    }
+                }
+            } catch (e) {
+                // tasklist 命令失败时，尝试其他方法
+            }
+        }
+
+        return false
+    } catch (error) {
+        return false
+    }
 }
 
-// 截图当前屏幕
-export const captureScreenshot = async () => {
+// 截图当前屏幕（支持自动检测游戏窗口）
+export const captureScreenshot = async (options = {}) => {
     try {
         const screenshotDir = getScreenshotDir()
         const timestamp = Date.now()
         const filename = `screenshot-${timestamp}.png`
         const filepath = path.join(screenshotDir, filename)
 
+        // 检查是否有 LoL 游戏窗口
+        const hasLolWindow = getLolGameWindowId()
+        console.log(`🎮 LoL 游戏窗口检测: ${hasLolWindow ? '已检测到' : '未检测到'}`)
+
         // 使用 screenshot-desktop 截图
+        // 注：screenshot-desktop 会自动截取所有显示器或主显示器
         const img = await screenshot()
         await fs.writeFile(filepath, img)
 
-        console.log(`Screenshot saved: ${filepath}`)
+        console.log(`📸 Screenshot saved: ${filepath}`)
         return {
             success: true,
             filepath,
             filename,
             timestamp,
+            hasLolWindow,
         }
     } catch (error) {
-        console.error('Screenshot capture failed:', error)
+        console.error('❌ Screenshot capture failed:', error)
         return {
             success: false,
             error: error.message,
