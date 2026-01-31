@@ -173,7 +173,7 @@ const getChampionId = async (currentLolPath) => {
         }
 
         // 如果没有从 myTeam 找到，尝试从 actions 中查找
-        if (data.actions && data.actions.length > 0) {
+        if (data.actions && Array.isArray(data.actions) && data.actions.length > 0) {
             for (const actionGroup of data.actions) {
                 if (Array.isArray(actionGroup)) {
                     for (const action of actionGroup) {
