@@ -1,11 +1,75 @@
 import { ipcMain } from 'electron'
 import Store from 'electron-store'
+import https from 'https'
+import axios from 'axios'
 import { captureScreenshot, cleanupOldScreenshots } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
 import autoScreenshotService from '../auto-screenshot-service.js'
+import { getLcuToken } from '../lcu-utils.js'
 import { getMainWindow, getPopupWindow } from './window-manager.js'
 
 const store = new Store()
+
+/**
+ * 简化的 LCU 服务 - 用于主进程 IPC 处理
+ */
+class IpcLCUService {
+    constructor(lolPath) {
+        this.lolPath = lolPath
+        this.active = false
+        this.url = null
+        this.auth = null
+    }
+
+    async getAuthToken() {
+        try {
+            const [token, port, urlWithAuth] = await getLcuToken(this.lolPath)
+
+            if (!token || !port) {
+                console.warn('⚠️ 无法获取 LCU Token，游戏客户端可能未运行')
+                this.active = false
+                return null
+            }
+
+            this.url = `https://127.0.0.1:${port}`
+            this.auth = {
+                auth: {
+                    username: 'riot',
+                    password: token,
+                },
+            }
+            this.active = true
+            console.log('✅ LCU 连接成功 (IPC 处理器, 端口: ' + port + ')')
+            return { token, port, url: this.url }
+        } catch (error) {
+            console.error('❌ LCU 连接失败:', error.message)
+            this.active = false
+            return null
+        }
+    }
+
+    async getCurrentSession() {
+        if (!this.active || !this.url) {
+            return null
+        }
+
+        try {
+            const httpsAgent = new https.Agent({
+                rejectUnauthorized: false,
+            })
+
+            const res = await axios.get(`${this.url}/lol-champ-select/v1/session`, {
+                ...this.auth,
+                httpsAgent,
+                validateStatus: (status) => status < 500,
+            })
+            return res.data
+        } catch (error) {
+            console.warn('⚠️ 获取选人会话失败:', error.message)
+            return null
+        }
+    }
+}
 
 /**
  * 注册主进程 IPC 处理器
@@ -46,6 +110,9 @@ export function registerIpcHandlers(isDev) {
         newPopupWindow.webContents.send(`for-popup`, {
             championId: data.championId,
             position: data.position,
+            augments: data.augments,
+            dataSource: data.dataSource,
+            timestamp: data.timestamp,
         })
     })
 
@@ -220,6 +287,94 @@ export function registerIpcHandlers(isDev) {
                 success: false,
                 path: null,
                 error: error.message,
+            }
+        }
+    })
+
+    // 获取当前选择的英雄ID IPC 处理程序
+    ipcMain.handle('get-champion-id', async (event) => {
+        try {
+            // 从 store 中获取游戏路径
+            let lolPath = store.get('lolPath')
+
+            if (!lolPath) {
+                console.warn('⚠️ 未设置游戏路径')
+                return {
+                    success: false,
+                    championId: null,
+                    error: '游戏路径未配置'
+                }
+            }
+
+            // 创建 LCU 实例
+            const lcuService = new IpcLCUService(lolPath)
+
+            // 获取 LCU Token
+            const authResult = await lcuService.getAuthToken()
+            if (!lcuService.active) {
+                console.warn('⚠️ LCU 未激活')
+                return {
+                    success: false,
+                    championId: null,
+                    error: 'LCU 未激活'
+                }
+            }
+
+            // 获取当前选人会话
+            const sessionData = await lcuService.getCurrentSession()
+            if (!sessionData || sessionData.errorCode) {
+                console.log('ℹ️ 无有效的选人会话')
+                return {
+                    success: false,
+                    championId: null,
+                    error: '无有效的选人会话'
+                }
+            }
+
+            // 从 myTeam 中查找当前玩家选择的英雄
+            if (sessionData.myTeam && Array.isArray(sessionData.myTeam)) {
+                for (const member of sessionData.myTeam) {
+                    if (member.championId && member.championId !== 0) {
+                        console.log('✅ 从 myTeam 获得英雄ID:', member.championId)
+                        return {
+                            success: true,
+                            championId: member.championId
+                        }
+                    }
+                }
+            }
+
+            // 如果 myTeam 中没找到，尝试从 actions 中查找
+            if (sessionData.actions && Array.isArray(sessionData.actions) && sessionData.actions.length > 0) {
+                const localPlayerCellId = sessionData.localPlayerCellId
+                for (const actionGroup of sessionData.actions) {
+                    if (Array.isArray(actionGroup)) {
+                        for (const action of actionGroup) {
+                            if (action.actorCellId === localPlayerCellId &&
+                                action.championId && action.championId !== 0) {
+                                console.log('✅ 从 actions 获得英雄ID:', action.championId)
+                                return {
+                                    success: true,
+                                    championId: action.championId
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 没有找到任何英雄选择
+            return {
+                success: false,
+                championId: null,
+                error: '未检测到英雄选择'
+            }
+        } catch (error) {
+            console.error('获取英雄ID出错:', error.message)
+            return {
+                success: false,
+                championId: null,
+                error: error.message
             }
         }
     })

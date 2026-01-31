@@ -54,6 +54,11 @@ class MainProcessLCU {
     }
 
     async getGameflowPhase() {
+        // 如果连接不活跃，尝试重新连接
+        if (!this.active || !this.url) {
+            await this.getAuthToken()
+        }
+
         if (!this.active || !this.url) {
             return null
         }
@@ -68,10 +73,27 @@ class MainProcessLCU {
                 ...this.auth,
                 httpsAgent,
                 validateStatus: (status) => status < 500,
+                timeout: 5000,  // 添加超时
             })
+
+            if (res.status === 404 || res.status === 401) {
+                // 重新获取 token
+                console.log('⚠️ LCU 认证失效，尝试重新连接...')
+                this.active = false
+                await this.getAuthToken()
+                return null
+            }
+
             return res.data
         } catch (error) {
-            console.warn('⚠️ 获取游戏阶段失败:', error.message)
+            // 连接失败时尝试重新认证
+            if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+                console.log('⚠️ LCU 连接丢失，尝试重新连接...')
+                this.active = false
+                await this.getAuthToken()
+            } else {
+                console.warn('⚠️ 获取游戏阶段失败:', error.message)
+            }
             return null
         }
     }
@@ -200,9 +222,18 @@ async function initGameFlowMonitor() {
         // 启动游戏流程轮询
         console.log('\n🔄 启动游戏阶段轮询...')
         let lastPhase = null
+        let tokenRefreshCounter = 0
 
         lcuPollingTimer = setInterval(async () => {
             try {
+                // 每60次轮询（即60秒）刷新一次 LCU token（确保连接保持活跃）
+                tokenRefreshCounter++
+                if (tokenRefreshCounter >= 60) {
+                    console.log('🔄 定期刷新 LCU token...')
+                    await lcuService.getAuthToken()
+                    tokenRefreshCounter = 0
+                }
+
                 const phase = await lcuService.getGameflowPhase()
                 if (phase && phase !== lastPhase) {
                     lastPhase = phase
@@ -244,11 +275,11 @@ async function initGameFlowMonitor() {
                     }
                 }
             } catch (error) {
-                console.warn('⚠️ 获取游戏阶段失败:', error.message)
+                console.warn('⚠️ 游戏流程轮询出错:', error.message)
             }
         }, 1000)
 
-        console.log('✅ 游戏流程监控已启动 (每1秒检查一次)')
+        console.log('✅ 游戏流程监控已启动 (每1秒检查一次，每60秒刷新一次token)')
     } catch (error) {
         console.error('❌ 初始化游戏流程监控失败:', error)
     }
