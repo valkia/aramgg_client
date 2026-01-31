@@ -30,23 +30,25 @@ class MainProcessLCU {
 
     async getAuthToken() {
         try {
-            const result = await getLcuToken(this.lolPath)
-            if (!result) {
+            // getLcuToken 返回 [token, port, urlWithAuth] 或 [null, null, null]
+            const [token, port, urlWithAuth] = await getLcuToken(this.lolPath)
+
+            if (!token || !port) {
+                console.warn('⚠️ 无法获取 LCU Token，游戏客户端可能未运行')
                 this.active = false
                 return null
             }
 
-            const { port, password } = result
             this.url = `https://127.0.0.1:${port}`
             this.auth = {
                 auth: {
                     username: 'riot',
-                    password: password,
+                    password: token,
                 },
             }
             this.active = true
-            console.log('✅ LCU 连接成功')
-            return { token: password, port, url: this.url }
+            console.log('✅ LCU 连接成功 (端口: ' + port + ')')
+            return { token, port, url: this.url }
         } catch (error) {
             console.error('❌ LCU 连接失败:', error.message)
             this.active = false
