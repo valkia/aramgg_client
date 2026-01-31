@@ -1,18 +1,16 @@
 import { app, globalShortcut, BrowserWindow } from 'electron'
 import https from 'https'
-import { captureScreenshot, cleanupOldScreenshots } from '../screenshot.js'
+import { captureScreenshot } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
 import { registerIpcHandlers } from './ipc-handlers.js'
 import { createMainWindow, createPopupWindow, toggleMainWindow } from './window-manager.js'
 import autoScreenshotService from '../auto-screenshot-service.js'
-import GameFlowMonitor from '../../src/service/game-flow-monitor.js'
 import { getLcuToken } from '../lcu-utils.js'
 import axios from 'axios'
 
 const __dirname = import.meta.dirname
 
-// 全局游戏流程监控实例
-let gameFlowMonitor = null
+// 全局游戏流程轮询定时器
 let lcuPollingTimer = null
 
 /**
@@ -25,7 +23,6 @@ class MainProcessLCU {
         this.active = false
         this.url = null
         this.auth = null
-        this.pollingTimer = null
     }
 
     async getAuthToken() {
@@ -79,33 +76,6 @@ class MainProcessLCU {
         }
     }
 
-    async pollGameflowPhase(callback, interval = 1000) {
-        let lastPhase = null
-
-        this.pollingTimer = setInterval(async () => {
-            try {
-                const phase = await this.getGameflowPhase()
-                if (phase && phase !== lastPhase) {
-                    lastPhase = phase
-                    if (callback) {
-                        callback(phase)
-                    }
-                }
-            } catch (error) {
-                console.warn('⚠️ 轮询游戏阶段出错:', error.message)
-            }
-        }, interval)
-
-        return this.pollingTimer
-    }
-
-    stopPollGameflowPhase(timerId) {
-        if (timerId) {
-            clearInterval(timerId)
-            this.pollingTimer = null
-            console.log('⏹️ 停止游戏阶段轮询')
-        }
-    }
 }
 
 /**
@@ -150,7 +120,8 @@ export async function init() {
 }
 
 /**
- * 初始化游戏流程监控
+ * 简化的游戏流程监控 - 直接在主进程中实现
+ * 避免与其他服务的兼容性问题
  */
 async function initGameFlowMonitor() {
     try {
@@ -187,67 +158,60 @@ async function initGameFlowMonitor() {
             return
         }
 
-        // 初始化游戏流程监控
-        gameFlowMonitor = new GameFlowMonitor(lcuService, {
-            pollInterval: 1000, // 每1秒检查一次游戏阶段
-        })
+        console.log('✅ LCU Token 获取成功')
 
-        // 监听游戏阶段变化事件
-        gameFlowMonitor.on('phase-change', (phase, prevPhase) => {
-            console.log(`📍 游戏阶段变化: ${prevPhase} → ${phase}`)
-            notifyAllWindows('game-phase-changed', { phase, prevPhase })
-        })
+        // 启动游戏流程轮询
+        console.log('\n🔄 启动游戏阶段轮询...')
+        let lastPhase = null
 
-        // 监听游戏开始事件
-        gameFlowMonitor.on('game-started', () => {
-            console.log('🎮 游戏开始加载')
-            notifyAllWindows('game-started', {})
-        })
+        lcuPollingTimer = setInterval(async () => {
+            try {
+                const phase = await lcuService.getGameflowPhase()
+                if (phase && phase !== lastPhase) {
+                    lastPhase = phase
+                    console.log(`📍 游戏阶段变化: → ${phase}`)
+                    notifyAllWindows('game-phase-changed', { phase, prevPhase: null })
 
-        // 监听游戏进行中事件（海克斯选择可能即将开始）
-        gameFlowMonitor.on('game-in-progress', () => {
-            console.log('⚔️ 游戏进行中 - 启动自动截图来检测海克斯选择')
-            notifyAllWindows('game-in-progress', {})
-
-            // 启动高频率自动截图（每200ms一次，用于检测海克斯选择）
-            if (!autoScreenshotService.isRunning) {
-                autoScreenshotService.setConfig({
-                    interval: 200, // 200ms 截图一次
-                    maxScreenshots: 100, // 最多保留100张截图
-                })
-                autoScreenshotService.start(200).then(() => {
-                    console.log('📸 自动截图服务启动成功')
-                })
+                    // 特定阶段处理
+                    switch (phase) {
+                        case 'GameStart':
+                            console.log('🎮 游戏开始加载')
+                            notifyAllWindows('game-started', {})
+                            break
+                        case 'InProgress':
+                            console.log('⚔️ 游戏进行中 - 启动自动截图来检测海克斯选择')
+                            notifyAllWindows('game-in-progress', {})
+                            // 启动高频率自动截图
+                            if (!autoScreenshotService.isRunning) {
+                                autoScreenshotService.setConfig({
+                                    interval: 200,
+                                    maxScreenshots: 100,
+                                })
+                                autoScreenshotService.start(200).then(() => {
+                                    console.log('📸 自动截图服务启动成功')
+                                })
+                            }
+                            break
+                        case 'WaitingForStats':
+                            console.log('📊 游戏已结束')
+                            notifyAllWindows('game-ended', {})
+                            if (autoScreenshotService.isRunning) {
+                                autoScreenshotService.stop()
+                                console.log('📸 自动截图服务已停止')
+                            }
+                            break
+                        case 'EndOfGame':
+                            console.log('🏁 游戏完全结束')
+                            notifyAllWindows('end-of-game', {})
+                            break
+                    }
+                }
+            } catch (error) {
+                console.warn('⚠️ 获取游戏阶段失败:', error.message)
             }
-        })
+        }, 1000)
 
-        // 监听海克斯就绪事件
-        gameFlowMonitor.on('augment-ready', () => {
-            console.log('✨ 海克斯选择界面准备就绪，开始分析截图')
-            notifyAllWindows('augment-detection-started', {})
-        })
-
-        // 监听游戏结束事件
-        gameFlowMonitor.on('game-ended', () => {
-            console.log('📊 游戏已结束')
-            notifyAllWindows('game-ended', {})
-
-            // 停止自动截图
-            if (autoScreenshotService.isRunning) {
-                autoScreenshotService.stop()
-                console.log('📸 自动截图服务已停止')
-            }
-        })
-
-        // 监听游戏结束确认事件
-        gameFlowMonitor.on('end-of-game', () => {
-            console.log('🏁 游戏完全结束')
-            notifyAllWindows('end-of-game', {})
-        })
-
-        // 启动游戏流程监控
-        await gameFlowMonitor.start()
-        console.log('✅ 游戏流程监控已启动')
+        console.log('✅ 游戏流程监控已启动 (每1秒检查一次)')
     } catch (error) {
         console.error('❌ 初始化游戏流程监控失败:', error)
     }
@@ -346,10 +310,10 @@ function registerAppEvents() {
     app.on('will-quit', async (e) => {
         console.log('App will quit, cleaning up...')
 
-        // 停止游戏流程监控
-        if (gameFlowMonitor && gameFlowMonitor.isRunning) {
-            gameFlowMonitor.stop()
-            console.log('游戏流程监控已停止')
+        // 停止游戏流程轮询
+        if (lcuPollingTimer) {
+            clearInterval(lcuPollingTimer)
+            console.log('游戏流程轮询已停止')
         }
 
         // 停止自动截图
