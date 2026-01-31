@@ -52,7 +52,7 @@
 </template>
 
 <script setup>
-import { ref, onBeforeUnmount } from 'vue'
+import { ref, onBeforeUnmount, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
 import LCUService from '../service/lcu'
 import configCache from '../service/config-cache'
@@ -150,13 +150,14 @@ const getChampionId = async (currentLolPath) => {
 
         // 检查 LCU 是否激活
         if (!lcuIns.active) {
-            console.warn('LCU 未激活，游戏客户端可能未运行')
+            console.warn('⚠️ LCU 未激活，游戏客户端可能未运行')
             return null
         }
 
         // 获取当前选人会话
         const data = await lcuIns.getCurrentSession()
-        console.log('LCU Session Data:', data)
+        console.log('📋 LCU Session Data:', data)
+        console.log('📋 数据类型:', typeof data, '是否为对象:', data && typeof data === 'object')
 
         // 检查是否有有效数据
         if (!data || data.errorCode) {
@@ -164,21 +165,27 @@ const getChampionId = async (currentLolPath) => {
         }
 
         // 从 myTeam 中获取英雄 ID
+        console.log('👥 myTeam 数据:', data.myTeam)
         if (data.myTeam && data.myTeam.length > 0) {
             for (const member of data.myTeam) {
+                console.log('  成员:', member.championId)
                 if (member.championId && member.championId !== 0) {
+                    console.log('✅ 从 myTeam 找到英雄 ID:', member.championId)
                     return member.championId
                 }
             }
         }
 
         // 如果没有从 myTeam 找到，尝试从 actions 中查找
+        console.log('⚙️ actions 数据:', data.actions, '是数组:', Array.isArray(data.actions))
         if (data.actions && Array.isArray(data.actions) && data.actions.length > 0) {
+            console.log('📍 localPlayerCellId:', data.localPlayerCellId)
             for (const actionGroup of data.actions) {
                 if (Array.isArray(actionGroup)) {
                     for (const action of actionGroup) {
                         if (action.actorCellId === data.localPlayerCellId &&
                             action.championId && action.championId !== 0) {
+                            console.log('✅ 从 actions 找到英雄 ID:', action.championId)
                             return action.championId
                         }
                     }
@@ -226,6 +233,12 @@ const queryAugmentWinrates = async (championId) => {
         console.error('查询海克斯数据时出错:', error)
     }
 }
+
+// 组件挂载时自动启动英雄监控
+onMounted(() => {
+    console.log('🎯 ChampionMonitor 组件已挂载，自动启动英雄监控...')
+    startChampionMonitor()
+})
 
 // 组件卸载时清理定时器
 onBeforeUnmount(() => {
