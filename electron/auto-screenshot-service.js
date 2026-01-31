@@ -126,13 +126,29 @@ class AutoScreenshotService {
             this.analysisCount++
             const analysisResult = await analyzeScreenshot(imagePath)
 
-            if (analysisResult.success && analysisResult.analysis.cardCount > 0) {
-                this.detectionCount++
-                console.log(`✨ [自动分析 ${this.analysisCount}] 检测到 ${analysisResult.analysis.cardCount} 个海克斯卡片，置信度: ${(analysisResult.analysis.confidence * 100).toFixed(1)}%`)
+            if (!analysisResult.success) {
+                return  // 分析失败，不继续处理
+            }
 
-                // 如果检测到有效的海克斯卡片，通知所有窗口
-                if (analysisResult.analysis.cardCount >= 3 && analysisResult.analysis.confidence > 0.7) {
-                    this._notifyAugmentDetected(analysisResult)
+            const { cardCount, confidence, isAugmentPhase } = analysisResult.analysis
+
+            // ✅ 严格的通知条件：
+            // 1. 必须检测到 3 张卡片
+            // 2. 必须通过间距验证（isAugmentPhase = true）
+            // 3. 置信度必须 > 90%（更严格）
+            if (cardCount === 3 && isAugmentPhase && confidence > 0.9) {
+                this.detectionCount++
+                console.log(`✨ [自动分析 ${this.analysisCount}] ✅ 高置信度检测: ${cardCount} 个有效海克斯卡片，置信度 ${(confidence * 100).toFixed(1)}%`)
+                console.log(`   通知 UI 显示推荐`)
+                this._notifyAugmentDetected(analysisResult)
+            } else {
+                // 检测结果不满足通知条件
+                if (cardCount < 3) {
+                    console.log(`[自动分析 ${this.analysisCount}] ⚠️ 卡片数量不足: ${cardCount} < 3`)
+                } else if (!isAugmentPhase) {
+                    console.log(`[自动分析 ${this.analysisCount}] ⚠️ 验证失败：卡片间距或位置不符`)
+                } else if (confidence <= 0.9) {
+                    console.log(`[自动分析 ${this.analysisCount}] ⚠️ 置信度过低: ${(confidence * 100).toFixed(1)}% <= 90%`)
                 }
             }
         } catch (error) {

@@ -11,26 +11,35 @@ import path from 'path'
 import sharp from 'sharp'
 
 // 海克斯卡片的颜色特征（使用 HSV 颜色空间进行更精确的检测）
+// 注：这些阈值经过严格调整，以减少误检
 const AUGMENT_COLORS = {
     gold: {
-        h: [20, 45], s: [150, 255], v: [180, 255],  // 金色/黄色范围
-        rgbFallback: { r: [200, 255], g: [160, 210], b: [0, 80] },
-        name: '金色'
+        // 金色：较高的饱和度和明度
+        h: [25, 40], s: [180, 255], v: [200, 255],
+        rgbFallback: { r: [220, 255], g: [180, 220], b: [20, 60] },
+        name: '金色',
+        minPixels: 300,  // 最少像素数，避免误检
     },
     purple: {
-        h: [280, 320], s: [100, 255], v: [150, 255],  // 紫色范围
-        rgbFallback: { r: [160, 220], g: [60, 140], b: [180, 255] },
-        name: '紫色'
+        // 紫色：明确的紫色范围
+        h: [290, 310], s: [120, 255], v: [160, 255],
+        rgbFallback: { r: [180, 220], g: [80, 140], b: [200, 255] },
+        name: '紫色',
+        minPixels: 300,
     },
     blue: {
-        h: [200, 240], s: [100, 255], v: [150, 255],  // 蓝色范围
-        rgbFallback: { r: [60, 150], g: [120, 200], b: [200, 255] },
-        name: '蓝色'
+        // 蓝色：明确的蓝色范围
+        h: [210, 230], s: [120, 255], v: [160, 255],
+        rgbFallback: { r: [80, 150], g: [140, 200], b: [220, 255] },
+        name: '蓝色',
+        minPixels: 300,
     },
     silver: {
-        h: [0, 360], s: [0, 50], v: [140, 220],  // 灰色/银色（低饱和度）
-        rgbFallback: { r: [120, 200], g: [120, 200], b: [120, 200] },
-        name: '银色'
+        // 银色/灰色：低饱和度、中等明度（严格限制）
+        h: [0, 360], s: [5, 30], v: [160, 200],  // ✅ 更严格的范围
+        rgbFallback: { r: [140, 180], g: [140, 180], b: [140, 180] },
+        name: '银色',
+        minPixels: 300,
     },
 }
 
@@ -50,30 +59,42 @@ const AUGMENT_DATABASE = {
 let tesseractWorker = null
 
 /**
- * RGB 转 HSV
+ * RGB 转 HSV（正确的 HSV 计算，不是 HSL）
  */
 function rgbToHsv(r, g, b) {
     r /= 255
     g /= 255
     b /= 255
+
     const max = Math.max(r, g, b)
     const min = Math.min(r, g, b)
-    const l = (max + min) / 2
-    let h, s
+    const delta = max - min
 
-    if (max === min) {
-        h = s = 0
-    } else {
-        const d = max - min
-        s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-        switch (max) {
-            case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
-            case g: h = ((b - r) / d + 2) / 6; break
-            case b: h = ((r - g) / d + 4) / 6; break
+    let h = 0
+    let s = 0
+    let v = max
+
+    // 计算饱和度 S
+    if (max !== 0) {
+        s = delta / max
+    }
+
+    // 计算色相 H
+    if (delta !== 0) {
+        if (max === r) {
+            h = ((g - b) / delta + (g < b ? 6 : 0)) / 6
+        } else if (max === g) {
+            h = ((b - r) / delta + 2) / 6
+        } else {
+            h = ((r - g) / delta + 4) / 6
         }
     }
 
-    return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)]
+    return [
+        Math.round(h * 360),  // H: 0-360
+        Math.round(s * 100),  // S: 0-100
+        Math.round(v * 100)   // V: 0-100
+    ]
 }
 
 /**
@@ -96,37 +117,56 @@ async function detectAugmentCards(imageBuffer) {
         const channels = 3 // RGB
 
         // 海克斯卡片通常在屏幕中央（宽度的35%-65%，高度的25%-75%）
-        const minCardWidth = 60
-        const minCardHeight = 100
+        // ✅ 更严格的尺寸要求
+        const minCardWidth = 80   // ✅ 从 60 提高到 80
+        const minCardHeight = 120  // ✅ 从 100 提高到 120
+        const maxCardWidth = width * 0.3   // 最多占屏幕宽度 30%
+        const maxCardHeight = height * 0.7 // 最多占屏幕高度 70%
         const scanStep = 5 // 每5像素扫描一次（提高精度）
 
         const detectedCards = []
+        console.log(`🔍 扫描参数: 最小尺寸=${minCardWidth}x${minCardHeight}, 最大尺寸=${Math.round(maxCardWidth)}x${Math.round(maxCardHeight)}`)
 
         // 为每种颜色检测卡片
         for (let colorKey in AUGMENT_COLORS) {
             const colorRange = AUGMENT_COLORS[colorKey]
             const colorCards = scanForColor(pixels, width, height, channels, colorRange, scanStep)
 
-            for (const card of colorCards) {
-                // 过滤掉太小的卡片
-                if (card.width >= minCardWidth && card.height >= minCardHeight) {
-                    // 检查卡片是否在合理的位置（屏幕中央区域）
-                    const centerX = card.x + card.width / 2
-                    const centerY = card.y + card.height / 2
-                    const isInCentralArea = centerX > width * 0.2 && centerX < width * 0.8 &&
-                                          centerY > height * 0.15 && centerY < height * 0.85
+            console.log(`  颜色 ${colorRange.name}: 检测到 ${colorCards.length} 个候选区域`)
 
-                    if (isInCentralArea) {
-                        detectedCards.push({
-                            color: colorKey,
-                            rarity: colorRange.name,
-                            x: card.x,
-                            y: card.y,
-                            width: card.width,
-                            height: card.height,
-                        })
-                    }
+            for (const card of colorCards) {
+                // ✅ 更严格的尺寸过滤
+                if (card.width < minCardWidth || card.height < minCardHeight) {
+                    console.log(`    ⚠️ 卡片太小: ${card.width}x${card.height} < ${minCardWidth}x${minCardHeight}`)
+                    continue
                 }
+
+                if (card.width > maxCardWidth || card.height > maxCardHeight) {
+                    console.log(`    ⚠️ 卡片太大: ${card.width}x${card.height} > ${Math.round(maxCardWidth)}x${Math.round(maxCardHeight)}`)
+                    continue
+                }
+
+                // 检查卡片是否在合理的位置（屏幕中央区域）
+                const centerX = card.x + card.width / 2
+                const centerY = card.y + card.height / 2
+                const isInCentralArea = centerX > width * 0.2 && centerX < width * 0.8 &&
+                                      centerY > height * 0.15 && centerY < height * 0.85
+
+                if (!isInCentralArea) {
+                    console.log(`    ⚠️ 卡片位置不在中央区域: (${Math.round(centerX)}, ${Math.round(centerY)})`)
+                    continue
+                }
+
+                detectedCards.push({
+                    color: colorKey,
+                    rarity: colorRange.name,
+                    x: card.x,
+                    y: card.y,
+                    width: card.width,
+                    height: card.height,
+                })
+
+                console.log(`    ✅ 接受: ${colorRange.name} 卡片 ${card.width}x${card.height}`)
             }
         }
 
@@ -142,7 +182,7 @@ async function detectAugmentCards(imageBuffer) {
 }
 
 /**
- * 验证和优化检测到的卡片
+ * 验证和优化检测到的卡片 - 更严格的验证
  */
 function validateAndOptimizeCards(cards, screenWidth, screenHeight) {
     if (cards.length === 0) {
@@ -152,26 +192,56 @@ function validateAndOptimizeCards(cards, screenWidth, screenHeight) {
     // 按 x 坐标排序
     cards.sort((a, b) => a.x - b.x)
 
-    // 如果检测到3张卡片，验证它们的间距是否均匀
-    if (cards.length >= 3) {
-        const spacing = [
-            cards[1].x - (cards[0].x + cards[0].width),
-            cards[2].x - (cards[1].x + cards[1].width),
-        ]
+    // ✅ 步骤1：检查卡片尺寸一致性（高宽比）
+    // 真实海克斯卡片的高宽比应该在 1.2-1.8 之间
+    const cardAspectRatios = cards.map(c => c.height / c.width)
+    const avgAspectRatio = cardAspectRatios.reduce((a, b) => a + b, 0) / cardAspectRatios.length
 
-        // 检查间距是否相近（允许±20%的差异）
-        const avgSpacing = (spacing[0] + spacing[1]) / 2
-        const spacingVar1 = Math.abs(spacing[0] - avgSpacing) / avgSpacing
-        const spacingVar2 = Math.abs(spacing[1] - avgSpacing) / avgSpacing
+    const aspectRatioVariance = cardAspectRatios.map(ratio => {
+        return Math.abs(ratio - avgAspectRatio) / avgAspectRatio
+    })
 
-        if (spacingVar1 < 0.2 && spacingVar2 < 0.2) {
-            console.log(`✅ 卡片间距均匀，这看起来像是一个有效的海克斯选择界面`)
-            return cards.slice(0, 3)
-        }
+    // 所有卡片的高宽比差异应该 < 15%
+    const hasConsistentAspectRatio = aspectRatioVariance.every(v => v < 0.15)
+
+    if (!hasConsistentAspectRatio) {
+        console.log(`⚠️ 卡片尺寸不一致，高宽比差异过大，可能不是海克斯卡片`)
+        return []  // ✅ 严格拒绝
     }
 
-    // 返回所有检测到的卡片（即使间距不完美）
-    return cards
+    // ✅ 步骤2：如果少于3张卡片，直接返回空
+    if (cards.length < 3) {
+        console.log(`⚠️ 检测到 ${cards.length} 张卡片，少于3张，不符合海克斯选择界面`)
+        return []  // ✅ 严格要求3张
+    }
+
+    // ✅ 步骤3：验证3张卡片的间距是否均匀
+    const spacing = [
+        cards[1].x - (cards[0].x + cards[0].width),
+        cards[2].x - (cards[1].x + cards[1].width),
+    ]
+
+    // 检查间距是否相近（允许±15%的差异）- 比之前更严格
+    const avgSpacing = (spacing[0] + spacing[1]) / 2
+
+    // 避免除以零
+    if (avgSpacing < 5) {
+        console.log(`⚠️ 卡片间距过小或不合理`)
+        return []
+    }
+
+    const spacingVar1 = Math.abs(spacing[0] - avgSpacing) / avgSpacing
+    const spacingVar2 = Math.abs(spacing[1] - avgSpacing) / avgSpacing
+
+    if (spacingVar1 < 0.15 && spacingVar2 < 0.15) {
+        // ✅ 间距均匀，这是有效的海克斯选择界面
+        console.log(`✅ 卡片验证通过：尺寸一致、间距均匀、位置正确`)
+        return cards.slice(0, 3)  // ✅ 只返回前3张
+    } else {
+        // ❌ 间距不均匀，拒绝
+        console.log(`⚠️ 卡片间距不均匀（差异: ${(Math.max(spacingVar1, spacingVar2)*100).toFixed(1)}% > 15%），可能不是海克斯界面`)
+        return []
+    }
 }
 
 /**
@@ -224,12 +294,15 @@ function scanForColor(pixels, width, height, channels, colorRange, step) {
         }
     }
 
-    // 根据像素集合形成区域
-    if (colorPixels.size > 50) {
+    // ✅ 根据像素集合形成区域 - 更严格的阈值
+    const minPixels = colorRange.minPixels || 200
+    if (colorPixels.size > minPixels) {
         const bounds = findBounds(colorPixels, width)
         if (bounds) {
             regions.push(bounds)
         }
+    } else if (colorPixels.size > 0) {
+        console.log(`⚠️ 颜色 ${colorRange.name} 检测到 ${colorPixels.size} 像素，少于最少要求 ${minPixels}，排除`)
     }
 
     return regions
@@ -280,27 +353,27 @@ async function recognizeText(imageBuffer) {
 }
 
 /**
- * 根据卡片数量计算置信度
+ * 根据卡片数量计算置信度 - 更严格
  * @param {number} cardCount - 检测到的卡片数量
  * @param {boolean} isAugmentPhase - 是否识别为海克斯阶段
  * @returns {number} 0-1之间的置信度
  */
 function calculateConfidence(cardCount, isAugmentPhase) {
-    // 如果检测到3张卡片且位置验证通过，置信度很高
+    // ✅ 只有完全通过所有验证的情况才给高置信度
     if (cardCount === 3 && isAugmentPhase) {
-        return 0.95
+        return 0.95  // 通过了所有验证
     }
 
-    // 根据检测到的卡片数量判断置信度
+    // ❌ 其他情况都不可信
     switch (cardCount) {
         case 3:
-            return 0.85  // 检测到3张卡片但间距不完美
+            return 0.5   // ✅ 降低：3张卡片但验证失败
         case 2:
-            return 0.6   // 检测到2张卡片
+            return 0.2   // 2张卡片，太少了
         case 1:
-            return 0.3   // 仅检测到1张卡片
+            return 0.05  // 仅1张卡片，基本无效
         default:
-            return 0.1   // 未检测到任何卡片
+            return 0     // 未检测到任何卡片
     }
 }
 
@@ -371,28 +444,30 @@ export const analyzeScreenshot = async (imagePath) => {
 
         // 1. 检测海克斯卡片
         const cardDetections = await detectAugmentCards(imageBuffer)
-        console.log(`✨ 检测到 ${cardDetections.length} 个海克斯卡片`)
+        console.log(`🎨 检测结果: ${cardDetections.length} 个有效卡片（已通过所有验证）`)
 
-        // 2. 生成推荐（基于颜色检测）
+        // 2. 生成推荐和判断阶段
         let recognizedAugments = []
         let isAugmentPhase = false
 
-        if (cardDetections.length >= 3) {
-            // 检测到足够的卡片，认为处于海克斯选择阶段
+        // ✅ 严格模式：只有检测到 3 张有效卡片才算真正的海克斯阶段
+        if (cardDetections.length === 3) {
+            // 已通过所有验证的 3 张卡片
             recognizedAugments = generateAugmentRecommendations(cardDetections)
             isAugmentPhase = true
-            console.log(`🎯 识别到 ${recognizedAugments.length} 个海克斯推荐`)
+            console.log(`✅ 成功识别海克斯选择界面：${recognizedAugments.length} 个海克斯推荐`)
+            console.log(`   颜色: ${cardDetections.map(c => c.rarity).join(', ')}`)
         } else if (cardDetections.length > 0) {
-            // 检测到部分卡片，但不确定是否完全处于海克斯阶段
+            // 检测到部分卡片，但未通过完整验证
             recognizedAugments = generateAugmentRecommendations(cardDetections)
             isAugmentPhase = false
-            console.log(`⚠️ 部分识别: 检测到 ${cardDetections.length} 个卡片`)
+            console.log(`⚠️ 部分卡片（${cardDetections.length} < 3）：不确定是否为海克斯选择界面`)
         } else {
-            // 未检测到卡片，可能不在海克斯阶段或光线不足
-            console.log('ℹ️ 未检测到海克斯卡片')
+            // 未检测到任何有效卡片
+            console.log('❌ 未检测到有效的海克斯卡片')
         }
 
-        // 计算置信度（基于检测到的卡片数量和验证）
+        // 计算置信度（基于验证结果）
         const confidence = calculateConfidence(cardDetections.length, isAugmentPhase)
 
         // 3. 整合结果
