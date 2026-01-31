@@ -174,6 +174,80 @@ export function getChampionDetailData(championId) {
 }
 
 /**
+ * 获取英雄的单个海克斯胜率数据
+ * @param {string|number} championId - 英雄ID
+ * @param {string|number} augmentId - 海克斯ID
+ * @returns {Object|null} 海克斯胜率数据或null
+ */
+export function getAugmentWinrate(championId, augmentId) {
+  const augments = loadChampionAugments(championId)
+  const augmentIdStr = String(augmentId)
+
+  if (!augments[augmentIdStr]) {
+    return null
+  }
+
+  const winrateData = augments[augmentIdStr]
+  return {
+    augmentId: augmentIdStr,
+    winRate: parseFloat(winrateData.win_rate) || 0,
+    pickRate: parseFloat(winrateData.pick_rate) || 0,
+    playCount: parseInt(winrateData.num_games) || 0,
+    winCount: parseInt(winrateData.num_win_games) || 0
+  }
+}
+
+/**
+ * 获取英雄的所有海克斯胜率数据（已排序）
+ * @param {string|number} championId - 英雄ID
+ * @returns {Array} 按胜率排序的海克斯数组
+ */
+export function getChampionAugmentStats(championId) {
+  const championIdStr = String(championId)
+  const augments = loadChampionAugments(championIdStr)
+  const augmentBase = loadAugmentBase()
+
+  // 组合胜率和基础信息
+  const augmentStats = Object.entries(augments)
+    .map(([augmentId, data]) => {
+      const baseInfo = augmentBase.find(a => a.id === parseInt(augmentId))
+
+      return {
+        augmentId: parseInt(augmentId),
+        name: baseInfo?.name || '未知',
+        rarity: baseInfo?.rarity || 'unknown',
+        iconUrl: baseInfo?.iconUrl || null,
+        winRate: parseFloat(data.win_rate) || 0,
+        pickRate: parseFloat(data.pick_rate) || 0,
+        playCount: parseInt(data.num_games) || 0,
+        winCount: parseInt(data.num_win_games) || 0,
+        // 推荐指数 = 胜率 * 0.6 + 选择率 * 0.2 + min(场次/1000, 1) * 0.2
+        recommendScore:
+          parseFloat(data.win_rate) * 0.6 +
+          parseFloat(data.pick_rate) * 0.2 +
+          Math.min(parseInt(data.num_games) / 1000, 1) * 0.2
+      }
+    })
+    .sort((a, b) => b.recommendScore - a.recommendScore)
+
+  return augmentStats
+}
+
+/**
+ * 按稀有度筛选海克斯
+ * @param {Array} augmentStats - 海克斯统计数组
+ * @param {string|null} rarity - 稀有度过滤（'gold'|'purple'|'blue'|null）
+ * @returns {Array} 筛选后的数组
+ */
+export function filterAugmentsByRarity(augmentStats, rarity) {
+  if (!rarity || rarity === 'all') {
+    return augmentStats
+  }
+
+  return augmentStats.filter(a => a.rarity === rarity)
+}
+
+/**
  * Clear cache (useful for memory management in long-running apps)
  */
 export function clearCache() {
