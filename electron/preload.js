@@ -4,6 +4,8 @@ const fse = require('fs-extra')
 const cheerio = require('cheerio')
 const PromisePool = require('es6-promise-pool').default || require('es6-promise-pool')
 
+console.log('Preload script loaded successfully')
+
 // When contextIsolation is false, we can directly attach to window
 window.electron = {
     shell: shell
@@ -31,6 +33,8 @@ window.electronStore = {
     clear: () => ipcRenderer.invoke('store-clear')
 }
 
+console.log('window.electronStore exposed')
+
 window.ipcRenderer = {
     send: (channel, data) => {
         // whitelist channels
@@ -40,21 +44,52 @@ window.ipcRenderer = {
         }
     },
     on: (channel, func) => {
-        let validChannels = ['fromMain', 'for-popup', 'screenshot-taken', 'winrate-updated', 'auto-screenshot-taken']
+        let validChannels = [
+            'fromMain',
+            'for-popup',
+            'screenshot-taken',
+            'winrate-updated',
+            'auto-screenshot-taken',
+            'game-phase-changed',
+            'game-started',
+            'game-in-progress',
+            'augment-detection-started',
+            'augment-detected',
+            'game-ended',
+            'end-of-game'
+        ]
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args))
         }
     },
     once: (channel, func) => {
-        let validChannels = ['fromMain', 'for-popup', 'screenshot-taken', 'winrate-updated', 'auto-screenshot-taken']
+        let validChannels = [
+            'fromMain',
+            'for-popup',
+            'screenshot-taken',
+            'winrate-updated',
+            'auto-screenshot-taken',
+            'game-phase-changed',
+            'game-started',
+            'game-in-progress',
+            'augment-detection-started',
+            'augment-detected',
+            'game-ended',
+            'end-of-game'
+        ]
         if (validChannels.includes(channel)) {
             ipcRenderer.once(channel, (event, ...args) => func(...args))
         }
     },
     invoke: (channel, ...args) => {
+        console.log('ipcRenderer.invoke called:', channel, args)
         return ipcRenderer.invoke(channel, ...args)
     }
 }
 
+console.log('window.ipcRenderer exposed')
+
 // 为了方便，暴露 ipc 作为 ipcRenderer 的别名
 window.ipc = window.ipcRenderer
+
+console.log('Preload script initialization complete')

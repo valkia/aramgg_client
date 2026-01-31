@@ -106,9 +106,11 @@ export async function init() {
         popup: !!popupWindow
     })
 
-    // 初始化游戏流程监控
-    console.log('\n⏳ 正在初始化游戏流程监控...')
-    await initGameFlowMonitor()
+    // 初始化游戏流程监控（延迟初始化，避免阻塞应用启动）
+    console.log('\n⏳ 将在后台初始化游戏流程监控...')
+    setTimeout(() => {
+        initGameFlowMonitor()
+    }, 2000)
 
     // 注册 F1 全局快捷键
     registerF1Shortcut(isDev)
@@ -120,6 +122,32 @@ export async function init() {
 }
 
 /**
+ * 自动检测游戏目录
+ */
+async function autoDetectLolPath() {
+    const fs = await import('fs')
+    const path = await import('path')
+
+    // 常见的游戏安装目录
+    const commonPaths = [
+        'C:\\Riot Games\\League of Legends',
+        'C:\\Program Files\\League of Legends',
+        'D:\\Riot Games\\League of Legends',
+        'D:\\Games\\League of Legends',
+        'E:\\wegame\\英雄联盟(26)', // 用户的路径
+    ]
+
+    for (const checkPath of commonPaths) {
+        if (fs.existsSync(checkPath)) {
+            console.log(`✅ 自动检测到游戏目录: ${checkPath}`)
+            return checkPath
+        }
+    }
+
+    return null
+}
+
+/**
  * 简化的游戏流程监控 - 直接在主进程中实现
  * 避免与其他服务的兼容性问题
  */
@@ -128,15 +156,24 @@ async function initGameFlowMonitor() {
         // 获取游戏目录（从 store 中读取）
         const Store = (await import('electron-store')).default
         const store = new Store()
-        const lolPath = store.get('lolPath')
+        let lolPath = store.get('lolPath')
 
         console.log('\n============ 初始化游戏流程监控 ============')
         console.log('📁 读取配置的游戏目录:', lolPath)
 
+        // 如果没有配置，尝试自动检测
         if (!lolPath) {
-            console.warn('⚠️ 未设置游戏目录，游戏流程监控不可用')
-            console.log('💡 请在应用设置中配置游戏目录')
-            return
+            console.log('⏳ 未设置游戏目录，正在尝试自动检测...')
+            lolPath = await autoDetectLolPath()
+
+            if (lolPath) {
+                console.log('✅ 自动检测成功，已保存配置')
+                store.set('lolPath', lolPath)
+            } else {
+                console.warn('⚠️ 无法自动检测游戏目录')
+                console.log('💡 请在应用设置中配置游戏目录')
+                return
+            }
         }
 
         // 初始化 LCU 服务（主进程版本）

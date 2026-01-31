@@ -5,25 +5,11 @@
 </template>
 
 <script setup>
-import config from "./src/native/config"
-import { getLolVer } from "./src/service/data-source/lol-qq"
 import { onMounted } from 'vue'
 
 const init = async () => {
-  console.log(`app`)
-
-  const shell = window.electron?.shell
-
-  const getVerAndItems = async () => {
-    try {
-      const v = await getLolVer()
-      config.set(`lolVer`, v)
-    } catch (error) {
-      console.error('Error getting LoL version:', error)
-    }
-  }
-
-  await getVerAndItems()
+  console.log('✅ App 已挂载')
+  // 版本初始化功能已移至后台处理，避免渲染进程阻塞
 }
 
 onMounted(() => {
