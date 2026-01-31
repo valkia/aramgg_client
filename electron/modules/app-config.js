@@ -1,17 +1,110 @@
 import { app, globalShortcut, BrowserWindow } from 'electron'
+import https from 'https'
 import { captureScreenshot, cleanupOldScreenshots } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
 import { registerIpcHandlers } from './ipc-handlers.js'
 import { createMainWindow, createPopupWindow, toggleMainWindow } from './window-manager.js'
 import autoScreenshotService from '../auto-screenshot-service.js'
 import GameFlowMonitor from '../../src/service/game-flow-monitor.js'
-import LCUService from '../../src/service/lcu.js'
+import { getLcuToken } from '../lcu-utils.js'
+import axios from 'axios'
 
 const __dirname = import.meta.dirname
 
 // 全局游戏流程监控实例
 let gameFlowMonitor = null
-let lcuService = null
+let lcuPollingTimer = null
+
+/**
+ * 简化的 LCU 服务 - 用于主进程
+ * 只提供游戏流程监控所需的最小功能
+ */
+class MainProcessLCU {
+    constructor(lolPath) {
+        this.lolPath = lolPath
+        this.active = false
+        this.url = null
+        this.auth = null
+        this.pollingTimer = null
+    }
+
+    async getAuthToken() {
+        try {
+            const result = await getLcuToken(this.lolPath)
+            if (!result) {
+                this.active = false
+                return null
+            }
+
+            const { port, password } = result
+            this.url = `https://127.0.0.1:${port}`
+            this.auth = {
+                auth: {
+                    username: 'riot',
+                    password: password,
+                },
+            }
+            this.active = true
+            console.log('✅ LCU 连接成功')
+            return { token: password, port, url: this.url }
+        } catch (error) {
+            console.error('❌ LCU 连接失败:', error.message)
+            this.active = false
+            return null
+        }
+    }
+
+    async getGameflowPhase() {
+        if (!this.active || !this.url) {
+            return null
+        }
+
+        try {
+            // 禁用 SSL 证书验证（LCU 使用自签名证书）
+            const httpsAgent = new https.Agent({
+                rejectUnauthorized: false,
+            })
+
+            const res = await axios.get(`${this.url}/lol-gameflow/v1/gameflow-phase`, {
+                ...this.auth,
+                httpsAgent,
+                validateStatus: (status) => status < 500,
+            })
+            return res.data
+        } catch (error) {
+            console.warn('⚠️ 获取游戏阶段失败:', error.message)
+            return null
+        }
+    }
+
+    async pollGameflowPhase(callback, interval = 1000) {
+        let lastPhase = null
+
+        this.pollingTimer = setInterval(async () => {
+            try {
+                const phase = await this.getGameflowPhase()
+                if (phase && phase !== lastPhase) {
+                    lastPhase = phase
+                    if (callback) {
+                        callback(phase)
+                    }
+                }
+            } catch (error) {
+                console.warn('⚠️ 轮询游戏阶段出错:', error.message)
+            }
+        }, interval)
+
+        return this.pollingTimer
+    }
+
+    stopPollGameflowPhase(timerId) {
+        if (timerId) {
+            clearInterval(timerId)
+            this.pollingTimer = null
+            console.log('⏹️ 停止游戏阶段轮询')
+        }
+    }
+}
 
 /**
  * 初始化应用
@@ -66,8 +159,8 @@ async function initGameFlowMonitor() {
             return
         }
 
-        // 初始化 LCU 服务
-        lcuService = new LCUService(lolPath)
+        // 初始化 LCU 服务（主进程版本）
+        const lcuService = new MainProcessLCU(lolPath)
         await lcuService.getAuthToken()
 
         if (!lcuService.active) {
