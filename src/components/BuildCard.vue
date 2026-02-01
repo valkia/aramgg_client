@@ -1,124 +1,113 @@
 <template>
   <div class="build-card">
-    <el-alert
-      v-if="!buildData"
-      title="暂无Build数据"
-      type="info"
-      show-icon
-      :closable="false"
-    />
+    <Alert v-if="!buildData" class="info-alert">
+      <AlertTitle>暂无Build数据</AlertTitle>
+      <AlertDescription>该英雄暂时没有Build数据。</AlertDescription>
+    </Alert>
 
     <template v-else>
       <!-- Build Metadata -->
       <div class="build-meta">
-        <el-tag>版本 {{ buildData.patch }}</el-tag>
-        <el-tag type="info">队列 {{ buildData.queue }}</el-tag>
+        <Badge>版本 {{ buildData.patch }}</Badge>
+        <Badge variant="secondary">队列 {{ buildData.queue }}</Badge>
         <span v-if="buildData.tags" class="tags">
           标签: {{ Object.values(buildData.tags).join(', ') }}
         </span>
       </div>
 
       <!-- Recommended Items -->
-      <el-row :gutter="20" class="build-section">
-        <el-col :xs="24" :md="12">
-          <h3 class="section-title">推荐出门装</h3>
-          <div v-if="startingItems.length > 0" class="items-list">
-            <div
-              v-for="(itemSet, index) in startingItems.slice(0, 5)"
-              :key="index"
-              class="item-build"
-            >
-              <div class="item-icons">
-                <el-image
-                  v-for="itemId in itemSet.items"
-                  :key="itemId"
-                  :src="getItemIconUrl(itemId)"
-                  :preview-src-list="[getItemIconUrl(itemId)]"
-                  class="item-icon"
-                  fit="cover"
-                  lazy
-                />
-              </div>
-              <div class="item-stats">
-                <div class="stat-row">
-                  <span class="stat-label">场次:</span>
-                  <span class="stat-value">{{ itemSet.games }}</span>
+      <div class="build-section">
+        <div class="build-grid">
+          <div class="build-column">
+            <h3 class="section-title">推荐出门装</h3>
+            <div v-if="startingItems.length > 0" class="items-list">
+              <div
+                v-for="(itemSet, index) in startingItems.slice(0, 5)"
+                :key="index"
+                class="item-build"
+              >
+                <div class="item-icons">
+                  <img
+                    v-for="itemId in itemSet.items"
+                    :key="itemId"
+                    :src="getItemIconUrl(itemId)"
+                    class="item-icon"
+                    :alt="itemId"
+                  />
                 </div>
-                <div class="stat-row">
-                  <span class="stat-label">胜率:</span>
-                  <span class="stat-value">{{ (itemSet.winRate * 100).toFixed(2) }}%</span>
+                <div class="item-stats">
+                  <div class="stat-row">
+                    <span class="stat-label">场次:</span>
+                    <span class="stat-value">{{ itemSet.games }}</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-label">胜率:</span>
+                    <span class="stat-value">{{ (itemSet.winRate * 100).toFixed(2) }}%</span>
+                  </div>
                 </div>
               </div>
             </div>
+            <div v-else class="empty-state">暂无出门装数据</div>
           </div>
-          <el-empty v-else description="暂无出门装数据" />
-        </el-col>
 
-        <el-col :xs="24" :md="12">
-          <h3 class="section-title">推荐核心装</h3>
-          <div v-if="coreItems.length > 0" class="items-list">
-            <div
-              v-for="(itemSet, index) in coreItems.slice(0, 5)"
-              :key="index"
-              class="item-build"
-            >
-              <div class="item-icons">
-                <el-image
-                  v-for="itemId in itemSet.items"
-                  :key="itemId"
-                  :src="getItemIconUrl(itemId)"
-                  :preview-src-list="[getItemIconUrl(itemId)]"
-                  class="item-icon"
-                  fit="cover"
-                  lazy
-                />
-              </div>
-              <div class="item-stats">
-                <div class="stat-row">
-                  <span class="stat-label">场次:</span>
-                  <span class="stat-value">{{ itemSet.games }}</span>
+          <div class="build-column">
+            <h3 class="section-title">推荐核心装</h3>
+            <div v-if="coreItems.length > 0" class="items-list">
+              <div
+                v-for="(itemSet, index) in coreItems.slice(0, 5)"
+                :key="index"
+                class="item-build"
+              >
+                <div class="item-icons">
+                  <img
+                    v-for="itemId in itemSet.items"
+                    :key="itemId"
+                    :src="getItemIconUrl(itemId)"
+                    class="item-icon"
+                    :alt="itemId"
+                  />
                 </div>
-                <div class="stat-row">
-                  <span class="stat-label">胜率:</span>
-                  <span class="stat-value">{{ (itemSet.winRate * 100).toFixed(2) }}%</span>
+                <div class="item-stats">
+                  <div class="stat-row">
+                    <span class="stat-label">场次:</span>
+                    <span class="stat-value">{{ itemSet.games }}</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-label">胜率:</span>
+                    <span class="stat-value">{{ (itemSet.winRate * 100).toFixed(2) }}%</span>
+                  </div>
                 </div>
               </div>
             </div>
+            <div v-else class="empty-state">暂无核心装数据</div>
           </div>
-          <el-empty v-else description="暂无核心装数据" />
-        </el-col>
-      </el-row>
+        </div>
+      </div>
 
       <!-- Synergy Items -->
       <div v-if="synergyItems.length > 0" class="synergy-section">
         <h3 class="section-title">装备搭配</h3>
-        <el-row :gutter="20">
-          <el-col
+        <div class="synergy-grid">
+          <div
             v-for="(synergy, index) in synergyItems.slice(0, 6)"
             :key="index"
-            :xs="24"
-            :sm="12"
-            :md="8"
+            class="synergy-card"
           >
-            <div class="synergy-card">
-              <div class="synergy-items">
-                <el-image
-                  v-for="itemId in synergy.items"
-                  :key="itemId"
-                  :src="getItemIconUrl(itemId)"
-                  :preview-src-list="[getItemIconUrl(itemId)]"
-                  class="item-icon-small"
-                  fit="cover"
-                  lazy
-                />
-              </div>
-              <div class="synergy-info">
-                <div>场次: {{ synergy.games }}</div>
-                <div>胜率: {{ (synergy.winRate * 100).toFixed(2) }}%</div>
-              </div>
+            <div class="synergy-items">
+              <img
+                v-for="itemId in synergy.items"
+                :key="itemId"
+                :src="getItemIconUrl(itemId)"
+                class="item-icon-small"
+                :alt="itemId"
+              />
             </div>
-          </el-col>
-        </el-row>
+            <div class="synergy-info">
+              <div>场次: {{ synergy.games }}</div>
+              <div>胜率: {{ (synergy.winRate * 100).toFixed(2) }}%</div>
+            </div>
+          </div>
+        </div>
       </div>
     </template>
   </div>
@@ -126,8 +115,9 @@
 
 <script setup>
 import { computed } from 'vue'
-import { ElAlert, ElTag, ElRow, ElCol, ElImage, ElEmpty } from 'element-plus'
-import { getItemIconUrl } from '../src/service/cdn'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { getItemIconUrl } from '../service/cdn'
 
 const props = defineProps({
   buildData: {
@@ -145,33 +135,33 @@ const props = defineProps({
  */
 const parsedRecommended = computed(() => {
   if (!props.buildData || !props.buildData.recommended) {
-    return [];
+    return []
   }
 
   return props.buildData.recommended.map(rec => {
-    const itemIds = rec.itemIds.split(',').map(id => id.trim());
+    const itemIds = rec.itemIds.split(',').map(id => id.trim())
     return {
       items: itemIds,
       games: parseInt(rec.games) || 0,
       wins: parseInt(rec.wins) || 0,
       pickRate: parseFloat(rec.pick_rate) || 0,
       winRate: parseInt(rec.wins) / parseInt(rec.games) || 0
-    };
-  }).sort((a, b) => b.games - a.games);
+    }
+  }).sort((a, b) => b.games - a.games)
 })
 
 /**
  * Get starting items (items with 1-2 components)
  */
 const startingItems = computed(() => {
-  return parsedRecommended.value.filter(item => item.items.length <= 2);
+  return parsedRecommended.value.filter(item => item.items.length <= 2)
 })
 
 /**
  * Get core items (items with 3+ components)
  */
 const coreItems = computed(() => {
-  return parsedRecommended.value.filter(item => item.items.length >= 3);
+  return parsedRecommended.value.filter(item => item.items.length >= 3)
 })
 
 /**
@@ -179,15 +169,15 @@ const coreItems = computed(() => {
  */
 const synergyItems = computed(() => {
   if (!props.buildData || !props.buildData.itemSequences) {
-    return [];
+    return []
   }
 
-  const sequences = props.buildData.itemSequences;
-  const result = [];
+  const sequences = props.buildData.itemSequences
+  const result = []
 
   // Iterate through item sequences
   for (const [coreKey, variants] of Object.entries(sequences)) {
-    const coreItems = coreKey.split(',').map(id => id.trim());
+    const coreItems = coreKey.split(',').map(id => id.trim())
 
     // Get all items from variants
     if (variants && typeof variants === 'object') {
@@ -195,27 +185,32 @@ const synergyItems = computed(() => {
         if (Array.isArray(items)) {
           items.forEach(item => {
             if (item.itemIds && Array.isArray(item.itemIds)) {
-              const allItems = [...coreItems, ...item.itemIds];
+              const allItems = [...coreItems, ...item.itemIds]
               result.push({
                 items: allItems.slice(0, 4), // Limit to 4 items for display
                 games: parseInt(item.games) || 0,
                 wins: parseInt(item.wins) || 0,
                 winRate: parseInt(item.wins) / parseInt(item.games) || 0
-              });
+              })
             }
-          });
+          })
         }
       }
     }
   }
 
-  return result.sort((a, b) => b.games - a.games);
+  return result.sort((a, b) => b.games - a.games)
 })
 </script>
 
 <style scoped>
 .build-card {
   padding: 20px 0;
+}
+
+.info-alert {
+  background: rgba(96, 165, 250, 0.1);
+  border: 1px solid rgba(96, 165, 250, 0.2);
 }
 
 .build-meta {
@@ -227,7 +222,7 @@ const synergyItems = computed(() => {
 }
 
 .tags {
-  color: #606266;
+  color: rgba(255, 255, 255, 0.6);
   font-size: 14px;
 }
 
@@ -235,12 +230,22 @@ const synergyItems = computed(() => {
   margin-bottom: 30px;
 }
 
+.build-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+.build-column {
+  min-width: 0;
+}
+
 .section-title {
   font-size: 18px;
   font-weight: 600;
   margin: 0 0 15px 0;
-  color: #333;
-  border-bottom: 2px solid #409eff;
+  color: #fff;
+  border-bottom: 2px solid #60a5fa;
   padding-bottom: 10px;
 }
 
@@ -251,8 +256,8 @@ const synergyItems = computed(() => {
 }
 
 .item-build {
-  background: white;
-  border: 1px solid #ebeef5;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 15px;
   display: flex;
@@ -262,7 +267,9 @@ const synergyItems = computed(() => {
 }
 
 .item-build:hover {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(96, 165, 250, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
 .item-icons {
@@ -278,10 +285,13 @@ const synergyItems = computed(() => {
   border-radius: 4px;
   cursor: pointer;
   transition: transform 0.2s;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  object-fit: cover;
 }
 
 .item-icon:hover {
   transform: scale(1.1);
+  border-color: rgba(96, 165, 250, 0.5);
 }
 
 .item-stats {
@@ -298,23 +308,29 @@ const synergyItems = computed(() => {
 }
 
 .stat-label {
-  color: #909399;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .stat-value {
   font-weight: 600;
-  color: #333;
+  color: #fff;
 }
 
 .synergy-section {
   margin-top: 30px;
   padding-top: 20px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.synergy-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
 }
 
 .synergy-card {
-  background: white;
-  border: 1px solid #ebeef5;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 15px;
   text-align: center;
@@ -322,7 +338,9 @@ const synergyItems = computed(() => {
 }
 
 .synergy-card:hover {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(96, 165, 250, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   transform: translateY(-2px);
 }
 
@@ -337,12 +355,24 @@ const synergyItems = computed(() => {
   width: 40px;
   height: 40px;
   border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  object-fit: cover;
 }
 
 .synergy-info {
   font-size: 12px;
-  color: #606266;
+  color: rgba(255, 255, 255, 0.6);
   line-height: 1.6;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
 }
 
 /* Responsive */
@@ -351,6 +381,14 @@ const synergyItems = computed(() => {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
+  }
+
+  .build-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .synergy-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .item-build {
@@ -364,6 +402,12 @@ const synergyItems = computed(() => {
 
   .section-title {
     font-size: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .synergy-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

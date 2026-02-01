@@ -32,6 +32,7 @@ export default {
         },
         success: {
           50: '#f0fdf4',
+          100: '#dcfce7',
           500: '#27ae60',
           600: '#229954',
           700: '#1e8449',
@@ -39,6 +40,7 @@ export default {
         },
         warning: {
           50: '#fffbeb',
+          100: '#fef3c7',
           500: '#f59e0b',
           600: '#d97706',
           700: '#b45309',
@@ -46,6 +48,7 @@ export default {
         },
         error: {
           50: '#fef2f2',
+          100: '#fee2e2',
           500: '#ef4444',
           600: '#dc2626',
           700: '#b91c1c',

@@ -10,11 +10,18 @@ const props = defineProps({
   <tr
     :class="
       cn(
-        'border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted',
+        'transition-colors',
         props.class,
       )
     "
+    style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);"
   >
     <slot />
   </tr>
 </template>
+
+<style scoped>
+tr:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+</style>

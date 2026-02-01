@@ -1,59 +1,105 @@
 /**
  * 图像分析模块 - 检测游戏内海克斯选择界面和识别英雄
- * 功能：
- * 1. 检测海克斯卡片（通过颜色特征）
- * 2. 识别海克斯名称（通过 OCR）
- * 3. 提取英雄位置和游戏阶段
+ *
+ * 【重要说明 - 2026-01-31】
+ * 原计划使用颜色特征检测海克斯卡片，但该方案存在以下问题：
+ * 1. 误检率高 - 游戏UI中其他元素也包含类似的颜色组合
+ * 2. 检测不稳定 - 不同分辨率、光照条件下颜色阈值难以统一
+ * 3. 维护成本高 - 需要针对每种截图情况调整复杂的颜色阈值
+ *
+ * 当前方案：OCR识别海克斯名称
+ * - 直接OCR识别屏幕中央区域的文本
+ * - 匹配海克斯数据库中的名称
+ * - 更可靠、更简单、更易维护
+ *
+ * TODO: 实现OCR识别逻辑（需要集成Tesseract.js或其他OCR库）
  */
 
 import fs from 'fs-extra'
 import path from 'path'
 import sharp from 'sharp'
+import { fileURLToPath } from 'url'
+
+// ES Module 中获取 __dirname
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // 海克斯卡片的颜色特征（使用 HSV 颜色空间进行更精确的检测）
-// 注：这些阈值经过严格调整，以减少误检
+// 关键洞察：卡片的边框是亮白色，内部才是稀有度颜色
 const AUGMENT_COLORS = {
+    // 最重要：白色/明亮的卡片边框
+    white: {
+        // 白色/明亮色：宽松范围（能检测demo和真实截图）
+        h: [0, 360], s: [0, 50], v: [220, 255],
+        rgbFallback: { r: [200, 255], g: [200, 255], b: [200, 255] },
+        name: '白色边框',
+        minPixels: 100,
+    },
     gold: {
-        // 金色：较高的饱和度和明度
-        h: [25, 40], s: [180, 255], v: [200, 255],
-        rgbFallback: { r: [220, 255], g: [180, 220], b: [20, 60] },
+        // 金色
+        h: [20, 45], s: [100, 255], v: [180, 255],
+        rgbFallback: { r: [200, 255], g: [160, 200], b: [0, 80] },
         name: '金色',
-        minPixels: 300,  // 最少像素数，避免误检
+        minPixels: 50,
     },
     purple: {
-        // 紫色：明确的紫色范围
-        h: [290, 310], s: [120, 255], v: [160, 255],
-        rgbFallback: { r: [180, 220], g: [80, 140], b: [200, 255] },
+        // 紫色
+        h: [270, 330], s: [80, 255], v: [120, 255],
+        rgbFallback: { r: [160, 220], g: [60, 140], b: [180, 255] },
         name: '紫色',
-        minPixels: 300,
+        minPixels: 50,
     },
     blue: {
-        // 蓝色：明确的蓝色范围
-        h: [210, 230], s: [120, 255], v: [160, 255],
-        rgbFallback: { r: [80, 150], g: [140, 200], b: [220, 255] },
+        // 蓝色
+        h: [200, 240], s: [80, 255], v: [120, 255],
+        rgbFallback: { r: [60, 150], g: [120, 200], b: [200, 255] },
         name: '蓝色',
-        minPixels: 300,
-    },
-    silver: {
-        // 银色/灰色：低饱和度、中等明度（严格限制）
-        h: [0, 360], s: [5, 30], v: [160, 200],  // ✅ 更严格的范围
-        rgbFallback: { r: [140, 180], g: [140, 180], b: [140, 180] },
-        name: '银色',
-        minPixels: 300,
+        minPixels: 50,
     },
 }
 
-// 海克斯数据库（用于匹配识别结果）
-const AUGMENT_DATABASE = {
-    // 金色（传说级）海克斯
-    'dragonsflair': { id: 'dragonsflair', rarity: 'gold', name: '龙的光彩' },
-    'timekeeper': { id: 'timekeeper', rarity: 'gold', name: '时间守护者' },
-    // 紫色（史诗级）海克斯
-    'archangel': { id: 'archangel', rarity: 'purple', name: '大天使' },
-    'morellonomicon': { id: 'morellonomicon', rarity: 'purple', name: '莫雷洛秘典' },
-    // 蓝色（稀有级）海克斯
-    'healthaura': { id: 'healthaura', rarity: 'blue', name: '生命光环' },
-    'attackspeed': { id: 'attackspeed', rarity: 'blue', name: '攻速' },
+// 加载完整的海克斯数据库
+let AUGMENT_DATABASE = null
+
+/**
+ * 初始化海克斯数据库
+ * 从 augments-base.json 加载完整列表并建立名称索引
+ */
+function initAugmentDatabase() {
+    if (AUGMENT_DATABASE !== null) {
+        return AUGMENT_DATABASE
+    }
+
+    try {
+        const augmentsPath = path.join(__dirname, 'data', 'augments-base.json')
+        const augmentsData = JSON.parse(fs.readFileSync(augmentsPath, 'utf-8'))
+
+        // 建立按名称索引的数据库（用于快速查找）
+        AUGMENT_DATABASE = {}
+        for (const augment of augmentsData) {
+            // 稀有度映射
+            const rarityMap = {
+                'kSilver': 'silver',
+                'kGold': 'gold',
+                'kPrismatic': 'prismatic'
+            }
+
+            AUGMENT_DATABASE[augment.id] = {
+                id: augment.id,
+                name: augment.name,
+                rarity: rarityMap[augment.rarity] || 'unknown',
+                iconPath: augment.iconPath
+            }
+        }
+
+        console.log(`📚 海克斯数据库已加载: ${Object.keys(AUGMENT_DATABASE).length} 个海克斯`)
+        return AUGMENT_DATABASE
+    } catch (error) {
+        console.error('❌ 加载海克斯数据库失败:', error)
+        // 使用空数据库作为备份
+        AUGMENT_DATABASE = {}
+        return AUGMENT_DATABASE
+    }
 }
 
 let tesseractWorker = null
@@ -98,83 +144,19 @@ function rgbToHsv(r, g, b) {
 }
 
 /**
- * 检测图像中的海克斯卡片位置（改进的颜色检测 + 位置验证）
+ * 检测图像中的海克斯卡片位置
+ *
+ * 【暂时跳过】颜色检测逻辑
+ * 原方案在实际使用中误检率高，已改为OCR方案
+ *
  * @param {Buffer} imageBuffer - 图像缓冲区
- * @returns {Promise<Object>} 检测结果包含卡片数量和置信度
+ * @returns {Promise<Array>} 返回空数组（由OCR逻辑处理）
  */
 async function detectAugmentCards(imageBuffer) {
     try {
-        const metadata = await sharp(imageBuffer).metadata()
-        const { width, height } = metadata
-
-        // 将图像转换为 RGB 数据
-        const rgbData = await sharp(imageBuffer)
-            .resize(width, height, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 1 } })
-            .raw()
-            .toBuffer({ resolveWithObject: true })
-
-        const pixels = rgbData.data
-        const channels = 3 // RGB
-
-        // 海克斯卡片通常在屏幕中央（宽度的35%-65%，高度的25%-75%）
-        // ✅ 更严格的尺寸要求
-        const minCardWidth = 80   // ✅ 从 60 提高到 80
-        const minCardHeight = 120  // ✅ 从 100 提高到 120
-        const maxCardWidth = width * 0.3   // 最多占屏幕宽度 30%
-        const maxCardHeight = height * 0.7 // 最多占屏幕高度 70%
-        const scanStep = 5 // 每5像素扫描一次（提高精度）
-
-        const detectedCards = []
-        console.log(`🔍 扫描参数: 最小尺寸=${minCardWidth}x${minCardHeight}, 最大尺寸=${Math.round(maxCardWidth)}x${Math.round(maxCardHeight)}`)
-
-        // 为每种颜色检测卡片
-        for (let colorKey in AUGMENT_COLORS) {
-            const colorRange = AUGMENT_COLORS[colorKey]
-            const colorCards = scanForColor(pixels, width, height, channels, colorRange, scanStep)
-
-            console.log(`  颜色 ${colorRange.name}: 检测到 ${colorCards.length} 个候选区域`)
-
-            for (const card of colorCards) {
-                // ✅ 更严格的尺寸过滤
-                if (card.width < minCardWidth || card.height < minCardHeight) {
-                    console.log(`    ⚠️ 卡片太小: ${card.width}x${card.height} < ${minCardWidth}x${minCardHeight}`)
-                    continue
-                }
-
-                if (card.width > maxCardWidth || card.height > maxCardHeight) {
-                    console.log(`    ⚠️ 卡片太大: ${card.width}x${card.height} > ${Math.round(maxCardWidth)}x${Math.round(maxCardHeight)}`)
-                    continue
-                }
-
-                // 检查卡片是否在合理的位置（屏幕中央区域）
-                const centerX = card.x + card.width / 2
-                const centerY = card.y + card.height / 2
-                const isInCentralArea = centerX > width * 0.2 && centerX < width * 0.8 &&
-                                      centerY > height * 0.15 && centerY < height * 0.85
-
-                if (!isInCentralArea) {
-                    console.log(`    ⚠️ 卡片位置不在中央区域: (${Math.round(centerX)}, ${Math.round(centerY)})`)
-                    continue
-                }
-
-                detectedCards.push({
-                    color: colorKey,
-                    rarity: colorRange.name,
-                    x: card.x,
-                    y: card.y,
-                    width: card.width,
-                    height: card.height,
-                })
-
-                console.log(`    ✅ 接受: ${colorRange.name} 卡片 ${card.width}x${card.height}`)
-            }
-        }
-
-        // 对检测到的卡片进行验证和优化
-        const validatedCards = validateAndOptimizeCards(detectedCards, width, height)
-
-        console.log(`🎨 检测到 ${validatedCards.length} 个有效的海克斯卡片`)
-        return validatedCards
+        console.log(`📝 【信息】检测海克斯卡片 - 使用OCR方案（跳过颜色检测）`)
+        // 实际检测工作由 recognizeAugmentsFromImage() 通过OCR处理
+        return []
     } catch (error) {
         console.error('❌ 海克斯卡片检测失败:', error)
         return []
@@ -182,9 +164,55 @@ async function detectAugmentCards(imageBuffer) {
 }
 
 /**
- * 验证和优化检测到的卡片 - 更严格的验证
+ * 【已弃用 - OCR方案中不需要】
+ * 分割合并在一起的卡片区域
+ * 仅保留代码以便后续参考，不再被调用
  */
-function validateAndOptimizeCards(cards, screenWidth, screenHeight) {
+function splitMergedCards_DEPRECATED(cards, screenWidth, screenHeight, minWidth, minHeight, maxWidth, maxHeight) {
+    const result = []
+
+    for (const card of cards) {
+        // 尝试分割成3张卡片
+        const estimatedCardWidth = card.width / 3
+        const estimatedCardHeight = card.height
+
+        console.log(`  分割: ${card.rarity} (${card.width}x${card.height}) 分割成3张，每张约 ${Math.round(estimatedCardWidth)}x${Math.round(estimatedCardHeight)}`)
+
+        let validSplits = 0
+        for (let i = 0; i < 3; i++) {
+            const splitCard = {
+                ...card,
+                x: card.x + (i * estimatedCardWidth),
+                width: estimatedCardWidth,
+            }
+
+            // 检查分割后的卡片是否在有效范围内
+            if (splitCard.width >= minWidth && splitCard.width <= maxWidth &&
+                splitCard.height >= minHeight && splitCard.height <= maxHeight) {
+                console.log(`    ✅ 分割卡片 ${i + 1}: 有效尺寸 ${Math.round(splitCard.width)}x${Math.round(splitCard.height)}`)
+                result.push(splitCard)
+                validSplits++
+            } else {
+                console.log(`    ⚠️ 分割卡片 ${i + 1}: 无效尺寸 ${Math.round(splitCard.width)}x${Math.round(splitCard.height)}`)
+            }
+        }
+
+        if (validSplits === 0) {
+            // 如果分割没有得到有效卡片，保留原始卡片（稍后会被验证拒绝）
+            console.log(`    分割失败，保留原始卡片`)
+            result.push(card)
+        }
+    }
+
+    return result
+}
+
+/**
+ * 【已弃用 - OCR方案中不需要】
+ * 验证和优化检测到的卡片
+ * 仅保留代码以便后续参考，不再被调用
+ */
+function validateAndOptimizeCards_DEPRECATED(cards, screenWidth, screenHeight) {
     if (cards.length === 0) {
         return []
     }
@@ -192,22 +220,31 @@ function validateAndOptimizeCards(cards, screenWidth, screenHeight) {
     // 按 x 坐标排序
     cards.sort((a, b) => a.x - b.x)
 
-    // ✅ 步骤1：检查卡片尺寸一致性（高宽比）
-    // 真实海克斯卡片的高宽比应该在 1.2-1.8 之间
-    const cardAspectRatios = cards.map(c => c.height / c.width)
-    const avgAspectRatio = cardAspectRatios.reduce((a, b) => a + b, 0) / cardAspectRatios.length
+    // ✅ 步骤1：检查卡片宽度一致性
+    const widths = cards.map(c => c.width)
+    const maxWidth = Math.max(...widths)
+    const minWidth = Math.min(...widths)
+    const widthConsistency = minWidth / maxWidth
 
-    const aspectRatioVariance = cardAspectRatios.map(ratio => {
-        return Math.abs(ratio - avgAspectRatio) / avgAspectRatio
-    })
-
-    // 所有卡片的高宽比差异应该 < 15%
-    const hasConsistentAspectRatio = aspectRatioVariance.every(v => v < 0.15)
-
-    if (!hasConsistentAspectRatio) {
-        console.log(`⚠️ 卡片尺寸不一致，高宽比差异过大，可能不是海克斯卡片`)
-        return []  // ✅ 严格拒绝
+    if (widthConsistency < 0.85) {
+        console.log(`⚠️ 卡片宽度不一致（最小/最大 = ${widthConsistency.toFixed(2)} < 0.85），可能不是海克斯卡片`)
+        return []
     }
+    console.log(`✓ 卡片宽度一致（比例: ${widthConsistency.toFixed(2)} >= 0.85）`)
+
+    // ✅ 步骤1b：检查卡片Y坐标一致性（真实卡片在同一行）
+    const yPositions = cards.map(c => c.y)
+    const maxY = Math.max(...yPositions)
+    const minY = Math.min(...yPositions)
+    const yRange = maxY - minY
+
+    // 真实海克斯的3张卡片应该在近似相同的垂直位置（允许少量偏差）
+    // 但如果Y偏差太大（> 100px），说明卡片来自不同的UI层，可能是误检
+    if (yRange > 100) {
+        console.log(`⚠️ 卡片Y坐标差异过大（范围: ${yRange}px > 100px），可能不是海克斯卡片`)
+        return []
+    }
+    console.log(`✓ 卡片Y坐标一致（范围: ${yRange}px <= 100px）`)
 
     // ✅ 步骤2：如果少于3张卡片，直接返回空
     if (cards.length < 3) {
@@ -215,31 +252,111 @@ function validateAndOptimizeCards(cards, screenWidth, screenHeight) {
         return []  // ✅ 严格要求3张
     }
 
-    // ✅ 步骤3：验证3张卡片的间距是否均匀
-    const spacing = [
-        cards[1].x - (cards[0].x + cards[0].width),
-        cards[2].x - (cards[1].x + cards[1].width),
-    ]
+    // ✅ 步骤3：处理不同数量的候选卡片
 
-    // 检查间距是否相近（允许±15%的差异）- 比之前更严格
-    const avgSpacing = (spacing[0] + spacing[1]) / 2
+    // 如果超过3张，检查是否是重叠的颜色层（位置相近）
+    if (cards.length > 3) {
+        console.log(`⚠️ 检测到 ${cards.length} 张候选卡片，检查是否是多颜色层重叠...`)
 
-    // 避免除以零
-    if (avgSpacing < 5) {
-        console.log(`⚠️ 卡片间距过小或不合理`)
-        return []
+        // 检查候选卡片的位置分布：真正的海克斯卡片应该分布在屏幕中央，且彼此相距约 300-400px
+        // 首先尝试从白色边框卡片中选择（最可靠）
+        const whiteCards = cards.filter(c => c.color === 'white')
+
+        if (whiteCards.length >= 3) {
+            // 如果有足够的白色卡片，只使用白色卡片
+            console.log(`✨ 检测到 ${whiteCards.length} 张白色边框卡片，使用白色优先策略`)
+            cards = whiteCards.slice(0, 3)
+        } else if (whiteCards.length > 0 && cards.length <= 6) {
+            // 如果白色不足但不超过6张，可能是白色+其他颜色的混合
+            // 检查卡片的x坐标分布，看是否确实是3个不同的位置
+            cards.sort((a, b) => a.x - b.x)
+
+            // 计算卡片之间的距离
+            const distances = []
+            for (let i = 1; i < cards.length; i++) {
+                distances.push(cards[i].x - cards[i-1].x)
+            }
+
+            const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length
+            const distanceVar = distances.map(d => Math.abs(d - avgDistance) / avgDistance)
+
+            // 如果距离分布相对均匀（< 80%差异），说明这些卡片可能是同一组的多色层
+            if (distanceVar.every(v => v < 0.8)) {
+                console.log(`✨ 候选卡片位置分布均匀（距离标准差 < 80%），尝试智能选择...`)
+
+                // 将卡片分成3组，每组选择最佳代表
+                const third = Math.floor(cards.length / 3)
+                const groups = [
+                    cards.slice(0, third),
+                    cards.slice(third, third * 2),
+                    cards.slice(third * 2)
+                ]
+
+                const selectedCards = groups.map((group, idx) => {
+                    // 优先选择白色
+                    const whiteInGroup = group.filter(c => c.color === 'white')
+                    if (whiteInGroup.length > 0) {
+                        return whiteInGroup[0]
+                    }
+                    // 否则选择宽度最大的
+                    return group.reduce((a, b) => a.width > b.width ? a : b)
+                })
+
+                cards = selectedCards
+                console.log(`✨ 智能选择完成，得到 3 张卡片`)
+            } else {
+                // 距离分布不均匀，说明这不是真正的3张卡片
+                console.log(`⚠️ 候选卡片位置分布不均匀（距离标准差 >= 80%），可能不是海克斯界面`)
+                return []
+            }
+        } else {
+            // 超过6张或完全没有白色卡片，直接拒绝
+            console.log(`❌ 候选卡片过多（${cards.length} > 6）或缺少白色边框，不符合海克斯界面特征`)
+            return []
+        }
     }
 
-    const spacingVar1 = Math.abs(spacing[0] - avgSpacing) / avgSpacing
-    const spacingVar2 = Math.abs(spacing[1] - avgSpacing) / avgSpacing
+    // 现在应该正好是3张了（或少于3张已被拒绝）
+    if (cards.length === 3) {
+        // ✅ 核心验证1：必须检测到多种颜色（是真实海克斯的标志）
+        const colorSet = new Set(cards.map(c => c.color))
+        const colorList = Array.from(colorSet)
 
-    if (spacingVar1 < 0.15 && spacingVar2 < 0.15) {
-        // ✅ 间距均匀，这是有效的海克斯选择界面
-        console.log(`✅ 卡片验证通过：尺寸一致、间距均匀、位置正确`)
-        return cards.slice(0, 3)  // ✅ 只返回前3张
+        if (colorSet.size < 2) {
+            // 单色卡片很可能是误检（比如菜单背景、UI等）
+            console.log(`⚠️ 单色卡片（仅${colorList[0]}），不符合海克斯特征。拒绝`)
+            return []
+        }
+
+        console.log(`✓ 多颜色卡片（${colorList.join(', ')}），符合海克斯特征`)
+
+        const spacing = [
+            cards[1].x - (cards[0].x + cards[0].width),
+            cards[2].x - (cards[1].x + cards[1].width),
+        ]
+
+        // 如果有真实的间距（不是负数或太小），进行验证
+        if (spacing[0] > 0 && spacing[1] > 0) {
+            const avgSpacing = (spacing[0] + spacing[1]) / 2
+            const spacingVar1 = Math.abs(spacing[0] - avgSpacing) / avgSpacing
+            const spacingVar2 = Math.abs(spacing[1] - avgSpacing) / avgSpacing
+
+            // ✅ 放宽间距要求：< 50%
+            if (spacingVar1 < 0.5 && spacingVar2 < 0.5) {
+                console.log(`✅ 卡片验证通过：尺寸一致、位置正中央、间距均匀`)
+                return cards.slice(0, 3)  // ✅ 只返回前3张
+            } else {
+                console.log(`⚠️ 卡片间距不均匀（差异: ${(Math.max(spacingVar1, spacingVar2)*100).toFixed(1)}% > 50%）`)
+                return []
+            }
+        } else {
+            // 如果没有真实间距（分割出来的卡片），只检查尺寸一致性和位置
+            console.log(`✅ 卡片验证通过（分割卡片）：尺寸一致、位置正中央`)
+            return cards.slice(0, 3)  // ✅ 接受分割出来的卡片
+        }
     } else {
-        // ❌ 间距不均匀，拒绝
-        console.log(`⚠️ 卡片间距不均匀（差异: ${(Math.max(spacingVar1, spacingVar2)*100).toFixed(1)}% > 15%），可能不是海克斯界面`)
+        // 少于3张
+        console.log(`⚠️ 卡片数量不足: ${cards.length} < 3`)
         return []
     }
 }
@@ -334,22 +451,249 @@ function findBounds(pixelSet, width) {
 }
 
 /**
- * 从图像中提取文字（OCR）- 可选实现
+ * 从图像中提取海克斯名称（OCR）
+ * 识别屏幕中央区域的文本内容
+ *
  * @param {Buffer} imageBuffer - 图像缓冲区
- * @returns {Promise<string>} 识别的文本
+ * @returns {Promise<Array>} 识别的海克斯列表
  */
-async function recognizeText(imageBuffer) {
+async function recognizeAugmentsFromImage(imageBuffer) {
     try {
-        // 在生产环境或 OCR 不可用时，使用简单的纯颜色检测
-        // 完整的 OCR 需要更复杂的设置和依赖
-        console.warn('⚠️ OCR 功能在此版本中使用简化实现')
+        const metadata = await sharp(imageBuffer).metadata()
+        const { width, height } = metadata
 
-        // 返回空字符串表示 OCR 降级处理
-        return ''
+        console.log(`🔍 【OCR】开始识别海克斯名称 (${width}x${height})`)
+
+        // 根据分辨率判断截图类型，使用不同的裁剪策略
+        let cropX, cropY, cropWidth, cropHeight
+
+        // 判断是否为纯游戏画面（1920x1080）还是全屏含IDE（2560x1440）
+        const isFullScreenWithIDE = width >= 2400 // 2560x1440 或更大
+        const isPureGameScreen = width >= 1800 && width < 2400 // 1920x1080
+
+        if (isFullScreenWithIDE) {
+            // 全屏含IDE截图（如 q1-q17, demo3）
+            // 海克斯卡片在屏幕右侧偏中央
+            cropX = Math.round(width * 0.25)      // 从25%开始
+            cropY = Math.round(height * 0.4)      // 从40%开始
+            cropWidth = Math.round(width * 0.5)   // 50%宽度
+            cropHeight = Math.round(height * 0.15) // 15%高度（只包含名称）
+            console.log(`  检测到：全屏含IDE截图`)
+        } else if (isPureGameScreen) {
+            // 纯游戏画面截图（如 demo1, demo2）
+            // 海克斯卡片在屏幕正中央
+            cropX = Math.round(width * 0.15)      // 从15%开始
+            cropY = Math.round(height * 0.25)     // 从25%开始
+            cropWidth = Math.round(width * 0.7)   // 70%宽度
+            cropHeight = Math.round(height * 0.25) // 25%高度（包含名称 + 部分描述）
+            console.log(`  检测到：纯游戏画面截图`)
+        } else {
+            // 其他分辨率，使用默认策略
+            cropX = Math.round(width * 0.2)
+            cropY = Math.round(height * 0.3)
+            cropWidth = Math.round(width * 0.6)
+            cropHeight = Math.round(height * 0.15)
+            console.log(`  检测到：未知分辨率，使用默认裁剪`)
+        }
+
+        console.log(`  裁剪区域: x=${cropX}, y=${cropY}, 宽=${cropWidth}, 高=${cropHeight}`)
+
+        // 裁剪并进行强化预处理
+        const croppedBuffer = await sharp(imageBuffer)
+            .extract({ left: cropX, top: cropY, width: cropWidth, height: cropHeight })
+            .greyscale()  // 转为灰度图（提高文字识别）
+            .normalize()  // 自动归一化对比度
+            .linear(1.5, -(128 * 0.5))  // 增强对比度：contrast * pixel - offset
+            .toBuffer()
+
+        console.log(`  🖼️ 已准备裁剪图像用于OCR识别（${cropWidth}x${cropHeight}）`)
+
+        // 执行OCR识别
+        const recognizedText = await performOCR(croppedBuffer)
+
+        // 匹配数据库
+        const augments = matchAugmentDatabase(recognizedText)
+
+        return augments
     } catch (error) {
         console.error('❌ OCR 识别失败:', error)
+        return []
+    }
+}
+
+/**
+ * 执行OCR识别
+ * @param {Buffer} imageBuffer - 准备好的图像（裁剪、增强对比度）
+ * @returns {Promise<string>} 识别的文本
+ */
+async function performOCR(imageBuffer) {
+    try {
+        // 使用动态 import（ES Module 项目）
+        const Tesseract = await import('tesseract.js')
+        const { createWorker } = Tesseract
+
+        // 创建工作线程，使用简体中文模型
+        const worker = await createWorker('chi_sim')
+
+        // 执行文本识别
+        const result = await worker.recognize(imageBuffer)
+
+        // 清理资源
+        await worker.terminate()
+
+        // 提取识别的文本
+        const recognizedText = result.data.text
+        console.log(`📖 OCR识别文本: ${recognizedText.substring(0, 100)}...`)
+
+        return recognizedText
+    } catch (error) {
+        console.error('❌ OCR识别失败:', error)
         return ''
     }
+}
+
+/**
+ * 计算两个字符串的编辑距离（Levenshtein距离）
+ */
+function editDistance(a, b) {
+    const matrix = Array.from({ length: a.length + 1 }, (_, i) =>
+        Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+    )
+    for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+            matrix[i][j] = a[i - 1] === b[j - 1]
+                ? matrix[i - 1][j - 1]
+                : 1 + Math.min(matrix[i - 1][j], matrix[i][j - 1], matrix[i - 1][j - 1])
+        }
+    }
+    return matrix[a.length][b.length]
+}
+
+/**
+ * 在文本中滑动窗口查找与目标名称最相似的子串
+ * @returns {{ index: number, distance: number } | null} 匹配位置和编辑距离
+ */
+function fuzzyFind(text, name) {
+    const nameLen = name.length
+    if (nameLen === 0 || text.length < nameLen) return null
+
+    // 先尝试精确匹配
+    const exactIndex = text.indexOf(name)
+    if (exactIndex !== -1) {
+        return { index: exactIndex, distance: 0, matchLen: nameLen }
+    }
+
+    // ⚠️ 名称太短（≤2字）不做模糊匹配，避免误匹配
+    // 两字海克斯必须精确匹配（避免"大力"误匹配到"作寺"等）
+    if (nameLen <= 2) return null
+
+    // 滑动窗口模糊匹配（仅对≥3字的海克斯）
+    // 允许的最大编辑距离：3字允许1个错误，4字以上允许 floor(len/3) 个错误
+    const maxDistance = nameLen === 3 ? 1 : Math.floor(nameLen / 3)
+    let bestMatch = null
+
+    for (let i = 0; i <= text.length - nameLen; i++) {
+        const window = text.slice(i, i + nameLen)
+        const dist = editDistance(window, name)
+
+        if (dist <= maxDistance) {
+            if (!bestMatch || dist < bestMatch.distance) {
+                bestMatch = { index: i, distance: dist, matchLen: nameLen }
+            }
+        }
+    }
+
+    return bestMatch
+}
+
+/**
+ * 从识别的文本匹配海克斯数据库
+ * @param {string} recognizedText - OCR识别的文本
+ * @returns {Array} 匹配的海克斯列表
+ */
+function matchAugmentDatabase(recognizedText) {
+    if (!recognizedText || recognizedText.trim() === '') {
+        return []
+    }
+
+    // 确保数据库已初始化
+    const database = initAugmentDatabase()
+
+    // 黑名单：常见的描述性词汇（非海克斯名称，但容易被误匹配）
+    // ⚠️ 注意：不要添加真实的海克斯名称到黑名单！
+    const blacklist = new Set([
+        // 属性描述词
+        '攻击', '防御', '生命', '法术', '魔法',
+        '技能', '冷却', '移速', '暴击', '吸血', '穿透',
+        // 功能描述词
+        '功能', '能力', '效果', '被动', '主动', '额外',
+        '持续', '提供', '增加', '获得', '造成',
+    ])
+
+    const augments = []
+    const seenIds = new Set()
+
+    // 去除所有空格用于模糊匹配（OCR可能识别出"台风 帽"而不是"台风帽"）
+    let normalizedText = recognizedText.replace(/\s+/g, '')
+
+    // 将所有海克斯按名称长度降序排序（优先匹配长名称，避免"台风"匹配到"台风帽"）
+    const sortedAugments = Object.values(database).sort((a, b) => {
+        const aLen = a.name.replace(/\s+/g, '').length
+        const bLen = b.name.replace(/\s+/g, '').length
+        return bLen - aLen
+    })
+
+    // 收集所有候选匹配（逐步从文本中移除已匹配部分）
+    const candidates = []
+    const seenNames = new Set()
+
+    for (const augmentData of sortedAugments) {
+        const normalizedName = augmentData.name.replace(/\s+/g, '')
+
+        // 跳过黑名单、已匹配的 ID、已匹配的相同名称
+        if (blacklist.has(augmentData.name)) continue
+        if (seenIds.has(augmentData.id)) continue
+        if (seenNames.has(normalizedName)) continue
+
+        // 使用模糊匹配查找
+        const match = fuzzyFind(normalizedText, normalizedName)
+
+        if (match) {
+            candidates.push({
+                augmentData,
+                match,
+                originalIndex: match.index,
+            })
+            seenIds.add(augmentData.id)
+            seenNames.add(normalizedName)
+
+            // 从文本中移除已匹配的部分，避免子串重复匹配
+            normalizedText = normalizedText.slice(0, match.index) +
+                            normalizedText.slice(match.index + match.matchLen)
+        }
+    }
+
+    // 按在原文中的位置排序（优先选择文本前面的，即上方的海克斯名称）
+    candidates.sort((a, b) => a.originalIndex - b.originalIndex)
+
+    // 选择前 3 个（海克斯选择界面固定是 3 张卡片）
+    for (const candidate of candidates.slice(0, 3)) {
+        const confidence = candidate.match.distance === 0 ? 0.95 : 0.80
+        augments.push({
+            id: candidate.augmentData.id,
+            name: candidate.augmentData.name,
+            rarity: candidate.augmentData.rarity,
+            confidence,
+        })
+    }
+
+    if (augments.length > 0) {
+        console.log(`✅ 匹配到 ${augments.length} 个海克斯: ${augments.map(a => a.name).join(', ')}`)
+    } else {
+        console.log(`⚠️ 未匹配到海克斯`)
+    }
+
+    return augments
 }
 
 /**
@@ -442,56 +786,41 @@ export const analyzeScreenshot = async (imagePath) => {
 
         console.log(`🔍 开始分析截图: ${filename}`)
 
-        // 1. 检测海克斯卡片
-        const cardDetections = await detectAugmentCards(imageBuffer)
-        console.log(`🎨 检测结果: ${cardDetections.length} 个有效卡片（已通过所有验证）`)
+        // 【新方案】使用OCR识别海克斯名称
+        const recognizedAugments = await recognizeAugmentsFromImage(imageBuffer)
 
-        // 2. 生成推荐和判断阶段
-        let recognizedAugments = []
-        let isAugmentPhase = false
+        console.log(`🔍 OCR识别结果: 检测到 ${recognizedAugments.length} 个海克斯`)
 
-        // ✅ 严格模式：只有检测到 3 张有效卡片才算真正的海克斯阶段
-        if (cardDetections.length === 3) {
-            // 已通过所有验证的 3 张卡片
-            recognizedAugments = generateAugmentRecommendations(cardDetections)
-            isAugmentPhase = true
-            console.log(`✅ 成功识别海克斯选择界面：${recognizedAugments.length} 个海克斯推荐`)
-            console.log(`   颜色: ${cardDetections.map(c => c.rarity).join(', ')}`)
-        } else if (cardDetections.length > 0) {
-            // 检测到部分卡片，但未通过完整验证
-            recognizedAugments = generateAugmentRecommendations(cardDetections)
-            isAugmentPhase = false
-            console.log(`⚠️ 部分卡片（${cardDetections.length} < 3）：不确定是否为海克斯选择界面`)
-        } else {
-            // 未检测到任何有效卡片
-            console.log('❌ 未检测到有效的海克斯卡片')
-        }
+        // 判断是否为海克斯选择界面
+        const isAugmentPhase = recognizedAugments.length >= 1  // 识别到至少1个海克斯就认为是海克斯界面
 
-        // 计算置信度（基于验证结果）
-        const confidence = calculateConfidence(cardDetections.length, isAugmentPhase)
+        // 【简化】跳过复杂的置信度判断
+        // 原方案的置信度逻辑过于复杂且容易误判，改为简单的是/否判断
+        const confidence = isAugmentPhase ? 0.95 : 0
 
-        // 3. 整合结果
+        // 整合结果
         const analysisResult = {
             success: true,
             imagePath,
             filename,
             timestamp: stats.mtime.getTime(),
             analysis: {
-                augments: recognizedAugments,         // 识别到的海克斯
-                cardCount: cardDetections.length,      // 检测到的卡片数量
-                cardColors: cardDetections.map(c => c.rarity), // 卡片稀有度
-                confidence: confidence,                // 基于卡片数量的置信度
+                augments: recognizedAugments,         // OCR识别到的海克斯
+                cardCount: recognizedAugments.length, // 识别到的海克斯数量
+                cardColors: [],                       // 不再使用颜色检测
+                confidence: confidence,                // 简化的置信度（0 或 0.95）
                 isAugmentPhase: isAugmentPhase,        // 是否处于海克斯选择阶段
-                cardPositions: cardDetections.map(c => ({x: c.x, y: c.y, width: c.width, height: c.height})),
+                cardPositions: [],                     // 不再使用卡片位置
+                detectionMethod: 'ocr-based',          // 新方案标记
             },
             metadata: {
                 fileSize: stats.size,
                 format: 'png',
-                detectionMethod: 'color-hsv-based',
+                detectionMethod: 'ocr',
             },
         }
 
-        console.log(`✅ 截图分析完成:`, analysisResult)
+        console.log(`✅ 截图分析完成: 识别到 ${recognizedAugments.length} 个海克斯`)
         return analysisResult
     } catch (error) {
         console.error('❌ 截图分析失败:', error)

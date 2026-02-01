@@ -6,7 +6,7 @@ import _noop from 'lodash-es/noop';
 import { CancelToken } from 'axios';
 
 import http from '../http';
-import { saveToFile } from '../../share/file';
+import { saveToFile } from '../../share/file-browser-safe';
 import { parseJson, isDifferentStyleId, getStyleId, strToPercent } from '../utils';
 import { addFetched, addFetching, fetchSourceDone } from '../../share/actions';
 import Sources from '../../share/constants/sources';

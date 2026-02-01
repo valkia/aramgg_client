@@ -4,7 +4,7 @@ import _noop from 'lodash-es/noop';
 import {requestHtml} from '../utils';
 
 import {addFetched, addFetching, fetchSourceDone} from '../../share/actions';
-import {saveToFile} from '../../share/file';
+import {saveToFile} from '../../share/file-browser-safe';
 import Sources from '../../share/constants/sources';
 import SourceProto from './source-proto';
 import _find from 'lodash-es/find';

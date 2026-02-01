@@ -113,7 +113,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
-import { formatWinrateForDisplay, getWinrateLevel } from '../src/service/winrate'
+import { formatWinrateForDisplay, getWinrateLevel } from '../service/winrate'
 
 const visible = ref(false)
 const loading = ref(false)

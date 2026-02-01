@@ -218,7 +218,7 @@ async function main() {
     console.log(colorize(`找到 ${screenshots.length} 个截图文件`, 'cyan'))
 
     // 询问用户是否要测试所有截图
-    const MAX_AUTO_TEST = 20
+    const MAX_AUTO_TEST = 100
     let screenshotsToTest = screenshots
 
     if (screenshots.length > MAX_AUTO_TEST) {

@@ -54,7 +54,6 @@
 <script setup>
 import { ref, onBeforeUnmount, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
-import LCUService from '../service/lcu'
 import configCache from '../service/config-cache'
 
 const isMonitoring = ref(false)
@@ -64,22 +63,44 @@ const monitorTimer = ref(null)
 const lastQueryChampionId = ref(null) // 追踪最后一次查询的英雄ID，避免重复查询
 
 /**
+ * 通过 IPC 向主进程查询当前选择的英雄ID
+ */
+const getChampionIdViaIpc = async () => {
+    try {
+        if (!window.ipcRenderer) {
+            console.warn('🔴 IPC 通信不可用')
+            return null
+        }
+
+        const result = await window.ipcRenderer.invoke('get-champion-id', {})
+
+        if (result && result.success && result.championId) {
+            console.log('✅ 从主进程获取英雄ID:', result.championId)
+            return result.championId
+        }
+
+        return null
+    } catch (error) {
+        console.warn('⚠️ 通过IPC查询英雄ID失败:', error.message)
+        return null
+    }
+}
+
+/**
  * 启动英雄监控
  */
 const startChampionMonitor = async () => {
     if (isMonitoring.value) {
-        console.log('监控已启动，无需重复启动')
+        console.log('⚠️ 监控已启动，无需重复启动')
         return
     }
 
     isMonitoring.value = true
-    console.log('🚀 开始英雄选择监控')
-
-    const currentLolPath = configCache.getLolPath() || "E:\\wegame\\英雄联盟(26)"
+    console.log('🚀 [CHAMPION_MONITOR] 开始英雄选择监控（使用 IPC 模式）')
 
     // 检查当前是否已经选择了英雄
     try {
-        const championId = await getChampionId(currentLolPath)
+        const championId = await getChampionIdViaIpc()
         if (championId) {
             console.log('✅ 检测到已选择的英雄:', championId)
             lastChampion.value = `ID: ${championId}`
@@ -88,10 +109,10 @@ const startChampionMonitor = async () => {
         console.warn('检查当前英雄选择失败:', error.message)
     }
 
-    // 定期检查英雄选择
+    // 定期检查英雄选择（每2秒）
     monitorTimer.value = setInterval(async () => {
         try {
-            const championId = await getChampionId(currentLolPath)
+            const championId = await getChampionIdViaIpc()
             if (championId) {
                 selectedChampion.value = `ID: ${championId}`
                 lastChampion.value = `ID: ${championId}`
@@ -135,68 +156,6 @@ const toggleChampionMonitor = () => {
         stopChampionMonitor()
     } else {
         startChampionMonitor()
-    }
-}
-
-/**
- * 获取当前选择的英雄ID
- */
-const getChampionId = async (currentLolPath) => {
-    try {
-        const lcuIns = new LCUService(currentLolPath)
-
-        // 首先获取认证信息
-        await lcuIns.getAuthToken()
-
-        // 检查 LCU 是否激活
-        if (!lcuIns.active) {
-            console.warn('⚠️ LCU 未激活，游戏客户端可能未运行')
-            return null
-        }
-
-        // 获取当前选人会话
-        const data = await lcuIns.getCurrentSession()
-        console.log('📋 LCU Session Data:', data)
-        console.log('📋 数据类型:', typeof data, '是否为对象:', data && typeof data === 'object')
-
-        // 检查是否有有效数据
-        if (!data || data.errorCode) {
-            return null
-        }
-
-        // 从 myTeam 中获取英雄 ID
-        console.log('👥 myTeam 数据:', data.myTeam)
-        if (data.myTeam && data.myTeam.length > 0) {
-            for (const member of data.myTeam) {
-                console.log('  成员:', member.championId)
-                if (member.championId && member.championId !== 0) {
-                    console.log('✅ 从 myTeam 找到英雄 ID:', member.championId)
-                    return member.championId
-                }
-            }
-        }
-
-        // 如果没有从 myTeam 找到，尝试从 actions 中查找
-        console.log('⚙️ actions 数据:', data.actions, '是数组:', Array.isArray(data.actions))
-        if (data.actions && Array.isArray(data.actions) && data.actions.length > 0) {
-            console.log('📍 localPlayerCellId:', data.localPlayerCellId)
-            for (const actionGroup of data.actions) {
-                if (Array.isArray(actionGroup)) {
-                    for (const action of actionGroup) {
-                        if (action.actorCellId === data.localPlayerCellId &&
-                            action.championId && action.championId !== 0) {
-                            console.log('✅ 从 actions 找到英雄 ID:', action.championId)
-                            return action.championId
-                        }
-                    }
-                }
-            }
-        }
-
-        return null
-    } catch (error) {
-        console.error('获取英雄选择数据失败:', error)
-        return null
     }
 }
 

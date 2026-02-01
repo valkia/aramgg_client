@@ -1,16 +1,71 @@
 @import "tailwindcss";
 
+/* Tailwind CSS 4 - 使用 @theme 定义 shadcn-vue 颜色 */
+@theme {
+  --color-background: hsl(222 47% 11%);
+  --color-foreground: hsl(210 40% 98%);
+  --color-card: hsl(222 47% 14%);
+  --color-card-foreground: hsl(210 40% 98%);
+  --color-popover: hsl(222 47% 14%);
+  --color-popover-foreground: hsl(210 40% 98%);
+  --color-primary: hsl(217 91% 60%);
+  --color-primary-foreground: hsl(222 47% 11%);
+  --color-secondary: hsl(217 33% 17%);
+  --color-secondary-foreground: hsl(210 40% 98%);
+  --color-muted: hsl(217 33% 17%);
+  --color-muted-foreground: hsl(215 20% 65%);
+  --color-accent: hsl(217 33% 17%);
+  --color-accent-foreground: hsl(210 40% 98%);
+  --color-destructive: hsl(0 63% 31%);
+  --color-destructive-foreground: hsl(210 40% 98%);
+  --color-border: hsl(217 33% 22%);
+  --color-input: hsl(217 33% 22%);
+  --color-ring: hsl(224 76% 48%);
+  --radius: 0.5rem;
+}
+
+/* 同时保留传统 CSS 变量供 hsl(var(--xxx)) 使用 */
+:root {
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  --card: 222 47% 14%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222 47% 14%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 222 47% 11%;
+  --secondary: 217 33% 17%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 217 33% 17%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 63% 31%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217 33% 22%;
+  --input: 217 33% 22%;
+  --ring: 224 76% 48%;
+}
+
 @layer base {
   html {
-    @apply h-full bg-neutral-100;
+    @apply h-full;
+    background-color: hsl(222 47% 11%);
+    color: hsl(210 40% 98%);
   }
 
   body {
     @apply h-full m-0 p-0;
+    background-color: hsl(222 47% 11%);
+    color: hsl(210 40% 98%);
   }
 
   #app {
     @apply h-full;
+  }
+
+  * {
+    border-color: hsl(217 33% 22%);
   }
 
   button {
@@ -121,11 +176,6 @@
 
   .truncate-3 {
     @apply line-clamp-3;
-  }
-
-  /* 高度全屏 */
-  .h-screen-minus {
-    @apply h-screen-[calc(100vh-60px)];
   }
 }
 

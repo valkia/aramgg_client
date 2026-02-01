@@ -49,7 +49,6 @@
     "lodash-es": "^4.17.22",
     "nanoid": "^3.3.7",
     "reka-ui": "^2.8.0",
-    "screenshot-desktop": "^1.15.3",
     "sharp": "^0.34.5",
     "tesseract.js": "^7.0.0",
     "vue": "^3.4.21",

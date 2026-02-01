@@ -1,51 +1,75 @@
 <template>
-  <div class="max-w-7xl mx-auto p-lg md:p-xl">
-    <!-- Loading State -->
-    <div v-if="loading" class="space-y-md">
-      <Skeleton class="h-32 w-full" />
-      <Skeleton class="h-8 w-3/4" />
-      <Skeleton class="h-8 w-1/2" />
-      <Skeleton class="h-64 w-full" />
+  <div class="stats-page">
+    <!-- 页面头部导航 -->
+    <nav class="stats-nav">
+      <router-link to="/" class="back-link">
+        ← 返回控制台
+      </router-link>
+      <span class="nav-title">英雄统计</span>
+    </nav>
+
+    <!-- 主内容区 -->
+    <div class="stats-container">
+      <!-- Loading State -->
+      <div v-if="loading" class="loading-container">
+        <div class="loading-card">
+          <Skeleton class="skeleton-avatar" />
+          <div class="skeleton-info">
+            <Skeleton class="h-8 w-3/4" />
+            <Skeleton class="h-6 w-1/2 mt-md" />
+          </div>
+        </div>
+        <div class="loading-tabs">
+          <Skeleton class="h-12 w-full" />
+          <Skeleton class="h-64 w-full mt-lg" />
+        </div>
+      </div>
+
+      <!-- Error State -->
+      <Alert v-if="error" variant="destructive" class="error-alert">
+        <AlertTitle>⚠️ 加载失败</AlertTitle>
+        <AlertDescription>{{ error }}</AlertDescription>
+      </Alert>
+
+      <!-- Main Content -->
+      <template v-if="championData && !loading">
+        <!-- Champion Header -->
+        <ChampionStatsHeader
+          :champion-id="championId"
+          :stats="championData"
+          class="champion-header-section"
+        />
+
+        <!-- Tabs for different data sections -->
+        <div class="tabs-section">
+          <Tabs v-model="activeTab" class="w-full">
+            <TabsList class="tabs-list">
+              <TabsTrigger value="augments" class="tab-trigger">
+                🎯 海克斯增益
+              </TabsTrigger>
+              <TabsTrigger value="builds" class="tab-trigger">
+                ⚔️ 装备Build
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="augments" class="tab-content">
+              <AugmentsList
+                :augments="augmentBase"
+                :stats="augmentStats"
+                :items="itemsData"
+              />
+            </TabsContent>
+
+            <TabsContent value="builds" class="tab-content">
+              <BuildCard
+                :build-data="buildData"
+                :items="itemsData"
+              />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </template>
     </div>
-
-    <!-- Error State -->
-    <Alert v-if="error" variant="destructive" class="mb-lg">
-      <AlertTitle>错误</AlertTitle>
-      <AlertDescription>{{ error }}</AlertDescription>
-    </Alert>
-
-    <!-- Main Content -->
-    <template v-if="championData && !loading">
-      <!-- Champion Header -->
-      <ChampionStatsHeader
-        :champion-id="championId"
-        :stats="championData"
-        class="mb-xl"
-      />
-
-      <!-- Tabs for different data sections -->
-      <Tabs v-model="activeTab" class="w-full">
-        <TabsList class="grid w-full grid-cols-2">
-          <TabsTrigger value="augments">海克斯增益</TabsTrigger>
-          <TabsTrigger value="builds">装备Build</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="augments" class="mt-lg">
-          <AugmentsList
-            :augments="augmentBase"
-            :stats="augmentStats"
-            :items="itemsData"
-          />
-        </TabsContent>
-
-        <TabsContent value="builds" class="mt-lg">
-          <BuildCard
-            :build-data="buildData"
-            :items="itemsData"
-          />
-        </TabsContent>
-      </Tabs>
-    </template>
   </div>
 </template>
 
@@ -79,6 +103,11 @@ const loadData = async () => {
   error.value = null
 
   try {
+    // Check if ipcRenderer is available
+    if (!window.ipcRenderer || !window.ipcRenderer.invoke) {
+      throw new Error('IPC Renderer not available. Please wait for the application to fully load.')
+    }
+
     // Call IPC to load data in main process
     const result = await window.ipcRenderer.invoke('load-champion-data', championId.value)
 
@@ -110,15 +139,183 @@ watch(() => route.params.id, (newId) => {
 })
 
 onMounted(() => {
-  loadData()
+  // Wait for preload script to load
+  const checkIpcReady = async () => {
+    let attempts = 0
+    const maxAttempts = 50 // 增加到5秒等待时间
+
+    console.log('Checking IPC availability...')
+
+    while (!window.ipcRenderer && attempts < maxAttempts) {
+      console.log(`Attempt ${attempts + 1}: window.ipcRenderer =`, window.ipcRenderer)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      attempts++
+    }
+
+    if (window.ipcRenderer) {
+      console.log('IPC available, loading data...')
+      loadData()
+    } else {
+      console.error('IPC not available after all attempts')
+      error.value = '应用未完全加载，请刷新页面重试。'
+      loading.value = false
+    }
+  }
+
+  checkIpcReady()
 })
 </script>
 
 <style scoped>
-/* Responsive design */
+.stats-page {
+    min-height: 100vh;
+    background: linear-gradient(180deg, #1a1c2c 0%, #16213e 50%, #0f1626 100%);
+}
+
+.stats-nav {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 24px;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.back-link {
+    color: rgba(255, 255, 255, 0.7);
+    text-decoration: none;
+    font-size: 14px;
+    transition: color 0.2s;
+}
+
+.back-link:hover {
+    color: #60a5fa;
+}
+
+.nav-title {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.stats-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+/* Loading State */
+.loading-container {
+    animation: fadeIn 0.3s ease-out;
+}
+
+.loading-card {
+    display: flex;
+    gap: 24px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.skeleton-avatar {
+    width: 120px;
+    height: 160px;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.skeleton-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.loading-tabs {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+/* Error Alert */
+.error-alert {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 12px;
+    margin-bottom: 24px;
+}
+
+/* Champion Header */
+.champion-header-section {
+    margin-bottom: 24px;
+    animation: slideUp 0.4s ease-out;
+}
+
+/* Tabs Section */
+.tabs-section {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    animation: slideUp 0.5s ease-out;
+}
+
+.tabs-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 4px;
+    border-radius: 8px;
+}
+
+.tab-trigger {
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.7);
+    transition: all 0.2s;
+}
+
+.tab-trigger:hover {
+    color: #fff;
+}
+
+.tab-content {
+    margin-top: 20px;
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive */
 @media (max-width: 768px) {
-  .max-w-7xl {
-    @apply p-md;
-  }
+    .stats-container {
+        padding: 16px;
+    }
+
+    .loading-card {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .skeleton-info {
+        width: 100%;
+    }
 }
 </style>

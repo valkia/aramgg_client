@@ -7,7 +7,17 @@ const props = defineProps({
 </script>
 
 <template>
-  <h5 :class="cn('mb-1 font-medium leading-none tracking-tight', props.class)">
+  <h5 :class="cn('alert-title', props.class)">
     <slot />
   </h5>
 </template>
+
+<style scoped>
+.alert-title {
+  margin-bottom: 4px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  color: inherit;
+}
+</style>

@@ -7,7 +7,20 @@ const props = defineProps({
 </script>
 
 <template>
-  <div :class="cn('text-sm [&_p]:leading-relaxed', props.class)">
+  <div :class="cn('alert-description', props.class)">
     <slot />
   </div>
 </template>
+
+<style scoped>
+.alert-description {
+  font-size: 14px;
+  line-height: 1.5;
+  color: inherit;
+  opacity: 0.9;
+}
+
+.alert-description :deep(p) {
+  line-height: 1.5;
+}
+</style>

@@ -1,8 +1,7 @@
-import screenshot from 'screenshot-desktop'
+import { desktopCapturer } from 'electron'
 import path from 'path'
 import fs from 'fs-extra'
 import os from 'os'
-import { BrowserWindow } from 'electron'
 
 // 获取临时目录
 const getScreenshotDir = () => {
@@ -11,41 +10,56 @@ const getScreenshotDir = () => {
     return tempDir
 }
 
-// 尝试通过窗口标题识别 LoL 游戏窗口
-const getLolGameWindowId = () => {
+/**
+ * 查找游戏窗口
+ * @param {Array} sources - desktopCapturer 返回的源列表
+ * @returns {Object|null} 匹配的游戏窗口源，未找到返回 null
+ */
+const findGameWindow = (sources) => {
+    return sources.find(source => {
+        const name = source.name.toLowerCase()
+        return (
+            name.includes('league of legends') ||
+            name.includes('英雄联盟') ||
+            name.includes('lol') ||
+            (name.includes('league') && name.includes('client'))
+        )
+    }) || null
+}
+
+/**
+ * 查找屏幕源（回退方案）
+ * @param {Array} sources - desktopCapturer 返回的源列表
+ * @returns {Object|null} 主屏幕源，未找到返回 null
+ */
+const findScreenSource = (sources) => {
+    // 优先使用主显示器（screen:0:0 通常是主屏幕）
+    const screens = sources.filter(s => s.id.startsWith('screen:'))
+    return screens.length > 0 ? screens[0] : null
+}
+
+/**
+ * 尝试通过 desktopCapturer 获取 LoL 游戏窗口 ID
+ * @returns {Promise<string|null>} 游戏窗口 ID，未找到返回 null
+ */
+export const getLolGameWindowId = async () => {
     try {
-        // LoL 游戏窗口通常包含 "League of Legends" 或游戏进程名称
-        if (process.platform === 'win32') {
-            const { execSync } = require('child_process')
-
-            try {
-                // 方法1: 查找游戏进程
-                const tasklist = execSync('tasklist /v', { encoding: 'utf8' })
-
-                // 查找包含游戏相关进程的窗口
-                const gameProcesses = [
-                    'League of Legends.exe',
-                    'LeagueClient.exe',
-                    'RiotClientServices.exe',
-                ]
-
-                for (const process of gameProcesses) {
-                    if (tasklist.includes(process)) {
-                        return true
-                    }
-                }
-            } catch (e) {
-                // tasklist 命令失败时，尝试其他方法
-            }
-        }
-
-        return false
+        const sources = await desktopCapturer.getSources({
+            types: ['window']
+        })
+        const gameWindow = findGameWindow(sources)
+        return gameWindow ? gameWindow.id : null
     } catch (error) {
-        return false
+        console.error('获取游戏窗口 ID 失败:', error)
+        return null
     }
 }
 
-// 截图当前屏幕（支持自动检测游戏窗口）
+/**
+ * 截图当前屏幕（优先截取游戏窗口）
+ * @param {Object} options - 截图选项
+ * @returns {Promise<Object>} 截图结果
+ */
 export const captureScreenshot = async (options = {}) => {
     try {
         const screenshotDir = getScreenshotDir()
@@ -53,22 +67,62 @@ export const captureScreenshot = async (options = {}) => {
         const filename = `screenshot-${timestamp}.png`
         const filepath = path.join(screenshotDir, filename)
 
-        // 检查是否有 LoL 游戏窗口
-        const hasLolWindow = getLolGameWindowId()
-        console.log(`🎮 LoL 游戏窗口检测: ${hasLolWindow ? '已检测到' : '未检测到'}`)
+        // 获取所有窗口和屏幕源
+        const sources = await desktopCapturer.getSources({
+            types: ['window', 'screen'],
+            thumbnailSize: { width: 1920, height: 1080 }
+        })
 
-        // 使用 screenshot-desktop 截图
-        // 注：screenshot-desktop 会自动截取所有显示器或主显示器
-        const img = await screenshot()
-        await fs.writeFile(filepath, img)
+        // 查找游戏窗口
+        const gameWindow = findGameWindow(sources)
+
+        // 确定截图源：优先游戏窗口，否则使用全屏
+        let captureSource = gameWindow
+        let captureMode = 'window'
+
+        if (!gameWindow) {
+            captureSource = findScreenSource(sources)
+            captureMode = 'screen'
+        }
+
+        if (!captureSource) {
+            throw new Error('无法获取截图源')
+        }
+
+        // 获取截图
+        const screenshot = captureSource.thumbnail
+
+        if (!screenshot || screenshot.isEmpty()) {
+            throw new Error('截图为空')
+        }
+
+        // 转换为 PNG Buffer 并保存
+        const pngBuffer = screenshot.toPNG()
+        await fs.writeFile(filepath, pngBuffer)
+
+        const hasLolWindow = !!gameWindow
+        const size = screenshot.getSize()
+
+        if (gameWindow) {
+            console.log(`✅ 找到游戏窗口: ${gameWindow.name}`)
+            console.log(`📐 窗口尺寸: ${size.width}x${size.height}`)
+        } else {
+            console.log(`⚠️ 未找到游戏窗口，使用全屏截图`)
+            console.log(`📐 屏幕尺寸: ${size.width}x${size.height}`)
+        }
 
         console.log(`📸 Screenshot saved: ${filepath}`)
+
         return {
             success: true,
             filepath,
             filename,
             timestamp,
             hasLolWindow,
+            captureMode,
+            windowName: gameWindow?.name,
+            width: size.width,
+            height: size.height
         }
     } catch (error) {
         console.error('❌ Screenshot capture failed:', error)

@@ -55,11 +55,11 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import config from "../src/native/config";
-import {QQChampionAvatarPrefix, getChampions} from '../src/service/qq';
-import LCUService from '../src/service/lcu';
-import LolQQ from '../src/service/data-source/lol-qq';
-import Opgg from '../src/service/data-source/op-gg';
+import config from "../native/config";
+import {QQChampionAvatarPrefix, getChampions} from '../service/qq';
+import LCUService from '../service/lcu';
+import LolQQ from '../service/data-source/lol-qq';
+import Opgg from '../service/data-source/op-gg';
 import {getChampionInfo} from './utils';
 
 const type = ref("opgg");

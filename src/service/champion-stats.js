@@ -18,9 +18,9 @@ function getDataPath(filename) {
     }
   }
 
-  // Development: use relative path from src/src/service to electron/data
-  // src/src/service/champion-stats.js -> electron/data
-  return path.resolve(__dirname, '../../..', 'electron', 'data', filename);
+  // Development: use relative path from src/service to electron/data
+  // src/service/champion-stats.js -> electron/data
+  return path.resolve(__dirname, '../../../', 'electron', 'data', filename);
 }
 
 /**

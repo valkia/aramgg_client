@@ -1,126 +1,137 @@
 <template>
   <div class="augments-list">
     <!-- Filters -->
-    <el-row :gutter="20" class="filter-section">
-      <el-col :xs="24" :sm="12" :md="8">
-        <el-select
-          v-model="selectedRarity"
-          placeholder="选择稀有度"
-          @change="handleRarityChange"
-          clearable
-        >
-          <el-option label="全部" value="" />
-          <el-option label="银色" value="kSilver" />
-          <el-option label="黄金" value="kGold" />
-          <el-option label="紫晶" value="kPrismatic" />
-        </el-select>
-      </el-col>
+    <div class="filter-section">
+      <div class="filter-grid">
+        <div class="filter-item">
+          <Select v-model="selectedRarity">
+            <SelectTrigger class="select-trigger">
+              <SelectValue placeholder="选择稀有度" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">全部</SelectItem>
+              <SelectItem value="kSilver">银色</SelectItem>
+              <SelectItem value="kGold">黄金</SelectItem>
+              <SelectItem value="kPrismatic">紫晶</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-      <el-col :xs="24" :sm="12" :md="8">
-        <el-select
-          v-model="selectedSort"
-          placeholder="排序方式"
-          @change="handleSortChange"
-        >
-          <el-option label="胜率降序" value="winRate" />
-          <el-option label="选取率降序" value="pickRate" />
-          <el-option label="场次降序" value="games" />
-          <el-option label="Tier升序" value="tier" />
-        </el-select>
-      </el-col>
-    </el-row>
+        <div class="filter-item">
+          <Select v-model="selectedSort">
+            <SelectTrigger class="select-trigger">
+              <SelectValue placeholder="排序方式" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="winRate">胜率降序</SelectItem>
+              <SelectItem value="pickRate">选取率降序</SelectItem>
+              <SelectItem value="games">场次降序</SelectItem>
+              <SelectItem value="tier">Tier升序</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </div>
 
     <!-- Augments Table -->
-    <el-table
-      :data="displayedAugments"
-      stripe
-      class="augments-table"
-      :default-sort="{ prop: 'winRate', order: 'descending' }"
-      @header-click="handleTableSort"
-    >
-      <el-table-column prop="id" label="ID" width="60" />
-
-      <el-table-column label="图标" width="60" align="center">
-        <template #default="{ row }">
-          <el-image
-            :src="getAugmentIconUrl(row.iconPath)"
-            :preview-src-list="[getAugmentIconUrl(row.iconPath)]"
-            style="width: 40px; height: 40px"
-            fit="cover"
-            lazy
-          />
-        </template>
-      </el-table-column>
-
-      <el-table-column prop="name" label="名称" min-width="150" />
-
-      <el-table-column label="稀有度" width="80" align="center">
-        <template #default="{ row }">
-          <el-tag :type="getRarityColor(row.rarity)">
-            {{ getRarityLabel(row.rarity) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-
-      <el-table-column label="Tier" width="60" align="center">
-        <template #default="{ row }">
-          <span
-            v-if="getAugmentStats(row.id)"
-            :style="{ color: getTierColor(getAugmentStats(row.id).tier) }"
-            class="tier-text"
-          >
-            {{ getAugmentStats(row.id).tier }}
-          </span>
-          <span v-else class="no-data">-</span>
-        </template>
-      </el-table-column>
-
-      <el-table-column label="胜率" width="80" align="center" sortable="custom">
-        <template #default="{ row }">
-          <span v-if="getAugmentStats(row.id)">
-            {{ (getAugmentStats(row.id).win_rate * 100).toFixed(2) }}%
-          </span>
-          <span v-else class="no-data">-</span>
-        </template>
-      </el-table-column>
-
-      <el-table-column label="选取率" width="80" align="center" sortable="custom">
-        <template #default="{ row }">
-          <span v-if="getAugmentStats(row.id)">
-            {{ (getAugmentStats(row.id).pick_rate * 100).toFixed(2) }}%
-          </span>
-          <span v-else class="no-data">-</span>
-        </template>
-      </el-table-column>
-
-      <el-table-column label="场次" width="80" align="center">
-        <template #default="{ row }">
-          <span v-if="getAugmentStats(row.id)">
-            {{ getAugmentStats(row.id).num_games }}
-          </span>
-          <span v-else class="no-data">-</span>
-        </template>
-      </el-table-column>
-
-      <el-table-column label="胜场" width="80" align="center">
-        <template #default="{ row }">
-          <span v-if="getAugmentStats(row.id)">
-            {{ getAugmentStats(row.id).num_win_games }}
-          </span>
-          <span v-else class="no-data">-</span>
-        </template>
-      </el-table-column>
-    </el-table>
+    <Table class="augments-table">
+      <TableHeader>
+        <TableRow>
+          <TableHead class="w-16">ID</TableHead>
+          <TableHead class="w-16">图标</TableHead>
+          <TableHead class="min-w-[150px]">名称</TableHead>
+          <TableHead class="w-20 text-center">稀有度</TableHead>
+          <TableHead class="w-16 text-center">Tier</TableHead>
+          <TableHead class="w-20 text-center">胜率</TableHead>
+          <TableHead class="w-20 text-center">选取率</TableHead>
+          <TableHead class="w-20 text-center">场次</TableHead>
+          <TableHead class="w-20 text-center">胜场</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow
+          v-for="row in displayedAugments"
+          :key="row.id"
+          class="table-row-hover"
+        >
+          <TableCell>{{ row.id }}</TableCell>
+          <TableCell>
+            <img
+              :src="getAugmentIconUrl(row.iconPath)"
+              class="augment-icon"
+              :alt="row.name"
+            />
+          </TableCell>
+          <TableCell>{{ row.name }}</TableCell>
+          <TableCell class="text-center">
+            <Badge :class="getRarityClass(row.rarity)">
+              {{ getRarityLabel(row.rarity) }}
+            </Badge>
+          </TableCell>
+          <TableCell class="text-center">
+            <span
+              v-if="getAugmentStats(row.id)"
+              :style="{ color: getTierColor(getAugmentStats(row.id).tier) }"
+              class="tier-text"
+            >
+              {{ getAugmentStats(row.id).tier }}
+            </span>
+            <span v-else class="no-data">-</span>
+          </TableCell>
+          <TableCell class="text-center">
+            <span v-if="getAugmentStats(row.id)">
+              {{ (getAugmentStats(row.id).win_rate * 100).toFixed(2) }}%
+            </span>
+            <span v-else class="no-data">-</span>
+          </TableCell>
+          <TableCell class="text-center">
+            <span v-if="getAugmentStats(row.id)">
+              {{ (getAugmentStats(row.id).pick_rate * 100).toFixed(2) }}%
+            </span>
+            <span v-else class="no-data">-</span>
+          </TableCell>
+          <TableCell class="text-center">
+            <span v-if="getAugmentStats(row.id)">
+              {{ getAugmentStats(row.id).num_games }}
+            </span>
+            <span v-else class="no-data">-</span>
+          </TableCell>
+          <TableCell class="text-center">
+            <span v-if="getAugmentStats(row.id)">
+              {{ getAugmentStats(row.id).num_win_games }}
+            </span>
+            <span v-else class="no-data">-</span>
+          </TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
 
     <!-- Empty State -->
-    <el-empty v-if="displayedAugments.length === 0" description="暂无数据" />
+    <div v-if="displayedAugments.length === 0" class="empty-state">
+      <p>暂无数据</p>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
-import { ElSelect, ElOption, ElTable, ElTableColumn, ElTag, ElImage, ElEmpty, ElRow, ElCol } from 'element-plus'
-import { getAugmentIconUrl } from '../src/service/cdn'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
+import { getAugmentIconUrl } from '../service/cdn'
 
 const props = defineProps({
   augments: {
@@ -145,8 +156,8 @@ const selectedSort = ref('winRate')
  */
 const filteredAugments = computed(() => {
   return props.augments.filter(aug => {
-    if (!selectedRarity.value) return true;
-    return aug.rarity === selectedRarity.value;
+    if (!selectedRarity.value) return true
+    return aug.rarity === selectedRarity.value
   })
 })
 
@@ -154,88 +165,76 @@ const filteredAugments = computed(() => {
  * Sort filtered augments
  */
 const displayedAugments = computed(() => {
-  const sorted = [...filteredAugments.value];
+  const sorted = [...filteredAugments.value]
 
   sorted.sort((a, b) => {
-    const statsA = getAugmentStats(a.id);
-    const statsB = getAugmentStats(b.id);
+    const statsA = getAugmentStats(a.id)
+    const statsB = getAugmentStats(b.id)
 
-    if (!statsA && statsB) return 1;
-    if (statsA && !statsB) return -1;
-    if (!statsA && !statsB) return 0;
+    if (!statsA && statsB) return 1
+    if (statsA && !statsB) return -1
+    if (!statsA && !statsB) return 0
 
-    let compareValue = 0;
+    let compareValue = 0
     switch (selectedSort.value) {
       case 'winRate':
-        compareValue = parseFloat(statsB.win_rate) - parseFloat(statsA.win_rate);
-        break;
+        compareValue = parseFloat(statsB.win_rate) - parseFloat(statsA.win_rate)
+        break
       case 'pickRate':
-        compareValue = parseFloat(statsB.pick_rate) - parseFloat(statsA.pick_rate);
-        break;
+        compareValue = parseFloat(statsB.pick_rate) - parseFloat(statsA.pick_rate)
+        break
       case 'games':
-        compareValue = parseInt(statsB.num_games) - parseInt(statsA.num_games);
-        break;
+        compareValue = parseInt(statsB.num_games) - parseInt(statsA.num_games)
+        break
       case 'tier':
-        compareValue = parseInt(statsA.tier) - parseInt(statsB.tier);
-        break;
+        compareValue = parseInt(statsA.tier) - parseInt(statsB.tier)
+        break
       default:
-        compareValue = 0;
+        compareValue = 0
     }
 
-    return compareValue;
-  });
+    return compareValue
+  })
 
-  return sorted;
+  return sorted
 })
 
 /**
  * Get stats for an augment
  */
 const getAugmentStats = (augmentId) => {
-  return props.stats[String(augmentId)];
+  return props.stats[String(augmentId)]
 }
 
 /**
- * Get color for rarity
+ * Get class for rarity badge
  */
-const getRarityColor = (rarity) => {
-  if (rarity === 'kSilver') return 'info';
-  if (rarity === 'kGold') return 'warning';
-  if (rarity === 'kPrismatic') return 'success';
-  return 'default';
+const getRarityClass = (rarity) => {
+  if (rarity === 'kSilver') return 'rarity-silver'
+  if (rarity === 'kGold') return 'rarity-gold'
+  if (rarity === 'kPrismatic') return 'rarity-prismatic'
+  return ''
 }
 
 /**
  * Get label for rarity
  */
 const getRarityLabel = (rarity) => {
-  if (rarity === 'kSilver') return '银色';
-  if (rarity === 'kGold') return '黄金';
-  if (rarity === 'kPrismatic') return '紫晶';
-  return '未知';
+  if (rarity === 'kSilver') return '银色'
+  if (rarity === 'kGold') return '黄金'
+  if (rarity === 'kPrismatic') return '紫晶'
+  return '未知'
 }
 
 /**
  * Get color for tier
  */
 const getTierColor = (tier) => {
-  const tierNum = parseInt(tier);
-  if (tierNum <= 1) return '#52c41a';
-  if (tierNum <= 2) return '#faad14';
-  if (tierNum <= 3) return '#f5222d';
-  return '#1890ff';
-}
-
-const handleRarityChange = () => {
-  // Filter will update automatically due to computed property
-}
-
-const handleSortChange = () => {
-  // Sort will update automatically due to computed property
-}
-
-const handleTableSort = () => {
-  // Prevent default sorting, use our custom sort
+  const tierNum = parseInt(tier)
+  if (tierNum <= 1) return '#52c41a'
+  if (tierNum <= 2) return '#faad14'
+  if (tierNum <= 3) return '#f5222d'
+  return '#60a5fa'
 }
 </script>
 
@@ -246,22 +245,77 @@ const handleTableSort = () => {
 
 .filter-section {
   margin-bottom: 20px;
-  background: #f5f7fa;
+  background: rgba(255, 255, 255, 0.05);
   padding: 15px;
-  border-radius: 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.filter-item {
+  width: 100%;
+}
+
+.select-trigger {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .augments-table {
   width: 100%;
 }
 
+.augment-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.table-row-hover:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .no-data {
-  color: #909399;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .tier-text {
   font-weight: 600;
   font-size: 14px;
+}
+
+/* Rarity badge styles */
+.rarity-silver {
+  background: rgba(192, 192, 192, 0.2);
+  border-color: rgba(192, 192, 192, 0.3);
+  color: #c0c0c0;
+}
+
+.rarity-gold {
+  background: rgba(255, 215, 0, 0.2);
+  border-color: rgba(255, 215, 0, 0.3);
+  color: #ffd700;
+}
+
+.rarity-prismatic {
+  background: rgba(148, 0, 211, 0.2);
+  border-color: rgba(148, 0, 211, 0.3);
+  color: #da70d6;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 /* Responsive */
@@ -272,6 +326,10 @@ const handleTableSort = () => {
 
   .filter-section {
     padding: 10px;
+  }
+
+  .filter-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
