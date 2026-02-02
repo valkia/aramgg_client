@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import Store from 'electron-store'
 import https from 'https'
 import axios from 'axios'
-import { captureScreenshot, cleanupOldScreenshots } from '../screenshot.js'
+import { captureScreenshot } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
 import autoScreenshotService from '../auto-screenshot-service.js'
 import { getLcuToken } from '../lcu-utils.js'
@@ -219,10 +219,6 @@ export function registerIpcHandlers(isDev) {
     // 截图 IPC 处理程序
     ipcMain.handle('screenshot-capture', async () => {
         const result = await captureScreenshot()
-        if (result.success) {
-            // 自动清理旧截图
-            await cleanupOldScreenshots(10)
-        }
         return result
     })
 

@@ -118,6 +118,14 @@ const startChampionMonitor = async () => {
                 lastChampion.value = `ID: ${championId}`
                 console.log('🎯 英雄选择更新:', championId)
 
+                // 缓存英雄ID到主进程store，供海克斯检测使用
+                try {
+                    await window.ipcRenderer.invoke('store-set', 'lastSelectedChampionId', championId)
+                    console.log('💾 英雄ID已缓存到store:', championId)
+                } catch (err) {
+                    console.warn('⚠️ 缓存英雄ID失败:', err.message)
+                }
+
                 // 如果英雄ID变化，查询胜率数据
                 if (lastQueryChampionId.value !== championId) {
                     lastQueryChampionId.value = championId

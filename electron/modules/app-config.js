@@ -312,6 +312,12 @@ function registerF1Shortcut(isDev) {
                             // 构建胜率查询数据（从识别的海克斯）
                             const augments = analysisResult.analysis.augments.slice(0, 3)
 
+                            // 从store获取缓存的英雄ID（游戏进行中时LCU可能无法获取选人会话）
+                            const cachedChampionId = store.get('lastSelectedChampionId')
+                            if (cachedChampionId) {
+                                logger.info(`使用缓存的英雄ID: ${cachedChampionId}`)
+                            }
+
                             const winrateData = {
                                 success: true,
                                 gamePhase: 'augment-select',
@@ -321,6 +327,7 @@ function registerF1Shortcut(isDev) {
                                     rarity: aug.rarity,
                                     confidence: aug.confidence,
                                 })),
+                                championId: cachedChampionId || null,
                                 analysisConfidence: analysisResult.analysis.confidence,
                                 timestamp: Date.now(),
                                 dataSource: 'local-analysis',
