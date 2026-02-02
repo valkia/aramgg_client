@@ -2,10 +2,12 @@
  * 接口域名的管理
  */
 
+import log from '@/native/logger.js';
+
 // eslint-disable-next-line no-unused-vars
 let baseUrl = "";   //这里是一个默认的url，可以没有
 //window.location.href
-console.log(process.env.NODE_ENV);
+log.info(process.env.NODE_ENV);
 
 //主机地址 http://localhost:8090
 let host = window.location.origin;

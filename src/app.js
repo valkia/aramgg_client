@@ -20,6 +20,7 @@ import Toolbar from 'src/components/toolbar';
 import Home from 'src/modules/home';
 import Import from 'src/modules/import';
 import Settings from 'src/modules/settings';
+import log from '@/native/logger.js';
 
 const engine = new Styletron();
 const GameTypes = [`pick`];
@@ -52,7 +53,7 @@ const App = () => {
       try {
         const lolDir = config.get(`lolDir`);
         if (!lolDir) {
-          console.err(`lol folder not selected.`);
+          log.error(`lol folder not selected.`);
           return false;
         }
 
@@ -63,7 +64,7 @@ const App = () => {
         await lcuIns.getAuthToken();
 
         if (!lcuIns.active) {
-          console.err(`lcu not running.`);
+          log.error(`lcu not running.`);
           return false;
         }
 
@@ -82,7 +83,7 @@ const App = () => {
           mChampionId > 0 && myTeam.length > 0 && myTeam.every((i) => i.championId === mChampionId);
 
         championId = findUserChampion(cellId, actions);
-        console.log(`isRandomMode: ${isRandomMode}, isVoteMode: ${isVoteMode}, My pick: ${cellId}`);
+        log.info(`isRandomMode: ${isRandomMode}, isVoteMode: ${isVoteMode}, My pick: ${cellId}`);
 
         if (isRandomMode || isVoteMode) {
           // special mode
@@ -90,22 +91,22 @@ const App = () => {
         }
 
         if (!championId) {
-          console.log(`no matched.`);
+          log.info(`no matched.`);
           throw new Error(`no active session.`);
         }
 
-        console.log(`got champion id: `, championId);
+        log.info(`got champion id: `, championId);
         ipcRenderer.send(`show-popup`, {
           championId,
           position: null,
         });
 
-        console.log(`show popup.`);
+        log.info(`show popup.`);
         return true;
       } catch (_err) {
         if (process.env.IS_DEV) return;
 
-        console.error(`cannot show popup.`);
+        log.error(`cannot show popup.`);
         ipcRenderer.send(`hide-popup`);
       }
     }, 1600);

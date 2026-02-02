@@ -1,3 +1,4 @@
+import logger from './logger.js';
 import { BrowserWindow, screen } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -7,15 +8,16 @@ const __dirname = path.dirname(__filename)
 
 let mainWindow = null
 let popupWindow = null
+let floatingWindow = null
 
 /**
  * 获取正确的 preload 脚本路径
  */
 function getPreloadPath(isDev) {
     if (isDev) {
-        return path.join(__dirname, '../../dist-electron', 'preload.js')
+        return path.join(__dirname, '../../dist-electron', 'preload.mjs')
     } else {
-        return path.join(__dirname, 'preload.js')
+        return path.join(__dirname, 'preload.mjs')
     }
 }
 
@@ -42,16 +44,20 @@ export const createMainWindow = async (isDev, devServerUrl) => {
     })
 
     mainWindow.on('close', () => {
-        console.log('Main window closing...')
-        // 关闭主窗口时，同时关闭 popup 窗口
+        logger.info('Main window closing...')
+        // 关闭主窗口时，同时关闭 popup 窗口和浮动窗口
         if (popupWindow && !popupWindow.isDestroyed()) {
-            console.log('Closing popup window...')
+            logger.info('Closing popup window...')
             popupWindow.close()
+        }
+        if (floatingWindow && !floatingWindow.isDestroyed()) {
+            logger.info('Closing floating window...')
+            floatingWindow.close()
         }
     })
 
     mainWindow.on('closed', () => {
-        console.log('Main window closed')
+        logger.info('Main window closed')
         mainWindow = null
     })
 
@@ -84,16 +90,16 @@ export const createPopupWindow = async (isDev, devServerUrl) => {
         skipTaskbar: true,
         resizable: isDev || false,
         fullscreenable: false,
-        alwaysOnTop: !isDev,
-        width: isDev ? 900 : 400,
+        alwaysOnTop: true, // 始终置顶，包括开发模式
+        width: 400,
         height: 600,
-        x: isDev ? curDisplay.bounds.width / 2 : curDisplay.bounds.width - 500 - 140,
+        x: curDisplay.bounds.width - 400 - 140,
         y: curDisplay.bounds.height / 2,
         webPreferences,
     })
 
     popupWindow.on('closed', () => {
-        console.log('Popup window closed')
+        logger.info('Popup window closed')
         popupWindow = undefined
     })
 
@@ -107,6 +113,62 @@ export const createPopupWindow = async (isDev, devServerUrl) => {
 }
 
 /**
+ * 创建透明浮动窗口（用于游戏内显示海克斯推荐）
+ */
+export const createFloatingWindow = async (isDev, devServerUrl) => {
+    // 获取主显示器信息
+    const primaryDisplay = screen.getPrimaryDisplay()
+    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize
+
+    const webPreferences = getWebPreferences(isDev)
+
+    // 窗口宽度和位置
+    const windowWidth = 850
+    const windowHeight = 200
+    const windowX = Math.round((screenWidth - windowWidth) / 2)
+    const windowY = Math.round(screenHeight * 0.12) // 屏幕顶部 12% 位置
+
+    floatingWindow = new BrowserWindow({
+        show: false,
+        frame: false,           // 无边框
+        transparent: true,      // 透明背景
+        skipTaskbar: true,      // 不在任务栏显示
+        resizable: false,
+        fullscreenable: false,
+        alwaysOnTop: true,      // 始终置顶
+        focusable: false,       // 不获取焦点，避免干扰游戏
+        width: windowWidth,
+        height: windowHeight,
+        x: windowX,
+        y: windowY,
+        webPreferences,
+    })
+
+    // 设置窗口忽略鼠标事件（透传点击）
+    // floatingWindow.setIgnoreMouseEvents(true, { forward: true })
+
+    floatingWindow.on('closed', () => {
+        logger.info('Floating window closed')
+        floatingWindow = undefined
+    })
+
+    await floatingWindow.loadURL(
+        isDev
+            ? `${devServerUrl}/#/floating-overlay`
+            : `file://${path.join(__dirname, '../dist/index.html')}#/floating-overlay`,
+    )
+
+    // 开发模式下打开开发者工具
+    if (isDev) {
+        floatingWindow.webContents.openDevTools({ mode: 'detach' })
+    }
+
+    logger.info('透明浮动窗口已创建', { x: windowX, y: windowY, width: windowWidth, height: windowHeight })
+
+    return floatingWindow
+}
+
+/**
  * 获取主窗口实例
  */
 export const getMainWindow = () => mainWindow
@@ -115,6 +177,11 @@ export const getMainWindow = () => mainWindow
  * 获取弹出窗口实例
  */
 export const getPopupWindow = () => popupWindow
+
+/**
+ * 获取浮动窗口实例
+ */
+export const getFloatingWindow = () => floatingWindow
 
 /**
  * 切换主窗口可见性

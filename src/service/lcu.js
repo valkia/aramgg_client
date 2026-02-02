@@ -1,3 +1,4 @@
+import log from '@/native/logger.js';
 import http from './http';
 import { getLcuToken } from '../share/file-browser-safe';
 
@@ -10,7 +11,7 @@ export default class LCUService {
   setVars = (token, port, url) => {
     this.active = !!token;
     // if (!token) {
-    //   console.info(`League client not active!`)
+    //   log.info(`League client not active!`)
     // }
 
     this.url = url;
@@ -41,7 +42,7 @@ export default class LCUService {
 
     // getLcuToken 可能返回 null 或 { port, password } 对象
     if (!result) {
-      console.warn('无法获取 LCU Token，游戏客户端可能未运行')
+      log.warn('无法获取 LCU Token，游戏客户端可能未运行')
       this.setVars(null, null, null);
       return null;
     }
@@ -66,19 +67,19 @@ export default class LCUService {
   };
 
   getCurrentSession = async () => {
-    console.log(this.urls.curSession);
-    console.log(this.auth);
+    log.info(this.urls.curSession);
+    log.info(this.auth);
     const res = await http.get(this.urls.curSession, {
       ...this.auth,
       validateStatus: (status) => status < 500,
     });
-    console.log(res);
+    log.info(res);
     return res;
   };
 
   getCurPerk = async () => {
     const res = await http.get(this.urls.curPerk, this.auth);
-    console.log(res);
+    log.info(res);
   };
 
   getPerkList = async () => {
@@ -120,10 +121,10 @@ export default class LCUService {
         ...this.auth,
         validateStatus: (status) => status < 500,
       });
-      console.log('🎮 当前游戏阶段:', res);
+      log.info('🎮 当前游戏阶段:', res);
       return res;
     } catch (error) {
-      console.error('获取游戏阶段失败:', error.message);
+      log.error('获取游戏阶段失败:', error.message);
       return null;
     }
   };
@@ -138,10 +139,10 @@ export default class LCUService {
         ...this.auth,
         validateStatus: (status) => status < 500,
       });
-      console.log('📋 游戏会话信息:', res);
+      log.info('📋 游戏会话信息:', res);
       return res;
     } catch (error) {
-      console.error('获取游戏会话失败:', error.message);
+      log.error('获取游戏会话失败:', error.message);
       return null;
     }
   };
@@ -159,14 +160,14 @@ export default class LCUService {
       try {
         const phase = await this.getGameflowPhase();
         if (phase && phase !== lastPhase) {
-          console.log(`📍 游戏阶段变化: ${lastPhase} → ${phase}`);
+          log.info(`📍 游戏阶段变化: ${lastPhase} → ${phase}`);
           lastPhase = phase;
           if (callback) {
             callback(phase);
           }
         }
       } catch (error) {
-        console.warn('轮询游戏阶段出错:', error.message);
+        log.warn('轮询游戏阶段出错:', error.message);
       }
     }, interval);
 
@@ -180,7 +181,7 @@ export default class LCUService {
   stopPollGameflowPhase = (timerId) => {
     if (timerId) {
       clearInterval(timerId);
-      console.log('⏹️ 停止游戏阶段轮询');
+      log.info('⏹️ 停止游戏阶段轮询');
     }
   };
 }

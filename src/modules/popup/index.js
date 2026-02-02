@@ -1,3 +1,4 @@
+import log from '@/native/logger.js';
 /* eslint react-hooks/exhaustive-deps: 0 */
 import s from './style.module.scss';
 
@@ -56,7 +57,7 @@ export default function Popup() {
   useEffect(() => {
     // const mb = new MurderBridge();
     // mb.import().then((v) => {
-    //   console.log(v);
+    //   log.info(v);
     // });
 
     getChampions(lolVer).then((championList) => {
@@ -106,11 +107,11 @@ export default function Popup() {
       const res = await lcu.current.applyPerk({
         ...perk,
       });
-      console.info(`Apply perk`, res);
+      log.info(`Apply perk`, res);
 
       new Notification(t(`applied`));
     } catch (e) {
-      console.error(e);
+      log.error(e);
     }
   };
 

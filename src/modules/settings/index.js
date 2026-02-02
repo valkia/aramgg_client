@@ -1,3 +1,4 @@
+import log from '@/native/logger.js';
 /* eslint react-hooks/exhaustive-deps: 0 */
 import s from './style.module.scss';
 

@@ -5,6 +5,7 @@
 
 import fs from 'fs'
 import path from 'path'
+import logger from './modules/logger.js'
 
 /**
  * 从 LeagueClient 日志中提取 LCU Token
@@ -15,24 +16,24 @@ import path from 'path'
 export async function getLcuToken(dirPath) {
     try {
         if (!dirPath) {
-            console.warn('[getLcuToken] ❌ 英雄联盟目录路径为空')
+            logger.warn('[getLcuToken] ❌ 英雄联盟目录路径为空')
             return [null, null, null]
         }
 
         // 规范化路径（处理混合的正斜杠和反斜杠）
         const normalizedPath = dirPath.replace(/\//g, '\\')
-        console.log('[getLcuToken] 规范化后的路径:', normalizedPath)
+        logger.info('[getLcuToken] 规范化后的路径:', normalizedPath)
 
         const dir = path.join(normalizedPath, 'LeagueClient')
 
         // 检查目录是否存在
         if (!fs.existsSync(dir)) {
-            console.warn(`[getLcuToken] ❌ LeagueClient 目录不存在: ${dir}`)
+            logger.warn(`[getLcuToken] ❌ LeagueClient 目录不存在: ${dir}`)
             return [null, null, null]
         }
 
         // 读取目录中的所有文件
-        console.log(`[getLcuToken] 读取目录: ${dir}`)
+        logger.info(`[getLcuToken] 读取目录: ${dir}`)
         const files = fs.readdirSync(dir)
 
         // 查找 LeagueClient.log 文件（不是 renderer.log）
@@ -46,24 +47,24 @@ export async function getLcuToken(dirPath) {
         const latest = logFiles.pop() // 获取最新的日志文件
 
         if (!latest) {
-            console.error(`[getLcuToken] ❌ No LeagueClient.log found`)
-            console.log(`[getLcuToken] 可用文件:`, files.slice(0, 5))
+            logger.error(`[getLcuToken] ❌ No LeagueClient.log found`)
+            logger.info(`[getLcuToken] 可用文件:`, files.slice(0, 5))
             return [null, null, null]
         }
 
         // 读取日志文件内容
-        console.log(`[getLcuToken] 读取文件: ${latest}`)
+        logger.info(`[getLcuToken] 读取文件: ${latest}`)
         const filePath = path.join(dir, latest)
         const content = fs.readFileSync(filePath, 'utf8')
-        console.log(`[getLcuToken] 文件大小: ${content.length} bytes`)
+        logger.info(`[getLcuToken] 文件大小: ${content.length} bytes`)
 
         // 查找 LCU 连接信息
         // 格式: https://riot:TOKEN@127.0.0.1:PORT/
         const urlMatch = content.match(/https:\/\/riot:([^@]+)@127\.0\.0\.1:(\d+)/)
 
         if (!urlMatch) {
-            console.error(`[getLcuToken] ❌ LCU URL 匹配失败`)
-            console.log(`[getLcuToken] 尝试备用模式...`)
+            logger.error(`[getLcuToken] ❌ LCU URL 匹配失败`)
+            logger.info(`[getLcuToken] 尝试备用模式...`)
 
             // 尝试旧格式（备用方案）
             const altMatch = content.match(/https(.*)\/index\.html/)
@@ -77,16 +78,16 @@ export async function getLcuToken(dirPath) {
                     const port = portMatch[1]
                     const urlWithAuth = `https${url}`
 
-                    console.log(`[getLcuToken] ✅ 成功提取（备用模式）:`)
-                    console.log(`  Token: ${token.substring(0, 10)}...`)
-                    console.log(`  Port: ${port}`)
-                    console.log(`  URL: ${urlWithAuth}`)
+                    logger.info(`[getLcuToken] ✅ 成功提取（备用模式）:`)
+                    logger.info(`  Token: ${token.substring(0, 10)}...`)
+                    logger.info(`  Port: ${port}`)
+                    logger.info(`  URL: ${urlWithAuth}`)
 
                     return [token, port, urlWithAuth]
                 }
             }
 
-            console.error(`[getLcuToken] ❌ 未找到有效的 URL 模式`)
+            logger.error(`[getLcuToken] ❌ 未找到有效的 URL 模式`)
             return [null, null, null]
         }
 
@@ -94,15 +95,15 @@ export async function getLcuToken(dirPath) {
         const port = urlMatch[2]
         const urlWithAuth = `https://riot:${token}@127.0.0.1:${port}`
 
-        console.log(`[getLcuToken] ✅ 成功提取:`)
-        console.log(`  Token: ${token.substring(0, 10)}...`)
-        console.log(`  Port: ${port}`)
-        console.log(`  URL: ${urlWithAuth}`)
+        logger.info(`[getLcuToken] ✅ 成功提取:`)
+        logger.info(`  Token: ${token.substring(0, 10)}...`)
+        logger.info(`  Port: ${port}`)
+        logger.info(`  URL: ${urlWithAuth}`)
 
         return [token, port, urlWithAuth]
     } catch (err) {
-        console.error(`[getLcuToken] ❌ 错误:`, err.message)
-        console.error(`  Stack:`, err.stack)
+        logger.error(`[getLcuToken] ❌ 错误:`, err.message)
+        logger.error(`  Stack:`, err.stack)
         return [null, null, null]
     }
 }

@@ -3,6 +3,8 @@
  * 用于存储和读取应用配置（如游戏路径等）
  */
 
+import log from '@/native/logger.js';
+
 const STORAGE_KEY = 'lol-tips-config';
 
 /**
@@ -13,7 +15,7 @@ function getConfig() {
         const data = localStorage.getItem(STORAGE_KEY);
         return data ? JSON.parse(data) : {};
     } catch (e) {
-        console.error('获取配置失败:', e);
+        log.error('获取配置失败:', e);
         return {};
     }
 }
@@ -28,7 +30,7 @@ function saveConfig(config) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
         return true;
     } catch (e) {
-        console.error('保存配置失败:', e);
+        log.error('保存配置失败:', e);
         return false;
     }
 }

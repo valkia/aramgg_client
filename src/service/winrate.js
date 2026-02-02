@@ -1,3 +1,4 @@
+import log from '@/native/logger.js';
 /**
  * 胜率查询服务
  * 功能：从不同数据源获取英雄的胜率、选择率等信息
@@ -14,7 +15,7 @@ export const getAugmentWinrates = async (championId, augmentIds = null) => {
     try {
         // 在客户端中，通过 IPC 调用主进程的数据加载
         if (!window.ipcRenderer) {
-            console.warn('IPC 通信不可用')
+            log.warn('IPC 通信不可用')
             return {
                 success: false,
                 championId,
@@ -30,7 +31,7 @@ export const getAugmentWinrates = async (championId, augmentIds = null) => {
 
         return result
     } catch (error) {
-        console.error('Augment winrate query failed:', error)
+        log.error('Augment winrate query failed:', error)
         return {
             success: false,
             championId,
@@ -93,10 +94,10 @@ export const getChampionWinrate = async (championId, position = null, options = 
             tier: null,             // 等级
         }
 
-        console.log('Champion winrate query:', result)
+        log.info('Champion winrate query:', result)
         return result
     } catch (error) {
-        console.error('Winrate query failed:', error)
+        log.error('Winrate query failed:', error)
         return {
             success: false,
             championId,
@@ -119,7 +120,7 @@ export const getChampionsWinrates = async (championIds, position = null) => {
         )
         return results.filter(r => r.success)
     } catch (error) {
-        console.error('Batch winrate query failed:', error)
+        log.error('Batch winrate query failed:', error)
         return []
     }
 }

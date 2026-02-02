@@ -1,3 +1,4 @@
+import log from '@/native/logger.js';
 const fs = require('fs');
 const path = require('path');
 
@@ -100,7 +101,7 @@ export function loadChampionAugments(championId) {
 
     return {};
   } catch (error) {
-    console.warn(`Failed to load augments for champion ${championId}:`, error.message);
+    log.warn(`Failed to load augments for champion ${championId}:`, error.message);
     return {};
   }
 }
@@ -141,7 +142,7 @@ export function loadChampionBuild(championId) {
 
     return null;
   } catch (error) {
-    console.warn(`Failed to load build for champion ${championId}:`, error.message);
+    log.warn(`Failed to load build for champion ${championId}:`, error.message);
     return null;
   }
 }

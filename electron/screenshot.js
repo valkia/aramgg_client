@@ -2,6 +2,7 @@ import { desktopCapturer } from 'electron'
 import path from 'path'
 import fs from 'fs-extra'
 import os from 'os'
+import logger from './modules/logger.js'
 
 // 获取临时目录
 const getScreenshotDir = () => {
@@ -50,7 +51,7 @@ export const getLolGameWindowId = async () => {
         const gameWindow = findGameWindow(sources)
         return gameWindow ? gameWindow.id : null
     } catch (error) {
-        console.error('获取游戏窗口 ID 失败:', error)
+        logger.error('获取游戏窗口 ID 失败:', error)
         return null
     }
 }
@@ -104,14 +105,14 @@ export const captureScreenshot = async (options = {}) => {
         const size = screenshot.getSize()
 
         if (gameWindow) {
-            console.log(`✅ 找到游戏窗口: ${gameWindow.name}`)
-            console.log(`📐 窗口尺寸: ${size.width}x${size.height}`)
+            logger.info(`找到游戏窗口: ${gameWindow.name}`)
+            logger.debug(`窗口尺寸: ${size.width}x${size.height}`)
         } else {
-            console.log(`⚠️ 未找到游戏窗口，使用全屏截图`)
-            console.log(`📐 屏幕尺寸: ${size.width}x${size.height}`)
+            logger.warn(`未找到游戏窗口，使用全屏截图`)
+            logger.debug(`屏幕尺寸: ${size.width}x${size.height}`)
         }
 
-        console.log(`📸 Screenshot saved: ${filepath}`)
+        logger.info(`Screenshot saved: ${filepath}`)
 
         return {
             success: true,
@@ -125,7 +126,7 @@ export const captureScreenshot = async (options = {}) => {
             height: size.height
         }
     } catch (error) {
-        console.error('❌ Screenshot capture failed:', error)
+        logger.error('Screenshot capture failed:', error)
         return {
             success: false,
             error: error.message,
@@ -143,7 +144,7 @@ export const getScreenshots = async () => {
             filepath: path.join(screenshotDir, f),
         }))
     } catch (error) {
-        console.error('Failed to get screenshots:', error)
+        logger.error('Failed to get screenshots:', error)
         return []
     }
 }
@@ -171,10 +172,10 @@ export const cleanupOldScreenshots = async (keepCount = 10) => {
             for (let i = keepCount; i < fileStats.length; i++) {
                 const filepath = path.join(screenshotDir, fileStats[i].f)
                 await fs.remove(filepath)
-                console.log(`Deleted old screenshot: ${fileStats[i].f}`)
+                logger.info(`Deleted old screenshot: ${fileStats[i].f}`)
             }
         }
     } catch (error) {
-        console.error('Failed to cleanup screenshots:', error)
+        logger.error('Failed to cleanup screenshots:', error)
     }
 }

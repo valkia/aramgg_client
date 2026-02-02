@@ -9,7 +9,7 @@
               <SelectValue placeholder="选择稀有度" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">全部</SelectItem>
+              <SelectItem value="all">全部</SelectItem>
               <SelectItem value="kSilver">银色</SelectItem>
               <SelectItem value="kGold">黄金</SelectItem>
               <SelectItem value="kPrismatic">紫晶</SelectItem>
@@ -148,7 +148,7 @@ const props = defineProps({
   }
 })
 
-const selectedRarity = ref('')
+const selectedRarity = ref('all')
 const selectedSort = ref('winRate')
 
 /**
@@ -156,7 +156,7 @@ const selectedSort = ref('winRate')
  */
 const filteredAugments = computed(() => {
   return props.augments.filter(aug => {
-    if (!selectedRarity.value) return true
+    if (selectedRarity.value === 'all') return true
     return aug.rarity === selectedRarity.value
   })
 })
@@ -196,7 +196,7 @@ const displayedAugments = computed(() => {
     return compareValue
   })
 
-  return sorted
+  return sorted.slice(0, 20)
 })
 
 /**

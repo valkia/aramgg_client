@@ -1,5 +1,6 @@
 import { app } from 'electron'
 import { init } from './modules/app-config.js'
+import logger from './modules/logger.js'
 
 // 解决提示ERR_CERT_AUTHORITY_INVALID的问题
 app.commandLine.appendSwitch('ignore-certificate-errors', 'true')
@@ -13,7 +14,7 @@ app.whenReady().then(init)
 
 // Quit when all windows are closed.
 app.on('window-all-closed', function () {
-    console.log('All windows closed, quitting app...')
+    logger.info('All windows closed, quitting app...')
     app.quit()
 })
 

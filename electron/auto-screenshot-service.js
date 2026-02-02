@@ -6,6 +6,7 @@
 import { captureScreenshot, cleanupOldScreenshots } from './screenshot.js'
 import { analyzeScreenshot } from './image-analyzer.js'
 import { BrowserWindow } from 'electron'
+import logger from './modules/logger.js'
 
 class AutoScreenshotService {
     constructor() {
@@ -31,7 +32,7 @@ class AutoScreenshotService {
      */
     async start(intervalMs = 5000) {
         if (this.isRunning) {
-            console.log('Auto screenshot already running')
+            logger.info('Auto screenshot already running')
             return false
         }
 
@@ -39,7 +40,7 @@ class AutoScreenshotService {
         this.isRunning = true
         this.screenshotCount = 0
 
-        console.log(`Auto screenshot service started with interval: ${this.interval}ms`)
+        logger.info(`Auto screenshot service started with interval: ${this.interval}ms`)
 
         // 启动定时器
         this.intervalId = setInterval(async () => {
@@ -55,7 +56,7 @@ class AutoScreenshotService {
      */
     stop() {
         if (!this.isRunning) {
-            console.log('Auto screenshot not running')
+            logger.info('Auto screenshot not running')
             return false
         }
 
@@ -63,7 +64,7 @@ class AutoScreenshotService {
         this.isRunning = false
         this.intervalId = null
 
-        console.log(`Auto screenshot service stopped. Total screenshots: ${this.screenshotCount}`)
+        logger.info(`Auto screenshot service stopped. Total screenshots: ${this.screenshotCount}`)
         return true
     }
 
@@ -87,7 +88,7 @@ class AutoScreenshotService {
                 // 记录性能数据
                 this._recordPerformance(captureTimeMs)
 
-                console.log(
+                logger.info(
                     `[Auto Screenshot ${this.screenshotCount}] Captured in ${captureTimeMs.toFixed(2)}ms`
                 )
 
@@ -105,11 +106,11 @@ class AutoScreenshotService {
 
                 return result
             } else {
-                console.error('Auto screenshot failed:', result.error)
+                logger.error('Auto screenshot failed:', result.error)
                 return result
             }
         } catch (error) {
-            console.error('Auto screenshot error:', error)
+            logger.error('Auto screenshot error:', error)
             return {
                 success: false,
                 error: error.message,
@@ -138,21 +139,21 @@ class AutoScreenshotService {
             // 3. 置信度必须 > 90%（更严格）
             if (cardCount === 3 && isAugmentPhase && confidence > 0.9) {
                 this.detectionCount++
-                console.log(`✨ [自动分析 ${this.analysisCount}] ✅ 高置信度检测: ${cardCount} 个有效海克斯卡片，置信度 ${(confidence * 100).toFixed(1)}%`)
-                console.log(`   通知 UI 显示推荐`)
+                logger.info(`✨ [自动分析 ${this.analysisCount}] ✅ 高置信度检测: ${cardCount} 个有效海克斯卡片，置信度 ${(confidence * 100).toFixed(1)}%`)
+                logger.info(`   通知 UI 显示推荐`)
                 this._notifyAugmentDetected(analysisResult)
             } else {
                 // 检测结果不满足通知条件
                 if (cardCount < 3) {
-                    console.log(`[自动分析 ${this.analysisCount}] ⚠️ 卡片数量不足: ${cardCount} < 3`)
+                    logger.info(`[自动分析 ${this.analysisCount}] ⚠️ 卡片数量不足: ${cardCount} < 3`)
                 } else if (!isAugmentPhase) {
-                    console.log(`[自动分析 ${this.analysisCount}] ⚠️ 验证失败：卡片间距或位置不符`)
+                    logger.info(`[自动分析 ${this.analysisCount}] ⚠️ 验证失败：卡片间距或位置不符`)
                 } else if (confidence <= 0.9) {
-                    console.log(`[自动分析 ${this.analysisCount}] ⚠️ 置信度过低: ${(confidence * 100).toFixed(1)}% <= 90%`)
+                    logger.info(`[自动分析 ${this.analysisCount}] ⚠️ 置信度过低: ${(confidence * 100).toFixed(1)}% <= 90%`)
                 }
             }
         } catch (error) {
-            console.error('Auto screenshot analysis error:', error)
+            logger.error('Auto screenshot analysis error:', error)
         }
     }
 
@@ -177,15 +178,33 @@ class AutoScreenshotService {
                 dataSource: 'auto-analysis',
             }
 
-            windows.forEach(window => {
-                if (!window.isDestroyed()) {
-                    window.webContents.send('augment-detected', winrateData)
-                }
+            // 查找浮动窗口并显示
+            const floatingWindow = windows.find(win => {
+                const url = win.webContents.getURL()
+                return url.includes('floating-overlay')
             })
 
-            console.log('📢 已通知UI窗口有新的海克斯检测')
+            if (floatingWindow && !floatingWindow.isDestroyed()) {
+                // 显示浮动窗口
+                if (!floatingWindow.isVisible()) {
+                    floatingWindow.show()
+                    logger.info('✨ 显示海克斯浮动窗口')
+                }
+                // 发送数据到浮动窗口
+                floatingWindow.webContents.send('augment-detected', winrateData)
+            } else {
+                logger.warn('⚠️ 未找到浮动窗口，将数据发送给所有窗口')
+                // 如果找不到浮动窗口，发送给所有窗口
+                windows.forEach(window => {
+                    if (!window.isDestroyed()) {
+                        window.webContents.send('augment-detected', winrateData)
+                    }
+                })
+            }
+
+            logger.info('📢 已通知UI窗口有新的海克斯检测')
         } catch (error) {
-            console.error('Failed to notify windows:', error)
+            logger.error('Failed to notify windows:', error)
         }
     }
 

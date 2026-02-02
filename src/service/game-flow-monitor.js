@@ -1,3 +1,4 @@
+import log from '@/native/logger.js';
 /**
  * 游戏流程监控服务
  * 监听游戏阶段变化，在关键时刻触发相应操作
@@ -9,15 +10,15 @@
  * const monitor = new GameFlowMonitor(lcuService)
  *
  * monitor.on('phase-change', (phase) => {
- *   console.log('游戏阶段:', phase)
+ *   log.info('游戏阶段:', phase)
  * })
  *
  * monitor.on('game-started', () => {
- *   console.log('游戏开始了！启动截图服务')
+ *   log.info('游戏开始了！启动截图服务')
  * })
  *
  * monitor.on('augment-ready', () => {
- *   console.log('可能进入海克斯选择阶段')
+ *   log.info('可能进入海克斯选择阶段')
  * })
  *
  * // 启动监控
@@ -87,11 +88,11 @@ export default class GameFlowMonitor {
    */
   async start() {
     if (this.isRunning) {
-      console.log('⚠️ 游戏流程监控已在运行');
+      log.info('⚠️ 游戏流程监控已在运行');
       return;
     }
 
-    console.log('🚀 启动游戏流程监控');
+    log.info('🚀 启动游戏流程监控');
     this.isRunning = true;
 
     // 首先获取初始阶段
@@ -99,10 +100,10 @@ export default class GameFlowMonitor {
       const initialPhase = await this.lcuService.getGameflowPhase();
       if (initialPhase) {
         this.currentPhase = initialPhase;
-        console.log(`📍 当前游戏阶段: ${this.getPhaseName(initialPhase)}`);
+        log.info(`📍 当前游戏阶段: ${this.getPhaseName(initialPhase)}`);
       }
     } catch (error) {
-      console.warn('无法获取初始阶段:', error.message);
+      log.warn('无法获取初始阶段:', error.message);
     }
 
     // 启动定时轮询
@@ -119,7 +120,7 @@ export default class GameFlowMonitor {
     const prevPhase = this.currentPhase;
     this.currentPhase = phase;
 
-    console.log(
+    log.info(
       `📍 阶段变化: ${this.getPhaseName(prevPhase)} → ${this.getPhaseName(phase)}`
     );
 
@@ -129,36 +130,36 @@ export default class GameFlowMonitor {
     // 针对特定阶段的处理
     switch (phase) {
       case 'ChampSelect':
-        console.log('🎯 进入选人阶段');
+        log.info('🎯 进入选人阶段');
         this.emit('champ-select-start');
         break;
 
       case 'GameStart':
-        console.log('🎮 游戏开始加载');
+        log.info('🎮 游戏开始加载');
         this.emit('game-started');
         // 在这里触发自动截图启动
         break;
 
       case 'InProgress':
-        console.log('⚔️ 游戏进行中 - 海克斯选择可能即将开始');
+        log.info('⚔️ 游戏进行中 - 海克斯选择可能即将开始');
         this.emit('game-in-progress');
         // 在这里启动高频率截图来检测海克斯选择界面
         this.emit('augment-ready');
         break;
 
       case 'WaitingForStats':
-        console.log('📊 游戏已结束，等待结果');
+        log.info('📊 游戏已结束，等待结果');
         this.emit('game-ended');
         // 停止截图和分析
         break;
 
       case 'EndOfGame':
-        console.log('🏁 游戏结束');
+        log.info('🏁 游戏结束');
         this.emit('end-of-game');
         break;
 
       default:
-        console.log(`其他阶段: ${this.getPhaseName(phase)}`);
+        log.info(`其他阶段: ${this.getPhaseName(phase)}`);
     }
   }
 
@@ -167,11 +168,11 @@ export default class GameFlowMonitor {
    */
   stop() {
     if (!this.isRunning) {
-      console.log('⚠️ 游戏流程监控未运行');
+      log.info('⚠️ 游戏流程监控未运行');
       return;
     }
 
-    console.log('⏹️ 停止游戏流程监控');
+    log.info('⏹️ 停止游戏流程监控');
     this.isRunning = false;
 
     if (this.pollTimer) {

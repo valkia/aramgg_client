@@ -118,26 +118,80 @@ const filteredAugments = computed(() => {
 /**
  * 显示浮窗
  */
-const showOverlay = (data) => {
+const showOverlay = async (data) => {
+  console.log('🔧 showOverlay 被调用，数据:', data)
+
   visible.value = true
   loading.value = false
   error.value = null
 
   if (data && data.augments && data.augments.length > 0) {
+    console.log('✅ 数据验证通过，开始处理', data.augments.length, '个海克斯')
+
     championId.value = data.championId
-    displayAugments.value = data.augments
     dataSource.value = data.dataSource || 'local'
     timestamp.value = data.timestamp
     selectedRarity.value = 'all'
+
+    // 检查 augments 是否已经包含胜率数据
+    const hasWinrateData = data.augments.some(aug => 'winRate' in aug)
+    console.log('🔍 检查胜率数据:', hasWinrateData ? '已包含' : '需要查询')
+
+    if (hasWinrateData) {
+      // 数据已经完整，直接显示
+      displayAugments.value = data.augments
+      console.log('✅ 直接显示完整数据')
+    } else {
+      // 需要查询胜率数据
+      console.log('🔍 海克斯数据缺少胜率信息，正在查询...')
+      loading.value = true
+
+      try {
+        // 获取当前英雄ID（如果没有提供）
+        if (!championId.value) {
+          console.log('🔍 championId 不存在，正在查询...')
+          const championResult = await window.ipcRenderer.invoke('get-champion-id')
+          console.log('🔍 get-champion-id 结果:', championResult)
+
+          if (championResult.success) {
+            championId.value = championResult.championId
+            console.log('✅ 获取到英雄ID:', championId.value)
+          } else {
+            throw new Error('无法获取当前英雄ID: ' + championResult.error)
+          }
+        }
+
+        // 查询胜率数据
+        const augmentIds = data.augments.map(aug => aug.id).filter(id => id != null)
+        console.log('🔍 查询胜率，英雄ID:', championId.value, '海克斯IDs:', augmentIds)
+
+        const winrateResult = await window.ipcRenderer.invoke('get-winrate', {
+          championId: championId.value,
+          augmentIds: augmentIds
+        })
+        console.log('🔍 get-winrate 结果:', winrateResult)
+
+        if (winrateResult.success && winrateResult.augments.length > 0) {
+          displayAugments.value = winrateResult.augments
+          console.log('✅ 胜率数据查询成功:', winrateResult.augments.length, '个海克斯')
+        } else {
+          // 胜率查询失败，使用原始数据（但会缺少胜率信息）
+          displayAugments.value = data.augments
+          console.warn('⚠️ 胜率数据查询失败，显示基础信息')
+        }
+      } catch (err) {
+        console.error('❌ 查询胜率数据失败:', err)
+        displayAugments.value = data.augments
+      } finally {
+        loading.value = false
+      }
+    }
   } else {
+    console.error('❌ 数据验证失败，无可用海克斯数据')
     error.value = '无可用海克斯数据'
   }
 
-  // 自动隐藏（15秒后）
-  clearTimeout(autoHideTimer.value)
-  autoHideTimer.value = setTimeout(() => {
-    closeOverlay()
-  }, 15000)
+  console.log('🔧 showOverlay 完成，visible:', visible.value, 'displayAugments:', displayAugments.value.length)
 }
 
 /**
@@ -147,6 +201,11 @@ const closeOverlay = () => {
   visible.value = false
   displayAugments.value = []
   clearTimeout(autoHideTimer.value)
+
+  // 同时隐藏 popup 窗口本身
+  if (window.ipcRenderer) {
+    window.ipcRenderer.send('hide-popup')
+  }
 }
 
 /**
@@ -180,21 +239,61 @@ const formatTime = (ts) => {
  * 监听来自主进程的数据
  */
 onMounted(() => {
+  console.log('🔧 AugmentWinrateOverlay 组件已挂载，开始监听事件...')
+
   // 监听"for-popup"事件，用于英雄监控触发的海克斯数据
   window.ipcRenderer.on('for-popup', (data) => {
+    console.log('📊 收到 for-popup 事件:', data)
     if (data && data.augments) {
-      console.log('📊 收到海克斯数据:', data)
+      console.log('✅ 有效的海克斯数据，调用 showOverlay')
       showOverlay(data)
+    } else {
+      console.warn('⚠️ for-popup 数据格式不正确或缺少 augments')
+    }
+  })
+
+  // 监听"augment-detected"事件，用于自动截图检测到的海克斯
+  window.ipcRenderer.on('augment-detected', (data) => {
+    console.log('📊 收到 augment-detected 事件:', data)
+    if (data && data.augments) {
+      console.log('✅ 有效的海克斯检测数据，调用 showOverlay')
+      showOverlay(data)
+    } else {
+      console.warn('⚠️ augment-detected 数据格式不正确或缺少 augments')
     }
   })
 
   // 监听胜率更新事件
   window.ipcRenderer.on('winrate-updated', (data) => {
+    console.log('📊 收到 winrate-updated 事件:', data)
     if (data && data.augments) {
-      console.log('📊 收到胜率更新:', data)
+      console.log('✅ 有效的胜率数据，调用 showOverlay')
       showOverlay(data)
+    } else {
+      console.warn('⚠️ winrate-updated 数据格式不正确或缺少 augments')
     }
   })
+
+  // 监听游戏开始事件，自动隐藏弹窗
+  window.ipcRenderer.on('game-started', () => {
+    console.log('🎮 游戏开始，隐藏海克斯弹窗')
+    closeOverlay()
+  })
+
+  window.ipcRenderer.on('game-in-progress', () => {
+    console.log('🎮 游戏进行中，隐藏海克斯弹窗')
+    closeOverlay()
+  })
+
+  window.ipcRenderer.on('game-phase-changed', (data) => {
+    console.log('🎮 游戏阶段变化事件:', data)
+    if (data && (data.phase === 'GameStart' || data.phase === 'InProgress')) {
+      console.log('🎮 检测到游戏开始/进行中，隐藏海克斯弹窗')
+      closeOverlay()
+    }
+  })
+
+  console.log('✅ 所有事件监听器已注册')
 })
 
 onBeforeUnmount(() => {

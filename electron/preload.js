@@ -1,10 +1,11 @@
-const { ipcRenderer, shell } = require('electron')
-const fs = require('fs')
-const fse = require('fs-extra')
-const cheerio = require('cheerio')
-const PromisePool = require('es6-promise-pool').default || require('es6-promise-pool')
+import { ipcRenderer, shell } from 'electron'
+import fs from 'fs'
+import fse from 'fs-extra'
+import * as cheerio from 'cheerio'
+import PromisePool from 'es6-promise-pool'
+import log from './modules/logger.js'
 
-console.log('Preload script loaded successfully')
+log.info('Preload script loaded successfully')
 
 // When contextIsolation is false, we can directly attach to window
 window.electron = {
@@ -33,12 +34,12 @@ window.electronStore = {
     clear: () => ipcRenderer.invoke('store-clear')
 }
 
-console.log('window.electronStore exposed')
+log.info('window.electronStore exposed')
 
 window.ipcRenderer = {
     send: (channel, data) => {
         // whitelist channels
-        let validChannels = ['toMain', 'show-popup', 'hide-popup', 'toggle-main-window', 'restart-app', 'broadcast']
+        let validChannels = ['toMain', 'show-popup', 'hide-popup', 'hide-floating', 'toggle-main-window', 'restart-app', 'broadcast']
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, data)
         }
@@ -82,14 +83,35 @@ window.ipcRenderer = {
         }
     },
     invoke: (channel, ...args) => {
-        console.log('ipcRenderer.invoke called:', channel, args)
-        return ipcRenderer.invoke(channel, ...args)
+        log.info('ipcRenderer.invoke called:', channel, args)
+        const validChannels = [
+            'store-get',
+            'store-set',
+            'store-delete',
+            'store-clear',
+            'screenshot-capture',
+            'analyze-screenshot',
+            'get-winrate',
+            'load-champion-data',
+            'auto-screenshot-start',
+            'auto-screenshot-stop',
+            'auto-screenshot-set-config',
+            'auto-screenshot-get-stats',
+            'auto-screenshot-get-config',
+            'select-lol-directory',
+            'get-champion-id',
+            'test-show-floating'
+        ]
+        if (validChannels.includes(channel)) {
+            return ipcRenderer.invoke(channel, ...args)
+        }
+        return Promise.reject(new Error(`Invalid channel: ${channel}`))
     }
 }
 
-console.log('window.ipcRenderer exposed')
+log.info('window.ipcRenderer exposed')
 
 // 为了方便，暴露 ipc 作为 ipcRenderer 的别名
 window.ipc = window.ipcRenderer
 
-console.log('Preload script initialization complete')
+log.info('Preload script initialization complete')

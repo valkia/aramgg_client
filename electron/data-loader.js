@@ -1,3 +1,4 @@
+import logger from './modules/logger.js';
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -103,7 +104,7 @@ export function loadChampionAugments(championId) {
 
     return {}
   } catch (error) {
-    console.warn(`Failed to load augments for champion ${championId}:`, error.message)
+    logger.warn(`Failed to load augments for champion ${championId}:`, error.message)
     return {}
   }
 }
@@ -144,7 +145,7 @@ export function loadChampionBuild(championId) {
 
     return null
   } catch (error) {
-    console.warn(`Failed to load build for champion ${championId}:`, error.message)
+    logger.warn(`Failed to load build for champion ${championId}:`, error.message)
     return null
   }
 }

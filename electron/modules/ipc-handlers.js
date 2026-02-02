@@ -7,6 +7,7 @@ import { analyzeScreenshot } from '../image-analyzer.js'
 import autoScreenshotService from '../auto-screenshot-service.js'
 import { getLcuToken } from '../lcu-utils.js'
 import { getMainWindow, getPopupWindow } from './window-manager.js'
+import logger from './logger.js'
 
 const store = new Store()
 
@@ -19,14 +20,35 @@ class IpcLCUService {
         this.active = false
         this.url = null
         this.auth = null
+        this.lastTokenFetchTime = 0
+        this.lastFailTime = 0
+        this.tokenCacheDuration = 60000 // Token 缓存时间 60 秒
+        this.failCooldown = 10000 // 连接失败后 10 秒内不重试
     }
 
-    async getAuthToken() {
+    /**
+     * 获取认证 token（带缓存机制）
+     * @param {boolean} forceRefresh - 是否强制刷新 token
+     */
+    async getAuthToken(forceRefresh = false) {
+        const now = Date.now()
+
+        // 如果在失败冷却期内，直接返回 null
+        if (!forceRefresh && this.lastFailTime && (now - this.lastFailTime < this.failCooldown)) {
+            return null
+        }
+
+        const needRefresh = forceRefresh || !this.active || (now - this.lastTokenFetchTime > this.tokenCacheDuration)
+
+        // 如果已有有效的连接且不需要刷新，直接返回
+        if (this.active && !needRefresh) {
+            return { token: this.auth.auth.password, url: this.url }
+        }
+
         try {
             const [token, port, urlWithAuth] = await getLcuToken(this.lolPath)
 
             if (!token || !port) {
-                console.warn('⚠️ 无法获取 LCU Token，游戏客户端可能未运行')
                 this.active = false
                 return null
             }
@@ -39,15 +61,20 @@ class IpcLCUService {
                 },
             }
             this.active = true
-            console.log('✅ LCU 连接成功 (IPC 处理器, 端口: ' + port + ')')
+            this.lastTokenFetchTime = now
+            this.lastFailTime = 0 // 清除失败时间
+            logger.info(`已从日志文件读取 LCU 凭证 (端口: ${port})`)
             return { token, port, url: this.url }
         } catch (error) {
-            console.error('❌ LCU 连接失败:', error.message)
+            logger.error('读取 LCU 凭证失败:', error.message)
             this.active = false
             return null
         }
     }
 
+    /**
+     * 获取当前选人会话
+     */
     async getCurrentSession() {
         if (!this.active || !this.url) {
             return null
@@ -65,11 +92,19 @@ class IpcLCUService {
             })
             return res.data
         } catch (error) {
-            console.warn('⚠️ 获取选人会话失败:', error.message)
+            // 连接被拒绝说明客户端可能未运行或端口已失效
+            // 标记为非活跃状态，并设置失败时间以触发冷却期
+            if (error.code === 'ECONNREFUSED') {
+                this.active = false
+                this.lastFailTime = Date.now()
+            }
             return null
         }
     }
 }
+
+// 全局 LCU 服务实例（单例模式）
+let globalLcuService = null
 
 /**
  * 注册主进程 IPC 处理器
@@ -123,6 +158,46 @@ export function registerIpcHandlers(isDev) {
             if (isVisible) {
                 popupWindow.hide()
             }
+        }
+    })
+
+    ipcMain.on(`hide-floating`, async () => {
+        const { getFloatingWindow } = await import('./window-manager.js')
+        const floatingWindow = getFloatingWindow()
+        if (floatingWindow && !floatingWindow.isDestroyed()) {
+            const isVisible = floatingWindow.isVisible()
+            if (isVisible) {
+                floatingWindow.hide()
+                logger.info('隐藏浮动窗口')
+            }
+        }
+    })
+
+    // 测试浮动窗口 IPC 处理程序
+    ipcMain.handle('test-show-floating', async (event, data) => {
+        try {
+            const { getFloatingWindow } = await import('./window-manager.js')
+            const floatingWindow = getFloatingWindow()
+
+            if (!floatingWindow || floatingWindow.isDestroyed()) {
+                logger.error('浮动窗口不存在')
+                return { success: false, error: '浮动窗口不存在' }
+            }
+
+            // 显示窗口
+            if (!floatingWindow.isVisible()) {
+                floatingWindow.show()
+                logger.info('✨ 显示浮动窗口（测试）')
+            }
+
+            // 发送测试数据
+            floatingWindow.webContents.send('augment-detected', data)
+            logger.info('📢 已发送测试数据到浮动窗口')
+
+            return { success: true }
+        } catch (error) {
+            logger.error('测试浮动窗口失败:', error)
+            return { success: false, error: error.message }
         }
     })
 
@@ -181,7 +256,7 @@ export function registerIpcHandlers(isDev) {
                 dataSource: 'local'
             }
         } catch (error) {
-            console.error('Winrate query error:', error)
+            logger.error('Winrate query error:', error)
             return {
                 success: false,
                 championId,
@@ -225,7 +300,7 @@ export function registerIpcHandlers(isDev) {
         const interval = config.interval || 5000
         const success = await autoScreenshotService.start(interval)
         if (success) {
-            console.log('Auto screenshot service started')
+            logger.info('Auto screenshot service started')
         }
         return {
             success,
@@ -236,7 +311,7 @@ export function registerIpcHandlers(isDev) {
     ipcMain.handle('auto-screenshot-stop', async (event) => {
         const success = autoScreenshotService.stop()
         if (success) {
-            console.log('Auto screenshot service stopped')
+            logger.info('Auto screenshot service stopped')
         }
         return {
             success,
@@ -282,7 +357,7 @@ export function registerIpcHandlers(isDev) {
                 }
             }
         } catch (error) {
-            console.error('选择目录出错:', error)
+            logger.error('选择目录出错:', error)
             return {
                 success: false,
                 path: null,
@@ -298,7 +373,7 @@ export function registerIpcHandlers(isDev) {
             let lolPath = store.get('lolPath')
 
             if (!lolPath) {
-                console.warn('⚠️ 未设置游戏路径')
+                logger.warn('未设置游戏路径')
                 return {
                     success: false,
                     championId: null,
@@ -306,24 +381,28 @@ export function registerIpcHandlers(isDev) {
                 }
             }
 
-            // 创建 LCU 实例
-            const lcuService = new IpcLCUService(lolPath)
+            // 获取或创建全局 LCU 服务实例
+            if (!globalLcuService || globalLcuService.lolPath !== lolPath) {
+                globalLcuService = new IpcLCUService(lolPath)
+            }
 
-            // 获取 LCU Token
-            const authResult = await lcuService.getAuthToken()
-            if (!lcuService.active) {
-                console.warn('⚠️ LCU 未激活')
-                return {
-                    success: false,
-                    championId: null,
-                    error: 'LCU 未激活'
+            // 首次调用或需要刷新时获取 token，否则直接使用缓存的连接
+            if (!globalLcuService.active) {
+                const authResult = await globalLcuService.getAuthToken()
+                if (!globalLcuService.active) {
+                    logger.warn('LCU 未激活')
+                    return {
+                        success: false,
+                        championId: null,
+                        error: 'LCU 未激活'
+                    }
                 }
             }
 
-            // 获取当前选人会话
-            const sessionData = await lcuService.getCurrentSession()
+            // 直接轮询选人会话（内部会自动处理连接失败的重试）
+            const sessionData = await globalLcuService.getCurrentSession()
             if (!sessionData || sessionData.errorCode) {
-                console.log('ℹ️ 无有效的选人会话')
+                // 这是正常情况（未在选人阶段），不需要记录 info 日志
                 return {
                     success: false,
                     championId: null,
@@ -331,11 +410,16 @@ export function registerIpcHandlers(isDev) {
                 }
             }
 
+            // 获取当前玩家的 cellId
+            const localPlayerCellId = sessionData.localPlayerCellId
+
             // 从 myTeam 中查找当前玩家选择的英雄
             if (sessionData.myTeam && Array.isArray(sessionData.myTeam)) {
                 for (const member of sessionData.myTeam) {
-                    if (member.championId && member.championId !== 0) {
-                        console.log('✅ 从 myTeam 获得英雄ID:', member.championId)
+                    // 必须匹配当前玩家的 cellId
+                    if (member.cellId === localPlayerCellId &&
+                        member.championId && member.championId !== 0) {
+                        logger.info('从 myTeam 获得英雄ID:', member.championId, '(cellId:', localPlayerCellId, ')')
                         return {
                             success: true,
                             championId: member.championId
@@ -346,13 +430,12 @@ export function registerIpcHandlers(isDev) {
 
             // 如果 myTeam 中没找到，尝试从 actions 中查找
             if (sessionData.actions && Array.isArray(sessionData.actions) && sessionData.actions.length > 0) {
-                const localPlayerCellId = sessionData.localPlayerCellId
                 for (const actionGroup of sessionData.actions) {
                     if (Array.isArray(actionGroup)) {
                         for (const action of actionGroup) {
                             if (action.actorCellId === localPlayerCellId &&
                                 action.championId && action.championId !== 0) {
-                                console.log('✅ 从 actions 获得英雄ID:', action.championId)
+                                logger.info('从 actions 获得英雄ID:', action.championId, '(cellId:', localPlayerCellId, ')')
                                 return {
                                     success: true,
                                     championId: action.championId
@@ -370,7 +453,7 @@ export function registerIpcHandlers(isDev) {
                 error: '未检测到英雄选择'
             }
         } catch (error) {
-            console.error('获取英雄ID出错:', error.message)
+            logger.error('获取英雄ID出错:', error.message)
             return {
                 success: false,
                 championId: null,

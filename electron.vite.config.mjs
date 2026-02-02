@@ -36,7 +36,7 @@ export default defineConfig({
       target: 'node18',
       lib: {
         entry: 'electron/preload.js',
-        formats: ['cjs']
+        formats: ['es']
       },
       rollupOptions: {
         output: {

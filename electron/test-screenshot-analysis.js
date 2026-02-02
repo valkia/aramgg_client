@@ -10,6 +10,7 @@ import fs from 'fs-extra'
 import path from 'path'
 import os from 'os'
 import { analyzeScreenshot } from './image-analyzer.js'
+import logger from './modules/logger.js'
 
 // 截图目录
 const SCREENSHOT_DIR = path.join(os.homedir(), '.lol-tips-client', 'screenshots')
@@ -36,7 +37,7 @@ function colorize(text, color) {
 async function getAllScreenshots() {
     try {
         if (!await fs.pathExists(SCREENSHOT_DIR)) {
-            console.error(colorize('❌ 截图目录不存在:', 'red'), SCREENSHOT_DIR)
+            logger.error(colorize('❌ 截图目录不存在:', 'red'), SCREENSHOT_DIR)
             return []
         }
 
@@ -51,7 +52,7 @@ async function getAllScreenshots() {
 
         return screenshots
     } catch (error) {
-        console.error(colorize('❌ 读取截图目录失败:', 'red'), error.message)
+        logger.error(colorize('❌ 读取截图目录失败:', 'red'), error.message)
         return []
     }
 }
@@ -96,8 +97,8 @@ function formatResult(result) {
  * 测试单个截图
  */
 async function testScreenshot(screenshot, index, total) {
-    console.log(colorize(`\n[${ index + 1 }/${total}] 测试截图: ${screenshot.filename}`, 'cyan'))
-    console.log('━'.repeat(80))
+    logger.info(colorize(`\n[${ index + 1 }/${total}] 测试截图: ${screenshot.filename}`, 'cyan'))
+    logger.info('━'.repeat(80))
 
     const startTime = Date.now()
     const result = await analyzeScreenshot(screenshot.filepath)
@@ -105,16 +106,16 @@ async function testScreenshot(screenshot, index, total) {
 
     const formatted = formatResult(result)
 
-    console.log(`状态: ${formatted.status}`)
-    console.log(`详情: ${formatted.detail}`)
-    console.log(`耗时: ${colorize(`${duration}ms`, 'blue')}`)
+    logger.info(`状态: ${formatted.status}`)
+    logger.info(`详情: ${formatted.detail}`)
+    logger.info(`耗时: ${colorize(`${duration}ms`, 'blue')}`)
 
     // 如果是成功的高置信度检测，显示更多信息
     if (result.success && result.analysis.cardCount === 3 &&
         result.analysis.isAugmentPhase && result.analysis.confidence > 0.9) {
-        console.log(colorize('🎯 推荐的海克斯:', 'green'))
+        logger.info(colorize('🎯 推荐的海克斯:', 'green'))
         result.analysis.augments.forEach((aug, i) => {
-            console.log(`  ${i + 1}. ${aug.name} (${aug.rarity})`)
+            logger.info(`  ${i + 1}. ${aug.name} (${aug.rarity})`)
         })
     }
 
@@ -130,9 +131,9 @@ async function testScreenshot(screenshot, index, total) {
  * 生成统计报告
  */
 function generateReport(testResults) {
-    console.log(colorize('\n' + '='.repeat(80), 'bright'))
-    console.log(colorize('📊 测试统计报告', 'bright'))
-    console.log('='.repeat(80))
+    logger.info(colorize('\n' + '='.repeat(80), 'bright'))
+    logger.info(colorize('📊 测试统计报告', 'bright'))
+    logger.info('='.repeat(80))
 
     const total = testResults.length
     const successful = testResults.filter(r =>
@@ -157,16 +158,16 @@ function generateReport(testResults) {
 
     const avgDuration = testResults.reduce((sum, r) => sum + r.duration, 0) / total
 
-    console.log(`总测试数: ${colorize(total, 'cyan')}`)
-    console.log(`高置信度检测: ${colorize(successful, 'green')} (${(successful / total * 100).toFixed(1)}%)`)
-    console.log(`部分检测: ${colorize(partialDetection, 'yellow')} (${(partialDetection / total * 100).toFixed(1)}%)`)
-    console.log(`未检测: ${colorize(noDetection, 'red')} (${(noDetection / total * 100).toFixed(1)}%)`)
-    console.log(`分析失败: ${colorize(failed, 'red')} (${(failed / total * 100).toFixed(1)}%)`)
-    console.log(`平均耗时: ${colorize(`${avgDuration.toFixed(0)}ms`, 'blue')}`)
+    logger.info(`总测试数: ${colorize(total, 'cyan')}`)
+    logger.info(`高置信度检测: ${colorize(successful, 'green')} (${(successful / total * 100).toFixed(1)}%)`)
+    logger.info(`部分检测: ${colorize(partialDetection, 'yellow')} (${(partialDetection / total * 100).toFixed(1)}%)`)
+    logger.info(`未检测: ${colorize(noDetection, 'red')} (${(noDetection / total * 100).toFixed(1)}%)`)
+    logger.info(`分析失败: ${colorize(failed, 'red')} (${(failed / total * 100).toFixed(1)}%)`)
+    logger.info(`平均耗时: ${colorize(`${avgDuration.toFixed(0)}ms`, 'blue')}`)
 
     // 显示高置信度检测的截图列表
     if (successful > 0) {
-        console.log(colorize('\n✅ 高置信度检测的截图:', 'green'))
+        logger.info(colorize('\n✅ 高置信度检测的截图:', 'green'))
         testResults
             .filter(r =>
                 r.result.success &&
@@ -176,13 +177,13 @@ function generateReport(testResults) {
             )
             .forEach((r, i) => {
                 const colors = r.result.analysis.cardColors.join(', ')
-                console.log(`  ${i + 1}. ${r.filename} - [${colors}] - ${(r.result.analysis.confidence * 100).toFixed(1)}%`)
+                logger.info(`  ${i + 1}. ${r.filename} - [${colors}] - ${(r.result.analysis.confidence * 100).toFixed(1)}%`)
             })
     }
 
     // 显示部分检测的截图列表
     if (partialDetection > 0) {
-        console.log(colorize('\n⚠️  部分检测的截图（可能的误检）:', 'yellow'))
+        logger.info(colorize('\n⚠️  部分检测的截图（可能的误检）:', 'yellow'))
         testResults
             .filter(r =>
                 r.result.success &&
@@ -191,39 +192,39 @@ function generateReport(testResults) {
             )
             .forEach((r, i) => {
                 const { cardCount, isAugmentPhase, confidence } = r.result.analysis
-                console.log(`  ${i + 1}. ${r.filename} - 卡片:${cardCount}, 验证:${isAugmentPhase?'通过':'失败'}, 置信度:${(confidence*100).toFixed(1)}%`)
+                logger.info(`  ${i + 1}. ${r.filename} - 卡片:${cardCount}, 验证:${isAugmentPhase?'通过':'失败'}, 置信度:${(confidence*100).toFixed(1)}%`)
             })
     }
 
-    console.log('\n' + '='.repeat(80))
+    logger.info('\n' + '='.repeat(80))
 }
 
 /**
  * 主函数
  */
 async function main() {
-    console.log(colorize('🧪 截图分析测试工具', 'bright'))
-    console.log(colorize('测试目录:', 'cyan'), SCREENSHOT_DIR)
-    console.log()
+    logger.info(colorize('🧪 截图分析测试工具', 'bright'))
+    logger.info(colorize('测试目录:', 'cyan'), SCREENSHOT_DIR)
+    logger.info()
 
     // 获取所有截图
     const screenshots = await getAllScreenshots()
 
     if (screenshots.length === 0) {
-        console.log(colorize('⚠️  未找到任何截图文件', 'yellow'))
-        console.log('请先进行一些截图，或者检查目录路径')
+        logger.info(colorize('⚠️  未找到任何截图文件', 'yellow'))
+        logger.info('请先进行一些截图，或者检查目录路径')
         return
     }
 
-    console.log(colorize(`找到 ${screenshots.length} 个截图文件`, 'cyan'))
+    logger.info(colorize(`找到 ${screenshots.length} 个截图文件`, 'cyan'))
 
     // 询问用户是否要测试所有截图
     const MAX_AUTO_TEST = 100
     let screenshotsToTest = screenshots
 
     if (screenshots.length > MAX_AUTO_TEST) {
-        console.log(colorize(`\n⚠️  截图数量较多 (${screenshots.length}), 建议只测试最近的 ${MAX_AUTO_TEST} 张`, 'yellow'))
-        console.log(colorize('将测试最近的 ' + MAX_AUTO_TEST + ' 张截图', 'cyan'))
+        logger.info(colorize(`\n⚠️  截图数量较多 (${screenshots.length}), 建议只测试最近的 ${MAX_AUTO_TEST} 张`, 'yellow'))
+        logger.info(colorize('将测试最近的 ' + MAX_AUTO_TEST + ' 张截图', 'cyan'))
         screenshotsToTest = screenshots.slice(0, MAX_AUTO_TEST)
     }
 
@@ -238,11 +239,11 @@ async function main() {
     // 生成报告
     generateReport(testResults)
 
-    console.log(colorize('\n✅ 测试完成！', 'green'))
+    logger.info(colorize('\n✅ 测试完成！', 'green'))
 }
 
 // 运行测试
 main().catch(error => {
-    console.error(colorize('❌ 测试失败:', 'red'), error)
+    logger.error(colorize('❌ 测试失败:', 'red'), error)
     process.exit(1)
 })
