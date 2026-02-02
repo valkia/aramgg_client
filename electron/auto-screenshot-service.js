@@ -3,7 +3,7 @@
  * 功能：定期自动截图、分析和识别海克斯卡片
  */
 
-import { captureScreenshot, cleanupOldScreenshots } from './screenshot.js'
+import { captureScreenshot } from './screenshot.js'
 import { analyzeScreenshot } from './image-analyzer.js'
 import { BrowserWindow } from 'electron'
 import logger from './modules/logger.js'
@@ -13,7 +13,7 @@ class AutoScreenshotService {
         this.isRunning = false
         this.intervalId = null
         this.interval = 5000 // 默认5秒
-        this.maxScreenshots = 50 // 最多保留50张
+        this.maxScreenshots = 50 // 保留字段但已不再使用（截图直接使用内存 Buffer）
         this.screenshotCount = 0
         this.lastScreenshotTime = null
         this.enableAnalysis = true // 是否启用自动分析
@@ -95,13 +95,8 @@ class AutoScreenshotService {
                 // 异步分析截图（不阻塞截图流程）
                 if (this.enableAnalysis) {
                     setImmediate(async () => {
-                        await this._analyzeScreenshot(result.filepath)
+                        await this._analyzeScreenshot(result.buffer)
                     })
-                }
-
-                // 清理旧截图
-                if (this.screenshotCount % 5 === 0) {
-                    await cleanupOldScreenshots(this.maxScreenshots)
                 }
 
                 return result
@@ -122,10 +117,10 @@ class AutoScreenshotService {
      * 内部方法：分析截图
      * @private
      */
-    async _analyzeScreenshot(imagePath) {
+    async _analyzeScreenshot(imageBuffer) {
         try {
             this.analysisCount++
-            const analysisResult = await analyzeScreenshot(imagePath)
+            const analysisResult = await analyzeScreenshot(imageBuffer)
 
             if (!analysisResult.success) {
                 return  // 分析失败，不继续处理

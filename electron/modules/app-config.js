@@ -299,13 +299,13 @@ function registerF1Shortcut(isDev) {
             logger.debug('Screenshot result:', result)
 
             if (result.success) {
-                logger.info(`Screenshot saved: ${result.filepath}`)
+                logger.info(`Screenshot captured: ${result.width}x${result.height}`)
 
                 // 异步执行分析和查询（不阻塞主线程）
                 setImmediate(async () => {
                     try {
-                        // 分析截图（海克斯检测 + OCR）
-                        const analysisResult = await analyzeScreenshot(result.filepath)
+                        // 分析截图（海克斯检测 + OCR）- 直接传入 buffer
+                        const analysisResult = await analyzeScreenshot(result.buffer)
                         logger.debug('Analysis result:', analysisResult)
 
                         if (analysisResult.success && analysisResult.analysis.augments.length > 0) {
@@ -356,8 +356,7 @@ function registerF1Shortcut(isDev) {
                     }
                 })
 
-                // 通知所有渲染进程新增截图
-                notifyAllWindows('screenshot-taken', result)
+
             } else {
                 logger.error('Screenshot failed:', result.error)
             }

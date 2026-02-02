@@ -15,9 +15,9 @@
  * TODO: 实现OCR识别逻辑（需要集成Tesseract.js或其他OCR库）
  */
 
-import fs from 'fs-extra'
-import path from 'path'
 import sharp from 'sharp'
+import path from 'path'
+import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import logger from './modules/logger.js'
 
@@ -73,7 +73,7 @@ function initAugmentDatabase() {
 
     try {
         const augmentsPath = path.join(__dirname, 'data', 'augments-base.json')
-        const augmentsData = JSON.parse(fs.readFileSync(augmentsPath, 'utf-8'))
+        const augmentsData = JSON.parse(readFileSync(augmentsPath, 'utf-8'))
 
         // 建立按名称索引的数据库（用于快速查找）
         AUGMENT_DATABASE = {}
@@ -766,26 +766,21 @@ function generateAugmentRecommendations(cardDetections) {
 
 /**
  * 分析截图图像
- * @param {string} imagePath - 截图文件路径
+ * @param {Buffer} imageBuffer - 截图数据Buffer（PNG格式）
  * @returns {Promise<Object>} 分析结果
  */
-export const analyzeScreenshot = async (imagePath) => {
+export const analyzeScreenshot = async (imageBuffer) => {
     try {
-        // 验证文件是否存在
-        const exists = await fs.pathExists(imagePath)
-        if (!exists) {
+        // 验证Buffer有效性
+        if (!imageBuffer || !Buffer.isBuffer(imageBuffer) || imageBuffer.length === 0) {
             return {
                 success: false,
-                error: '截图文件不存在',
+                error: '截图数据无效',
             }
         }
 
-        // 获取文件信息
-        const stats = await fs.stat(imagePath)
-        const filename = path.basename(imagePath)
-        const imageBuffer = await fs.readFile(imagePath)
-
-        logger.info(`🔍 开始分析截图: ${filename}`)
+        const timestamp = Date.now()
+        logger.info(`🔍 开始分析截图: buffer size ${(imageBuffer.length / 1024).toFixed(1)}KB`)
 
         // 【新方案】使用OCR识别海克斯名称
         const recognizedAugments = await recognizeAugmentsFromImage(imageBuffer)
@@ -802,9 +797,7 @@ export const analyzeScreenshot = async (imagePath) => {
         // 整合结果
         const analysisResult = {
             success: true,
-            imagePath,
-            filename,
-            timestamp: stats.mtime.getTime(),
+            timestamp,
             analysis: {
                 augments: recognizedAugments,         // OCR识别到的海克斯
                 cardCount: recognizedAugments.length, // 识别到的海克斯数量
@@ -815,7 +808,7 @@ export const analyzeScreenshot = async (imagePath) => {
                 detectionMethod: 'ocr-based',          // 新方案标记
             },
             metadata: {
-                fileSize: stats.size,
+                bufferSize: imageBuffer.length,
                 format: 'png',
                 detectionMethod: 'ocr',
             },

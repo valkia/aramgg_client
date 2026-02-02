@@ -1,15 +1,5 @@
 import { desktopCapturer } from 'electron'
-import path from 'path'
-import fs from 'fs-extra'
-import os from 'os'
 import logger from './modules/logger.js'
-
-// 获取临时目录
-const getScreenshotDir = () => {
-    const tempDir = path.join(os.homedir(), '.lol-tips-client', 'screenshots')
-    fs.ensureDirSync(tempDir)
-    return tempDir
-}
 
 /**
  * 查找游戏窗口
@@ -58,15 +48,13 @@ export const getLolGameWindowId = async () => {
 
 /**
  * 截图当前屏幕（优先截取游戏窗口）
+ * 截图直接返回内存Buffer，不进行磁盘I/O
  * @param {Object} options - 截图选项
  * @returns {Promise<Object>} 截图结果
  */
 export const captureScreenshot = async (options = {}) => {
     try {
-        const screenshotDir = getScreenshotDir()
         const timestamp = Date.now()
-        const filename = `screenshot-${timestamp}.png`
-        const filepath = path.join(screenshotDir, filename)
 
         // 获取所有窗口和屏幕源
         const sources = await desktopCapturer.getSources({
@@ -97,10 +85,8 @@ export const captureScreenshot = async (options = {}) => {
             throw new Error('截图为空')
         }
 
-        // 转换为 PNG Buffer 并保存
+        // 转换为 PNG Buffer（内存中，不保存到文件）
         const pngBuffer = screenshot.toPNG()
-        await fs.writeFile(filepath, pngBuffer)
-
         const hasLolWindow = !!gameWindow
         const size = screenshot.getSize()
 
@@ -112,12 +98,11 @@ export const captureScreenshot = async (options = {}) => {
             logger.debug(`屏幕尺寸: ${size.width}x${size.height}`)
         }
 
-        logger.info(`Screenshot saved: ${filepath}`)
+        logger.info(`Screenshot captured: ${size.width}x${size.height}, buffer size: ${(pngBuffer.length / 1024).toFixed(1)}KB`)
 
         return {
             success: true,
-            filepath,
-            filename,
+            buffer: pngBuffer,
             timestamp,
             hasLolWindow,
             captureMode,
@@ -134,48 +119,6 @@ export const captureScreenshot = async (options = {}) => {
     }
 }
 
-// 获取截图目录中的所有截图
-export const getScreenshots = async () => {
-    try {
-        const screenshotDir = getScreenshotDir()
-        const files = await fs.readdir(screenshotDir)
-        return files.filter(f => f.endsWith('.png')).map(f => ({
-            filename: f,
-            filepath: path.join(screenshotDir, f),
-        }))
-    } catch (error) {
-        logger.error('Failed to get screenshots:', error)
-        return []
-    }
-}
-
-// 清理旧截图（保留最新的N张）
-export const cleanupOldScreenshots = async (keepCount = 10) => {
-    try {
-        const screenshotDir = getScreenshotDir()
-        const files = await fs.readdir(screenshotDir)
-        const pngFiles = files.filter(f => f.endsWith('.png'))
-
-        if (pngFiles.length > keepCount) {
-            // 按修改时间排序
-            const fileStats = await Promise.all(
-                pngFiles.map(async (f) => {
-                    const filepath = path.join(screenshotDir, f)
-                    const stats = await fs.stat(filepath)
-                    return { f, mtime: stats.mtime.getTime() }
-                })
-            )
-
-            fileStats.sort((a, b) => b.mtime - a.mtime)
-
-            // 删除超出数量的文件
-            for (let i = keepCount; i < fileStats.length; i++) {
-                const filepath = path.join(screenshotDir, fileStats[i].f)
-                await fs.remove(filepath)
-                logger.info(`Deleted old screenshot: ${fileStats[i].f}`)
-            }
-        }
-    } catch (error) {
-        logger.error('Failed to cleanup screenshots:', error)
-    }
-}
+// 截图模块已不再需要文件管理功能
+// 所有截图直接保存在内存Buffer中进行OCR识别
+// 如需调试保存截图，可在调用方自行处理
