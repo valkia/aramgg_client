@@ -264,14 +264,15 @@ export function registerIpcHandlers(isDev) {
 
     // 数据加载 IPC 处理程序
     ipcMain.handle('load-champion-data', async (event, championId) => {
-        const { loadChampionStats, loadAugmentBase, loadChampionAugments, loadChampionBuild, loadItems } = await import('../data-loader.js')
+        const { loadChampionStats, loadAugmentBase, loadChampionAugments, loadChampionBuild, loadItems, loadChampionName } = await import('../data-loader.js')
         try {
-            const [stats, augments, augmentStats, build, items] = await Promise.all([
+            const [stats, augments, augmentStats, build, items, championName] = await Promise.all([
                 Promise.resolve(loadChampionStats(championId)),
                 Promise.resolve(loadAugmentBase()),
                 Promise.resolve(loadChampionAugments(championId)),
                 Promise.resolve(loadChampionBuild(championId)),
-                Promise.resolve(loadItems())
+                Promise.resolve(loadItems()),
+                Promise.resolve(loadChampionName(championId))
             ])
             return {
                 success: true,
@@ -280,7 +281,8 @@ export function registerIpcHandlers(isDev) {
                     augments,
                     augmentStats,
                     build,
-                    items
+                    items,
+                    championName
                 }
             }
         } catch (error) {
@@ -360,6 +362,24 @@ export function registerIpcHandlers(isDev) {
                 error: error.message,
             }
         }
+    })
+
+    // 前端错误上报 IPC 处理程序
+    ipcMain.handle('log-renderer-error', async (event, errorData) => {
+        const { message, stack, source, line, column, url, type, timestamp, userAgent } = errorData
+
+        logger.error('渲染进程错误上报:', {
+            type: type || 'error',
+            message: message || 'Unknown error',
+            stack: stack || 'No stack trace',
+            source: source || 'unknown',
+            location: `${line}:${column}`,
+            url: url || 'unknown',
+            timestamp: timestamp || Date.now(),
+            userAgent: userAgent || 'unknown',
+        })
+
+        return { success: true }
     })
 
     // 获取当前选择的英雄ID IPC 处理程序

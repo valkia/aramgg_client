@@ -7,7 +7,7 @@
       <!-- 加载状态 -->
       <div v-if="loading" class="loading-state">
         <div class="spinner"></div>
-        <p>加载海克斯数据中...</p>
+        <p>加载英雄数据中...</p>
       </div>
 
       <!-- 错误状态 -->
@@ -15,73 +15,197 @@
         <p>⚠️ {{ error }}</p>
       </div>
 
-      <!-- 海克斯列表展示 -->
-      <div v-else-if="displayAugments && displayAugments.length > 0" class="augment-content">
+      <!-- 主内容区 -->
+      <div v-else-if="championStats" class="overlay-content">
         <!-- 英雄头部信息 -->
-        <div class="header-info">
-          <h3 class="champion-title">英雄 ID: {{ championId }}</h3>
-          <div class="rarity-filter">
+        <div class="champion-header">
+          <div class="header-main">
+            <div class="champion-avatar-wrapper">
+              <img
+                :src="getChampionIconUrl(championId)"
+                :alt="championName"
+                class="champion-avatar"
+                @error="handleImageError"
+              />
+              <div class="champion-tier" v-if="championStats?.tier">
+                Tier {{ championStats.tier }}
+              </div>
+            </div>
+            <div class="champion-info">
+              <h2 class="champion-name">{{ championName }}</h2>
+              <div class="champion-stats-row">
+                <div class="stat-box">
+                  <span class="stat-label">胜率</span>
+                  <span class="stat-value" :class="getWinRateClass(championStats?.win_rate)">
+                    {{ championStats ? (championStats.win_rate * 100).toFixed(2) : '--' }}%
+                  </span>
+                </div>
+                <div class="stat-box">
+                  <span class="stat-label">选取率</span>
+                  <span class="stat-value">
+                    {{ championStats ? (championStats.pick_rate * 100).toFixed(2) : '--' }}%
+                  </span>
+                </div>
+                <div class="stat-box">
+                  <span class="stat-label">场次</span>
+                  <span class="stat-value">{{ formatNumber(championStats?.num_games) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 切换 -->
+        <div class="tabs-container">
+          <div class="tabs-list">
             <button
-              v-for="rarity in ['all', 'gold', 'purple', 'blue']"
-              :key="rarity"
-              class="filter-btn"
-              :class="{ active: selectedRarity === rarity }"
-              @click="filterByRarity(rarity)"
+              v-for="tab in tabs"
+              :key="tab.key"
+              class="tab-btn"
+              :class="{ active: activeTab === tab.key }"
+              @click="activeTab = tab.key"
             >
-              {{ rarityLabels[rarity] }}
+              <span class="tab-icon">{{ tab.icon }}</span>
+              <span class="tab-text">{{ tab.label }}</span>
             </button>
           </div>
-        </div>
 
-        <!-- 海克斯列表 -->
-        <div class="augments-list">
-          <div
-            v-for="(augment, index) in filteredAugments"
-            :key="augment.augmentId"
-            class="augment-card"
-            :class="`rarity-${augment.rarity}`"
-          >
-            <div class="augment-rank">{{ index + 1 }}</div>
+          <!-- Tab 内容 -->
+          <div class="tab-content">
+            <!-- 海克斯 Tab -->
+            <div v-if="activeTab === 'augments'" class="tab-panel">
+              <!-- 稀有度过滤 -->
+              <div class="filter-bar">
+                <button
+                  v-for="rarity in rarityOptions"
+                  :key="rarity.key"
+                  class="filter-chip"
+                  :class="{ active: selectedRarity === rarity.key, [rarity.key]: true }"
+                  @click="selectedRarity = rarity.key"
+                >
+                  {{ rarity.label }}
+                </button>
+              </div>
 
-            <!-- 海克斯基础信息 -->
-            <div class="augment-main">
-              <div class="augment-name">{{ augment.name }}</div>
-              <div class="augment-stats">
-                <span class="stat-item">
-                  <span class="stat-label">胜率</span>
-                  <span class="stat-value">{{ (augment.winRate * 100).toFixed(1) }}%</span>
-                </span>
-                <span class="stat-item">
-                  <span class="stat-label">选择率</span>
-                  <span class="stat-value">{{ (augment.pickRate * 100).toFixed(1) }}%</span>
-                </span>
-                <span class="stat-item">
-                  <span class="stat-label">推荐度</span>
-                  <span class="stat-value">{{ (augment.recommendScore * 100).toFixed(0) }}</span>
-                </span>
+              <!-- 海克斯列表 -->
+              <div v-if="filteredAugments.length > 0" class="augments-list">
+                <div
+                  v-for="(augment, index) in filteredAugments"
+                  :key="augment.augmentId"
+                  class="augment-card"
+                  :class="`rarity-${augment.rarity}`"
+                >
+                  <div class="augment-rank">{{ index + 1 }}</div>
+                  <div class="augment-icon-wrapper" v-if="augment.iconPath">
+                    <img
+                      :src="getAugmentIconUrl(augment.iconPath)"
+                      :alt="augment.name"
+                      class="augment-icon"
+                    />
+                  </div>
+                  <div class="augment-main">
+                    <div class="augment-name">{{ augment.name }}</div>
+                    <div class="augment-stats">
+                      <span class="stat-item">
+                        <span class="stat-label">胜率</span>
+                        <span class="stat-value winrate">{{ (augment.winRate * 100).toFixed(1) }}%</span>
+                      </span>
+                      <span class="stat-item">
+                        <span class="stat-label">选取率</span>
+                        <span class="stat-value">{{ (augment.pickRate * 100).toFixed(1) }}%</span>
+                      </span>
+                    </div>
+                  </div>
+                  <div class="recommend-indicator">
+                    <div class="score-bar">
+                      <div class="score-fill" :style="{ width: (augment.recommendScore * 100) + '%' }"></div>
+                    </div>
+                    <span class="score-text">{{ getRecommendLabel(augment.recommendScore) }}</span>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="empty-state">
+                <p>暂无海克斯数据</p>
               </div>
             </div>
 
-            <!-- 推荐指示 -->
-            <div class="recommend-indicator">
-              <div class="score-bar">
-                <div class="score-fill" :style="{ width: (augment.recommendScore * 100) + '%' }"></div>
+            <!-- 出装 Tab -->
+            <div v-if="activeTab === 'builds'" class="tab-panel">
+              <div v-if="buildData && parsedRecommended.length > 0" class="build-content">
+                <!-- 核心出装 -->
+                <div class="build-section">
+                  <h4 class="section-title">核心出装</h4>
+                  <div class="build-list">
+                    <div
+                      v-for="(build, idx) in coreItems.slice(0, 3)"
+                      :key="idx"
+                      class="build-item"
+                    >
+                      <div class="item-icons">
+                        <img
+                          v-for="itemId in build.items.slice(0, 6)"
+                          :key="itemId"
+                          :src="getItemIconUrl(itemId)"
+                          class="item-icon"
+                          :alt="itemId"
+                        />
+                      </div>
+                      <div class="build-stats">
+                        <div class="build-stat">
+                          <span class="label">胜率</span>
+                          <span class="value">{{ (build.winRate * 100).toFixed(1) }}%</span>
+                        </div>
+                        <div class="build-stat">
+                          <span class="label">场次</span>
+                          <span class="value">{{ build.games }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 出门装 -->
+                <div class="build-section">
+                  <h4 class="section-title">出门装</h4>
+                  <div class="build-list">
+                    <div
+                      v-for="(build, idx) in startingItems.slice(0, 2)"
+                      :key="idx"
+                      class="build-item small"
+                    >
+                      <div class="item-icons">
+                        <img
+                          v-for="itemId in build.items"
+                          :key="itemId"
+                          :src="getItemIconUrl(itemId)"
+                          class="item-icon small"
+                          :alt="itemId"
+                        />
+                      </div>
+                      <div class="build-stats">
+                        <span class="value">{{ (build.winRate * 100).toFixed(1) }}%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <span class="score-text">{{ getRecommendLabel(augment.recommendScore) }}</span>
+              <div v-else class="empty-state">
+                <p>暂无出装数据</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- 数据源信息 -->
-        <div class="meta-info">
+        <!-- 底部信息 -->
+        <div class="overlay-footer">
           <small>数据来源: {{ dataSource }}</small>
-          <small v-if="timestamp">更新时间: {{ formatTime(timestamp) }}</small>
+          <small v-if="timestamp">更新于: {{ formatTime(timestamp) }}</small>
         </div>
       </div>
 
       <!-- 无数据状态 -->
       <div v-else class="no-data">
-        <p>未能加载海克斯数据</p>
+        <p>未能加载数据</p>
       </div>
     </div>
   </transition>
@@ -89,30 +213,73 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { getChampionIconUrl, getAugmentIconUrl, getItemIconUrl } from '../service/cdn'
 
 const visible = ref(false)
 const loading = ref(false)
 const error = ref(null)
 const championId = ref(null)
-const displayAugments = ref([])
+const championName = ref('')
+const activeTab = ref('augments')
+const selectedRarity = ref('all')
 const dataSource = ref('local')
 const timestamp = ref(null)
-const autoHideTimer = ref(null)
-const selectedRarity = ref('all')
 
-const rarityLabels = {
-  all: '全部',
-  gold: '金色',
-  purple: '紫色',
-  blue: '蓝色'
-}
+// 英雄数据
+const championStats = ref(null)
+const augmentBase = ref([])
+const augmentStats = ref({})
+const buildData = ref(null)
+const itemsData = ref({})
+const displayAugments = ref([])
 
-// 按稀有度过滤海克斯
+// Tabs 配置
+const tabs = [
+  { key: 'augments', label: '海克斯', icon: '🎯' },
+  { key: 'builds', label: '出装', icon: '⚔️' }
+]
+
+// 稀有度选项
+const rarityOptions = [
+  { key: 'all', label: '全部' },
+  { key: 'gold', label: '金色' },
+  { key: 'purple', label: '紫色' },
+  { key: 'blue', label: '蓝色' }
+]
+
+// 过滤海克斯
 const filteredAugments = computed(() => {
   if (selectedRarity.value === 'all') {
     return displayAugments.value
   }
   return displayAugments.value.filter(a => a.rarity === selectedRarity.value)
+})
+
+// 解析推荐出装
+const parsedRecommended = computed(() => {
+  if (!buildData.value || !buildData.value.recommended) {
+    return []
+  }
+  return buildData.value.recommended.map(rec => {
+    const itemIds = rec.itemIds.split(',').map(id => id.trim())
+    return {
+      items: itemIds,
+      games: parseInt(rec.games) || 0,
+      wins: parseInt(rec.wins) || 0,
+      pickRate: parseFloat(rec.pick_rate) || 0,
+      winRate: parseInt(rec.wins) / parseInt(rec.games) || 0
+    }
+  }).sort((a, b) => b.games - a.games)
+})
+
+// 核心装备
+const coreItems = computed(() => {
+  return parsedRecommended.value.filter(item => item.items.length >= 3)
+})
+
+// 出门装
+const startingItems = computed(() => {
+  return parsedRecommended.value.filter(item => item.items.length <= 2)
 })
 
 /**
@@ -122,76 +289,75 @@ const showOverlay = async (data) => {
   console.log('🔧 showOverlay 被调用，数据:', data)
 
   visible.value = true
-  loading.value = false
+  loading.value = true
   error.value = null
 
-  if (data && data.augments && data.augments.length > 0) {
-    console.log('✅ 数据验证通过，开始处理', data.augments.length, '个海克斯')
+  try {
+    if (!data || !data.championId) {
+      throw new Error('缺少英雄ID')
+    }
 
     championId.value = data.championId
+    // 优先使用传入的英雄名称，如果没有则后面从数据加载
+    championName.value = data.championName || ''
     dataSource.value = data.dataSource || 'local'
-    timestamp.value = data.timestamp
+    timestamp.value = data.timestamp || Date.now()
+    activeTab.value = 'augments'
     selectedRarity.value = 'all'
 
-    // 检查 augments 是否已经包含胜率数据
-    const hasWinrateData = data.augments.some(aug => 'winRate' in aug)
-    console.log('🔍 检查胜率数据:', hasWinrateData ? '已包含' : '需要查询')
+    // 加载完整英雄数据
+    console.log('🔍 正在加载英雄数据...')
+    const result = await window.ipcRenderer.invoke('load-champion-data', championId.value)
 
-    if (hasWinrateData) {
-      // 数据已经完整，直接显示
-      displayAugments.value = data.augments
-      console.log('✅ 直接显示完整数据')
-    } else {
-      // 需要查询胜率数据
-      console.log('🔍 海克斯数据缺少胜率信息，正在查询...')
-      loading.value = true
+    if (result.success) {
+      const { stats, augments, augmentStats: augStats, build, items, championName: nameData } = result.data
+      championStats.value = stats
+      augmentBase.value = augments
+      augmentStats.value = augStats
+      buildData.value = build
+      itemsData.value = items
 
-      try {
-        // 获取当前英雄ID（如果没有提供）
-        if (!championId.value) {
-          console.log('🔍 championId 不存在，正在查询...')
-          const championResult = await window.ipcRenderer.invoke('get-champion-id')
-          console.log('🔍 get-champion-id 结果:', championResult)
+      // 设置英雄名称（优先使用传入的，否则使用从数据加载的）
+      if (!championName.value && nameData) {
+        championName.value = nameData.nameCN || nameData.nameEN || `英雄 ${championId.value}`
+      }
 
-          if (championResult.success) {
-            championId.value = championResult.championId
-            console.log('✅ 获取到英雄ID:', championId.value)
+      console.log('✅ 英雄数据加载成功')
+
+      // 处理海克斯数据
+      if (data.augments && data.augments.length > 0) {
+        const hasWinrateData = data.augments.some(aug => 'winRate' in aug)
+
+        if (hasWinrateData) {
+          displayAugments.value = data.augments
+        } else {
+          // 查询胜率数据
+          const augmentIds = data.augments.map(aug => aug.id).filter(id => id != null)
+          const winrateResult = await window.ipcRenderer.invoke('get-winrate', {
+            championId: championId.value,
+            augmentIds: augmentIds
+          })
+
+          if (winrateResult.success && winrateResult.augments.length > 0) {
+            displayAugments.value = winrateResult.augments
           } else {
-            throw new Error('无法获取当前英雄ID: ' + championResult.error)
+            displayAugments.value = data.augments
           }
         }
-
-        // 查询胜率数据
-        const augmentIds = data.augments.map(aug => aug.id).filter(id => id != null)
-        console.log('🔍 查询胜率，英雄ID:', championId.value, '海克斯IDs:', augmentIds)
-
-        const winrateResult = await window.ipcRenderer.invoke('get-winrate', {
-          championId: championId.value,
-          augmentIds: augmentIds
-        })
-        console.log('🔍 get-winrate 结果:', winrateResult)
-
-        if (winrateResult.success && winrateResult.augments.length > 0) {
-          displayAugments.value = winrateResult.augments
-          console.log('✅ 胜率数据查询成功:', winrateResult.augments.length, '个海克斯')
-        } else {
-          // 胜率查询失败，使用原始数据（但会缺少胜率信息）
-          displayAugments.value = data.augments
-          console.warn('⚠️ 胜率数据查询失败，显示基础信息')
-        }
-      } catch (err) {
-        console.error('❌ 查询胜率数据失败:', err)
-        displayAugments.value = data.augments
-      } finally {
-        loading.value = false
+      } else {
+        displayAugments.value = []
       }
+    } else {
+      throw new Error(result.error || '数据加载失败')
     }
-  } else {
-    console.error('❌ 数据验证失败，无可用海克斯数据')
-    error.value = '无可用海克斯数据'
+  } catch (err) {
+    console.error('❌ 加载数据失败:', err)
+    error.value = err.message || '加载数据失败'
+  } finally {
+    loading.value = false
   }
 
-  console.log('🔧 showOverlay 完成，visible:', visible.value, 'displayAugments:', displayAugments.value.length)
+  console.log('🔧 showOverlay 完成')
 }
 
 /**
@@ -199,20 +365,16 @@ const showOverlay = async (data) => {
  */
 const closeOverlay = () => {
   visible.value = false
+  championStats.value = null
+  augmentBase.value = []
+  augmentStats.value = {}
+  buildData.value = null
+  itemsData.value = {}
   displayAugments.value = []
-  clearTimeout(autoHideTimer.value)
 
-  // 同时隐藏 popup 窗口本身
   if (window.ipcRenderer) {
     window.ipcRenderer.send('hide-popup')
   }
-}
-
-/**
- * 按稀有度过滤
- */
-const filterByRarity = (rarity) => {
-  selectedRarity.value = rarity
 }
 
 /**
@@ -220,10 +382,30 @@ const filterByRarity = (rarity) => {
  */
 const getRecommendLabel = (score) => {
   if (score >= 0.6) return '必选 🔥'
-  if (score >= 0.5) return '强烈推荐 📈'
-  if (score >= 0.4) return '推荐 👍'
-  if (score >= 0.3) return '可选 ✓'
+  if (score >= 0.5) return '推荐 📈'
+  if (score >= 0.4) return '可选 👍'
+  if (score >= 0.3) return '一般 ✓'
   return '冷门 ❄️'
+}
+
+/**
+ * 获取胜率样式类
+ */
+const getWinRateClass = (winRate) => {
+  if (!winRate) return ''
+  if (winRate >= 0.55) return 'high'
+  if (winRate >= 0.50) return 'medium'
+  return 'low'
+}
+
+/**
+ * 格式化数字
+ */
+const formatNumber = (num) => {
+  if (!num) return '--'
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
+  return String(num)
 }
 
 /**
@@ -236,68 +418,45 @@ const formatTime = (ts) => {
 }
 
 /**
+ * 处理图片加载错误
+ */
+const handleImageError = (e) => {
+  e.target.style.display = 'none'
+}
+
+/**
  * 监听来自主进程的数据
  */
 onMounted(() => {
-  console.log('🔧 AugmentWinrateOverlay 组件已挂载，开始监听事件...')
+  console.log('🔧 AugmentWinrateOverlay 组件已挂载')
 
-  // 监听"for-popup"事件，用于英雄监控触发的海克斯数据
   window.ipcRenderer.on('for-popup', (data) => {
     console.log('📊 收到 for-popup 事件:', data)
-    if (data && data.augments) {
-      console.log('✅ 有效的海克斯数据，调用 showOverlay')
+    if (data) {
       showOverlay(data)
-    } else {
-      console.warn('⚠️ for-popup 数据格式不正确或缺少 augments')
     }
   })
 
-  // 监听"augment-detected"事件，用于自动截图检测到的海克斯
   window.ipcRenderer.on('augment-detected', (data) => {
     console.log('📊 收到 augment-detected 事件:', data)
-    if (data && data.augments) {
-      console.log('✅ 有效的海克斯检测数据，调用 showOverlay')
+    if (data) {
       showOverlay(data)
-    } else {
-      console.warn('⚠️ augment-detected 数据格式不正确或缺少 augments')
     }
   })
 
-  // 监听胜率更新事件
-  window.ipcRenderer.on('winrate-updated', (data) => {
-    console.log('📊 收到 winrate-updated 事件:', data)
-    if (data && data.augments) {
-      console.log('✅ 有效的胜率数据，调用 showOverlay')
-      showOverlay(data)
-    } else {
-      console.warn('⚠️ winrate-updated 数据格式不正确或缺少 augments')
-    }
-  })
-
-  // 监听游戏开始事件，自动隐藏弹窗
   window.ipcRenderer.on('game-started', () => {
-    console.log('🎮 游戏开始，隐藏海克斯弹窗')
+    console.log('🎮 游戏开始，隐藏弹窗')
     closeOverlay()
   })
 
   window.ipcRenderer.on('game-in-progress', () => {
-    console.log('🎮 游戏进行中，隐藏海克斯弹窗')
+    console.log('🎮 游戏进行中，隐藏弹窗')
     closeOverlay()
   })
-
-  window.ipcRenderer.on('game-phase-changed', (data) => {
-    console.log('🎮 游戏阶段变化事件:', data)
-    if (data && (data.phase === 'GameStart' || data.phase === 'InProgress')) {
-      console.log('🎮 检测到游戏开始/进行中，隐藏海克斯弹窗')
-      closeOverlay()
-    }
-  })
-
-  console.log('✅ 所有事件监听器已注册')
 })
 
 onBeforeUnmount(() => {
-  clearTimeout(autoHideTimer.value)
+  // 清理事件监听
 })
 
 // 暴露方法供外部调用
@@ -311,15 +470,16 @@ defineExpose({
 .augment-overlay {
   position: fixed;
   z-index: 9999;
-  top: 50px;
-  right: 20px;
-  width: 420px;
-  max-height: 80vh;
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
-  padding: 16px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 500px;
+  max-height: 85vh;
+  background: linear-gradient(145deg, #1a1d29 0%, #0f1218 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  padding: 0;
   color: white;
   font-family: 'Microsoft YaHei', Arial, sans-serif;
   font-size: 13px;
@@ -330,181 +490,356 @@ defineExpose({
 
 .overlay-fade-enter-active,
 .overlay-fade-leave-active {
-  transition: opacity 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .overlay-fade-enter-from,
 .overlay-fade-leave-to {
   opacity: 0;
+  transform: translate(-50%, -50%) scale(0.95);
 }
 
 .close-btn {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  background: none;
+  top: 12px;
+  right: 12px;
+  background: rgba(255, 255, 255, 0.1);
   border: none;
-  color: white;
-  font-size: 24px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 20px;
   cursor: pointer;
   padding: 0;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+  border-radius: 8px;
+  transition: all 0.2s;
+  z-index: 10;
 }
 
 .close-btn:hover {
-  background-color: rgba(255, 255, 255, 0.2);
+  background: rgba(239, 68, 68, 0.3);
+  color: white;
 }
 
+/* 加载状态 */
 .loading-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  padding: 60px 20px;
   text-align: center;
 }
 
 .spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(59, 130, 246, 0.3);
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(59, 130, 246, 0.2);
   border-top-color: #3b82f6;
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-bottom: 10px;
+  margin-bottom: 16px;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 .error-state {
-  padding: 16px;
-  background-color: rgba(239, 68, 68, 0.15);
-  border-radius: 8px;
+  padding: 40px 20px;
+  background: rgba(239, 68, 68, 0.1);
   text-align: center;
   color: #fca5a5;
 }
 
 .no-data {
   text-align: center;
-  padding: 40px 20px;
-  opacity: 0.6;
+  padding: 60px 20px;
+  color: rgba(255, 255, 255, 0.5);
 }
 
-.augment-content {
+/* 主内容区 */
+.overlay-content {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  flex: 1;
-  overflow: hidden;
+  height: 100%;
+  max-height: 85vh;
 }
 
-.header-info {
+/* 英雄头部 */
+.champion-header {
+  background: linear-gradient(135deg, rgba(30, 64, 175, 0.4) 0%, rgba(124, 58, 237, 0.3) 100%);
+  padding: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.header-main {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.champion-avatar-wrapper {
+  position: relative;
   flex-shrink: 0;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.champion-title {
-  margin: 0 0 8px 0;
+.champion-avatar {
+  width: 80px;
+  height: 107px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.champion-tier {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  color: #1a1a1a;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.4);
+}
+
+.champion-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.champion-name {
+  margin: 0 0 12px 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.champion-stats-row {
+  display: flex;
+  gap: 12px;
+}
+
+.stat-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  min-width: 60px;
+}
+
+.stat-box .stat-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.stat-box .stat-value {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   color: #fff;
 }
 
-.rarity-filter {
+.stat-box .stat-value.high { color: #4ade80; }
+.stat-box .stat-value.medium { color: #fbbf24; }
+.stat-box .stat-value.low { color: #f87171; }
+
+/* Tabs */
+.tabs-container {
+  flex: 1;
   display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tabs-list {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px 0;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
   gap: 6px;
+  padding: 10px 18px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.tab-btn:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tab-btn.active {
+  color: #60a5fa;
+  background: rgba(30, 64, 175, 0.2);
+}
+
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #60a5fa;
+  border-radius: 2px 2px 0 0;
+}
+
+.tab-icon {
+  font-size: 14px;
+}
+
+/* Tab 内容 */
+.tab-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.tab-panel {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 过滤栏 */
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
 }
 
-.filter-btn {
-  padding: 4px 10px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+.filter-chip {
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.7);
-  border-radius: 6px;
+  border-radius: 20px;
   cursor: pointer;
   font-size: 12px;
   transition: all 0.2s;
 }
 
-.filter-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.25);
+.filter-chip:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
-.filter-btn.active {
-  background: rgba(59, 130, 246, 0.3);
+.filter-chip.active {
+  background: rgba(59, 130, 246, 0.25);
   border-color: rgba(59, 130, 246, 0.5);
   color: #60a5fa;
 }
 
+.filter-chip.gold.active {
+  background: rgba(251, 191, 36, 0.25);
+  border-color: rgba(251, 191, 36, 0.5);
+  color: #fbbf24;
+}
+
+.filter-chip.purple.active {
+  background: rgba(192, 132, 252, 0.25);
+  border-color: rgba(192, 132, 252, 0.5);
+  color: #c084fc;
+}
+
+.filter-chip.blue.active {
+  background: rgba(96, 165, 250, 0.25);
+  border-color: rgba(96, 165, 250, 0.5);
+  color: #60a5fa;
+}
+
+/* 海克斯列表 */
 .augments-list {
-  flex: 1;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-/* 稀有度样式 */
 .augment-card {
   display: flex;
+  align-items: center;
   gap: 10px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.05);
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-left: 3px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
+  border-radius: 10px;
   transition: all 0.2s;
-  cursor: pointer;
 }
 
 .augment-card:hover {
   background: rgba(255, 255, 255, 0.08);
-  border-left-color: rgba(59, 130, 246, 0.6);
+  transform: translateX(2px);
 }
 
 .augment-card.rarity-gold {
   border-left-color: #fbbf24;
-  background: rgba(251, 191, 36, 0.05);
+  background: rgba(251, 191, 36, 0.06);
 }
 
 .augment-card.rarity-purple {
   border-left-color: #c084fc;
-  background: rgba(192, 132, 252, 0.05);
+  background: rgba(192, 132, 252, 0.06);
 }
 
 .augment-card.rarity-blue {
   border-left-color: #60a5fa;
-  background: rgba(96, 165, 250, 0.05);
+  background: rgba(96, 165, 250, 0.06);
 }
 
 .augment-rank {
-  min-width: 24px;
-  height: 24px;
+  min-width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 50%;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   color: #60a5fa;
   flex-shrink: 0;
 }
 
+.augment-icon-wrapper {
+  flex-shrink: 0;
+}
+
+.augment-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
 .augment-main {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -512,43 +847,49 @@ defineExpose({
 
 .augment-name {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .augment-stats {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   font-size: 11px;
 }
 
 .stat-item {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  gap: 4px;
 }
 
-.stat-label {
-  opacity: 0.6;
-  color: rgba(255, 255, 255, 0.7);
+.stat-item .stat-label {
+  color: rgba(255, 255, 255, 0.5);
 }
 
-.stat-value {
+.stat-item .stat-value {
   font-weight: 600;
   color: #93c5fd;
+}
+
+.stat-item .stat-value.winrate {
+  color: #4ade80;
 }
 
 .recommend-indicator {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   align-items: flex-end;
+  min-width: 70px;
 }
 
 .score-bar {
   width: 60px;
-  height: 6px;
+  height: 5px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 3px;
   overflow: hidden;
@@ -557,50 +898,164 @@ defineExpose({
 .score-fill {
   height: 100%;
   background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  border-radius: 3px;
   transition: width 0.3s ease;
 }
 
 .score-text {
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.6);
-  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.5);
 }
 
-.meta-info {
-  flex-shrink: 0;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+/* 出装样式 */
+.build-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.build-section {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0 0 10px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.build-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.build-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+
+.build-item.small {
+  padding: 8px;
+}
+
+.item-icons {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.item-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  object-fit: cover;
+}
+
+.item-icon.small {
+  width: 32px;
+  height: 32px;
+}
+
+.build-stats {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  margin-left: auto;
+  text-align: right;
+}
+
+.build-stat {
+  display: flex;
+  gap: 6px;
   font-size: 11px;
-  opacity: 0.6;
+}
+
+.build-stat .label {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.build-stat .value {
+  font-weight: 600;
+  color: #4ade80;
+  min-width: 45px;
+}
+
+/* 空状态 */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* 底部信息 */
+.overlay-footer {
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 /* 滚动条美化 */
-.augments-list::-webkit-scrollbar {
+.tab-content::-webkit-scrollbar {
   width: 6px;
 }
 
-.augments-list::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
+.tab-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tab-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 3px;
 }
 
-.augments-list::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
+.tab-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
-.augments-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-@media (max-width: 768px) {
+/* 响应式 */
+@media (max-width: 600px) {
   .augment-overlay {
-    width: 90vw;
-    max-width: 400px;
-    right: 10px;
+    width: 95vw;
+    max-height: 90vh;
+  }
+
+  .champion-avatar {
+    width: 60px;
+    height: 80px;
+  }
+
+  .champion-name {
+    font-size: 18px;
+  }
+
+  .champion-stats-row {
+    gap: 8px;
+  }
+
+  .stat-box {
+    padding: 6px 8px;
+    min-width: 50px;
+  }
+
+  .tab-btn {
+    padding: 8px 12px;
+    font-size: 12px;
   }
 }
 </style>

@@ -174,7 +174,8 @@ window.ipcRenderer = {
       "auto-screenshot-get-config",
       "select-lol-directory",
       "get-champion-id",
-      "test-show-floating"
+      "test-show-floating",
+      "log-renderer-error"
     ];
     if (validChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);

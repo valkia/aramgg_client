@@ -65,6 +65,22 @@ export function loadChampionStats(championId) {
 }
 
 /**
+ * Load champion name by ID
+ * @param {string|number} championId - Champion ID
+ * @returns {Object} Champion name object with nameCN, nameEN, title
+ */
+export function loadChampionName(championId) {
+  const names = loadJsonFile('champions-names-cn.json')
+  const champion = names[String(championId)]
+
+  if (!champion) {
+    return { nameCN: `英雄 ${championId}`, nameEN: '', title: '' }
+  }
+
+  return champion
+}
+
+/**
  * Load augment base data (list of all augments with names and rarity)
  * @returns {Array} Array of augment objects
  */

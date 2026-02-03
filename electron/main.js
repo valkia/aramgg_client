@@ -6,6 +6,35 @@ import logger from './modules/logger.js'
 app.commandLine.appendSwitch('ignore-certificate-errors', 'true')
 app.commandLine.appendSwitch('ignore-connections-limit', 'op.gg')
 
+/**
+ * 主进程全局错误处理
+ */
+function setupMainProcessErrorHandling() {
+    // 捕获未处理的 Promise 拒绝
+    process.on('unhandledRejection', (reason, promise) => {
+        logger.error('主进程未处理的 Promise 拒绝:', reason)
+        console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+    })
+
+    // 捕获未捕获的异常
+    process.on('uncaughtException', (error) => {
+        logger.error('主进程未捕获的异常:', error.message, error.stack)
+        console.error('Uncaught Exception:', error)
+    })
+
+    // 捕获警告
+    process.on('warning', (warning) => {
+        logger.warn('主进程警告:', warning.message, warning.stack)
+        console.warn('Process Warning:', warning)
+    })
+
+    // 记录应用启动
+    logger.info('应用启动 - 主进程错误监听已设置')
+}
+
+// 设置主进程错误处理
+setupMainProcessErrorHandling()
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.

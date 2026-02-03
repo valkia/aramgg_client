@@ -76,6 +76,7 @@ const mockAugmentData = {
     success: true,
     gamePhase: 'augment-select',
     championId: 63, // 布兰德
+    championName: '布兰德',
     augments: [
         { id: 1205, name: '物理转魔法', rarity: 'kSilver', confidence: 0.95 },
         { id: 1103, name: '面包和黄油', rarity: 'kGold', confidence: 0.92 },
@@ -125,6 +126,7 @@ const testPopupWindow = () => {
 
     window.ipcRenderer.send('show-popup', {
         championId: 63,
+        championName: '布兰德',
         augments: mockAugmentData.augments,
         dataSource: 'test',
         timestamp: Date.now(),
