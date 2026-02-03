@@ -1,9 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+import { app } from 'electron'
 
 /** 海克斯胜率数据 */
 interface AugmentWinrateData {
@@ -49,17 +46,23 @@ const cache = new Map<string, any>()
  * Works in both development and production (Electron app)
  */
 function getDataPath(filename: string): string {
-  // In Electron main/preload context
+  // In Electron production: use resourcesPath
   if (typeof process !== 'undefined' && (process as any).resourcesPath) {
     const resourcePath = path.join((process as any).resourcesPath, 'data', filename)
-    // Check if path exists
     if (fs.existsSync(resourcePath)) {
       return resourcePath
     }
   }
 
-  // Development: use relative path from electron/ to electron/data
-  return path.resolve(__dirname, 'data', filename)
+  // Development: get project root directory
+  let appPath = app.getAppPath()
+
+  // If appPath ends with 'electron', go up one level to get project root
+  if (appPath.endsWith('electron')) {
+    appPath = path.dirname(appPath)
+  }
+
+  return path.resolve(appPath, 'electron', 'data', filename)
 }
 
 /**

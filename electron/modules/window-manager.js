@@ -1,5 +1,5 @@
 import logger from './logger.js';
-import { BrowserWindow, screen } from 'electron'
+import { BrowserWindow, screen, app } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -14,10 +14,15 @@ let floatingWindow = null
  * 获取正确的 preload 脚本路径
  */
 function getPreloadPath(isDev) {
+    // 使用 app.getAppPath() 获取应用根目录
+    const appPath = app.getAppPath()
+
     if (isDev) {
-        return path.join(__dirname, '../../dist-electron', 'preload.mjs')
+        // 开发模式：从应用根目录查找 dist-electron/preload.mjs
+        return path.join(appPath, 'dist-electron', 'preload.mjs')
     } else {
-        return path.join(__dirname, 'preload.mjs')
+        // 生产模式：preload.mjs 在 dist-electron 目录中
+        return path.join(appPath, 'dist-electron', 'preload.mjs')
     }
 }
 

@@ -20,14 +20,20 @@ export default defineConfig({
       target: 'node18',
       lib: {
         entry: 'electron/main.js',
-        formats: ['cjs']
+        formats: ['es']
       },
       rollupOptions: {
         output: {
           entryFileNames: 'main.js'
-        }
+        },
+        external: ['electron', 'electron-store', 'axios', 'fs', 'path', 'https']
       },
-      outDir: 'dist-electron'
+      outDir: 'dist-electron',
+      emptyOutDir: false
+    },
+    resolve: {
+      // 添加 TypeScript 支持
+      extensions: ['.ts', '.js', '.mjs', '.json']
     }
   },
   preload: {
@@ -43,7 +49,8 @@ export default defineConfig({
           entryFileNames: 'preload.js'
         }
       },
-      outDir: 'dist-electron'
+      outDir: 'dist-electron',
+      emptyOutDir: false
     }
   },
   renderer: {
@@ -71,7 +78,9 @@ export default defineConfig({
       alias: {
         '@': path.resolve(import.meta.dirname || process.cwd(), 'src'),
         'src': path.resolve(import.meta.dirname || process.cwd(), 'src/src')
-      }
+      },
+      // 添加 TypeScript 支持
+      extensions: ['.ts', '.js', '.mjs', '.vue', '.json']
     },
     optimizeDeps: {
       exclude: ['electron', 'electron-store', 'electron-log', 'electron-is-dev', 'fs-extra', 'cheerio']

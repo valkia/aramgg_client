@@ -1,105 +1,16 @@
 import { app, globalShortcut, BrowserWindow } from 'electron'
-import https from 'https'
 import { captureScreenshot } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
 import { registerIpcHandlers } from './ipc-handlers.js'
 import { createMainWindow, createPopupWindow, createFloatingWindow, toggleMainWindow, getFloatingWindow } from './window-manager.js'
 import autoScreenshotService from '../auto-screenshot-service.js'
-import { getLcuToken } from '../lcu-utils.js'
-import axios from 'axios'
+import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
 import logger from './logger.js'
 
 const __dirname = import.meta.dirname
 
 // 全局游戏流程轮询定时器
 let lcuPollingTimer = null
-
-/**
- * 简化的 LCU 服务 - 用于主进程
- * 只提供游戏流程监控所需的最小功能
- */
-class MainProcessLCU {
-    constructor(lolPath) {
-        this.lolPath = lolPath
-        this.active = false
-        this.url = null
-        this.auth = null
-    }
-
-    async getAuthToken() {
-        try {
-            // getLcuToken 返回 [token, port, urlWithAuth] 或 [null, null, null]
-            const [token, port, urlWithAuth] = await getLcuToken(this.lolPath)
-
-            if (!token || !port) {
-                logger.warn('无法获取 LCU Token，游戏客户端可能未运行')
-                this.active = false
-                return null
-            }
-
-            this.url = `https://127.0.0.1:${port}`
-            this.auth = {
-                auth: {
-                    username: 'riot',
-                    password: token,
-                },
-            }
-            this.active = true
-            logger.info('LCU 连接成功 (端口: ' + port + ')')
-            return { token, port, url: this.url }
-        } catch (error) {
-            logger.error('LCU 连接失败:', error.message)
-            this.active = false
-            return null
-        }
-    }
-
-    async getGameflowPhase() {
-        // 如果连接不活跃，尝试重新连接
-        if (!this.active || !this.url) {
-            await this.getAuthToken()
-        }
-
-        if (!this.active || !this.url) {
-            return null
-        }
-
-        try {
-            // 禁用 SSL 证书验证（LCU 使用自签名证书）
-            const httpsAgent = new https.Agent({
-                rejectUnauthorized: false,
-            })
-
-            const res = await axios.get(`${this.url}/lol-gameflow/v1/gameflow-phase`, {
-                ...this.auth,
-                httpsAgent,
-                validateStatus: (status) => status < 500,
-                timeout: 5000,  // 添加超时
-            })
-
-            if (res.status === 404 || res.status === 401) {
-                // 重新获取 token
-                logger.warn('LCU 认证失效，尝试重新连接...')
-                this.active = false
-                await this.getAuthToken()
-                return null
-            }
-
-            return res.data
-        } catch (error) {
-            // 连接失败时尝试重新认证
-            if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-                logger.warn('LCU 连接丢失，尝试重新连接...')
-                this.active = false
-                await this.getAuthToken()
-            } else {
-                logger.warn('获取游戏阶段失败:', error.message)
-            }
-            return null
-        }
-    }
-
-}
 
 /**
  * 初始化应用
@@ -201,13 +112,13 @@ async function initGameFlowMonitor() {
             }
         }
 
-        // 初始化 LCU 服务（主进程版本）
+        // 初始化 LCU 服务（使用统一的 LCU 服务）
         logger.info('初始化 LCU 服务...')
-        const lcuService = new MainProcessLCU(lolPath)
+        const lcuService = getLCUServiceInstance(lolPath)
         logger.info('获取 LCU Token...')
         const authResult = await lcuService.getAuthToken()
 
-        if (!lcuService.active) {
+        if (!lcuService.isActive()) {
             logger.error('LCU 连接失败！')
             logger.warn('可能的原因:')
             logger.warn('   1. 游戏客户端未运行 - 请启动 League of Legends 客户端')
