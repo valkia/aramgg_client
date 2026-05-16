@@ -75,7 +75,7 @@
 
 ### P4：依赖升级
 
-- [ ] 先升级 patch/minor 依赖。
+- [x] 先升级 patch/minor 依赖。
 - [ ] 单独验证 Electron 主版本升级。
 - [ ] 单独验证 electron-builder 主版本升级。
 - [x] 单独验证 vue-tsc 主版本升级。
@@ -140,9 +140,13 @@
 - [x] 将 renderer 中所有 `window.ipcRenderer`、`window.require`、`window.fs`、`window.fse`、`window.cheerio` 访问迁移或移除。
 - [x] 补齐 LCU 业务 API 的主进程 IPC handler。
 - [x] 安全改造后运行 `npm run lint`、`npm run type-check`、`npm run build`，均通过。
+- [x] 升级 patch/minor 依赖：`@vueuse/core`、`axios`、`cheerio`、`element-plus`、`fs-extra`、`lodash-es`、`nanoid`、`reka-ui`、`vue`、Tailwind/PostCSS 相关包、`eslint-plugin-vue`、`shadcn-vue`。
+- [x] patch/minor 升级后运行 `npm run lint`、`npm run type-check`、`npm run build`，均通过。
+- [x] 运行 `npm audit --json`：剩余风险主要来自 Electron 39 与 electron-builder 24 链路，需要在对应大版本升级批次中处理。
 
 ## 下一步
 
-1. 升级 patch/minor 依赖，并每批运行 `lint`、`type-check`、`build`。
-2. 单独规划 Vue Router、TypeScript、Electron、electron-builder 等大版本升级。
-3. 处理用户级 npm 配置 warning：当前 warning 来自 `C:\Users\du\.npmrc`，不在项目仓库内。
+1. 单独验证 Electron 主版本升级。
+2. 单独验证 electron-builder 主版本升级。
+3. 单独验证 Vue Router、TypeScript 及其他剩余大版本升级。
+4. 处理用户级 npm 配置 warning：当前 warning 来自 `C:\Users\du\.npmrc`，不在项目仓库内。
