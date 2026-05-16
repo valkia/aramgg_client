@@ -17,7 +17,7 @@
 
 import sharp from 'sharp'
 import path from 'path'
-import { readFileSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
 import { fileURLToPath } from 'url'
 import logger from './modules/logger.js'
 
@@ -104,6 +104,60 @@ function initAugmentDatabase() {
 }
 
 let tesseractWorker = null
+
+/**
+ * Normalize screenshot input into a Buffer.
+ * Runtime capture passes Buffer; IPC/tests often pass an image path.
+ */
+function resolveImageBuffer(imageInput) {
+    if (Buffer.isBuffer(imageInput)) {
+        return {
+            buffer: imageInput,
+            sourceType: 'buffer',
+            sourcePath: null,
+        }
+    }
+
+    if (typeof imageInput === 'string' && imageInput.trim() !== '') {
+        return {
+            buffer: readFileSync(imageInput),
+            sourceType: 'path',
+            sourcePath: imageInput,
+        }
+    }
+
+    return {
+        buffer: null,
+        sourceType: 'unknown',
+        sourcePath: null,
+    }
+}
+
+/**
+ * Prefer the repository-local Chinese model to avoid Tesseract.js CDN fetches.
+ */
+function getTesseractOptions() {
+    const localLangDirs = [
+        process.cwd(),
+        path.join(__dirname, '..'),
+        path.join(process.resourcesPath || '', 'data'),
+        process.resourcesPath || '',
+    ].filter(Boolean)
+
+    for (const langDir of localLangDirs) {
+        if (existsSync(path.join(langDir, 'chi_sim.traineddata'))) {
+            logger.info(`Using local Tesseract language data: ${langDir}`)
+            return {
+                langPath: langDir,
+                cacheMethod: 'none',
+                gzip: false,
+            }
+        }
+    }
+
+    logger.warn('Local chi_sim.traineddata not found; falling back to Tesseract.js defaults')
+    return {}
+}
 
 /**
  * RGB 转 HSV（正确的 HSV 计算，不是 HSL）
@@ -534,7 +588,7 @@ async function performOCR(imageBuffer) {
         const { createWorker } = Tesseract
 
         // 创建工作线程，使用简体中文模型
-        const worker = await createWorker('chi_sim')
+        const worker = await createWorker('chi_sim', 1, getTesseractOptions())
 
         // 执行文本识别
         const result = await worker.recognize(imageBuffer)
@@ -612,73 +666,89 @@ function fuzzyFind(text, name) {
  * @param {string} recognizedText - OCR识别的文本
  * @returns {Array} 匹配的海克斯列表
  */
+function getAugmentVersionPriority(augmentData) {
+    const id = Number(augmentData.id) || 0
+    return id >= 1000 ? id + 100000 : id
+}
+
+function rangesOverlap(a, b) {
+    return a.start < b.end && b.start < a.end
+}
+
 function matchAugmentDatabase(recognizedText) {
     if (!recognizedText || recognizedText.trim() === '') {
         return []
     }
 
-    // 确保数据库已初始化
     const database = initAugmentDatabase()
 
-    // 黑名单：常见的描述性词汇（非海克斯名称，但容易被误匹配）
-    // ⚠️ 注意：不要添加真实的海克斯名称到黑名单！
     const blacklist = new Set([
-        // 属性描述词
-        '攻击', '防御', '生命', '法术', '魔法',
+        '攻击', '防御', '生命', '法术', '魔法', '伤害', '护甲',
         '技能', '冷却', '移速', '暴击', '吸血', '穿透',
-        // 功能描述词
         '功能', '能力', '效果', '被动', '主动', '额外',
         '持续', '提供', '增加', '获得', '造成',
     ])
 
-    const augments = []
-    const seenIds = new Set()
+    const normalizedText = recognizedText.replace(/\s+/g, '')
 
-    // 去除所有空格用于模糊匹配（OCR可能识别出"台风 帽"而不是"台风帽"）
-    let normalizedText = recognizedText.replace(/\s+/g, '')
-
-    // 将所有海克斯按名称长度降序排序（优先匹配长名称，避免"台风"匹配到"台风帽"）
     const sortedAugments = Object.values(database).sort((a, b) => {
         const aLen = a.name.replace(/\s+/g, '').length
         const bLen = b.name.replace(/\s+/g, '').length
-        return bLen - aLen
+        if (bLen !== aLen) {
+            return bLen - aLen
+        }
+        return getAugmentVersionPriority(b) - getAugmentVersionPriority(a)
     })
 
-    // 收集所有候选匹配（逐步从文本中移除已匹配部分）
     const candidates = []
-    const seenNames = new Set()
+    const scannedNames = new Set()
 
     for (const augmentData of sortedAugments) {
         const normalizedName = augmentData.name.replace(/\s+/g, '')
 
-        // 跳过黑名单、已匹配的 ID、已匹配的相同名称
-        if (blacklist.has(augmentData.name)) continue
-        if (seenIds.has(augmentData.id)) continue
-        if (seenNames.has(normalizedName)) continue
+        if (blacklist.has(augmentData.name) || blacklist.has(normalizedName)) continue
+        if (scannedNames.has(normalizedName)) continue
+        scannedNames.add(normalizedName)
 
-        // 使用模糊匹配查找
         const match = fuzzyFind(normalizedText, normalizedName)
 
         if (match) {
             candidates.push({
                 augmentData,
                 match,
-                originalIndex: match.index,
+                start: match.index,
+                end: match.index + match.matchLen,
+                matchLen: match.matchLen,
             })
-            seenIds.add(augmentData.id)
-            seenNames.add(normalizedName)
-
-            // 从文本中移除已匹配的部分，避免子串重复匹配
-            normalizedText = normalizedText.slice(0, match.index) +
-                            normalizedText.slice(match.index + match.matchLen)
         }
     }
 
-    // 按在原文中的位置排序（优先选择文本前面的，即上方的海克斯名称）
-    candidates.sort((a, b) => a.originalIndex - b.originalIndex)
+    candidates.sort((a, b) => {
+        if (a.match.distance !== b.match.distance) {
+            return a.match.distance - b.match.distance
+        }
+        if (a.matchLen !== b.matchLen) {
+            return b.matchLen - a.matchLen
+        }
+        const priorityDiff = getAugmentVersionPriority(b.augmentData) - getAugmentVersionPriority(a.augmentData)
+        if (priorityDiff !== 0) {
+            return priorityDiff
+        }
+        return a.start - b.start
+    })
 
-    // 选择前 3 个（海克斯选择界面固定是 3 张卡片）
-    for (const candidate of candidates.slice(0, 3)) {
+    const selectedCandidates = []
+    for (const candidate of candidates) {
+        if (selectedCandidates.some(selected => rangesOverlap(candidate, selected))) {
+            continue
+        }
+        selectedCandidates.push(candidate)
+    }
+
+    selectedCandidates.sort((a, b) => a.start - b.start)
+
+    const augments = []
+    for (const candidate of selectedCandidates.slice(0, 3)) {
         const confidence = candidate.match.distance === 0 ? 0.95 : 0.80
         augments.push({
             id: candidate.augmentData.id,
@@ -689,9 +759,9 @@ function matchAugmentDatabase(recognizedText) {
     }
 
     if (augments.length > 0) {
-        logger.info(`✅ 匹配到 ${augments.length} 个海克斯: ${augments.map(a => a.name).join(', ')}`)
+        logger.info(`Matched ${augments.length} augments: ${augments.map(a => a.name).join(', ')}`)
     } else {
-        logger.info(`⚠️ 未匹配到海克斯`)
+        logger.info('No augment matched')
     }
 
     return augments
@@ -769,9 +839,10 @@ function generateAugmentRecommendations(cardDetections) {
  * @param {Buffer} imageBuffer - 截图数据Buffer（PNG格式）
  * @returns {Promise<Object>} 分析结果
  */
-export const analyzeScreenshot = async (imageBuffer) => {
+export const analyzeScreenshot = async (imageInput) => {
     try {
-        // 验证Buffer有效性
+        const { buffer: imageBuffer, sourceType, sourcePath } = resolveImageBuffer(imageInput)
+
         if (!imageBuffer || !Buffer.isBuffer(imageBuffer) || imageBuffer.length === 0) {
             return {
                 success: false,
@@ -780,44 +851,40 @@ export const analyzeScreenshot = async (imageBuffer) => {
         }
 
         const timestamp = Date.now()
-        logger.info(`🔍 开始分析截图: buffer size ${(imageBuffer.length / 1024).toFixed(1)}KB`)
+        logger.info(`Analyzing screenshot from ${sourceType}${sourcePath ? ` (${sourcePath})` : ''}, buffer size ${(imageBuffer.length / 1024).toFixed(1)}KB`)
 
-        // 【新方案】使用OCR识别海克斯名称
         const recognizedAugments = await recognizeAugmentsFromImage(imageBuffer)
 
-        logger.info(`🔍 OCR识别结果: 检测到 ${recognizedAugments.length} 个海克斯`)
+        logger.info(`OCR detected ${recognizedAugments.length} augments`)
 
-        // 判断是否为海克斯选择界面
-        const isAugmentPhase = recognizedAugments.length >= 1  // 识别到至少1个海克斯就认为是海克斯界面
+        const isAugmentPhase = recognizedAugments.length === 3
+        const confidence = calculateConfidence(recognizedAugments.length, isAugmentPhase)
 
-        // 【简化】跳过复杂的置信度判断
-        // 原方案的置信度逻辑过于复杂且容易误判，改为简单的是/否判断
-        const confidence = isAugmentPhase ? 0.95 : 0
-
-        // 整合结果
         const analysisResult = {
             success: true,
             timestamp,
             analysis: {
-                augments: recognizedAugments,         // OCR识别到的海克斯
-                cardCount: recognizedAugments.length, // 识别到的海克斯数量
-                cardColors: [],                       // 不再使用颜色检测
-                confidence: confidence,                // 简化的置信度（0 或 0.95）
-                isAugmentPhase: isAugmentPhase,        // 是否处于海克斯选择阶段
-                cardPositions: [],                     // 不再使用卡片位置
-                detectionMethod: 'ocr-based',          // 新方案标记
+                augments: recognizedAugments,
+                cardCount: recognizedAugments.length,
+                cardColors: [],
+                confidence: confidence,
+                isAugmentPhase: isAugmentPhase,
+                cardPositions: [],
+                detectionMethod: 'ocr-based',
             },
             metadata: {
                 bufferSize: imageBuffer.length,
+                sourceType,
+                sourcePath,
                 format: 'png',
                 detectionMethod: 'ocr',
             },
         }
 
-        logger.info(`✅ 截图分析完成: 识别到 ${recognizedAugments.length} 个海克斯`)
+        logger.info(`Screenshot analysis complete: ${recognizedAugments.length} augments`)
         return analysisResult
     } catch (error) {
-        logger.error('❌ 截图分析失败:', error)
+        logger.error('Screenshot analysis failed:', error)
         return {
             success: false,
             error: error.message,
