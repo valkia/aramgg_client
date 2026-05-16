@@ -71,7 +71,7 @@ export const getChampionAugmentRecommendation = async (championId, rarity = 'all
  * @param {Object} options - 查询选项
  * @returns {Promise<Object>} 胜率信息
  */
-export const getChampionWinrate = async (championId, position = null, options = {}) => {
+export const getChampionWinrate = async (championId, position = null, _options = {}) => {
     try {
         // TODO: 后续补充具体实现
         // 这里可以调用：

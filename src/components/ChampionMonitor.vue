@@ -54,7 +54,6 @@
 <script setup>
 import { ref, onBeforeUnmount, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
-import configCache from '../service/config-cache'
 
 const isMonitoring = ref(false)
 const selectedChampion = ref('')

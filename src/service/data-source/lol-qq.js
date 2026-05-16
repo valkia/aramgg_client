@@ -1,4 +1,3 @@
-import log from '@/native/logger.js';
 import { nanoid as uuid } from 'nanoid';
 import _get from 'lodash-es/get';
 import _find from 'lodash-es/find';

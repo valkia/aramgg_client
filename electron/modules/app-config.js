@@ -329,10 +329,7 @@ function registerAppEvents() {
 
     app.on('activate', function () {
         if (BrowserWindow.getAllWindows().length === 0) {
-            (async () => {
-                const { createMainWindow } = await import('./window-manager.js')
-                createMainWindow(process.env.NODE_ENV === 'development', 'http://localhost:5173')
-            })()
+            createMainWindow(process.env.NODE_ENV === 'development', 'http://localhost:5173')
         }
     })
 }

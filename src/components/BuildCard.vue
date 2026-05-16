@@ -181,7 +181,7 @@ const synergyItems = computed(() => {
 
     // Get all items from variants
     if (variants && typeof variants === 'object') {
-      for (const [tier, items] of Object.entries(variants)) {
+      for (const items of Object.values(variants)) {
         if (Array.isArray(items)) {
           items.forEach(item => {
             if (item.itemIds && Array.isArray(item.itemIds)) {

@@ -9,7 +9,6 @@ import type {
   GameflowPhase,
   ChampSelectSession,
   PerkPage,
-  ChampionIdResult,
 } from './types.ts'
 
 // 获取 IPC Renderer
@@ -30,7 +29,7 @@ export default class LCUService {
   /**
    * 设置变量（兼容旧API，但在IPC模式下不需要实际设置）
    */
-  setVars = (token: string | null, port: string | null, url: string | null) => {
+  setVars = (token: string | null, _port: string | null, _url: string | null) => {
     this.active = !!token
   }
 
@@ -88,7 +87,7 @@ export default class LCUService {
   /**
    * 删除符文页（通过应用新的符文页实现）
    */
-  deletePerk = async (id: number): Promise<boolean> => {
+  deletePerk = async (_id: number): Promise<boolean> => {
     // 在新架构中，删除操作由 applyPerk 自动处理
     console.warn('deletePerk: 该方法已弃用，请使用 applyPerk')
     return true

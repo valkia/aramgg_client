@@ -18,7 +18,7 @@ import AugmentFloatingOverlay from './AugmentFloatingOverlay.vue'
 }
 
 /* 让子元素可以接收鼠标事件 */
-.floating-view >>> .floating-overlay {
+.floating-view :deep(.floating-overlay) {
   pointer-events: auto;
 }
 </style>

@@ -15,7 +15,7 @@
  */
 
 import https from 'https'
-import axios, { AxiosRequestConfig } from 'axios'
+import axios from 'axios'
 import logger from '../../modules/logger.js'
 import { getLcuToken } from './token-loader.ts'
 import {
@@ -25,7 +25,6 @@ import {
   GameflowPhase,
   ChampSelectSession,
   PerkPage,
-  LCUCacheConfig,
 } from './types.ts'
 
 /**
@@ -123,7 +122,7 @@ export class LCUService {
     }
 
     try {
-      const [token, port, urlWithAuth] = await getLcuToken(this.lolPath)
+      const [token, port] = await getLcuToken(this.lolPath)
 
       if (!token || !port) {
         logger.warn('无法获取 LCU Token，游戏客户端可能未运行')

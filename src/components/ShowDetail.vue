@@ -56,7 +56,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import config from "../native/config";
-import {QQChampionAvatarPrefix, getChampions} from '../service/qq';
+import {getChampions} from '../service/qq';
 import LCUService from '../service/lcu';
 import LolQQ from '../service/data-source/lol-qq';
 import Opgg from '../service/data-source/op-gg';
@@ -153,7 +153,6 @@ onMounted(() => {
     console.log("ShowDetail");
     config.set(`test`, `zh-CN`);
     console.log(config.get(`test`));
-    const lolDir = config.get(`lolDir`);
     init();
 });
 </script>

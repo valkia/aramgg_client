@@ -56,7 +56,7 @@ import { Badge } from '@/components/ui/badge'
 import { getChampionIconUrl } from '../service/cdn'
 import StatCard from './StatCard.vue'
 
-const props = defineProps({
+defineProps({
   championId: {
     type: [String, Number],
     required: true

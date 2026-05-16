@@ -147,7 +147,6 @@ const logger = {
       try {
         return await fn(...args)
       } catch (error) {
-        const formattedError = formatError(error)
         this.error(`${context} 异步操作失败:`, error)
         throw error
       }

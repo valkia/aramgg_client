@@ -17,7 +17,6 @@ export const saveToFile = async (desDir, data) => {
         log.error('saveToFile cannot be used in browser environment')
         return false
     }
-    const fs = window.fs.promises
     const fse = window.fse
     try {
         const file = `${desDir}/Game/Config/Champions/${data.champion}/Recommended/${data.fileName}.json`
@@ -61,7 +60,7 @@ export const readJsonFile = async (filePath) => {
  * @deprecated getLcuToken 已废弃，请使用统一的 LCU 服务
  * LCU Token 获取现在在主进程中处理，渲染进程应通过 IPC 调用
  */
-export const getLcuToken = async (dirPath) => {
+export const getLcuToken = async (_dirPath) => {
     log.warn('[getLcuToken] 此函数已废弃，请使用新的 LCU 服务（通过 IPC 调用主进程）')
     return [null, null, null]
 }

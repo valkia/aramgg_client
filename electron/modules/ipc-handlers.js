@@ -4,7 +4,7 @@ import { captureScreenshot } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
 import autoScreenshotService from '../auto-screenshot-service.js'
 import { registerLCUIpcHandlers } from '../services/lcu/ipc-handlers.ts'
-import { getMainWindow, getPopupWindow } from './window-manager.js'
+import { createPopupWindow, getFloatingWindow, getMainWindow, getPopupWindow, toggleMainWindow } from './window-manager.js'
 import logger from './logger.js'
 
 const store = new Store()
@@ -38,7 +38,6 @@ export function registerIpcHandlers(isDev) {
     ipcMain.on(`show-popup`, async (ev, data) => {
         const popupWindow = getPopupWindow()
         if (!popupWindow) {
-            const { createPopupWindow } = await import('./window-manager.js')
             const devServerUrl = isDev ? 'http://localhost:5173' : ''
             await createPopupWindow(isDev, devServerUrl)
         }
@@ -65,7 +64,6 @@ export function registerIpcHandlers(isDev) {
     })
 
     ipcMain.on(`hide-floating`, async () => {
-        const { getFloatingWindow } = await import('./window-manager.js')
         const floatingWindow = getFloatingWindow()
         if (floatingWindow && !floatingWindow.isDestroyed()) {
             const isVisible = floatingWindow.isVisible()
@@ -79,7 +77,6 @@ export function registerIpcHandlers(isDev) {
     // 测试浮动窗口 IPC 处理程序
     ipcMain.handle('test-show-floating', async (event, data) => {
         try {
-            const { getFloatingWindow } = await import('./window-manager.js')
             const floatingWindow = getFloatingWindow()
 
             if (!floatingWindow || floatingWindow.isDestroyed()) {
@@ -105,10 +102,7 @@ export function registerIpcHandlers(isDev) {
     })
 
     ipcMain.on(`toggle-main-window`, () => {
-        (async () => {
-            const { toggleMainWindow } = await import('./window-manager.js')
-            toggleMainWindow()
-        })()
+        toggleMainWindow()
     })
 
     ipcMain.on(`restart-app`, () => {

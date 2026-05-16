@@ -46,7 +46,7 @@ export default defineConfig({
       },
       rollupOptions: {
         output: {
-          entryFileNames: 'preload.js'
+          entryFileNames: 'preload.mjs'
         }
       },
       outDir: 'dist-electron',
