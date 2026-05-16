@@ -1,6 +1,6 @@
 # Electron / electron-vite 架构整改进度
 
-更新时间：2026-05-16
+更新时间：2026-05-17
 
 ## 目标
 
@@ -14,7 +14,7 @@
 - Electron 安全配置已收敛：renderer 不再拥有 Node 能力，preload 通过 `contextBridge` 暴露业务 API。
 - `package.json#main`、electron-vite 输出目录、electron-builder `files` 已对齐。
 - `npm run type-check`、`npm run lint`、`npm run build` 当前均通过。
-- 除 Electron 外，当前可升级依赖已完成升级；Electron 42 升级被本机 `SGuard64` 文件锁阻塞。
+- 除 Electron 外，当前可升级依赖已完成升级；Electron 主版本升级本阶段先忽略，后续如有安全或兼容要求再单独处理。
 
 ## 优先级
 
@@ -76,7 +76,7 @@
 ### P4：依赖升级
 
 - [x] 先升级 patch/minor 依赖。
-- [ ] 单独验证 Electron 主版本升级。
+- [x] 记录 Electron 主版本升级暂缓，本阶段先忽略。
 - [x] 单独验证 electron-builder 主版本升级。
 - [x] 单独验证 vue-tsc 主版本升级。
 - [x] 单独验证 Vue Router、TypeScript 主版本升级。
@@ -146,7 +146,7 @@
 - [x] 升级 `electron-builder` 到 `26.8.1`。
 - [x] electron-builder 升级后运行 `npm run lint`、`npm run type-check`、`npm run build`，均通过。
 - [x] 再次运行 `npm audit --json`：剩余 2 条风险来自 `electron@39.2.7` 及依赖它的 `@electron/remote`。
-- [ ] 尝试升级 `electron` 到 `42.1.0`，但 `ACE-Guard Client` / `SGuard64` 锁定 `node_modules/electron/dist/*.dll`，当前权限无法结束该进程；已恢复本地 `electron@39.2.7` 元数据，待手动关闭游戏保护进程后继续。
+- [x] 已记录：Electron 主版本升级本阶段先忽略；此前尝试升级 `electron` 到 `42.1.0` 时，`ACE-Guard Client` / `SGuard64` 锁定 `node_modules/electron/dist/*.dll`，当前权限无法结束该进程；已恢复本地 `electron@39.2.7` 元数据。
 - [x] 升级 `typescript` 到 `6.0.3`，并移除已废弃的 `tsconfig.base.json#compilerOptions.baseUrl`。
 - [x] 升级 `vue-router` 到 `5.0.7`。
 - [x] 升级 `@vitejs/plugin-vue` 到 `6.0.7`、`@vue/tsconfig` 到 `0.9.1`、`electron-store` 到 `11.0.2`、`nanoid` 到 `5.1.11`、`lucide-vue-next` 到 `1.0.0`。
@@ -158,6 +158,6 @@
 
 ## 下一步
 
-1. 手动关闭 `ACE-Guard Client` / `SGuard64` 或退出相关游戏客户端后，重新执行 Electron 42 升级。
-2. 处理用户级 npm 配置 warning：当前 warning 来自 `C:\Users\du\.npmrc`，不在项目仓库内。
-3. 关注 build 中来自 `@vueuse/core` 的 Rollup `#__PURE__` 注释 warning；当前不阻塞构建。
+1. 处理用户级 npm 配置 warning：当前 warning 来自 `C:\Users\du\.npmrc`，不在项目仓库内。
+2. 关注 build 中来自 `@vueuse/core` 的 Rollup `#__PURE__` 注释 warning；当前不阻塞构建。
+3. Electron 主版本升级已作为后续独立事项暂缓，不纳入本阶段收尾范围。
