@@ -102,10 +102,10 @@
 - [x] 开始 P0 构建和入口一致性修复。
 - [x] 更新 `package.json`，将 `dist-electron/**/*` 加入 electron-builder `files`。
 - [x] 验证当前 `package.json#main` 指向 `dist-electron/main.js`，本地文件存在。
-- [x] 验证当前 preload 产物为 `dist-electron/preload.mjs`，本地文件存在。
-- [x] 更新 `electron.vite.config.mjs`，显式输出 `preload.mjs`。
+- [x] 验证当前 preload 产物为 `dist-electron/preload.cjs`，本地文件存在。
+- [x] 更新 `electron.vite.config.mjs`，显式输出 sandbox preload 可加载的 `preload.cjs`。
 - [x] 运行 `npm run build`，构建通过。
-- [x] 构建生成 `dist-electron/main.js`、`dist-electron/preload.mjs` 和 renderer 产物。
+- [x] 构建生成 `dist-electron/main.js`、`dist-electron/preload.cjs` 和 renderer 产物。
 - [x] 处理构建警告：`window-manager.js` 同时被静态和动态导入。
 - [x] 处理构建警告：Vue SFC 仍使用已废弃的 `>>>` / `/deep/` 深度选择器。
 - [x] 再次运行 `npm run build`，构建通过且上述两个警告已消失。

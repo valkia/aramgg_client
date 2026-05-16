@@ -42,11 +42,11 @@ export default defineConfig({
       target: 'node18',
       lib: {
         entry: 'src/preload/preload.js',
-        formats: ['es']
+        formats: ['cjs']
       },
       rollupOptions: {
         output: {
-          entryFileNames: 'preload.mjs'
+          entryFileNames: 'preload.cjs'
         }
       },
       outDir: 'dist-electron',
@@ -83,7 +83,8 @@ export default defineConfig({
       extensions: ['.ts', '.js', '.mjs', '.vue', '.json']
     },
     optimizeDeps: {
-      exclude: ['electron', 'electron-store', 'electron-log', 'electron-is-dev', 'fs-extra', 'cheerio']
+      include: ['cheerio'],
+      exclude: ['electron', 'electron-store', 'electron-log', 'fs-extra']
     },
     plugins: [vue(), nodeBuiltinsPlugin()]
   }

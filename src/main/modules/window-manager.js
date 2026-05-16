@@ -18,11 +18,11 @@ function getPreloadPath(isDev) {
     const appPath = app.getAppPath()
 
     if (isDev) {
-        // 开发模式：从应用根目录查找 dist-electron/preload.mjs
-        return path.join(appPath, 'dist-electron', 'preload.mjs')
+        // 开发模式：从应用根目录查找 dist-electron/preload.cjs
+        return path.join(appPath, 'dist-electron', 'preload.cjs')
     } else {
-        // 生产模式：preload.mjs 在 dist-electron 目录中
-        return path.join(appPath, 'dist-electron', 'preload.mjs')
+        // 生产模式：preload.cjs 在 dist-electron 目录中
+        return path.join(appPath, 'dist-electron', 'preload.cjs')
     }
 }
 
