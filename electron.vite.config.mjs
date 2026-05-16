@@ -19,7 +19,7 @@ export default defineConfig({
     build: {
       target: 'node18',
       lib: {
-        entry: 'electron/main.js',
+        entry: 'src/main/main.js',
         formats: ['es']
       },
       rollupOptions: {
@@ -41,7 +41,7 @@ export default defineConfig({
     build: {
       target: 'node18',
       lib: {
-        entry: 'electron/preload.js',
+        entry: 'src/preload/preload.js',
         formats: ['es']
       },
       rollupOptions: {
@@ -54,13 +54,13 @@ export default defineConfig({
     }
   },
   renderer: {
-    root: 'src',
+    root: 'src/renderer',
     publicDir: path.resolve(import.meta.dirname || process.cwd(), 'public'),
     build: {
       outDir: path.resolve(import.meta.dirname || process.cwd(), 'dist'),
       rollupOptions: {
         input: {
-          index: path.resolve(import.meta.dirname || process.cwd(), 'src/index.html')
+          index: path.resolve(import.meta.dirname || process.cwd(), 'src/renderer/index.html')
         }
       },
       commonjsOptions: {
@@ -76,8 +76,8 @@ export default defineConfig({
     },
     resolve: {
       alias: {
-        '@': path.resolve(import.meta.dirname || process.cwd(), 'src'),
-        'src': path.resolve(import.meta.dirname || process.cwd(), 'src/src')
+        '@': path.resolve(import.meta.dirname || process.cwd(), 'src/renderer'),
+        'src': path.resolve(import.meta.dirname || process.cwd(), 'src/renderer')
       },
       // 添加 TypeScript 支持
       extensions: ['.ts', '.js', '.mjs', '.vue', '.json']

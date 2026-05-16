@@ -9,8 +9,9 @@
     "allowSyntheticDefaultImports": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/renderer/*"],
+      "src/*": ["./src/renderer/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src/renderer"]
 }

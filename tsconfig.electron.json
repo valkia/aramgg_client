@@ -10,8 +10,10 @@
     ]
   },
   "include": [
-    "electron/**/*.ts",
-    "electron/**/*.d.ts"
+    "src/main/**/*.ts",
+    "src/main/**/*.d.ts",
+    "src/preload/**/*.ts",
+    "src/preload/**/*.d.ts"
   ],
   "exclude": [
     "node_modules",

@@ -1,4 +1,5 @@
 import { app, globalShortcut, BrowserWindow } from 'electron'
+import Store from 'electron-store'
 import { captureScreenshot } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
 import { registerIpcHandlers } from './ipc-handlers.js'
@@ -8,6 +9,7 @@ import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
 import logger from './logger.js'
 
 const __dirname = import.meta.dirname
+const store = new Store()
 
 // 全局游戏流程轮询定时器
 let lcuPollingTimer = null
@@ -49,7 +51,7 @@ export async function init() {
     }, 2000)
 
     // 注册 F1 全局快捷键
-    registerF1Shortcut(isDev)
+    registerF1Shortcut()
 
     // 注册其他应用事件
     registerAppEvents()
@@ -62,7 +64,6 @@ export async function init() {
  */
 async function autoDetectLolPath() {
     const fs = await import('fs')
-    const path = await import('path')
 
     // 常见的游戏安装目录
     const commonPaths = [
@@ -90,8 +91,6 @@ async function autoDetectLolPath() {
 async function initGameFlowMonitor() {
     try {
         // 获取游戏目录（从 store 中读取）
-        const Store = (await import('electron-store')).default
-        const store = new Store()
         let lolPath = store.get('lolPath')
 
         logger.info('============ 初始化游戏流程监控 ============')
@@ -116,7 +115,7 @@ async function initGameFlowMonitor() {
         logger.info('初始化 LCU 服务...')
         const lcuService = getLCUServiceInstance(lolPath)
         logger.info('获取 LCU Token...')
-        const authResult = await lcuService.getAuthToken()
+        await lcuService.getAuthToken()
 
         if (!lcuService.isActive()) {
             logger.error('LCU 连接失败！')
@@ -202,7 +201,7 @@ async function initGameFlowMonitor() {
 /**
  * 注册 F1 快捷键
  */
-function registerF1Shortcut(isDev) {
+function registerF1Shortcut() {
     const f1Ret = globalShortcut.register('F1', async () => {
         logger.info('F1 pressed, capturing screenshot...')
         try {
@@ -295,7 +294,7 @@ function registerF1Shortcut(isDev) {
  */
 function registerAppEvents() {
     // 应用即将退出时的清理
-    app.on('will-quit', async (e) => {
+    app.on('will-quit', async () => {
         logger.info('App will quit, cleaning up...')
 
         // 停止游戏流程轮询

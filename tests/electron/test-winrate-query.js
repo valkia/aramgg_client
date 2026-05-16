@@ -9,7 +9,7 @@ console.log('=== 测试胜率查询 ===')
 app.whenReady().then(async () => {
   try {
     // 导入 data-loader
-    const { getChampionAugmentStats } = await import('./data-loader.js')
+    const { getChampionAugmentStats } = await import('../../src/main/data-loader.js')
 
     console.log('\n1. 测试加载英雄63（Brand）的海克斯胜率数据...')
     const augmentStats = getChampionAugmentStats(63)

@@ -14,15 +14,15 @@ const store = new Store()
  */
 export function registerIpcHandlers(isDev) {
     // electron-store IPC handlers
-    ipcMain.handle('store-get', (event, key) => {
+    ipcMain.handle('store-get', (_event, key) => {
         return store.get(key)
     })
 
-    ipcMain.handle('store-set', (event, key, value) => {
+    ipcMain.handle('store-set', (_event, key, value) => {
         store.set(key, value)
     })
 
-    ipcMain.handle('store-delete', (event, key) => {
+    ipcMain.handle('store-delete', (_event, key) => {
         store.delete(key)
     })
 
@@ -35,7 +35,7 @@ export function registerIpcHandlers(isDev) {
     })
 
     // 弹出窗口相关处理
-    ipcMain.on(`show-popup`, async (ev, data) => {
+    ipcMain.on(`show-popup`, async (_ev, data) => {
         const popupWindow = getPopupWindow()
         if (!popupWindow) {
             const devServerUrl = isDev ? 'http://localhost:5173' : ''
@@ -75,7 +75,7 @@ export function registerIpcHandlers(isDev) {
     })
 
     // 测试浮动窗口 IPC 处理程序
-    ipcMain.handle('test-show-floating', async (event, data) => {
+    ipcMain.handle('test-show-floating', async (_event, data) => {
         try {
             const floatingWindow = getFloatingWindow()
 
@@ -120,17 +120,17 @@ export function registerIpcHandlers(isDev) {
     })
 
     // 图像分析 IPC 处理程序
-    ipcMain.handle('analyze-screenshot', async (event, imagePath) => {
+    ipcMain.handle('analyze-screenshot', async (_event, imagePath) => {
         const result = await analyzeScreenshot(imagePath)
         return result
     })
 
     // 胜率查询 IPC 处理程序
-    ipcMain.handle('get-winrate', async (event, data) => {
+    ipcMain.handle('get-winrate', async (_event, data) => {
         const { championId, augmentIds } = data
 
         try {
-            const { getChampionAugmentStats, filterAugmentsByRarity, loadAugmentBase } = await import('../data-loader.js')
+            const { getChampionAugmentStats } = await import('../data-loader.js')
 
             // 获取英雄的所有海克斯胜率数据
             let augmentStats = getChampionAugmentStats(championId)
@@ -160,7 +160,7 @@ export function registerIpcHandlers(isDev) {
     })
 
     // 数据加载 IPC 处理程序
-    ipcMain.handle('load-champion-data', async (event, championId) => {
+    ipcMain.handle('load-champion-data', async (_event, championId) => {
         const { loadChampionStats, loadAugmentBase, loadChampionAugments, loadChampionBuild, loadItems, loadChampionName } = await import('../data-loader.js')
         try {
             const [stats, augments, augmentStats, build, items, championName] = await Promise.all([
@@ -191,7 +191,7 @@ export function registerIpcHandlers(isDev) {
     })
 
     // 定时截图服务 IPC 处理程序
-    ipcMain.handle('auto-screenshot-start', async (event, config = {}) => {
+    ipcMain.handle('auto-screenshot-start', async (_event, config = {}) => {
         const interval = config.interval || 5000
         const success = await autoScreenshotService.start(interval)
         if (success) {
@@ -203,7 +203,7 @@ export function registerIpcHandlers(isDev) {
         }
     })
 
-    ipcMain.handle('auto-screenshot-stop', async (event) => {
+    ipcMain.handle('auto-screenshot-stop', async () => {
         const success = autoScreenshotService.stop()
         if (success) {
             logger.info('Auto screenshot service stopped')
@@ -214,22 +214,22 @@ export function registerIpcHandlers(isDev) {
         }
     })
 
-    ipcMain.handle('auto-screenshot-set-config', async (event, config) => {
+    ipcMain.handle('auto-screenshot-set-config', async (_event, config) => {
         autoScreenshotService.setConfig(config)
         return autoScreenshotService.getConfig()
     })
 
-    ipcMain.handle('auto-screenshot-get-stats', async (event) => {
+    ipcMain.handle('auto-screenshot-get-stats', async () => {
         return autoScreenshotService.getPerformanceStats()
     })
 
-    ipcMain.handle('auto-screenshot-get-config', async (event) => {
+    ipcMain.handle('auto-screenshot-get-config', async () => {
         return autoScreenshotService.getConfig()
     })
 
     // 选择游戏目录 IPC 处理程序
-    ipcMain.handle('select-lol-directory', async (event) => {
-        const { dialog, BrowserWindow } = await import('electron')
+    ipcMain.handle('select-lol-directory', async () => {
+        const { dialog } = await import('electron')
         const mainWindow = getMainWindow()
 
         try {
@@ -262,7 +262,7 @@ export function registerIpcHandlers(isDev) {
     })
 
     // 前端错误上报 IPC 处理程序
-    ipcMain.handle('log-renderer-error', async (event, errorData) => {
+    ipcMain.handle('log-renderer-error', async (_event, errorData) => {
         const { message, stack, source, line, column, url, type, timestamp, userAgent } = errorData
 
         logger.error('渲染进程错误上报:', {

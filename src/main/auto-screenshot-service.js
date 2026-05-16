@@ -165,7 +165,11 @@ class AutoScreenshotService {
                     logger.info(`[自动分析 ${this.analysisCount}] ⚠️ 卡片数量不足: ${cardCount} < 3`)
                     // 如果检测不到3张卡片，可能海克斯选择已结束，清空上次记录
                     if (cardCount === 0) {
+                        const hadVisibleAugmentOverlay = this.lastDetectedAugmentIds.length > 0
                         this.lastDetectedAugmentIds = []
+                        if (hadVisibleAugmentOverlay) {
+                            this._notifyAugmentCleared('no-augments-detected')
+                        }
                     }
                 } else if (!isAugmentPhase) {
                     logger.info(`[自动分析 ${this.analysisCount}] ⚠️ 验证失败：卡片间距或位置不符`)
@@ -236,6 +240,51 @@ class AutoScreenshotService {
             logger.info('📢 已通知UI窗口有新的海克斯检测')
         } catch (error) {
             logger.error('Failed to notify windows:', error)
+        }
+    }
+
+    /**
+     * Notify renderers that the augment selection has disappeared.
+     * @private
+     */
+    _notifyAugmentCleared(reason = 'unknown') {
+        try {
+            const windows = BrowserWindow.getAllWindows()
+            const payload = {
+                success: true,
+                gamePhase: 'augment-cleared',
+                reason,
+                timestamp: Date.now(),
+                dataSource: 'auto-analysis',
+            }
+
+            windows.forEach(window => {
+                if (!window.isDestroyed()) {
+                    window.webContents.send('augment-cleared', payload)
+                }
+            })
+
+            const floatingWindow = windows.find(win => {
+                const url = win.webContents.getURL()
+                return url.includes('floating-overlay')
+            })
+            if (floatingWindow && !floatingWindow.isDestroyed() && floatingWindow.isVisible()) {
+                floatingWindow.hide()
+                logger.info('Hidden augment floating window after selection disappeared')
+            }
+
+            const popupWindow = windows.find(win => {
+                const url = win.webContents.getURL()
+                return url.includes('augment-overlay')
+            })
+            if (popupWindow && !popupWindow.isDestroyed() && popupWindow.isVisible()) {
+                popupWindow.hide()
+                logger.info('Hidden augment popup window after selection disappeared')
+            }
+
+            logger.info(`Notified UI that augment selection cleared: ${reason}`)
+        } catch (error) {
+            logger.error('Failed to notify augment cleared:', error)
         }
     }
 

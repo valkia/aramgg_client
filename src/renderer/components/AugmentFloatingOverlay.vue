@@ -209,6 +209,11 @@ onMounted(() => {
     showOverlay(data)
   })
 
+  window.ipcRenderer.on('augment-cleared', (data) => {
+    console.log('🔧 [FloatingOverlay] 收到 augment-cleared:', data)
+    closeOverlay()
+  })
+
   window.ipcRenderer.on('game-started', () => {
     console.log('🎮 [FloatingOverlay] 游戏开始，关闭浮窗')
     closeOverlay()

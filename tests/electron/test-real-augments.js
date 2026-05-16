@@ -4,8 +4,8 @@
 
 import path from 'path'
 import os from 'os'
-import { analyzeScreenshot } from './image-analyzer.js'
-import logger from './modules/logger.js'
+import { analyzeScreenshot } from '../../src/main/image-analyzer.js'
+import logger from '../../src/main/modules/logger.js'
 
 // 真实海克斯截图列表（在 ~/.lol-tips-client/screenshots 目录中）
 const screenshotDir = path.join(os.homedir(), '.lol-tips-client', 'screenshots')

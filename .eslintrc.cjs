@@ -7,6 +7,7 @@ module.exports = {
     browser: true,
     es2022: true,
   },
+  ignorePatterns: ['legacy/react/', 'tests/electron/'],
   plugins: ['vue'],
   extends: ['eslint:recommended'],
   parserOptions: {
@@ -20,6 +21,12 @@ module.exports = {
     {
       files: ['*.vue'],
       parser: 'vue-eslint-parser',
+    },
+    {
+      files: ['src/main/image-analyzer.js'],
+      rules: {
+        'no-unused-vars': 'off',
+      },
     },
   ],
   rules: {

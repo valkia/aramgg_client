@@ -9,11 +9,11 @@
 ## 当前判断
 
 - 项目已经使用 `electron-vite dev` 和 `electron-vite build`。
-- 当前源码目录不是 electron-vite 推荐的 `src/main`、`src/preload`、`src/renderer` 三段结构。
-- 仍存在旧入口和旧框架遗留文件，例如根目录 `main.js`、`preload.js`、`vite.config.js`，以及 `src/index.js`、`src/app.js` 的 React 风格代码。
+- 源码目录已迁移为 electron-vite 推荐的 `src/main`、`src/preload`、`src/renderer` 三段结构。
+- 根目录旧入口 `main.js`、`preload.js`、`vite.config.js` 已清理，旧 React/BaseUI 代码已隔离到 `legacy/react/src/`。
 - Electron 安全配置偏弱：renderer 目前拥有 Node 能力，且关闭了 `contextIsolation` 和 `webSecurity`。
-- `package.json` 的 `main` 指向 `dist-electron/main.js`，但 electron-builder 的 `files` 未包含 `dist-electron/**/*`。
-- `npm run type-check` 和 `npm run lint` 当前均失败。
+- `package.json#main`、electron-vite 输出目录、electron-builder `files` 已对齐。
+- `npm run type-check`、`npm run lint`、`npm run build` 当前均通过。
 - 依赖存在较多落后版本，其中 Electron、electron-builder、Vue Router、TypeScript、vue-tsc 属于需要单独验证的大版本升级。
 
 ## 优先级
@@ -32,10 +32,10 @@
 
 ### P1：目录结构迁移
 
-- [ ] 新建或迁移为 `src/main`、`src/preload`、`src/renderer`。
-- [ ] 将当前 `electron/main.js`、`electron/modules/**`、`electron/services/**` 迁入 `src/main`。
-- [ ] 将当前 `electron/preload.js` 迁入 `src/preload`。
-- [ ] 将当前 Vue renderer 保持在 `src/renderer` 或逐步迁入。
+- [x] 新建或迁移为 `src/main`、`src/preload`、`src/renderer`。
+- [x] 将当前 `electron/main.js`、`electron/modules/**`、`electron/services/**` 迁入 `src/main`。
+- [x] 将当前 `electron/preload.js` 迁入 `src/preload`。
+- [x] 将当前 Vue renderer 保持在 `src/renderer` 或逐步迁入。
 - [x] 清理旧 React 入口和未使用的根配置。
 
 完成标准：
@@ -109,7 +109,7 @@
 - [x] 处理构建警告：`window-manager.js` 同时被静态和动态导入。
 - [x] 处理构建警告：Vue SFC 仍使用已废弃的 `>>>` / `/deep/` 深度选择器。
 - [x] 再次运行 `npm run build`，构建通过且上述两个警告已消失。
-- [ ] 处理 npm 配置 warning：`.npmrc` / 用户 npm 配置中存在 npm 新版本不再识别的配置项。
+- [x] 处理项目内 npm 配置 warning：`.npmrc` 不再使用 npm 11 不识别的 `electron_mirror`、`electron_builder_binaries_mirror`、`enable-pre-post-scripts`。
 - [x] 新增 `.eslintrc.cjs`，绕开 `eslint-plugin-vue` v10 与旧 eslintrc extends 的兼容问题。
 - [x] 新增 `.eslintignore`，暂时排除旧 React 遗留入口，避免它们阻塞当前 Vue 项目 lint。
 - [x] 运行 `npm run lint`，当前通过，剩余 14 个 `no-unused-vars` warning。
@@ -131,9 +131,13 @@
 - [x] 升级 `vue-tsc` 后再恢复 Vue SFC 专用类型检查；旧 `vue-tsc@1.8.27` 与当前 TypeScript/Node 组合不兼容。
 - [x] 升级 `vue-tsc` 到 `3.2.9`，并将 renderer 检查切回 `vue-tsc`。
 - [x] 升级后运行 `npm run type-check`、`npm run lint`、`npm run build`，均通过。
+- [x] 将 Electron 主进程迁移到 `src/main`，preload 迁移到 `src/preload`，renderer 迁移到 `src/renderer`。
+- [x] 更新 `electron.vite.config.mjs`、`tsconfig*.json`、`jsconfig.json` 和相关测试脚本路径。
+- [x] 清理根目录旧 Electron/Vite 入口，并将 Electron 测试脚本迁移到 `tests/electron/`。
+- [x] 迁移后运行 `npm run lint`、`npm run type-check`、`npm run build`，均通过。
 
 ## 下一步
 
-1. 处理 npm 配置 warning。
-2. 进入目录迁移和 preload 安全改造。
+1. 进入 preload 安全改造：收敛 IPC 白名单，移除 renderer 对 `window.require` / Node API 的直接访问。
+2. 升级 patch/minor 依赖，并每批运行 `lint`、`type-check`、`build`。
 3. 单独规划 Vue Router、TypeScript、Electron、electron-builder 等大版本升级。

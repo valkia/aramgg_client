@@ -1,5 +1,6 @@
-import { app } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { init } from './modules/app-config.js'
+import { createMainWindow } from './modules/window-manager.js'
 import logger from './modules/logger.js'
 
 // 解决提示ERR_CERT_AUTHORITY_INVALID的问题
@@ -50,7 +51,6 @@ app.on('window-all-closed', function () {
 // When the app is activated (macOS)
 app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) {
-        const { createMainWindow } = require('./modules/window-manager.js')
         createMainWindow(process.env.NODE_ENV === 'development', 'http://localhost:5173')
     }
 })

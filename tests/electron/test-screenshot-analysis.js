@@ -3,14 +3,14 @@
  * 用于批量测试 screenshots 目录中的所有截图
  *
  * 使用方法:
- *   node electron/test-screenshot-analysis.js
+ *   node tests/electron/test-screenshot-analysis.js
  */
 
 import fs from 'fs-extra'
 import path from 'path'
 import os from 'os'
-import { analyzeScreenshot } from './image-analyzer.js'
-import logger from './modules/logger.js'
+import { analyzeScreenshot } from '../../src/main/image-analyzer.js'
+import logger from '../../src/main/modules/logger.js'
 
 // 截图目录
 const SCREENSHOT_DIR = path.join(os.homedir(), '.lol-tips-client', 'screenshots')

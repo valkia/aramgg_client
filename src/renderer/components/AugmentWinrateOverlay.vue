@@ -513,6 +513,11 @@ onMounted(() => {
     }
   })
 
+  window.ipcRenderer.on('augment-cleared', (data) => {
+    console.log('🔧 收到 augment-cleared 事件:', data)
+    closeOverlay()
+  })
+
   window.ipcRenderer.on('game-started', () => {
     console.log('🎮 游戏开始，隐藏弹窗')
     closeOverlay()

@@ -7,4 +7,5 @@ const q4Path = path.join(os.homedir(), '.lol-tips-client', 'screenshots', 'q4.pn
 logger.info('🔍 分析q4.png（未被检测的真实海克斯截图）\n')
 
 const result = await analyzeScreenshot(q4Path)
+logger.info('Analysis result:', result)
 logger.info('\n✅ 分析完成')

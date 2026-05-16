@@ -52,7 +52,7 @@ export const getLolGameWindowId = async () => {
  * @param {Object} options - 截图选项
  * @returns {Promise<Object>} 截图结果
  */
-export const captureScreenshot = async (options = {}) => {
+export const captureScreenshot = async (_options = {}) => {
     try {
         const timestamp = Date.now()
 

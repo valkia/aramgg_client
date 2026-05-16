@@ -4,7 +4,7 @@
  */
 
 import { app } from 'electron'
-import { loadChampionStats, loadAugmentBase, getChampionAugmentStats } from './data-loader.js'
+import { loadChampionStats, loadAugmentBase, getChampionAugmentStats } from '../../src/main/data-loader.js'
 
 console.log('=== 测试数据加载器 ===')
 console.log('App path:', app.getAppPath())

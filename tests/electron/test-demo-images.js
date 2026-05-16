@@ -3,17 +3,17 @@
  */
 
 import path from 'path'
-import { analyzeScreenshot } from './image-analyzer.js'
+import { analyzeScreenshot } from '../../src/main/image-analyzer.js'
 import { fileURLToPath } from 'url'
-import logger from './modules/logger.js'
+import logger from '../../src/main/modules/logger.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const demoImages = [
-    path.join(__dirname, '../docs/demo1.png'),
-    path.join(__dirname, '../docs/demo2.png'),
-    path.join(__dirname, '../docs/demo3.png'),
+    path.join(__dirname, '../../docs/demo1.png'),
+    path.join(__dirname, '../../docs/demo2.png'),
+    path.join(__dirname, '../../docs/demo3.png'),
 ]
 
 async function testDemoImages() {

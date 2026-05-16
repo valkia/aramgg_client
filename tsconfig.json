@@ -15,9 +15,7 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
-    "src/**/*.vue",
-    "electron/**/*.ts",
-    "electron/**/*.d.ts"
+    "src/**/*.vue"
   ],
   "exclude": [
     "node_modules",

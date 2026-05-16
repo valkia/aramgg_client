@@ -3,7 +3,7 @@ import fs from 'fs'
 import fse from 'fs-extra'
 import * as cheerio from 'cheerio'
 import PromisePool from 'es6-promise-pool'
-import log from './modules/logger.js'
+import log from '../main/modules/logger.js'
 
 log.info('Preload script loaded successfully')
 
@@ -56,6 +56,7 @@ window.ipcRenderer = {
             'game-in-progress',
             'augment-detection-started',
             'augment-detected',
+            'augment-cleared',
             'game-ended',
             'end-of-game'
         ]
@@ -75,6 +76,7 @@ window.ipcRenderer = {
             'game-in-progress',
             'augment-detection-started',
             'augment-detected',
+            'augment-cleared',
             'game-ended',
             'end-of-game'
         ]
