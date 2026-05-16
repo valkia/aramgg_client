@@ -129,6 +129,26 @@ export function loadChampionAugments(championId) {
 }
 
 /**
+ * 解析单行出装数据
+ * @param {Array} row - 数据行
+ * @returns {Object} 解析后的出装数据
+ */
+function parseBuildRow(row) {
+  return {
+    patch: row[0],
+    championId: row[1],
+    buildTags: row[7] ? (JSON.parse(row[7])?.primary_tags_f3pie || '') : '',
+    coreItems: row[8] ? JSON.parse(row[8]) : [],
+    situationalItems: row[10] ? JSON.parse(row[10]) : [],
+    startingItems: row[11] ? JSON.parse(row[11]) : [],
+    games: parseInt(row[12]) || 0,
+    wins: parseInt(row[13]) || 0,
+    pickRate: parseFloat(row[14]) || 0,
+    winRate: parseFloat(row[15]) || 0,
+  }
+}
+
+/**
  * Load champion build data
  * @param {string|number} championId - Champion ID
  * @returns {Object} Build data for the champion
@@ -140,25 +160,19 @@ export function loadChampionBuild(championId) {
   try {
     const buildData = loadJsonFile(filename)
 
-    // Extract the core build data from the result
     if (buildData.data && buildData.data.result && buildData.data.result.dataArray) {
       const rows = buildData.data.result.dataArray
       if (rows.length > 0) {
-        // Parse the build row data
-        const row = rows[0]
-        const builds = {
-          patch: row[0],
-          championId: row[1],
-          queue: row[2],
-          role: row[3],
-          matchup: row[4],
-          metadata: row[6],
-          tags: row[7] ? JSON.parse(row[7]) : {},
-          recommended: row[8] ? JSON.parse(row[8]) : [],
-          itemSequences: row[9] ? JSON.parse(row[9]) : {}
-        }
+        // 解析所有出装方案，按场次降序排列
+        const builds = rows.map(parseBuildRow)
+          .sort((a, b) => b.games - a.games)
 
-        return builds
+        // 兼容旧字段：保留 recommended 指向第一套出装的核心装备
+        return {
+          ...builds[0],
+          recommended: builds[0].coreItems,
+          allBuilds: builds,
+        }
       }
     }
 

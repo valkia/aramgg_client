@@ -1,12 +1,19 @@
 /**
  * 定时截图服务
  * 功能：定期自动截图、分析和识别海克斯卡片
+ *
+ * 【重要说明】
+ * 浮窗位置已调整到屏幕顶部(top: 2%)，与OCR识别区域(从25%开始)完全不重叠
+ * 因此截图时无需隐藏浮窗，避免了闪烁问题
  */
 
 import { captureScreenshot } from './screenshot.js'
 import { analyzeScreenshot } from './image-analyzer.js'
 import { BrowserWindow } from 'electron'
+import Store from 'electron-store'
 import logger from './modules/logger.js'
+
+const store = new Store()
 
 class AutoScreenshotService {
     constructor() {
@@ -23,6 +30,8 @@ class AutoScreenshotService {
             captureTime: [], // 截图耗时数组
             memoryUsage: [],  // 内存使用量
         }
+        // 上一次检测到的海克斯ID列表（用于判断是否需要更新显示）
+        this.lastDetectedAugmentIds = []
     }
 
     /**
@@ -70,6 +79,7 @@ class AutoScreenshotService {
 
     /**
      * 内部方法：执行单次截图
+     * 【注意】浮窗已调整到屏幕顶部，与OCR区域不重叠，无需隐藏
      * @private
      */
     async _captureScreenshot() {
@@ -126,21 +136,37 @@ class AutoScreenshotService {
                 return  // 分析失败，不继续处理
             }
 
-            const { cardCount, confidence, isAugmentPhase } = analysisResult.analysis
+            const { cardCount, confidence, isAugmentPhase, augments } = analysisResult.analysis
 
             // ✅ 严格的通知条件：
             // 1. 必须检测到 3 张卡片
             // 2. 必须通过间距验证（isAugmentPhase = true）
             // 3. 置信度必须 > 90%（更严格）
             if (cardCount === 3 && isAugmentPhase && confidence > 0.9) {
-                this.detectionCount++
-                logger.info(`✨ [自动分析 ${this.analysisCount}] ✅ 高置信度检测: ${cardCount} 个有效海克斯卡片，置信度 ${(confidence * 100).toFixed(1)}%`)
-                logger.info(`   通知 UI 显示推荐`)
-                this._notifyAugmentDetected(analysisResult)
+                // 检查是否与上次检测到的海克斯相同（避免重复通知）
+                const currentIds = augments.map(a => a.id).sort().join(',')
+                const lastIds = this.lastDetectedAugmentIds.sort().join(',')
+
+                if (currentIds !== lastIds) {
+                    // 新的海克斯组合，更新显示
+                    this.detectionCount++
+                    this.lastDetectedAugmentIds = augments.map(a => a.id)
+
+                    logger.info(`✨ [自动分析 ${this.analysisCount}] ✅ 检测到新海克斯: ${cardCount} 个，置信度 ${(confidence * 100).toFixed(1)}%`)
+                    logger.info(`   通知 UI 显示推荐`)
+                    this._notifyAugmentDetected(analysisResult)
+                } else {
+                    // 与上次相同，跳过通知
+                    logger.debug(`[自动分析 ${this.analysisCount}] 海克斯未变化，跳过通知`)
+                }
             } else {
                 // 检测结果不满足通知条件
                 if (cardCount < 3) {
                     logger.info(`[自动分析 ${this.analysisCount}] ⚠️ 卡片数量不足: ${cardCount} < 3`)
+                    // 如果检测不到3张卡片，可能海克斯选择已结束，清空上次记录
+                    if (cardCount === 0) {
+                        this.lastDetectedAugmentIds = []
+                    }
                 } else if (!isAugmentPhase) {
                     logger.info(`[自动分析 ${this.analysisCount}] ⚠️ 验证失败：卡片间距或位置不符`)
                 } else if (confidence <= 0.9) {
@@ -158,10 +184,20 @@ class AutoScreenshotService {
      */
     _notifyAugmentDetected(analysisResult) {
         try {
+            // 从store中获取缓存的英雄ID
+            const championId = store.get('lastSelectedChampionId')
+
+            if (!championId) {
+                logger.warn('⚠️ 未找到缓存的英雄ID，海克斯推荐可能无法显示胜率数据')
+            } else {
+                logger.info(`📌 使用缓存的英雄ID: ${championId}`)
+            }
+
             const windows = BrowserWindow.getAllWindows()
             const winrateData = {
                 success: true,
                 gamePhase: 'augment-select',
+                championId: championId || null, // 添加英雄ID
                 augments: analysisResult.analysis.augments.slice(0, 3).map(aug => ({
                     id: aug.id,
                     name: aug.name,
@@ -281,12 +317,6 @@ class AutoScreenshotService {
      * @private
      */
     _assessPerformanceLevel(captureTimeMs, memoryMB) {
-        // 性能评估标准
-        // 截图耗时 < 100ms，内存 < 200MB → 优秀
-        // 截图耗时 < 200ms，内存 < 300MB → 良好
-        // 截图耗时 < 500ms，内存 < 500MB → 一般
-        // 否则 → 较差
-
         if (captureTimeMs < 100 && memoryMB < 200) {
             return {
                 level: 'excellent',
@@ -358,6 +388,7 @@ class AutoScreenshotService {
         this.analysisCount = 0
         this.detectionCount = 0
         this.lastScreenshotTime = null
+        this.lastDetectedAugmentIds = []
         this.performanceMetrics = {
             captureTime: [],
             memoryUsage: [],

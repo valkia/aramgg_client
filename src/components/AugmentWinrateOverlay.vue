@@ -36,19 +36,19 @@
               <div class="champion-stats-row">
                 <div class="stat-box">
                   <span class="stat-label">胜率</span>
-                  <span class="stat-value" :class="getWinRateClass(championStats?.win_rate)">
-                    {{ championStats ? (championStats.win_rate * 100).toFixed(2) : '--' }}%
+                  <span class="stat-value" :class="getWinRateClass(championStats?.winRate)">
+                    {{ formatPercent(championStats?.winRate) }}
                   </span>
                 </div>
                 <div class="stat-box">
                   <span class="stat-label">选取率</span>
                   <span class="stat-value">
-                    {{ championStats ? (championStats.pick_rate * 100).toFixed(2) : '--' }}%
+                    {{ formatPercent(championStats?.pickRate) }}
                   </span>
                 </div>
                 <div class="stat-box">
                   <span class="stat-label">场次</span>
-                  <span class="stat-value">{{ formatNumber(championStats?.num_games) }}</span>
+                  <span class="stat-value">{{ formatNumber(championStats?.numGames) }}</span>
                 </div>
               </div>
             </div>
@@ -108,17 +108,17 @@
                     <div class="augment-stats">
                       <span class="stat-item">
                         <span class="stat-label">胜率</span>
-                        <span class="stat-value winrate">{{ (augment.winRate * 100).toFixed(1) }}%</span>
+                        <span class="stat-value winrate">{{ formatPercent(augment.winRate) }}</span>
                       </span>
                       <span class="stat-item">
                         <span class="stat-label">选取率</span>
-                        <span class="stat-value">{{ (augment.pickRate * 100).toFixed(1) }}%</span>
+                        <span class="stat-value">{{ formatPercent(augment.pickRate) }}</span>
                       </span>
                     </div>
                   </div>
                   <div class="recommend-indicator">
                     <div class="score-bar">
-                      <div class="score-fill" :style="{ width: (augment.recommendScore * 100) + '%' }"></div>
+                      <div class="score-fill" :style="{ width: ((augment.recommendScore || 0) * 100) + '%' }"></div>
                     </div>
                     <span class="score-text">{{ getRecommendLabel(augment.recommendScore) }}</span>
                   </div>
@@ -131,9 +131,9 @@
 
             <!-- 出装 Tab -->
             <div v-if="activeTab === 'builds'" class="tab-panel">
-              <div v-if="buildData && parsedRecommended.length > 0" class="build-content">
+              <div v-if="buildData && (coreItems.length > 0 || situationalItems.length > 0)" class="build-content">
                 <!-- 核心出装 -->
-                <div class="build-section">
+                <div v-if="coreItems.length > 0" class="build-section">
                   <h4 class="section-title">核心出装</h4>
                   <div class="build-list">
                     <div
@@ -153,23 +153,40 @@
                       <div class="build-stats">
                         <div class="build-stat">
                           <span class="label">胜率</span>
-                          <span class="value">{{ (build.winRate * 100).toFixed(1) }}%</span>
+                          <span class="value">{{ formatPercent(build.winRate) }}</span>
                         </div>
                         <div class="build-stat">
                           <span class="label">场次</span>
-                          <span class="value">{{ build.games }}</span>
+                          <span class="value">{{ build.games.toLocaleString() }}</span>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
+                <!-- 情境装备 -->
+                <div v-if="situationalItems.length > 0" class="build-section">
+                  <h4 class="section-title situational-title">
+                    ✨ 情境装备
+                    <span class="title-hint">（前12个）</span>
+                  </h4>
+                  <div class="situational-grid">
+                    <img
+                      v-for="(item, idx) in situationalItems"
+                      :key="idx"
+                      :src="getItemIconUrl(item.itemId)"
+                      class="item-icon small"
+                      :alt="'item-' + item.itemId"
+                    />
+                  </div>
+                </div>
+
                 <!-- 出门装 -->
-                <div class="build-section">
+                <div v-if="startingItems.length > 0" class="build-section">
                   <h4 class="section-title">出门装</h4>
                   <div class="build-list">
                     <div
-                      v-for="(build, idx) in startingItems.slice(0, 2)"
+                      v-for="(build, idx) in startingItems.slice(0, 3)"
                       :key="idx"
                       class="build-item small"
                     >
@@ -183,7 +200,7 @@
                         />
                       </div>
                       <div class="build-stats">
-                        <span class="value">{{ (build.winRate * 100).toFixed(1) }}%</span>
+                        <span class="value">{{ formatPercent(build.winRate) }}</span>
                       </div>
                     </div>
                   </div>
@@ -242,9 +259,9 @@ const tabs = [
 // 稀有度选项
 const rarityOptions = [
   { key: 'all', label: '全部' },
-  { key: 'gold', label: '金色' },
-  { key: 'purple', label: '紫色' },
-  { key: 'blue', label: '蓝色' }
+  { key: 'kSilver', label: '白银' },
+  { key: 'kGold', label: '金色' },
+  { key: 'kPrismatic', label: '棱彩' }
 ]
 
 // 过滤海克斯
@@ -255,31 +272,65 @@ const filteredAugments = computed(() => {
   return displayAugments.value.filter(a => a.rarity === selectedRarity.value)
 })
 
-// 解析推荐出装
-const parsedRecommended = computed(() => {
-  if (!buildData.value || !buildData.value.recommended) {
-    return []
+// 解析核心出装
+const coreItems = computed(() => {
+  if (!buildData.value || !buildData.value.coreItems) {
+    // 兼容旧数据：从 recommended 中提取
+    if (!buildData.value || !buildData.value.recommended) return []
+    return buildData.value.recommended.map(rec => {
+      const itemIds = rec.itemIds.split(',').map(id => id.trim())
+      return {
+        items: itemIds,
+        games: parseInt(rec.games) || 0,
+        wins: parseInt(rec.wins) || 0,
+        pickRate: parseFloat(rec.pick_rate) || 0,
+        winRate: (parseInt(rec.wins) / parseInt(rec.games)) || 0
+      }
+    }).filter(item => item.items.length >= 3).sort((a, b) => b.games - a.games)
   }
-  return buildData.value.recommended.map(rec => {
+  return buildData.value.coreItems.map(rec => {
     const itemIds = rec.itemIds.split(',').map(id => id.trim())
     return {
       items: itemIds,
       games: parseInt(rec.games) || 0,
       wins: parseInt(rec.wins) || 0,
       pickRate: parseFloat(rec.pick_rate) || 0,
-      winRate: parseInt(rec.wins) / parseInt(rec.games) || 0
+      winRate: (parseInt(rec.wins) / parseInt(rec.games)) || 0
     }
   }).sort((a, b) => b.games - a.games)
 })
 
-// 核心装备
-const coreItems = computed(() => {
-  return parsedRecommended.value.filter(item => item.items.length >= 3)
+// 情境装备
+const situationalItems = computed(() => {
+  if (!buildData.value || !buildData.value.situationalItems) return []
+  return buildData.value.situationalItems
+    .slice()
+    .sort((a, b) => parseFloat(b.distinctive_score || 0) - parseFloat(a.distinctive_score || 0))
+    .slice(0, 12)
 })
 
 // 出门装
 const startingItems = computed(() => {
-  return parsedRecommended.value.filter(item => item.items.length <= 2)
+  if (!buildData.value || !buildData.value.startingItems) {
+    // 兼容旧数据
+    if (!buildData.value || !buildData.value.recommended) return []
+    return buildData.value.recommended.map(rec => {
+      const itemIds = rec.itemIds.split(',').map(id => id.trim())
+      return {
+        items: itemIds,
+        games: parseInt(rec.games) || 0,
+        wins: parseInt(rec.wins) || 0,
+        winRate: (parseInt(rec.wins) / parseInt(rec.games)) || 0
+      }
+    }).filter(item => item.items.length <= 2).sort((a, b) => b.games - a.games)
+  }
+  return buildData.value.startingItems.map(rec => ({
+    items: (rec.itemIds || []).map(id => String(id).trim()),
+    games: parseInt(rec.games) || 0,
+    wins: parseInt(rec.wins) || 0,
+    pickRate: parseFloat(rec.pick_rate) || 0,
+    winRate: (parseInt(rec.wins) / parseInt(rec.games)) || 0
+  })).sort((a, b) => b.games - a.games)
 })
 
 /**
@@ -341,7 +392,16 @@ const showOverlay = async (data) => {
           if (winrateResult.success && winrateResult.augments.length > 0) {
             displayAugments.value = winrateResult.augments
           } else {
-            displayAugments.value = data.augments
+            // 查询无结果，使用原始数据并补充默认值
+            displayAugments.value = data.augments.map(aug => ({
+              augmentId: aug.id,
+              name: aug.name,
+              rarity: aug.rarity,
+              winRate: aug.winRate ?? null,
+              pickRate: aug.pickRate ?? null,
+              playCount: aug.playCount ?? 0,
+              recommendScore: aug.recommendScore ?? null
+            }))
           }
         }
       } else {
@@ -378,9 +438,18 @@ const closeOverlay = () => {
 }
 
 /**
+ * 格式化百分比（带空值保护）
+ */
+const formatPercent = (value) => {
+  if (value == null || isNaN(value)) return '--'
+  return `${(value * 100).toFixed(1)}%`
+}
+
+/**
  * 获取推荐标签
  */
 const getRecommendLabel = (score) => {
+  if (score == null || isNaN(score)) return '--'
   if (score >= 0.6) return '必选 🔥'
   if (score >= 0.5) return '推荐 📈'
   if (score >= 0.4) return '可选 👍'
@@ -755,22 +824,22 @@ defineExpose({
   color: #60a5fa;
 }
 
-.filter-chip.gold.active {
+.filter-chip.kGold.active {
   background: rgba(251, 191, 36, 0.25);
   border-color: rgba(251, 191, 36, 0.5);
   color: #fbbf24;
 }
 
-.filter-chip.purple.active {
+.filter-chip.kPrismatic.active {
   background: rgba(192, 132, 252, 0.25);
   border-color: rgba(192, 132, 252, 0.5);
   color: #c084fc;
 }
 
-.filter-chip.blue.active {
-  background: rgba(96, 165, 250, 0.25);
-  border-color: rgba(96, 165, 250, 0.5);
-  color: #60a5fa;
+.filter-chip.kSilver.active {
+  background: rgba(156, 163, 175, 0.25);
+  border-color: rgba(156, 163, 175, 0.5);
+  color: #9ca3af;
 }
 
 /* 海克斯列表 */
@@ -797,19 +866,19 @@ defineExpose({
   transform: translateX(2px);
 }
 
-.augment-card.rarity-gold {
+.augment-card.rarity-kGold {
   border-left-color: #fbbf24;
   background: rgba(251, 191, 36, 0.06);
 }
 
-.augment-card.rarity-purple {
+.augment-card.rarity-kPrismatic {
   border-left-color: #c084fc;
   background: rgba(192, 132, 252, 0.06);
 }
 
-.augment-card.rarity-blue {
-  border-left-color: #60a5fa;
-  background: rgba(96, 165, 250, 0.06);
+.augment-card.rarity-kSilver {
+  border-left-color: #9ca3af;
+  background: rgba(156, 163, 175, 0.06);
 }
 
 .augment-rank {
@@ -927,6 +996,24 @@ defineExpose({
   margin: 0 0 10px 0;
   padding-bottom: 8px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.situational-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.title-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.situational-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .build-list {

@@ -46,6 +46,12 @@
                             <span class="hint">完整数据展示</span>
                         </button>
 
+                        <button class="test-btn warning" @click="testDatabaseLoad">
+                            <span class="icon">📂</span>
+                            <span class="text">测试数据库路径</span>
+                            <span class="hint">检查 augments 文件</span>
+                        </button>
+
                         <button class="test-btn danger" @click="hideAllWindows">
                             <span class="icon">❌</span>
                             <span class="text">隐藏所有窗口</span>
@@ -133,6 +139,37 @@ const testPopupWindow = () => {
     })
 
     testStatus.value = { type: 'success', message: '详情弹窗测试数据已发送' }
+}
+
+/**
+ * 测试数据库路径加载
+ */
+const testDatabaseLoad = async () => {
+    testStatus.value = { type: 'info', message: '正在测试数据库加载...' }
+
+    try {
+        const result = await window.ipcRenderer.invoke('test-database-load')
+        console.log('数据库测试结果:', result)
+
+        if (result.success) {
+            testStatus.value = {
+                type: 'success',
+                message: `数据库加载成功: ${result.dataCount} 条数据 | 路径: ${result.successPath}`,
+            }
+        } else {
+            let errorMsg = result.error || '未知错误'
+            if (result.tests) {
+                const failedTests = result.tests
+                    .map((t, i) => `[${i + 1}] ${t.exists ? '✓' : '✗'} ${t.path.substring(0, 60)}...`)
+                    .join('\n')
+                errorMsg += `\n\n路径检查结果:\n${failedTests}`
+            }
+            testStatus.value = { type: 'error', message: errorMsg }
+        }
+    } catch (err) {
+        testStatus.value = { type: 'error', message: '测试失败: ' + err.message }
+        console.error('数据库测试错误:', err)
+    }
 }
 
 /**
@@ -284,6 +321,16 @@ const hideAllWindows = () => {
 .test-btn.secondary:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(240, 147, 251, 0.4);
+}
+
+.test-btn.warning {
+    background: linear-gradient(135deg, #ffa726 0%, #fb8c00 100%);
+    color: white;
+}
+
+.test-btn.warning:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(255, 167, 38, 0.4);
 }
 
 .test-btn.danger {

@@ -287,4 +287,78 @@ export function registerIpcHandlers(isDev) {
 
     // 注册 LCU 相关的 IPC 处理器（使用新的统一服务）
     registerLCUIpcHandlers()
+
+    // 测试数据库加载 IPC 处理程序
+    ipcMain.handle('test-database-load', async () => {
+        try {
+            const path = await import('path')
+            const { fileURLToPath } = await import('url')
+            const { readFileSync, existsSync } = await import('fs')
+
+            // 获取 __dirname
+            const __filename = fileURLToPath(import.meta.url)
+            const __dirname = path.dirname(__filename)
+
+            // 尝试多个可能的路径
+            const possiblePaths = [
+                // 相对于当前文件的 data 目录
+                path.join(__dirname, '..', 'data', 'augments-base.json'),
+                // 相对于当前文件的 data 目录（另一种方式）
+                path.join(__dirname, '../data', 'augments-base.json'),
+                // 使用 process.resourcesPath（打包后）
+                path.join(process.resourcesPath || '', 'data', 'augments-base.json'),
+                // 使用 app.getAppPath()
+                path.join((await import('electron')).app.getAppPath(), 'data', 'augments-base.json'),
+                // 使用当前工作目录
+                path.join(process.cwd(), 'electron', 'data', 'augments-base.json'),
+                // 绝对路径尝试
+                'E:\\ideaProject\\lol_tips_client\\electron\\data\\augments-base.json',
+            ]
+
+            const results = []
+            let successPath = null
+            let dataCount = 0
+
+            for (const testPath of possiblePaths) {
+                const exists = existsSync(testPath)
+                results.push({
+                    path: testPath,
+                    exists: exists,
+                    __dirname: __dirname,
+                    resourcesPath: process.resourcesPath,
+                    cwd: process.cwd(),
+                })
+
+                if (exists && !successPath) {
+                    try {
+                        const content = readFileSync(testPath, 'utf-8')
+                        const data = JSON.parse(content)
+                        successPath = testPath
+                        dataCount = data.length
+                    } catch (e) {
+                        results[results.length - 1].error = e.message
+                    }
+                }
+            }
+
+            return {
+                success: !!successPath,
+                successPath: successPath,
+                dataCount: dataCount,
+                __dirname: __dirname,
+                resourcesPath: process.resourcesPath,
+                cwd: process.cwd(),
+                isDev: isDev,
+                nodeEnv: process.env.NODE_ENV,
+                tests: results,
+            }
+        } catch (error) {
+            logger.error('测试数据库加载失败:', error)
+            return {
+                success: false,
+                error: error.message,
+                stack: error.stack,
+            }
+        }
+    })
 }

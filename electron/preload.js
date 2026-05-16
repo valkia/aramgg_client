@@ -101,7 +101,8 @@ window.ipcRenderer = {
             'select-lol-directory',
             'get-champion-id',
             'test-show-floating',
-            'log-renderer-error'
+            'log-renderer-error',
+            'test-database-load'
         ]
         if (validChannels.includes(channel)) {
             return ipcRenderer.invoke(channel, ...args)

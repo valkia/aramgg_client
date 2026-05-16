@@ -119,6 +119,7 @@ export const createPopupWindow = async (isDev, devServerUrl) => {
 
 /**
  * 创建透明浮动窗口（用于游戏内显示海克斯推荐）
+ * 【重要】窗口位置在屏幕顶部(2%)，确保不与OCR识别区域(从25%开始)重叠
  */
 export const createFloatingWindow = async (isDev, devServerUrl) => {
     // 获取主显示器信息
@@ -131,7 +132,7 @@ export const createFloatingWindow = async (isDev, devServerUrl) => {
     const windowWidth = 850
     const windowHeight = 200
     const windowX = Math.round((screenWidth - windowWidth) / 2)
-    const windowY = Math.round(screenHeight * 0.12) // 屏幕顶部 12% 位置
+    const windowY = Math.round(screenHeight * 0.02) // 屏幕顶部 2% 位置，避免与OCR区域重叠
 
     floatingWindow = new BrowserWindow({
         show: false,

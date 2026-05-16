@@ -63,21 +63,90 @@ const AUGMENT_COLORS = {
 let AUGMENT_DATABASE = null
 
 /**
+ * 尝试多个路径找到数据文件
+ * @returns {string|null} 成功找到的文件路径，或 null
+ */
+function findDataFile() {
+    // 尝试多个可能的路径
+    const possiblePaths = [
+        // 1. 相对于当前文件的路径（打包后）
+        path.join(__dirname, 'data', 'augments-base.json'),
+        // 2. 相对于当前文件的上级目录（源代码位置）
+        path.join(__dirname, '..', 'electron', 'data', 'augments-base.json'),
+        // 3. 使用 process.resourcesPath（打包后）
+        path.join(process.resourcesPath || '', 'data', 'augments-base.json'),
+        // 4. 使用当前工作目录
+        path.join(process.cwd(), 'electron', 'data', 'augments-base.json'),
+        // 5. 绝对路径（作为最后备选）
+        'E:\\ideaProject\\lol_tips_client\\electron\\data\\augments-base.json',
+    ]
+
+    logger.debug(`🔍 尝试 ${possiblePaths.length} 个可能的数据文件路径:`)
+
+    for (let i = 0; i < possiblePaths.length; i++) {
+        const testPath = possiblePaths[i]
+        logger.debug(`   [${i + 1}] ${testPath.substring(0, 80)}...`)
+
+        if (existsSync(testPath)) {
+            logger.info(`✅ 找到数据文件: ${testPath}`)
+            return testPath
+        }
+    }
+
+    logger.error(`❌ 在所有路径中均未找到数据文件`)
+    logger.debug(`   __dirname: ${__dirname}`)
+    logger.debug(`   process.resourcesPath: ${process.resourcesPath}`)
+    logger.debug(`   process.cwd(): ${process.cwd()}`)
+
+    return null
+}
+
+/**
  * 初始化海克斯数据库
  * 从 augments-base.json 加载完整列表并建立名称索引
  */
 function initAugmentDatabase() {
-    if (AUGMENT_DATABASE !== null) {
+    // 如果数据库已加载且不为空，直接返回
+    if (AUGMENT_DATABASE !== null && Object.keys(AUGMENT_DATABASE).length > 0) {
+        logger.debug(`📚 海克斯数据库已缓存: ${Object.keys(AUGMENT_DATABASE).length} 个海克斯`)
         return AUGMENT_DATABASE
     }
 
+    // 如果之前加载失败得到了空对象，重置为 null 重新加载
+    if (AUGMENT_DATABASE !== null && Object.keys(AUGMENT_DATABASE).length === 0) {
+        logger.warn(`⚠️ 检测到空数据库缓存，强制重新加载...`)
+        AUGMENT_DATABASE = null
+    }
+
+    logger.info(`📚 正在初始化海克斯数据库...`)
+
     try {
-        const augmentsPath = path.join(__dirname, 'data', 'augments-base.json')
-        const augmentsData = JSON.parse(readFileSync(augmentsPath, 'utf-8'))
+        // 尝试找到数据文件
+        const augmentsPath = findDataFile()
+
+        if (!augmentsPath) {
+            logger.error(`❌ 无法找到数据文件 augments-base.json`)
+            AUGMENT_DATABASE = {}
+            return AUGMENT_DATABASE
+        }
+
+        logger.info(`   使用数据文件: ${augmentsPath}`)
+
+        const fileContent = readFileSync(augmentsPath, 'utf-8')
+        logger.info(`   数据文件大小: ${fileContent.length} 字符`)
+
+        const augmentsData = JSON.parse(fileContent)
+        logger.info(`   JSON解析成功: ${augmentsData.length} 条原始数据`)
 
         // 建立按名称索引的数据库（用于快速查找）
         AUGMENT_DATABASE = {}
+        let invalidCount = 0
         for (const augment of augmentsData) {
+            if (!augment.id || !augment.name) {
+                invalidCount++
+                continue
+            }
+
             // 稀有度映射
             const rarityMap = {
                 'kSilver': 'silver',
@@ -93,11 +162,18 @@ function initAugmentDatabase() {
             }
         }
 
-        logger.info(`📚 海克斯数据库已加载: ${Object.keys(AUGMENT_DATABASE).length} 个海克斯`)
+        const totalCount = Object.keys(AUGMENT_DATABASE).length
+        logger.info(`📚 海克斯数据库已加载: ${totalCount} 个有效海克斯 (跳过 ${invalidCount} 条无效数据)`)
+
+        if (totalCount === 0) {
+            logger.error(`❌ 警告: 数据库为空！请检查数据文件内容`)
+        }
+
         return AUGMENT_DATABASE
     } catch (error) {
-        logger.error('❌ 加载海克斯数据库失败:', error)
-        // 使用空数据库作为备份
+        logger.error(`❌ 加载海克斯数据库失败: ${error.message}`)
+        logger.error(`   错误详情:`, error)
+        // 使用空数据库作为备份，但标记为 null 以便下次重试
         AUGMENT_DATABASE = {}
         return AUGMENT_DATABASE
     }
@@ -106,8 +182,8 @@ function initAugmentDatabase() {
 let tesseractWorker = null
 
 /**
- * Normalize screenshot input into a Buffer.
- * Runtime capture passes Buffer; IPC/tests often pass an image path.
+ * 将调用方传入的图片输入统一成 Buffer。
+ * 运行时截图传 Buffer，IPC 和测试脚本通常传图片路径。
  */
 function resolveImageBuffer(imageInput) {
     if (Buffer.isBuffer(imageInput)) {
@@ -134,7 +210,7 @@ function resolveImageBuffer(imageInput) {
 }
 
 /**
- * Prefer the repository-local Chinese model to avoid Tesseract.js CDN fetches.
+ * 本地开发时优先使用仓库内的中文模型，避免 Tesseract.js 走 CDN 下载。
  */
 function getTesseractOptions() {
     const localLangDirs = [
@@ -146,7 +222,7 @@ function getTesseractOptions() {
 
     for (const langDir of localLangDirs) {
         if (existsSync(path.join(langDir, 'chi_sim.traineddata'))) {
-            logger.info(`Using local Tesseract language data: ${langDir}`)
+            logger.info(`📖 使用本地 Tesseract 语言模型: ${langDir}`)
             return {
                 langPath: langDir,
                 cacheMethod: 'none',
@@ -155,7 +231,7 @@ function getTesseractOptions() {
         }
     }
 
-    logger.warn('Local chi_sim.traineddata not found; falling back to Tesseract.js defaults')
+    logger.warn('⚠️ 未找到本地 chi_sim.traineddata，Tesseract.js 将使用默认语言数据加载策略')
     return {}
 }
 
@@ -564,10 +640,18 @@ async function recognizeAugmentsFromImage(imageBuffer) {
         logger.info(`  🖼️ 已准备裁剪图像用于OCR识别（${cropWidth}x${cropHeight}）`)
 
         // 执行OCR识别
+        logger.info(`🔍 开始执行 OCR 识别...`)
         const recognizedText = await performOCR(croppedBuffer)
 
+        if (!recognizedText || recognizedText.trim() === '') {
+            logger.warn(`⚠️ OCR 未识别到任何文本`)
+            return []
+        }
+
         // 匹配数据库
+        logger.info(`🔍 开始匹配海克斯数据库...`)
         const augments = matchAugmentDatabase(recognizedText)
+        logger.info(`✅ 海克斯识别完成: 共 ${augments.length} 个`)
 
         return augments
     } catch (error) {
@@ -598,7 +682,8 @@ async function performOCR(imageBuffer) {
 
         // 提取识别的文本
         const recognizedText = result.data.text
-        logger.info(`📖 OCR识别文本: ${recognizedText.substring(0, 100)}...`)
+        logger.info(`📖 OCR识别文本: ${recognizedText.substring(0, 200)}...`)
+        logger.debug(`📝 OCR完整文本: ${recognizedText}`)
 
         return recognizedText
     } catch (error) {
@@ -630,42 +715,74 @@ function editDistance(a, b) {
  */
 function fuzzyFind(text, name) {
     const nameLen = name.length
-    if (nameLen === 0 || text.length < nameLen) return null
+    const textLen = text.length
+
+    if (nameLen === 0 || textLen < nameLen) {
+        logger.debug(`   fuzzyFind: 文本太短 (${textLen} < ${nameLen})，无法匹配 "${name}"`)
+        return null
+    }
 
     // 先尝试精确匹配
     const exactIndex = text.indexOf(name)
     if (exactIndex !== -1) {
+        logger.debug(`   fuzzyFind: ✨ 精确匹配成功 "${name}" @位置 ${exactIndex}`)
         return { index: exactIndex, distance: 0, matchLen: nameLen }
     }
 
     // ⚠️ 名称太短（≤2字）不做模糊匹配，避免误匹配
     // 两字海克斯必须精确匹配（避免"大力"误匹配到"作寺"等）
-    if (nameLen <= 2) return null
+    if (nameLen <= 2) {
+        logger.debug(`   fuzzyFind: "${name}" (长度 ${nameLen} ≤2)，跳过模糊匹配`)
+        return null
+    }
 
     // 滑动窗口模糊匹配（仅对≥3字的海克斯）
     // 允许的最大编辑距离：3字允许1个错误，4字以上允许 floor(len/3) 个错误
     const maxDistance = nameLen === 3 ? 1 : Math.floor(nameLen / 3)
     let bestMatch = null
 
+    // 只记录调试特定海克斯
+    const shouldDebug = name.includes('有始') || name.includes('面包') || name.includes('关键')
+    if (shouldDebug) {
+        logger.debug(`   fuzzyFind: 🔍 开始模糊匹配 "${name}" (长度${nameLen}, 最大允许距离${maxDistance}), 文本长度${textLen}`)
+    }
+
     for (let i = 0; i <= text.length - nameLen; i++) {
         const window = text.slice(i, i + nameLen)
         const dist = editDistance(window, name)
 
         if (dist <= maxDistance) {
+            if (shouldDebug) {
+                logger.debug(`   fuzzyFind: 💡 潜在匹配 "${name}" ≈ "${window}" @位置 ${i} (距离 ${dist})`)
+            }
             if (!bestMatch || dist < bestMatch.distance) {
                 bestMatch = { index: i, distance: dist, matchLen: nameLen }
             }
         }
     }
 
+    if (bestMatch && shouldDebug) {
+        logger.debug(`   fuzzyFind: ✅ 最终选择 "${name}" @位置 ${bestMatch.index} (距离 ${bestMatch.distance})`)
+    } else if (shouldDebug) {
+        // 显示几个最接近但不匹配的窗口
+        const sampleWindows = []
+        for (let i = 0; i <= Math.min(text.length - nameLen, 50) && sampleWindows.length < 3; i++) {
+            const window = text.slice(i, i + nameLen)
+            const dist = editDistance(window, name)
+            if (dist <= maxDistance + 2) {
+                sampleWindows.push(`"${window}"(d${dist})@${i}`)
+            }
+        }
+        if (sampleWindows.length > 0) {
+            logger.debug(`   fuzzyFind: ❌ "${name}" 未匹配，最接近的候选: ${sampleWindows.join(', ')}`)
+        } else {
+            logger.debug(`   fuzzyFind: ❌ "${name}" 未找到相近候选 (检查了 ${Math.min(text.length - nameLen + 1, 51)} 个窗口)`)
+        }
+    }
+
     return bestMatch
 }
 
-/**
- * 从识别的文本匹配海克斯数据库
- * @param {string} recognizedText - OCR识别的文本
- * @returns {Array} 匹配的海克斯列表
- */
 function getAugmentVersionPriority(augmentData) {
     const id = Number(augmentData.id) || 0
     return id >= 1000 ? id + 100000 : id
@@ -675,22 +792,39 @@ function rangesOverlap(a, b) {
     return a.start < b.end && b.start < a.end
 }
 
+/**
+ * 从识别的文本匹配海克斯数据库
+ * @param {string} recognizedText - OCR识别的文本
+ * @returns {Array} 匹配的海克斯列表
+ */
 function matchAugmentDatabase(recognizedText) {
     if (!recognizedText || recognizedText.trim() === '') {
+        logger.warn(`⚠️ matchAugmentDatabase: 输入文本为空或空白`)
         return []
     }
 
+    // 确保数据库已初始化
     const database = initAugmentDatabase()
+    const databaseSize = Object.keys(database).length
+    logger.info(`🔍 开始匹配海克斯数据库: 数据库包含 ${databaseSize} 个海克斯`)
+    logger.debug(`📝 输入原文本长度: ${recognizedText.length} 字符`)
 
+    // 黑名单：常见的描述性词汇（非海克斯名称，但容易被误匹配）
+    // ⚠️ 注意：不要添加真实的海克斯名称到黑名单！
     const blacklist = new Set([
+        // 属性描述词
         '攻击', '防御', '生命', '法术', '魔法', '伤害', '护甲',
         '技能', '冷却', '移速', '暴击', '吸血', '穿透',
+        // 功能描述词
         '功能', '能力', '效果', '被动', '主动', '额外',
         '持续', '提供', '增加', '获得', '造成',
     ])
 
+    // 去除所有空格用于模糊匹配（OCR可能识别出"台风 帽"而不是"台风帽"）
     const normalizedText = recognizedText.replace(/\s+/g, '')
+    logger.info(`📝 归一化后文本: "${normalizedText.substring(0, 100)}..." (${normalizedText.length} 字符)`)
 
+    // 将所有海克斯按名称长度降序排序；同名时优先当前数据集的高 ID，避免旧 ID 影响胜率查询。
     const sortedAugments = Object.values(database).sort((a, b) => {
         const aLen = a.name.replace(/\s+/g, '').length
         const bLen = b.name.replace(/\s+/g, '').length
@@ -699,20 +833,36 @@ function matchAugmentDatabase(recognizedText) {
         }
         return getAugmentVersionPriority(b) - getAugmentVersionPriority(a)
     })
+    logger.debug(`📊 海克斯按名称长度排序完成，最长名称: "${sortedAugments[0]?.name}" (${sortedAugments[0]?.name?.replace(/\s+/g, '').length} 字符)`)
 
+    // 收集所有候选匹配，再按重叠范围筛选，避免长名称被短名称拆分。
     const candidates = []
     const scannedNames = new Set()
+    let skippedBlacklist = 0
+    let skippedDuplicateNameScan = 0
+    let matchedCount = 0
 
     for (const augmentData of sortedAugments) {
         const normalizedName = augmentData.name.replace(/\s+/g, '')
 
-        if (blacklist.has(augmentData.name) || blacklist.has(normalizedName)) continue
-        if (scannedNames.has(normalizedName)) continue
+        // 跳过黑名单、已扫描的相同名称
+        if (blacklist.has(augmentData.name) || blacklist.has(normalizedName)) {
+            skippedBlacklist++
+            continue
+        }
+        if (scannedNames.has(normalizedName)) {
+            skippedDuplicateNameScan++
+            logger.debug(`⚠️ 跳过重复名称: "${augmentData.name}" (id: ${augmentData.id})`)
+            continue
+        }
         scannedNames.add(normalizedName)
 
+        // 使用模糊匹配查找
         const match = fuzzyFind(normalizedText, normalizedName)
 
         if (match) {
+            matchedCount++
+            logger.info(`✅ 匹配成功 [#${matchedCount}]: "${augmentData.name}" (id: ${augmentData.id}, 位置: ${match.index}, 编辑距离: ${match.distance})`)
             candidates.push({
                 augmentData,
                 match,
@@ -722,6 +872,8 @@ function matchAugmentDatabase(recognizedText) {
             })
         }
     }
+
+    logger.info(`📊 匹配统计: 检查 ${sortedAugments.length} 个海克斯, 跳过黑名单(${skippedBlacklist}), 跳过重复名称(${skippedDuplicateNameScan}), 成功匹配(${matchedCount})`)
 
     candidates.sort((a, b) => {
         if (a.match.distance !== b.match.distance) {
@@ -740,13 +892,21 @@ function matchAugmentDatabase(recognizedText) {
     const selectedCandidates = []
     for (const candidate of candidates) {
         if (selectedCandidates.some(selected => rangesOverlap(candidate, selected))) {
+            logger.debug(`⚠️ 跳过重叠候选: "${candidate.augmentData.name}" @${candidate.start}-${candidate.end}`)
             continue
         }
+
         selectedCandidates.push(candidate)
     }
 
+    // 按在原文中的位置排序，保持卡片从左到右/从上到下的识别顺序。
     selectedCandidates.sort((a, b) => a.start - b.start)
+    logger.debug(`📊 筛选重叠候选后数量: ${selectedCandidates.length}`)
+    selectedCandidates.forEach((c, i) => {
+        logger.debug(`   [#${i + 1}] "${c.augmentData.name}" @位置 ${c.start}`)
+    })
 
+    // 选择前 3 个（海克斯选择界面固定是 3 张卡片）
     const augments = []
     for (const candidate of selectedCandidates.slice(0, 3)) {
         const confidence = candidate.match.distance === 0 ? 0.95 : 0.80
@@ -759,9 +919,9 @@ function matchAugmentDatabase(recognizedText) {
     }
 
     if (augments.length > 0) {
-        logger.info(`Matched ${augments.length} augments: ${augments.map(a => a.name).join(', ')}`)
+        logger.info(`✅ 匹配到 ${augments.length} 个海克斯: ${augments.map(a => `"${a.name}" (id:${a.id})`).join(', ')}`)
     } else {
-        logger.info('No augment matched')
+        logger.warn(`⚠️ 未匹配到海克斯 - 最终返回空数组 (候选池: ${candidates.length})`)
     }
 
     return augments
@@ -836,13 +996,14 @@ function generateAugmentRecommendations(cardDetections) {
 
 /**
  * 分析截图图像
- * @param {Buffer} imageBuffer - 截图数据Buffer（PNG格式）
+ * @param {Buffer|string} imageInput - 截图 Buffer 或图片路径
  * @returns {Promise<Object>} 分析结果
  */
 export const analyzeScreenshot = async (imageInput) => {
     try {
         const { buffer: imageBuffer, sourceType, sourcePath } = resolveImageBuffer(imageInput)
 
+        // 验证图片数据有效性
         if (!imageBuffer || !Buffer.isBuffer(imageBuffer) || imageBuffer.length === 0) {
             return {
                 success: false,
@@ -851,26 +1012,29 @@ export const analyzeScreenshot = async (imageInput) => {
         }
 
         const timestamp = Date.now()
-        logger.info(`Analyzing screenshot from ${sourceType}${sourcePath ? ` (${sourcePath})` : ''}, buffer size ${(imageBuffer.length / 1024).toFixed(1)}KB`)
+        logger.info(`🔍 开始分析截图: ${sourceType}${sourcePath ? ` (${sourcePath})` : ''}, buffer size ${(imageBuffer.length / 1024).toFixed(1)}KB`)
 
+        // 【新方案】使用OCR识别海克斯名称
         const recognizedAugments = await recognizeAugmentsFromImage(imageBuffer)
 
-        logger.info(`OCR detected ${recognizedAugments.length} augments`)
+        logger.info(`🔍 OCR识别结果: 检测到 ${recognizedAugments.length} 个海克斯`)
 
+        // 判断是否为海克斯选择界面
         const isAugmentPhase = recognizedAugments.length === 3
         const confidence = calculateConfidence(recognizedAugments.length, isAugmentPhase)
 
+        // 整合结果
         const analysisResult = {
             success: true,
             timestamp,
             analysis: {
-                augments: recognizedAugments,
-                cardCount: recognizedAugments.length,
-                cardColors: [],
-                confidence: confidence,
-                isAugmentPhase: isAugmentPhase,
-                cardPositions: [],
-                detectionMethod: 'ocr-based',
+                augments: recognizedAugments,         // OCR识别到的海克斯
+                cardCount: recognizedAugments.length, // 识别到的海克斯数量
+                cardColors: [],                       // 不再使用颜色检测
+                confidence: confidence,                // 简化的置信度（0 或 0.95）
+                isAugmentPhase: isAugmentPhase,        // 是否处于海克斯选择阶段
+                cardPositions: [],                     // 不再使用卡片位置
+                detectionMethod: 'ocr-based',          // 新方案标记
             },
             metadata: {
                 bufferSize: imageBuffer.length,
@@ -881,10 +1045,10 @@ export const analyzeScreenshot = async (imageInput) => {
             },
         }
 
-        logger.info(`Screenshot analysis complete: ${recognizedAugments.length} augments`)
+        logger.info(`✅ 截图分析完成: 识别到 ${recognizedAugments.length} 个海克斯`)
         return analysisResult
     } catch (error) {
-        logger.error('Screenshot analysis failed:', error)
+        logger.error('❌ 截图分析失败:', error)
         return {
             success: false,
             error: error.message,

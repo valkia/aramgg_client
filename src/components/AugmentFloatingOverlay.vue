@@ -117,11 +117,31 @@ const showOverlay = async (data) => {
       try {
         // 获取当前英雄ID
         if (!championId.value) {
-          const championResult = await window.ipcRenderer.invoke('get-champion-id')
-          if (championResult.success) {
-            championId.value = championResult.championId
-          } else {
-            throw new Error('无法获取当前英雄ID')
+          // 首先尝试从store中读取缓存的英雄ID
+          console.log('🔍 [FloatingOverlay] 尝试从store读取缓存的英雄ID...')
+          try {
+            const cachedChampionId = await window.ipcRenderer.invoke('store-get', 'lastSelectedChampionId')
+            if (cachedChampionId) {
+              championId.value = cachedChampionId
+              console.log('✅ [FloatingOverlay] 从store获取到英雄ID:', cachedChampionId)
+            } else {
+              console.log('⚠️ [FloatingOverlay] store中没有缓存的英雄ID')
+            }
+          } catch (storeErr) {
+            console.warn('⚠️ [FloatingOverlay] 从store读取英雄ID失败:', storeErr)
+          }
+
+          // 如果store中也没有，再尝试通过LCU API获取
+          if (!championId.value) {
+            console.log('🔍 [FloatingOverlay] 尝试通过LCU API获取英雄ID...')
+            const championResult = await window.ipcRenderer.invoke('get-champion-id')
+            if (championResult.success) {
+              championId.value = championResult.championId
+              console.log('✅ [FloatingOverlay] 通过LCU获取到英雄ID:', championResult.championId)
+            } else {
+              console.warn('❌ [FloatingOverlay] LCU获取英雄ID失败:', championResult.error)
+              throw new Error('无法获取当前英雄ID - store和LCU均失败')
+            }
           }
         }
 
@@ -133,10 +153,23 @@ const showOverlay = async (data) => {
         })
 
         if (winrateResult.success && winrateResult.augments.length > 0) {
+          // 找到了胜率数据，直接使用
           displayAugments.value = winrateResult.augments
           console.log('✅ [FloatingOverlay] 胜率数据查询成功:', winrateResult.augments)
+        } else if (winrateResult.success && winrateResult.augments.length === 0) {
+          // 查询成功但没有这些海克斯的数据，显示基本信息
+          console.warn('⚠️ [FloatingOverlay] 没有找到这些海克斯的胜率数据，显示基本信息')
+          displayAugments.value = data.augments.map(aug => ({
+            augmentId: aug.id,
+            name: aug.name,
+            rarity: aug.rarity,
+            winRate: null,
+            pickRate: null,
+            playCount: 0,
+            recommendScore: 0.5 // 默认推荐分数
+          }))
         } else {
-          throw new Error('胜率查询失败')
+          throw new Error(winrateResult.error || '胜率查询失败')
         }
       } catch (err) {
         console.error('❌ [FloatingOverlay] 查询失败:', err)
@@ -202,7 +235,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .floating-overlay {
   position: fixed;
-  top: 15%;
+  top: 0;
   left: 50%;
   transform: translateX(-50%);
   width: 800px;
