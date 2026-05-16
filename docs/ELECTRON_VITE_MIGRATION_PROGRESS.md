@@ -36,7 +36,7 @@
 - [ ] 将当前 `electron/main.js`、`electron/modules/**`、`electron/services/**` 迁入 `src/main`。
 - [ ] 将当前 `electron/preload.js` 迁入 `src/preload`。
 - [ ] 将当前 Vue renderer 保持在 `src/renderer` 或逐步迁入。
-- [ ] 清理旧 React 入口和未使用的根配置。
+- [x] 清理旧 React 入口和未使用的根配置。
 
 完成标准：
 
@@ -64,9 +64,9 @@
 - [x] 补齐 JS/TS 混用的声明或逐步迁移 TS。
 - [x] 修复会阻塞 type-check 的未使用变量和类型。
 - [x] 更新 ESLint 配置到当前 `eslint-plugin-vue` 可识别的配置。
-- [ ] 将 main/preload/renderer 的类型检查边界拆清楚。
+- [x] 将 main/preload/renderer 的类型检查边界拆清楚。
 - [x] 清理当前 lint warning 中的未使用变量，并将 `no-unused-vars` 恢复为 error。
-- [ ] 清理旧 React 遗留文件，并移除 `.eslintignore` 中对应忽略项。
+- [x] 清理旧 React 遗留文件，并移除 `.eslintignore` 中对应忽略项。
 
 完成标准：
 
@@ -78,7 +78,8 @@
 - [ ] 先升级 patch/minor 依赖。
 - [ ] 单独验证 Electron 主版本升级。
 - [ ] 单独验证 electron-builder 主版本升级。
-- [ ] 单独验证 Vue Router、TypeScript、vue-tsc 主版本升级。
+- [x] 单独验证 vue-tsc 主版本升级。
+- [ ] 单独验证 Vue Router、TypeScript 主版本升级。
 - [ ] 每批升级后运行 build、type-check、lint 和关键功能验证。
 
 完成标准：
@@ -119,10 +120,20 @@
 - [x] 清理当前 lint warning，并恢复 `no-unused-vars` 为 error。
 - [x] 运行 `npm run lint`，当前通过且 warning 清零。
 - [x] 再次运行 `npm run type-check` 和 `npm run build`，均通过。
+- [x] 确认旧 React/BaseUI 文件未被当前 Vue 入口引用。
+- [x] 将旧 React 入口、旧 `src/modules/**` 和旧 React 组件目录迁移到 `legacy/react/src/`。
+- [x] 更新 `.eslintignore`，只忽略 `legacy/react/`。
+- [x] 迁移后运行 `npm run lint`、`npm run type-check`、`npm run build`，均通过。
+- [x] 新增 `tsconfig.base.json`、`tsconfig.renderer.json`、`tsconfig.electron.json`。
+- [x] 更新 `type-check` 脚本，分别检查 renderer 和 Electron 代码。
+- [x] 清理 `jsconfig.json` 中不存在的 `tsconfig.node.json` 引用。
+- [x] 拆分后运行 `npm run type-check`、`npm run lint`、`npm run build`，均通过。
+- [x] 升级 `vue-tsc` 后再恢复 Vue SFC 专用类型检查；旧 `vue-tsc@1.8.27` 与当前 TypeScript/Node 组合不兼容。
+- [x] 升级 `vue-tsc` 到 `3.2.9`，并将 renderer 检查切回 `vue-tsc`。
+- [x] 升级后运行 `npm run type-check`、`npm run lint`、`npm run build`，均通过。
 
 ## 下一步
 
 1. 处理 npm 配置 warning。
-2. 清理旧 React 遗留文件或迁入 `legacy/`。
-3. 拆分 main/preload/renderer 的类型检查边界。
-4. 进入目录迁移和 preload 安全改造。
+2. 进入目录迁移和 preload 安全改造。
+3. 单独规划 Vue Router、TypeScript、Electron、electron-builder 等大版本升级。

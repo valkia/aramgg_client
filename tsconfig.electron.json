@@ -2,20 +2,14 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
+      "ES2022"
     ],
     "types": [
       "node",
-      "electron",
-      "vite/client"
+      "electron"
     ]
   },
   "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "src/**/*.vue",
     "electron/**/*.ts",
     "electron/**/*.d.ts"
   ],
@@ -24,11 +18,6 @@
     "dist",
     "dist-electron",
     "build",
-    "legacy",
-    "*.config.js",
     "**/*.spec.ts"
-  ],
-  "vueCompilerOptions": {
-    "target": 3
-  }
+  ]
 }

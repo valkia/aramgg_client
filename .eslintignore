@@ -1,16 +1,2 @@
-# Legacy React entry points kept for later P1 cleanup.
-src/app.js
-src/index.js
-src/popup.index.js
-src/components/champion-table/
-src/components/footer/
-src/components/perk-showcase/
-src/components/progress-bar/
-src/components/rune-preview/
-src/components/toolbar/
-src/components/use-ga/
-src/components/waiting-list/
-src/modules/home/
-src/modules/import/
-src/modules/popup/
-src/modules/settings/
+# Legacy React app kept outside the active Vue/electron-vite source tree.
+legacy/react/

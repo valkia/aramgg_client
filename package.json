@@ -10,8 +10,8 @@
     "pack": "electron-vite build && electron-builder",
     "start": "electron .",
     "lint": "eslint src --ext .js,.vue",
-    "type-check": "tsc --noEmit",
-    "type-check:watch": "tsc --noEmit --watch",
+    "type-check": "vue-tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "type-check:watch": "vue-tsc -p tsconfig.renderer.json --noEmit --watch",
     "test:screenshots": "node electron/test-screenshot-analysis.js"
   },
   "build": {
@@ -74,7 +74,7 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.4.5",
-    "vue-tsc": "^1.8.27"
+    "vue-tsc": "^3.2.9"
   },
   "postcss": {
     "plugins": {
