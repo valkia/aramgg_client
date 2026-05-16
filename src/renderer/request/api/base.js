@@ -4,8 +4,7 @@
 
 import log from '@/native/logger.js';
 
-// eslint-disable-next-line no-unused-vars
-let baseUrl = "";   //这里是一个默认的url，可以没有
+let baseUrl;   //这里是一个默认的url，可以没有
 //window.location.href
 log.info(process.env.NODE_ENV);
 
