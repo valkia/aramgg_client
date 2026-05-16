@@ -11,7 +11,7 @@
 - 项目已经使用 `electron-vite dev` 和 `electron-vite build`。
 - 源码目录已迁移为 electron-vite 推荐的 `src/main`、`src/preload`、`src/renderer` 三段结构。
 - 根目录旧入口 `main.js`、`preload.js`、`vite.config.js` 已清理，旧 React/BaseUI 代码已隔离到 `legacy/react/src/`。
-- Electron 安全配置偏弱：renderer 目前拥有 Node 能力，且关闭了 `contextIsolation` 和 `webSecurity`。
+- Electron 安全配置已收敛：renderer 不再拥有 Node 能力，preload 通过 `contextBridge` 暴露业务 API。
 - `package.json#main`、electron-vite 输出目录、electron-builder `files` 已对齐。
 - `npm run type-check`、`npm run lint`、`npm run build` 当前均通过。
 - 依赖存在较多落后版本，其中 Electron、electron-builder、Vue Router、TypeScript、vue-tsc 属于需要单独验证的大版本升级。
@@ -46,12 +46,12 @@
 
 ### P2：Electron 安全模型
 
-- [ ] 将 `nodeIntegration` 改为 `false`。
-- [ ] 将 `contextIsolation` 改为 `true`。
-- [ ] 默认开启 `sandbox`。
-- [ ] 恢复 `webSecurity` 默认安全行为。
-- [ ] preload 使用 `contextBridge.exposeInMainWorld()` 暴露最小业务 API。
-- [ ] renderer 不再使用 `window.require`、`window.fs`、完整 `window.ipcRenderer`。
+- [x] 将 `nodeIntegration` 改为 `false`。
+- [x] 将 `contextIsolation` 改为 `true`。
+- [x] 默认开启 `sandbox`。
+- [x] 恢复 `webSecurity` 默认安全行为。
+- [x] preload 使用 `contextBridge.exposeInMainWorld()` 暴露最小业务 API。
+- [x] renderer 不再使用 `window.require`、`window.fs`、完整 `window.ipcRenderer`。
 
 完成标准：
 
@@ -135,9 +135,14 @@
 - [x] 更新 `electron.vite.config.mjs`、`tsconfig*.json`、`jsconfig.json` 和相关测试脚本路径。
 - [x] 清理根目录旧 Electron/Vite 入口，并将 Electron 测试脚本迁移到 `tests/electron/`。
 - [x] 迁移后运行 `npm run lint`、`npm run type-check`、`npm run build`，均通过。
+- [x] 将 BrowserWindow 安全配置切换为 `nodeIntegration: false`、`contextIsolation: true`、`sandbox: true`、`webSecurity: true`。
+- [x] 重写 preload，只通过 `contextBridge.exposeInMainWorld('electronAPI', ...)` 暴露业务 API。
+- [x] 将 renderer 中所有 `window.ipcRenderer`、`window.require`、`window.fs`、`window.fse`、`window.cheerio` 访问迁移或移除。
+- [x] 补齐 LCU 业务 API 的主进程 IPC handler。
+- [x] 安全改造后运行 `npm run lint`、`npm run type-check`、`npm run build`，均通过。
 
 ## 下一步
 
-1. 进入 preload 安全改造：收敛 IPC 白名单，移除 renderer 对 `window.require` / Node API 的直接访问。
-2. 升级 patch/minor 依赖，并每批运行 `lint`、`type-check`、`build`。
-3. 单独规划 Vue Router、TypeScript、Electron、electron-builder 等大版本升级。
+1. 升级 patch/minor 依赖，并每批运行 `lint`、`type-check`、`build`。
+2. 单独规划 Vue Router、TypeScript、Electron、electron-builder 等大版本升级。
+3. 处理用户级 npm 配置 warning：当前 warning 来自 `C:\Users\du\.npmrc`，不在项目仓库内。

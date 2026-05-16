@@ -54,13 +54,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import config from "../native/config";
 import {getChampions} from '../service/qq';
 import LCUService from '../service/lcu';
 import LolQQ from '../service/data-source/lol-qq';
 import Opgg from '../service/data-source/op-gg';
 import {getChampionInfo} from './utils';
+import { electronAPI } from '../native/electron-api.js'
 
 const type = ref("opgg");
 const championId = ref("");
@@ -70,8 +71,7 @@ const qqPerks = ref([]);
 const opggPerks = ref([]);
 const curPerk = ref({});
 const coordinate = ref({x: 0, y: 0, width: 0, height: 0});
-
-const ipcRenderer = window.electron?.ipcRenderer;
+let unsubscribeForPopup = null;
 
 const selectType = (typeValue) => {
     type.value = typeValue;
@@ -83,7 +83,7 @@ const init = async () => {
     championMap.value = championList;
     console.log(championList)
 
-    ipcRenderer?.on('for-popup', (event, {championId: id}) => {
+    unsubscribeForPopup = electronAPI.events.on('for-popup', ({championId: id}) => {
         if (id) {
             championId.value = id;
             console.log(`id:${id}`);
@@ -154,6 +154,10 @@ onMounted(() => {
     config.set(`test`, `zh-CN`);
     console.log(config.get(`test`));
     init();
+});
+
+onBeforeUnmount(() => {
+    unsubscribeForPopup?.();
 });
 </script>
 

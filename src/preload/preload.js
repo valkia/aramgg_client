@@ -1,121 +1,98 @@
-import { ipcRenderer, shell } from 'electron'
-import fs from 'fs'
-import fse from 'fs-extra'
-import * as cheerio from 'cheerio'
-import PromisePool from 'es6-promise-pool'
-import log from '../main/modules/logger.js'
+import { contextBridge, ipcRenderer, shell } from 'electron'
 
-log.info('Preload script loaded successfully')
+const validEvents = new Set([
+    'fromMain',
+    'for-popup',
+    'screenshot-taken',
+    'winrate-updated',
+    'auto-screenshot-taken',
+    'game-phase-changed',
+    'game-started',
+    'game-in-progress',
+    'augment-detection-started',
+    'augment-detected',
+    'augment-cleared',
+    'game-ended',
+    'end-of-game',
+])
 
-// When contextIsolation is false, we can directly attach to window
-window.electron = {
-    shell: shell
-}
-
-// Expose require for Node.js modules (since nodeIntegration is enabled)
-// Note: We still expose require but prefer pre-loaded modules to avoid "no access" errors
-window.require = require
-
-// Expose fs and fs-extra
-window.fs = fs
-window.fse = fse
-
-// Expose cheerio directly from preload (already loaded in Node context)
-window.cheerio = cheerio
-
-// Expose PromisePool
-window.PromisePool = PromisePool
-
-// Expose electron-store API through IPC
-window.electronStore = {
-    get: (key) => ipcRenderer.invoke('store-get', key),
-    set: (key, value) => ipcRenderer.invoke('store-set', key, value),
-    delete: (key) => ipcRenderer.invoke('store-delete', key),
-    clear: () => ipcRenderer.invoke('store-clear')
-}
-
-log.info('window.electronStore exposed')
-
-window.ipcRenderer = {
-    send: (channel, data) => {
-        // whitelist channels
-        let validChannels = ['toMain', 'show-popup', 'hide-popup', 'hide-floating', 'toggle-main-window', 'restart-app', 'broadcast']
-        if (validChannels.includes(channel)) {
-            ipcRenderer.send(channel, data)
-        }
-    },
-    on: (channel, func) => {
-        let validChannels = [
-            'fromMain',
-            'for-popup',
-            'screenshot-taken',
-            'winrate-updated',
-            'auto-screenshot-taken',
-            'game-phase-changed',
-            'game-started',
-            'game-in-progress',
-            'augment-detection-started',
-            'augment-detected',
-            'augment-cleared',
-            'game-ended',
-            'end-of-game'
-        ]
-        if (validChannels.includes(channel)) {
-            ipcRenderer.on(channel, (event, ...args) => func(...args))
-        }
-    },
-    once: (channel, func) => {
-        let validChannels = [
-            'fromMain',
-            'for-popup',
-            'screenshot-taken',
-            'winrate-updated',
-            'auto-screenshot-taken',
-            'game-phase-changed',
-            'game-started',
-            'game-in-progress',
-            'augment-detection-started',
-            'augment-detected',
-            'augment-cleared',
-            'game-ended',
-            'end-of-game'
-        ]
-        if (validChannels.includes(channel)) {
-            ipcRenderer.once(channel, (event, ...args) => func(...args))
-        }
-    },
-    invoke: (channel, ...args) => {
-        log.info('ipcRenderer.invoke called:', channel, args)
-        const validChannels = [
-            'store-get',
-            'store-set',
-            'store-delete',
-            'store-clear',
-            'screenshot-capture',
-            'analyze-screenshot',
-            'get-winrate',
-            'load-champion-data',
-            'auto-screenshot-start',
-            'auto-screenshot-stop',
-            'auto-screenshot-set-config',
-            'auto-screenshot-get-stats',
-            'auto-screenshot-get-config',
-            'select-lol-directory',
-            'get-champion-id',
-            'test-show-floating',
-            'log-renderer-error',
-            'test-database-load'
-        ]
-        if (validChannels.includes(channel)) {
-            return ipcRenderer.invoke(channel, ...args)
-        }
-        return Promise.reject(new Error(`Invalid channel: ${channel}`))
+const on = (channel, callback) => {
+    if (!validEvents.has(channel)) {
+        throw new Error(`Invalid event channel: ${channel}`)
     }
+
+    const handler = (_event, ...args) => callback(...args)
+    ipcRenderer.on(channel, handler)
+    return () => ipcRenderer.removeListener(channel, handler)
 }
 
-log.info('window.ipcRenderer exposed')
+const once = (channel, callback) => {
+    if (!validEvents.has(channel)) {
+        throw new Error(`Invalid event channel: ${channel}`)
+    }
 
-// 为了方便，暴露 ipc 作为 ipcRenderer 的别名
-window.ipc = window.ipcRenderer
+    const handler = (_event, ...args) => callback(...args)
+    ipcRenderer.once(channel, handler)
+}
 
-log.info('Preload script initialization complete')
+const electronAPI = {
+    store: {
+        get: (key) => ipcRenderer.invoke('store-get', key),
+        set: (key, value) => ipcRenderer.invoke('store-set', key, value),
+        delete: (key) => ipcRenderer.invoke('store-delete', key),
+        clear: () => ipcRenderer.invoke('store-clear'),
+    },
+    windows: {
+        showPopup: (data) => ipcRenderer.send('show-popup', data),
+        hidePopup: () => ipcRenderer.send('hide-popup'),
+        hideFloating: () => ipcRenderer.send('hide-floating'),
+        toggleMain: () => ipcRenderer.send('toggle-main-window'),
+        restart: () => ipcRenderer.send('restart-app'),
+    },
+    screenshot: {
+        capture: () => ipcRenderer.invoke('screenshot-capture'),
+        analyze: (imagePathOrBuffer) => ipcRenderer.invoke('analyze-screenshot', imagePathOrBuffer),
+    },
+    winrate: {
+        get: (data) => ipcRenderer.invoke('get-winrate', data),
+        loadChampionData: (championId) => ipcRenderer.invoke('load-champion-data', championId),
+    },
+    autoScreenshot: {
+        start: (config) => ipcRenderer.invoke('auto-screenshot-start', config),
+        stop: () => ipcRenderer.invoke('auto-screenshot-stop'),
+        setConfig: (config) => ipcRenderer.invoke('auto-screenshot-set-config', config),
+        getStats: () => ipcRenderer.invoke('auto-screenshot-get-stats'),
+        getConfig: () => ipcRenderer.invoke('auto-screenshot-get-config'),
+    },
+    dialogs: {
+        selectLolDirectory: () => ipcRenderer.invoke('select-lol-directory'),
+    },
+    lcu: {
+        getChampionId: () => ipcRenderer.invoke('get-champion-id'),
+        getStatus: () => ipcRenderer.invoke('lcu-get-status'),
+        getCurrentSession: () => ipcRenderer.invoke('lcu-get-current-session'),
+        getPerkList: () => ipcRenderer.invoke('lcu-get-perk-list'),
+        applyPerk: (data) => ipcRenderer.invoke('lcu-apply-perk', data),
+        getGameflowPhase: () => ipcRenderer.invoke('lcu-get-gameflow-phase'),
+    },
+    diagnostics: {
+        testShowFloating: (data) => ipcRenderer.invoke('test-show-floating', data),
+        logRendererError: (errorData) => ipcRenderer.invoke('log-renderer-error', errorData),
+        testDatabaseLoad: () => ipcRenderer.invoke('test-database-load'),
+    },
+    shell: {
+        openExternal: (url) => {
+            const parsedUrl = new URL(url)
+            if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+                throw new Error(`Unsupported external URL protocol: ${parsedUrl.protocol}`)
+            }
+            return shell.openExternal(parsedUrl.toString())
+        },
+    },
+    events: {
+        on,
+        once,
+    },
+}
+
+contextBridge.exposeInMainWorld('electronAPI', electronAPI)

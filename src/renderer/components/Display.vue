@@ -73,6 +73,7 @@ import { ref } from 'vue'
 import GamePathConfig from './GamePathConfig.vue'
 import RuneControls from './RuneControls.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
+import { electronAPI } from '../native/electron-api.js'
 
 const currentLolPath = ref('')
 const testStatus = ref(null)
@@ -115,7 +116,7 @@ const testFloatingWindow = () => {
     testStatus.value = { type: 'info', message: '正在发送测试数据到浮动窗口...' }
 
     // 通过 broadcast 发送给主进程，主进程再转发给浮动窗口
-    window.ipcRenderer.invoke('test-show-floating', mockAugmentData)
+    electronAPI.diagnostics.testShowFloating(mockAugmentData)
         .then(() => {
             testStatus.value = { type: 'success', message: '浮动窗口测试数据已发送' }
         })
@@ -130,7 +131,7 @@ const testFloatingWindow = () => {
 const testPopupWindow = () => {
     testStatus.value = { type: 'info', message: '正在发送测试数据到详情弹窗...' }
 
-    window.ipcRenderer.send('show-popup', {
+    electronAPI.windows.showPopup({
         championId: 63,
         championName: '布兰德',
         augments: mockAugmentData.augments,
@@ -148,7 +149,7 @@ const testDatabaseLoad = async () => {
     testStatus.value = { type: 'info', message: '正在测试数据库加载...' }
 
     try {
-        const result = await window.ipcRenderer.invoke('test-database-load')
+        const result = await electronAPI.diagnostics.testDatabaseLoad()
         console.log('数据库测试结果:', result)
 
         if (result.success) {
@@ -176,8 +177,8 @@ const testDatabaseLoad = async () => {
  * 隐藏所有测试窗口
  */
 const hideAllWindows = () => {
-    window.ipcRenderer.send('hide-popup')
-    window.ipcRenderer.send('hide-floating')
+    electronAPI.windows.hidePopup()
+    electronAPI.windows.hideFloating()
     testStatus.value = { type: 'info', message: '已发送隐藏指令' }
 }
 </script>

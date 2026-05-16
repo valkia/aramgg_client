@@ -10,9 +10,7 @@ import type {
   ChampSelectSession,
   PerkPage,
 } from './types.ts'
-
-// 获取 IPC Renderer
-const ipcRenderer = (window as any).electron?.ipcRenderer
+import { electronAPI } from '../../native/electron-api.js'
 
 /**
  * LCU 客户端类（渲染进程版本）
@@ -39,7 +37,7 @@ export default class LCUService {
   getAuthToken = async () => {
     // 在渲染进程中，我们不直接获取token
     // 而是通过IPC查询状态
-    const result = await ipcRenderer.invoke('lcu-get-status')
+    const result = await electronAPI.lcu.getStatus()
     if (result.success && result.active) {
       this.active = true
       return { token: 'proxy', port: 'proxy', url: 'proxy' }
@@ -52,7 +50,7 @@ export default class LCUService {
    * 获取 LCU 状态
    */
   getLcuStatus = async (): Promise<boolean> => {
-    const result = await ipcRenderer.invoke('lcu-get-status')
+    const result = await electronAPI.lcu.getStatus()
     this.active = result.success && result.active
     return this.active
   }
@@ -61,7 +59,7 @@ export default class LCUService {
    * 获取当前选人会话
    */
   getCurrentSession = async (): Promise<ChampSelectSession | null> => {
-    const result = await ipcRenderer.invoke('lcu-get-current-session')
+    const result = await electronAPI.lcu.getCurrentSession()
     return result.success ? result.session : null
   }
 
@@ -69,7 +67,7 @@ export default class LCUService {
    * 获取当前符文页
    */
   getCurPerk = async (): Promise<PerkPage | null> => {
-    const result = await ipcRenderer.invoke('lcu-get-perk-list')
+    const result = await electronAPI.lcu.getPerkList()
     if (result.success && result.perks) {
       return result.perks.find((p: PerkPage) => p.current) || null
     }
@@ -80,7 +78,7 @@ export default class LCUService {
    * 获取符文页列表
    */
   getPerkList = async (): Promise<PerkPage[]> => {
-    const result = await ipcRenderer.invoke('lcu-get-perk-list')
+    const result = await electronAPI.lcu.getPerkList()
     return result.success ? result.perks : []
   }
 
@@ -105,7 +103,7 @@ export default class LCUService {
    * 应用符文页
    */
   applyPerk = async (data: any): Promise<boolean> => {
-    const result = await ipcRenderer.invoke('lcu-apply-perk', data)
+    const result = await electronAPI.lcu.applyPerk(data)
     return result.success
   }
 
@@ -113,7 +111,7 @@ export default class LCUService {
    * 获取当前游戏阶段
    */
   getGameflowPhase = async (): Promise<GameflowPhase | null> => {
-    const result = await ipcRenderer.invoke('lcu-get-gameflow-phase')
+    const result = await electronAPI.lcu.getGameflowPhase()
     return result.success ? result.phase : null
   }
 

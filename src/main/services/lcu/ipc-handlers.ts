@@ -13,10 +13,95 @@ import { ChampionIdResult } from './types.ts'
 
 const store = new Store()
 
+const getLcuServiceFromStore = async () => {
+  const lolPath = store.get('lolPath') as string | undefined
+
+  if (!lolPath) {
+    return {
+      service: null,
+      error: '游戏路径未配置',
+    }
+  }
+
+  const service = getLCUServiceInstance(lolPath)
+  if (!service.isActive()) {
+    await service.getAuthToken()
+  }
+
+  return {
+    service,
+    error: null,
+  }
+}
+
 /**
  * 注册所有 LCU 相关的 IPC 处理器
  */
 export function registerLCUIpcHandlers(): void {
+  ipcMain.handle('lcu-get-status', async () => {
+    const { service, error } = await getLcuServiceFromStore()
+    if (!service) {
+      return { success: false, active: false, error }
+    }
+
+    const active = service.isActive() && (await service.getLcuStatus())
+    return {
+      success: true,
+      active,
+      lolPath: service.getLolPath(),
+    }
+  })
+
+  ipcMain.handle('lcu-get-current-session', async () => {
+    const { service, error } = await getLcuServiceFromStore()
+    if (!service) {
+      return { success: false, session: null, error }
+    }
+
+    const session = await service.getCurrentSession()
+    return {
+      success: !!session,
+      session,
+      error: session ? null : '无有效的选人会话',
+    }
+  })
+
+  ipcMain.handle('lcu-get-perk-list', async () => {
+    const { service, error } = await getLcuServiceFromStore()
+    if (!service) {
+      return { success: false, perks: [], error }
+    }
+
+    const perks = await service.getPerkList()
+    return {
+      success: true,
+      perks,
+    }
+  })
+
+  ipcMain.handle('lcu-apply-perk', async (_event, data) => {
+    const { service, error } = await getLcuServiceFromStore()
+    if (!service) {
+      return { success: false, error }
+    }
+
+    const success = await service.applyPerk(data)
+    return { success }
+  })
+
+  ipcMain.handle('lcu-get-gameflow-phase', async () => {
+    const { service, error } = await getLcuServiceFromStore()
+    if (!service) {
+      return { success: false, phase: null, error }
+    }
+
+    const phase = await service.getGameflowPhase()
+    return {
+      success: !!phase,
+      phase,
+    }
+  })
+
   /**
    * 获取当前选择的英雄ID
    */

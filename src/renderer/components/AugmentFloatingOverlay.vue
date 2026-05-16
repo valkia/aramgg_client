@@ -42,12 +42,14 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { electronAPI } from '../native/electron-api.js'
 
 const visible = ref(false)
 const loading = ref(false)
 const error = ref(null)
 const displayAugments = ref([])
 const championId = ref(null)
+const unsubscribeEvents = []
 
 /**
  * 格式化百分比
@@ -120,7 +122,7 @@ const showOverlay = async (data) => {
           // 首先尝试从store中读取缓存的英雄ID
           console.log('🔍 [FloatingOverlay] 尝试从store读取缓存的英雄ID...')
           try {
-            const cachedChampionId = await window.ipcRenderer.invoke('store-get', 'lastSelectedChampionId')
+            const cachedChampionId = await electronAPI.store.get('lastSelectedChampionId')
             if (cachedChampionId) {
               championId.value = cachedChampionId
               console.log('✅ [FloatingOverlay] 从store获取到英雄ID:', cachedChampionId)
@@ -134,7 +136,7 @@ const showOverlay = async (data) => {
           // 如果store中也没有，再尝试通过LCU API获取
           if (!championId.value) {
             console.log('🔍 [FloatingOverlay] 尝试通过LCU API获取英雄ID...')
-            const championResult = await window.ipcRenderer.invoke('get-champion-id')
+            const championResult = await electronAPI.lcu.getChampionId()
             if (championResult.success) {
               championId.value = championResult.championId
               console.log('✅ [FloatingOverlay] 通过LCU获取到英雄ID:', championResult.championId)
@@ -147,7 +149,7 @@ const showOverlay = async (data) => {
 
         // 查询胜率数据
         const augmentIds = data.augments.map(aug => aug.id).filter(id => id != null)
-        const winrateResult = await window.ipcRenderer.invoke('get-winrate', {
+        const winrateResult = await electronAPI.winrate.get({
           championId: championId.value,
           augmentIds: augmentIds
         })
@@ -193,9 +195,7 @@ const closeOverlay = () => {
   error.value = null
 
   // 隐藏浮动窗口本身
-  if (window.ipcRenderer) {
-    window.ipcRenderer.send('hide-floating')
-  }
+  electronAPI.windows.hideFloating()
 }
 
 /**
@@ -204,35 +204,36 @@ const closeOverlay = () => {
 onMounted(() => {
   console.log('🔧 [FloatingOverlay] 组件已挂载')
 
-  window.ipcRenderer.on('augment-detected', (data) => {
+  unsubscribeEvents.push(electronAPI.events.on('augment-detected', (data) => {
     console.log('📊 [FloatingOverlay] 收到 augment-detected:', data)
     showOverlay(data)
-  })
+  }))
 
-  window.ipcRenderer.on('augment-cleared', (data) => {
+  unsubscribeEvents.push(electronAPI.events.on('augment-cleared', (data) => {
     console.log('🔧 [FloatingOverlay] 收到 augment-cleared:', data)
     closeOverlay()
-  })
+  }))
 
-  window.ipcRenderer.on('game-started', () => {
+  unsubscribeEvents.push(electronAPI.events.on('game-started', () => {
     console.log('🎮 [FloatingOverlay] 游戏开始，关闭浮窗')
     closeOverlay()
-  })
+  }))
 
-  window.ipcRenderer.on('game-in-progress', () => {
+  unsubscribeEvents.push(electronAPI.events.on('game-in-progress', () => {
     console.log('🎮 [FloatingOverlay] 游戏进行中，关闭浮窗')
     closeOverlay()
-  })
+  }))
 
-  window.ipcRenderer.on('game-phase-changed', (data) => {
+  unsubscribeEvents.push(electronAPI.events.on('game-phase-changed', (data) => {
     if (data && (data.phase === 'GameStart' || data.phase === 'InProgress')) {
       console.log('🎮 [FloatingOverlay] 游戏阶段变化，关闭浮窗')
       closeOverlay()
     }
-  })
+  }))
 })
 
 onBeforeUnmount(() => {
+  unsubscribeEvents.splice(0).forEach(unsubscribe => unsubscribe())
   closeOverlay()
 })
 </script>

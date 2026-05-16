@@ -2,6 +2,7 @@
  * 渲染进程日志模块
  * 提供统一的日志记录和错误上报功能
  */
+import { electronAPI, hasElectronAPI } from './electron-api.js'
 
 /**
  * 发送错误到主进程
@@ -9,8 +10,8 @@
  */
 function sendErrorToMain(errorData) {
   try {
-    if (window.ipcRenderer) {
-      window.ipcRenderer.invoke('log-renderer-error', {
+    if (hasElectronAPI()) {
+      electronAPI.diagnostics.logRendererError({
         ...errorData,
         userAgent: navigator.userAgent,
         url: window.location.href,
@@ -53,7 +54,8 @@ const LOG_LEVELS = {
 }
 
 // 当前日志级别（生产环境只记录 INFO 及以上）
-const currentLevel = LOG_LEVELS[process.env.VUE_APP_LOG_LEVEL?.toUpperCase()] ?? LOG_LEVELS.INFO
+const configuredLevel = import.meta.env?.VITE_LOG_LEVEL || 'INFO'
+const currentLevel = LOG_LEVELS[configuredLevel.toUpperCase()] ?? LOG_LEVELS.INFO
 
 /**
  * 日志模块

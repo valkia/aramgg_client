@@ -114,6 +114,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { getWinrateLevel } from '../service/winrate'
+import { electronAPI } from '../native/electron-api.js'
 
 const visible = ref(false)
 const loading = ref(false)
@@ -121,6 +122,7 @@ const error = ref(null)
 const displayData = ref(null)
 const autoHideTimer = ref(null)
 const positionMode = ref('top-right') // top-right, top-left, bottom-right, bottom-left
+const unsubscribeEvents = []
 
 // 浮窗位置配置
 const positionConfigs = {
@@ -218,11 +220,11 @@ const onScreenshotTaken = async (screenshotData) => {
 
   try {
     // 发送 IPC 请求分析截图
-    const analysisResult = await window.ipcRenderer.invoke('analyze-screenshot', screenshotData.filepath)
+    const analysisResult = await electronAPI.screenshot.analyze(screenshotData.filepath)
 
     if (analysisResult.success) {
       // 根据分析结果获取胜率
-      const winrateData = await window.ipcRenderer.invoke('get-winrate', {
+      const winrateData = await electronAPI.winrate.get({
         champions: analysisResult.analysis.champions,
         position: analysisResult.analysis.position,
       })
@@ -243,15 +245,16 @@ const onScreenshotTaken = async (screenshotData) => {
 
 onMounted(() => {
   // 监听截图完成事件
-  window.ipcRenderer.on('screenshot-taken', onScreenshotTaken)
+  unsubscribeEvents.push(electronAPI.events.on('screenshot-taken', onScreenshotTaken))
 
   // 监听来自主进程的胜率数据
-  window.ipcRenderer.on('winrate-updated', (data) => {
+  unsubscribeEvents.push(electronAPI.events.on('winrate-updated', (data) => {
     showOverlay(data)
-  })
+  }))
 })
 
 onBeforeUnmount(() => {
+  unsubscribeEvents.splice(0).forEach(unsubscribe => unsubscribe())
   clearTimeout(autoHideTimer.value)
 })
 

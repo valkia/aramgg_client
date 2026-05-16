@@ -1,12 +1,10 @@
 import find from 'lodash-es/find';
 import sortBy from 'lodash-es/sortBy';
 import { CancelToken } from 'axios';
+import * as cheerio from 'cheerio';
 
 import { flatRunes } from '../share/constants/runes';
 import http from './http';
-
-// Use cheerio from preload (loaded in Node context, not through Vite)
-const cheerio = window.cheerio || null;
 
 // Use lodash-es exports directly
 const _find = find;

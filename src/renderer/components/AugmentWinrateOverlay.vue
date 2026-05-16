@@ -231,6 +231,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { getChampionIconUrl, getAugmentIconUrl, getItemIconUrl } from '../service/cdn'
+import { electronAPI } from '../native/electron-api.js'
 
 const visible = ref(false)
 const loading = ref(false)
@@ -249,6 +250,7 @@ const augmentStats = ref({})
 const buildData = ref(null)
 const itemsData = ref({})
 const displayAugments = ref([])
+const unsubscribeEvents = []
 
 // Tabs 配置
 const tabs = [
@@ -358,7 +360,7 @@ const showOverlay = async (data) => {
 
     // 加载完整英雄数据
     console.log('🔍 正在加载英雄数据...')
-    const result = await window.ipcRenderer.invoke('load-champion-data', championId.value)
+    const result = await electronAPI.winrate.loadChampionData(championId.value)
 
     if (result.success) {
       const { stats, augments, augmentStats: augStats, build, items, championName: nameData } = result.data
@@ -384,7 +386,7 @@ const showOverlay = async (data) => {
         } else {
           // 查询胜率数据
           const augmentIds = data.augments.map(aug => aug.id).filter(id => id != null)
-          const winrateResult = await window.ipcRenderer.invoke('get-winrate', {
+          const winrateResult = await electronAPI.winrate.get({
             championId: championId.value,
             augmentIds: augmentIds
           })
@@ -432,9 +434,7 @@ const closeOverlay = () => {
   itemsData.value = {}
   displayAugments.value = []
 
-  if (window.ipcRenderer) {
-    window.ipcRenderer.send('hide-popup')
-  }
+  electronAPI.windows.hidePopup()
 }
 
 /**
@@ -499,38 +499,38 @@ const handleImageError = (e) => {
 onMounted(() => {
   console.log('🔧 AugmentWinrateOverlay 组件已挂载')
 
-  window.ipcRenderer.on('for-popup', (data) => {
+  unsubscribeEvents.push(electronAPI.events.on('for-popup', (data) => {
     console.log('📊 收到 for-popup 事件:', data)
     if (data) {
       showOverlay(data)
     }
-  })
+  }))
 
-  window.ipcRenderer.on('augment-detected', (data) => {
+  unsubscribeEvents.push(electronAPI.events.on('augment-detected', (data) => {
     console.log('📊 收到 augment-detected 事件:', data)
     if (data) {
       showOverlay(data)
     }
-  })
+  }))
 
-  window.ipcRenderer.on('augment-cleared', (data) => {
+  unsubscribeEvents.push(electronAPI.events.on('augment-cleared', (data) => {
     console.log('🔧 收到 augment-cleared 事件:', data)
     closeOverlay()
-  })
+  }))
 
-  window.ipcRenderer.on('game-started', () => {
+  unsubscribeEvents.push(electronAPI.events.on('game-started', () => {
     console.log('🎮 游戏开始，隐藏弹窗')
     closeOverlay()
-  })
+  }))
 
-  window.ipcRenderer.on('game-in-progress', () => {
+  unsubscribeEvents.push(electronAPI.events.on('game-in-progress', () => {
     console.log('🎮 游戏进行中，隐藏弹窗')
     closeOverlay()
-  })
+  }))
 })
 
 onBeforeUnmount(() => {
-  // 清理事件监听
+  unsubscribeEvents.splice(0).forEach(unsubscribe => unsubscribe())
 })
 
 // 暴露方法供外部调用

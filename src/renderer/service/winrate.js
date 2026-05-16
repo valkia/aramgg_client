@@ -1,4 +1,5 @@
 import log from '@/native/logger.js';
+import { electronAPI, hasElectronAPI } from '@/native/electron-api.js'
 /**
  * 胜率查询服务
  * 功能：从不同数据源获取英雄的胜率、选择率等信息
@@ -14,7 +15,7 @@ import log from '@/native/logger.js';
 export const getAugmentWinrates = async (championId, augmentIds = null) => {
     try {
         // 在客户端中，通过 IPC 调用主进程的数据加载
-        if (!window.ipcRenderer) {
+        if (!hasElectronAPI()) {
             log.warn('IPC 通信不可用')
             return {
                 success: false,
@@ -24,7 +25,7 @@ export const getAugmentWinrates = async (championId, augmentIds = null) => {
             }
         }
 
-        const result = await window.ipcRenderer.invoke('get-winrate', {
+        const result = await electronAPI.winrate.get({
             championId,
             augmentIds
         })

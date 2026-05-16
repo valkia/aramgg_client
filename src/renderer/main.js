@@ -9,6 +9,7 @@ import ShowDetail from './components/ShowDetail.vue'
 import ChampionStats from './components/ChampionStats.vue'
 import PopupAugmentView from './components/PopupAugmentView.vue'
 import FloatingView from './components/FloatingView.vue'
+import { electronAPI, hasElectronAPI } from './native/electron-api.js'
 
 /**
  * 发送错误到主进程
@@ -16,8 +17,8 @@ import FloatingView from './components/FloatingView.vue'
  */
 function sendErrorToMain(errorData) {
   try {
-    if (window.ipcRenderer) {
-      window.ipcRenderer.invoke('log-renderer-error', {
+    if (hasElectronAPI()) {
+      electronAPI.diagnostics.logRendererError({
         ...errorData,
         userAgent: navigator.userAgent,
       })

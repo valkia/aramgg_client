@@ -32,6 +32,7 @@ import { ref, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import configCache from '../service/config-cache'
+import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
 
 const lolPath = ref('')
 const emit = defineEmits(['path-changed'])
@@ -51,9 +52,9 @@ const saveLolPath = async () => {
     const success = configCache.saveLolPath(path)
 
     // 同时保存到 electron-store（主进程存储）
-    if (window.ipcRenderer) {
+    if (hasElectronAPI()) {
         try {
-            await window.ipcRenderer.invoke('store-set', 'lolPath', path)
+            await electronAPI.store.set('lolPath', path)
             console.log('✅ 游戏路径已保存到主进程 store')
         } catch (error) {
             console.warn('⚠️ 保存到主进程 store 失败:', error)
@@ -74,8 +75,7 @@ const saveLolPath = async () => {
  */
 const selectLolDirectory = async () => {
     try {
-        const { ipcRenderer } = require('electron')
-        const result = await ipcRenderer?.invoke('select-lol-directory')
+        const result = await electronAPI.dialogs.selectLolDirectory()
 
         if (result.success && result.path) {
             lolPath.value = result.path

@@ -82,6 +82,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ChampionStatsHeader from './ChampionStatsHeader.vue'
 import AugmentsList from './AugmentsList.vue'
 import BuildCard from './BuildCard.vue'
+import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
 
 const route = useRoute()
 const championId = ref(route.params.id)
@@ -104,12 +105,12 @@ const loadData = async () => {
 
   try {
     // Check if ipcRenderer is available
-    if (!window.ipcRenderer || !window.ipcRenderer.invoke) {
-      throw new Error('IPC Renderer not available. Please wait for the application to fully load.')
+    if (!hasElectronAPI()) {
+      throw new Error('Electron API not available. Please wait for the application to fully load.')
     }
 
     // Call IPC to load data in main process
-    const result = await window.ipcRenderer.invoke('load-champion-data', championId.value)
+    const result = await electronAPI.winrate.loadChampionData(championId.value)
 
     if (result.success) {
       const { stats, augments, augmentStats: augmentStatsData, build, items } = result.data
@@ -146,17 +147,17 @@ onMounted(() => {
 
     console.log('Checking IPC availability...')
 
-    while (!window.ipcRenderer && attempts < maxAttempts) {
-      console.log(`Attempt ${attempts + 1}: window.ipcRenderer =`, window.ipcRenderer)
+    while (!hasElectronAPI() && attempts < maxAttempts) {
+      console.log(`Attempt ${attempts + 1}: electronAPI unavailable`)
       await new Promise(resolve => setTimeout(resolve, 100))
       attempts++
     }
 
-    if (window.ipcRenderer) {
-      console.log('IPC available, loading data...')
+    if (hasElectronAPI()) {
+      console.log('Electron API available, loading data...')
       loadData()
     } else {
-      console.error('IPC not available after all attempts')
+      console.error('Electron API not available after all attempts')
       error.value = '应用未完全加载，请刷新页面重试。'
       loading.value = false
     }

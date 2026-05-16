@@ -138,6 +138,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { electronAPI } from '../native/electron-api.js'
 
 const isRunning = ref(false)
 const isLoading = ref(false)
@@ -184,10 +185,10 @@ const toggleAutoScreenshot = async () => {
 
     if (isRunning.value) {
       // 停止
-      result = await window.ipcRenderer.invoke('auto-screenshot-stop')
+      result = await electronAPI.autoScreenshot.stop()
     } else {
       // 启动
-      result = await window.ipcRenderer.invoke('auto-screenshot-start', {
+      result = await electronAPI.autoScreenshot.start({
         interval: config.value.interval,
       })
     }
@@ -219,7 +220,7 @@ const toggleAutoScreenshot = async () => {
 const applyConfig = async () => {
   isLoading.value = true
   try {
-    const result = await window.ipcRenderer.invoke('auto-screenshot-set-config', config.value)
+    const result = await electronAPI.autoScreenshot.setConfig(config.value)
     console.log('Config applied:', result)
   } catch (error) {
     console.error('Error applying config:', error)
@@ -233,7 +234,7 @@ const applyConfig = async () => {
  */
 const refreshStats = async () => {
   try {
-    const result = await window.ipcRenderer.invoke('auto-screenshot-get-stats')
+    const result = await electronAPI.autoScreenshot.getStats()
 
     // 确保返回的结果有完整的结构
     if (result && typeof result === 'object') {
@@ -282,7 +283,7 @@ const stopAutoRefresh = () => {
 onMounted(async () => {
   try {
     // 获取当前配置
-    const currentConfig = await window.ipcRenderer.invoke('auto-screenshot-get-config')
+    const currentConfig = await electronAPI.autoScreenshot.getConfig()
     isRunning.value = currentConfig.isRunning
     config.value.interval = currentConfig.interval
     config.value.maxScreenshots = currentConfig.maxScreenshots

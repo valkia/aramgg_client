@@ -54,6 +54,7 @@
 <script setup>
 import { ref, onBeforeUnmount, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
+import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
 
 const isMonitoring = ref(false)
 const selectedChampion = ref('')
@@ -66,12 +67,12 @@ const lastQueryChampionId = ref(null) // 追踪最后一次查询的英雄ID，�
  */
 const getChampionIdViaIpc = async () => {
     try {
-        if (!window.ipcRenderer) {
+        if (!hasElectronAPI()) {
             console.warn('🔴 IPC 通信不可用')
             return null
         }
 
-        const result = await window.ipcRenderer.invoke('get-champion-id', {})
+        const result = await electronAPI.lcu.getChampionId()
 
         if (result && result.success && result.championId) {
             console.log('✅ 从主进程获取英雄ID:', result.championId)
@@ -119,7 +120,7 @@ const startChampionMonitor = async () => {
 
                 // 缓存英雄ID到主进程store，供海克斯检测使用
                 try {
-                    await window.ipcRenderer.invoke('store-set', 'lastSelectedChampionId', championId)
+                    await electronAPI.store.set('lastSelectedChampionId', championId)
                     console.log('💾 英雄ID已缓存到store:', championId)
                 } catch (err) {
                     console.warn('⚠️ 缓存英雄ID失败:', err.message)
@@ -171,13 +172,13 @@ const toggleChampionMonitor = () => {
  */
 const queryAugmentWinrates = async (championId) => {
     try {
-        // 检查 window.ipcRenderer 是否可用
-        if (!window.ipcRenderer) {
+        // 检查 Electron API 是否可用
+        if (!hasElectronAPI()) {
             console.warn('IPC 通信不可用')
             return
         }
 
-        const result = await window.ipcRenderer.invoke('get-winrate', {
+        const result = await electronAPI.winrate.get({
             championId,
             augmentIds: null // 查询全部海克斯
         })
@@ -186,7 +187,7 @@ const queryAugmentWinrates = async (championId) => {
             console.log('✅ 海克斯数据查询成功:', result.augments?.length, '个海克斯')
 
             // 触发显示胜率浮窗
-            window.ipcRenderer.send('show-popup', {
+            electronAPI.windows.showPopup({
                 championId,
                 augments: result.augments,
                 dataSource: result.dataSource,

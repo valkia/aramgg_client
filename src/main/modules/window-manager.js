@@ -27,11 +27,11 @@ function getPreloadPath(isDev) {
 }
 
 const getWebPreferences = (isDev) => ({
-    nodeIntegration: true,
-    nodeIntegrationInWorker: true,
-    webSecurity: false,
-    contextIsolation: false,
-    sandbox: false,
+    nodeIntegration: false,
+    nodeIntegrationInWorker: false,
+    webSecurity: true,
+    contextIsolation: true,
+    sandbox: true,
     preload: getPreloadPath(isDev),
 })
 
