@@ -77,7 +77,7 @@
 
 - [x] 先升级 patch/minor 依赖。
 - [ ] 单独验证 Electron 主版本升级。
-- [ ] 单独验证 electron-builder 主版本升级。
+- [x] 单独验证 electron-builder 主版本升级。
 - [x] 单独验证 vue-tsc 主版本升级。
 - [ ] 单独验证 Vue Router、TypeScript 主版本升级。
 - [ ] 每批升级后运行 build、type-check、lint 和关键功能验证。
@@ -143,6 +143,10 @@
 - [x] 升级 patch/minor 依赖：`@vueuse/core`、`axios`、`cheerio`、`element-plus`、`fs-extra`、`lodash-es`、`nanoid`、`reka-ui`、`vue`、Tailwind/PostCSS 相关包、`eslint-plugin-vue`、`shadcn-vue`。
 - [x] patch/minor 升级后运行 `npm run lint`、`npm run type-check`、`npm run build`，均通过。
 - [x] 运行 `npm audit --json`：剩余风险主要来自 Electron 39 与 electron-builder 24 链路，需要在对应大版本升级批次中处理。
+- [x] 升级 `electron-builder` 到 `26.8.1`。
+- [x] electron-builder 升级后运行 `npm run lint`、`npm run type-check`、`npm run build`，均通过。
+- [x] 再次运行 `npm audit --json`：剩余 2 条风险来自 `electron@39.2.7` 及依赖它的 `@electron/remote`。
+- [ ] 尝试升级 `electron` 到 `42.1.0`，但 `ACE-Guard Client` / `SGuard64` 锁定 `node_modules/electron/dist/*.dll`，当前权限无法结束该进程；已恢复本地 `electron@39.2.7` 元数据，待手动关闭游戏保护进程后继续。
 
 ## 下一步
 
