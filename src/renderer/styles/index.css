@@ -1,63 +1,83 @@
 @import "tailwindcss";
 
-/* Tailwind CSS 4 - 使用 @theme 定义 shadcn-vue 颜色 */
 @theme {
-  --color-background: hsl(222 47% 11%);
-  --color-foreground: hsl(210 40% 98%);
-  --color-card: hsl(222 47% 14%);
-  --color-card-foreground: hsl(210 40% 98%);
-  --color-popover: hsl(222 47% 14%);
-  --color-popover-foreground: hsl(210 40% 98%);
-  --color-primary: hsl(217 91% 60%);
-  --color-primary-foreground: hsl(222 47% 11%);
-  --color-secondary: hsl(217 33% 17%);
-  --color-secondary-foreground: hsl(210 40% 98%);
-  --color-muted: hsl(217 33% 17%);
-  --color-muted-foreground: hsl(215 20% 65%);
-  --color-accent: hsl(217 33% 17%);
-  --color-accent-foreground: hsl(210 40% 98%);
-  --color-destructive: hsl(0 63% 31%);
-  --color-destructive-foreground: hsl(210 40% 98%);
-  --color-border: hsl(217 33% 22%);
-  --color-input: hsl(217 33% 22%);
-  --color-ring: hsl(224 76% 48%);
-  --radius: 0.5rem;
+  --color-background: hsl(210 30% 4%);
+  --color-foreground: hsl(39 43% 92%);
+  --color-card: hsl(214 30% 9%);
+  --color-card-foreground: hsl(39 43% 92%);
+  --color-popover: hsl(214 30% 9%);
+  --color-popover-foreground: hsl(39 43% 92%);
+  --color-primary: hsl(175 72% 50%);
+  --color-primary-foreground: hsl(210 30% 4%);
+  --color-secondary: hsl(216 26% 15%);
+  --color-secondary-foreground: hsl(39 43% 92%);
+  --color-muted: hsl(216 24% 13%);
+  --color-muted-foreground: hsl(39 15% 66%);
+  --color-accent: hsl(38 40% 60%);
+  --color-accent-foreground: hsl(210 30% 4%);
+  --color-destructive: hsl(3 72% 60%);
+  --color-destructive-foreground: hsl(39 43% 92%);
+  --color-border: hsl(217 22% 23%);
+  --color-input: hsl(217 22% 23%);
+  --color-ring: hsl(175 72% 50%);
+  --radius: 0.375rem;
 }
 
-/* 同时保留传统 CSS 变量供 hsl(var(--xxx)) 使用 */
 :root {
-  --background: 222 47% 11%;
-  --foreground: 210 40% 98%;
-  --card: 222 47% 14%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222 47% 14%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 217 91% 60%;
-  --primary-foreground: 222 47% 11%;
-  --secondary: 217 33% 17%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217 33% 17%;
-  --muted-foreground: 215 20% 65%;
-  --accent: 217 33% 17%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 63% 31%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 217 33% 22%;
-  --input: 217 33% 22%;
-  --ring: 224 76% 48%;
+  --background: 210 30% 4%;
+  --foreground: 39 43% 92%;
+  --card: 214 30% 9%;
+  --card-foreground: 39 43% 92%;
+  --popover: 214 30% 9%;
+  --popover-foreground: 39 43% 92%;
+  --primary: 175 72% 50%;
+  --primary-foreground: 210 30% 4%;
+  --secondary: 216 26% 15%;
+  --secondary-foreground: 39 43% 92%;
+  --muted: 216 24% 13%;
+  --muted-foreground: 39 15% 66%;
+  --accent: 38 40% 60%;
+  --accent-foreground: 210 30% 4%;
+  --destructive: 3 72% 60%;
+  --destructive-foreground: 39 43% 92%;
+  --border: 217 22% 23%;
+  --input: 217 22% 23%;
+  --ring: 175 72% 50%;
+  --lol-bg: #070a0d;
+  --lol-bg-2: #0b1117;
+  --lol-surface: #111923;
+  --lol-surface-2: #162231;
+  --lol-surface-3: #1c2a39;
+  --lol-ivory: #f4ecdc;
+  --lol-muted: #a99f8c;
+  --lol-faint: #6f7a82;
+  --lol-gold: #c8a96a;
+  --lol-gold-2: #e2c27a;
+  --lol-teal: #28d9c8;
+  --lol-teal-2: #6cf1e5;
+  --lol-crimson: #e5534b;
+  --lol-success: #54d884;
+  --lol-border: rgba(200, 169, 106, 0.24);
+  --lol-border-soft: rgba(244, 236, 220, 0.1);
+  --lol-panel: linear-gradient(145deg, rgba(17, 25, 35, 0.96), rgba(9, 14, 19, 0.98));
+  --lol-panel-raised: linear-gradient(145deg, rgba(23, 35, 49, 0.98), rgba(11, 17, 23, 0.98));
+  --lol-shadow: 0 18px 50px rgba(0, 0, 0, 0.42);
+  --lol-glow: 0 0 0 1px rgba(40, 217, 200, 0.16), 0 12px 30px rgba(40, 217, 200, 0.06);
 }
 
 @layer base {
   html {
     @apply h-full;
-    background-color: hsl(222 47% 11%);
-    color: hsl(210 40% 98%);
+    background-color: var(--lol-bg);
+    color: var(--lol-ivory);
   }
 
   body {
     @apply h-full m-0 p-0;
-    background-color: hsl(222 47% 11%);
-    color: hsl(210 40% 98%);
+    background:
+      radial-gradient(circle at top left, rgba(40, 217, 200, 0.08), transparent 34rem),
+      linear-gradient(180deg, #0b1117 0%, #070a0d 100%);
+    color: var(--lol-ivory);
   }
 
   #app {
@@ -65,7 +85,8 @@
   }
 
   * {
-    border-color: hsl(217 33% 22%);
+    border-color: hsl(var(--border));
+    box-sizing: border-box;
   }
 
   button {
@@ -77,77 +98,123 @@
   textarea {
     @apply transition-colors;
   }
+
+  ::selection {
+    background: rgba(40, 217, 200, 0.32);
+    color: var(--lol-ivory);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(7, 10, 13, 0.7);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(200, 169, 106, 0.72), rgba(40, 217, 200, 0.46));
+    border: 2px solid rgba(7, 10, 13, 0.86);
+    border-radius: 999px;
+  }
 }
 
 @layer components {
-  /* 按钮变体 */
   .btn-primary {
-    @apply bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 disabled:bg-neutral-300 disabled:text-neutral-500 transition-all;
+    background: linear-gradient(135deg, var(--lol-teal), #179c93);
+    color: var(--lol-bg);
+    border: 1px solid rgba(108, 241, 229, 0.32);
+    box-shadow: var(--lol-glow);
   }
 
   .btn-secondary {
-    @apply bg-secondary-500 text-white hover:bg-secondary-600 active:bg-secondary-700 disabled:bg-neutral-300 disabled:text-neutral-500 transition-all;
+    background: rgba(22, 34, 49, 0.92);
+    color: var(--lol-ivory);
+    border: 1px solid var(--lol-border);
   }
 
   .btn-ghost {
-    @apply text-neutral-700 hover:bg-neutral-200 active:bg-neutral-300 disabled:text-neutral-300 transition-all;
+    color: var(--lol-muted);
+    border: 1px solid transparent;
+  }
+
+  .btn-ghost:hover {
+    color: var(--lol-ivory);
+    background: rgba(244, 236, 220, 0.06);
+    border-color: var(--lol-border-soft);
   }
 
   .btn-outline {
-    @apply border border-neutral-300 text-neutral-700 hover:bg-neutral-50 active:bg-neutral-100 disabled:border-neutral-300 disabled:text-neutral-300 transition-all;
+    border: 1px solid var(--lol-border);
+    color: var(--lol-ivory);
+    background: rgba(7, 10, 13, 0.35);
   }
 
-  /* 卡片 */
   .card {
-    @apply bg-white rounded-md border border-neutral-200 shadow-sm p-lg;
+    background: var(--lol-panel);
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 8px;
+    box-shadow: var(--lol-shadow);
+    color: var(--lol-ivory);
+    padding: 16px;
   }
 
   .card-hover {
-    @apply card hover:shadow-md transition-shadow;
+    @apply card transition-shadow;
   }
 
-  /* 输入框 */
   .input-base {
-    @apply w-full px-md py-sm border border-neutral-300 rounded-sm bg-white text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-neutral-100 disabled:text-neutral-400 disabled:cursor-not-allowed transition-all;
+    @apply w-full px-md py-sm rounded-sm focus:outline-none disabled:cursor-not-allowed transition-all;
+    border: 1px solid var(--lol-border-soft);
+    background: rgba(7, 10, 13, 0.48);
+    color: var(--lol-ivory);
   }
 
-  /* 标签 */
   .tag {
     @apply inline-flex items-center gap-xs px-sm py-xs rounded-sm text-xs font-medium;
   }
 
   .tag-primary {
-    @apply tag bg-primary-100 text-primary-700;
+    @apply tag;
+    background: rgba(40, 217, 200, 0.14);
+    color: var(--lol-teal-2);
   }
 
   .tag-secondary {
-    @apply tag bg-secondary-100 text-secondary-700;
+    @apply tag;
+    background: rgba(200, 169, 106, 0.14);
+    color: var(--lol-gold-2);
   }
 
   .tag-success {
-    @apply tag bg-success-100 text-success-700;
+    @apply tag;
+    background: rgba(84, 216, 132, 0.14);
+    color: var(--lol-success);
   }
 
   .tag-warning {
-    @apply tag bg-warning-100 text-warning-700;
+    @apply tag;
+    background: rgba(200, 169, 106, 0.16);
+    color: var(--lol-gold-2);
   }
 
   .tag-error {
-    @apply tag bg-error-100 text-error-700;
+    @apply tag;
+    background: rgba(229, 83, 75, 0.16);
+    color: #ff9c96;
   }
 
-  /* 文本 */
   .text-muted {
-    @apply text-neutral-500;
+    color: var(--lol-muted);
   }
 
   .text-subtle {
-    @apply text-neutral-400;
+    color: var(--lol-faint);
   }
 }
 
 @layer utilities {
-  /* Flexbox 工具 */
   .flex-center {
     @apply flex items-center justify-center;
   }
@@ -160,12 +227,10 @@
     @apply flex flex-col items-center justify-center;
   }
 
-  /* 网格 */
   .grid-auto {
     @apply grid auto-cols-fr;
   }
 
-  /* 文本省略 */
   .truncate-1 {
     @apply truncate;
   }
@@ -179,7 +244,6 @@
   }
 }
 
-/* 动画 */
 @keyframes slideInDown {
   from {
     transform: translateY(-100%);

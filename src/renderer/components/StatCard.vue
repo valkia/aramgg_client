@@ -49,9 +49,9 @@ const iconComponent = computed(() => {
 
 <style scoped>
 .stat-card {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
+    background: rgba(7, 10, 13, 0.34);
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 8px;
     padding: 16px;
     display: flex;
     align-items: center;
@@ -60,14 +60,14 @@ const iconComponent = computed(() => {
 }
 
 .stat-card:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(40, 217, 200, 0.07);
     transform: translateY(-2px);
-    border-color: rgba(96, 165, 250, 0.3);
+    border-color: rgba(40, 217, 200, 0.28);
 }
 
 .stat-icon {
     flex-shrink: 0;
-    color: #60a5fa;
+    color: var(--lol-teal-2);
 }
 
 .stat-content {
@@ -78,16 +78,16 @@ const iconComponent = computed(() => {
 
 .stat-label {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
-    font-weight: 500;
+    color: var(--lol-faint);
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0;
 }
 
 .stat-value {
     font-size: 20px;
     font-weight: 700;
-    color: #fff;
+    color: var(--lol-ivory);
 }
 
 @media (max-width: 768px) {

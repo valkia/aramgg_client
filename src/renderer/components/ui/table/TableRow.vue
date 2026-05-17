@@ -14,14 +14,17 @@ const props = defineProps({
         props.class,
       )
     "
-    style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);"
   >
     <slot />
   </tr>
 </template>
 
 <style scoped>
+tr {
+  border-bottom: 1px solid var(--lol-border-soft);
+}
+
 tr:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(40, 217, 200, 0.06);
 }
 </style>

@@ -209,8 +209,8 @@ const synergyItems = computed(() => {
 }
 
 .info-alert {
-  background: rgba(96, 165, 250, 0.1);
-  border: 1px solid rgba(96, 165, 250, 0.2);
+  background: rgba(40, 217, 200, 0.1);
+  border: 1px solid rgba(40, 217, 200, 0.22);
 }
 
 .build-meta {
@@ -222,7 +222,7 @@ const synergyItems = computed(() => {
 }
 
 .tags {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--lol-muted);
   font-size: 14px;
 }
 
@@ -244,8 +244,8 @@ const synergyItems = computed(() => {
   font-size: 18px;
   font-weight: 600;
   margin: 0 0 15px 0;
-  color: #fff;
-  border-bottom: 2px solid #60a5fa;
+  color: var(--lol-ivory);
+  border-bottom: 2px solid var(--lol-gold);
   padding-bottom: 10px;
 }
 
@@ -256,8 +256,8 @@ const synergyItems = computed(() => {
 }
 
 .item-build {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(7, 10, 13, 0.32);
+  border: 1px solid var(--lol-border-soft);
   border-radius: 8px;
   padding: 15px;
   display: flex;
@@ -267,8 +267,8 @@ const synergyItems = computed(() => {
 }
 
 .item-build:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(96, 165, 250, 0.3);
+  background: rgba(40, 217, 200, 0.07);
+  border-color: rgba(40, 217, 200, 0.3);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
@@ -282,16 +282,16 @@ const synergyItems = computed(() => {
 .item-icon {
   width: 50px;
   height: 50px;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   transition: transform 0.2s;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--lol-border-soft);
   object-fit: cover;
 }
 
 .item-icon:hover {
-  transform: scale(1.1);
-  border-color: rgba(96, 165, 250, 0.5);
+  transform: translateY(-2px);
+  border-color: rgba(40, 217, 200, 0.48);
 }
 
 .item-stats {
@@ -308,18 +308,18 @@ const synergyItems = computed(() => {
 }
 
 .stat-label {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--lol-faint);
 }
 
 .stat-value {
   font-weight: 600;
-  color: #fff;
+  color: var(--lol-ivory);
 }
 
 .synergy-section {
   margin-top: 30px;
   padding-top: 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--lol-border-soft);
 }
 
 .synergy-grid {
@@ -329,8 +329,8 @@ const synergyItems = computed(() => {
 }
 
 .synergy-card {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(7, 10, 13, 0.32);
+  border: 1px solid var(--lol-border-soft);
   border-radius: 8px;
   padding: 15px;
   text-align: center;
@@ -338,8 +338,8 @@ const synergyItems = computed(() => {
 }
 
 .synergy-card:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(96, 165, 250, 0.3);
+  background: rgba(40, 217, 200, 0.07);
+  border-color: rgba(40, 217, 200, 0.3);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   transform: translateY(-2px);
 }
@@ -354,14 +354,14 @@ const synergyItems = computed(() => {
 .item-icon-small {
   width: 40px;
   height: 40px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  border: 1px solid var(--lol-border-soft);
   object-fit: cover;
 }
 
 .synergy-info {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--lol-muted);
   line-height: 1.6;
 }
 
@@ -369,10 +369,10 @@ const synergyItems = computed(() => {
 .empty-state {
   text-align: center;
   padding: 40px 20px;
-  color: rgba(255, 255, 255, 0.5);
-  background: rgba(255, 255, 255, 0.02);
+  color: var(--lol-muted);
+  background: rgba(7, 10, 13, 0.28);
   border-radius: 8px;
-  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border: 1px dashed var(--lol-border);
 }
 
 /* Responsive */

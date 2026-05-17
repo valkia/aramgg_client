@@ -1,8 +1,14 @@
 <template>
   <transition name="float-fade">
     <div v-if="visible" class="floating-overlay">
-      <!-- 关闭按钮 -->
-      <button class="close-btn" @click="closeOverlay" title="关闭">×</button>
+      <div class="floating-header">
+        <div class="floating-title">
+          <span class="title-mark"></span>
+          <span>海克斯推荐</span>
+          <small>实时浮窗</small>
+        </div>
+        <button class="close-btn" @click="closeOverlay" title="关闭">×</button>
+      </div>
 
       <!-- 加载状态 -->
       <div v-if="loading" class="loading">
@@ -18,16 +24,29 @@
           class="augment-item"
           :class="`rarity-${augment.rarity}`"
         >
-          <div class="rank">{{ index + 1 }}</div>
+          <div class="card-top">
+            <div class="rank">{{ String(index + 1).padStart(2, '0') }}</div>
+            <div class="badge" :class="getBadgeClass(augment.recommendScore)">
+              {{ getRecommendText(augment.recommendScore) }}
+            </div>
+          </div>
+
           <div class="content">
             <div class="name">{{ augment.name }}</div>
             <div class="stats">
-              <span class="stat">胜率 {{ formatPercent(augment.winRate) }}</span>
-              <span class="stat">推荐 {{ formatScore(augment.recommendScore) }}</span>
+              <span class="stat">
+                <small>胜率</small>
+                <strong>{{ formatPercent(augment.winRate) }}</strong>
+              </span>
+              <span class="stat">
+                <small>推荐</small>
+                <strong>{{ formatScore(augment.recommendScore) }}</strong>
+              </span>
             </div>
           </div>
-          <div class="badge" :class="getBadgeClass(augment.recommendScore)">
-            {{ getRecommendText(augment.recommendScore) }}
+
+          <div class="score-track">
+            <div class="score-fill" :style="{ width: getScoreWidth(augment.recommendScore) }"></div>
           </div>
         </div>
       </div>
@@ -65,6 +84,11 @@ const formatPercent = (value) => {
 const formatScore = (value) => {
   if (value == null || isNaN(value)) return '--'
   return Math.round(value * 100)
+}
+
+const getScoreWidth = (value) => {
+  if (value == null || isNaN(value)) return '0%'
+  return `${Math.min(Math.max(value * 100, 0), 100)}%`
 }
 
 /**
@@ -244,16 +268,56 @@ onBeforeUnmount(() => {
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 800px;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(10px);
-  border: 2px solid rgba(255, 215, 0, 0.3);
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+  width: min(842px, calc(100vw - 8px));
+  max-height: 100vh;
+  background:
+    linear-gradient(145deg, rgba(18, 27, 38, 0.9), rgba(6, 9, 12, 0.92)),
+    rgba(7, 10, 13, 0.92);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(200, 169, 106, 0.2);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.66), 0 0 0 1px rgba(40, 217, 200, 0.08);
+  box-sizing: border-box;
   font-family: 'Microsoft YaHei', Arial, sans-serif;
-  color: white;
+  color: var(--lol-ivory);
   z-index: 9999;
+  overflow: hidden;
+}
+
+.floating-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 24px;
+  margin-bottom: 6px;
+  padding: 0 2px;
+}
+
+.floating-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--lol-ivory);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.floating-title small {
+  padding-left: 8px;
+  color: var(--lol-faint);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.title-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--lol-teal);
+  box-shadow: 0 0 12px rgba(40, 217, 200, 0.75);
 }
 
 .float-fade-enter-active,
@@ -268,18 +332,15 @@ onBeforeUnmount(() => {
 }
 
 .close-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(244, 236, 220, 0.04);
+  border: 1px solid var(--lol-border-soft);
   border-radius: 6px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--lol-muted);
   font-size: 18px;
   cursor: pointer;
   transition: all 0.2s;
@@ -288,10 +349,9 @@ onBeforeUnmount(() => {
 }
 
 .close-btn:hover {
-  background: rgba(239, 68, 68, 0.8);
-  border-color: rgba(239, 68, 68, 0.9);
-  color: white;
-  transform: scale(1.1);
+  background: rgba(229, 83, 75, 0.18);
+  border-color: rgba(229, 83, 75, 0.45);
+  color: #ffb0aa;
 }
 
 .loading {
@@ -301,14 +361,14 @@ onBeforeUnmount(() => {
   gap: 12px;
   padding: 20px;
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--lol-muted);
 }
 
 .spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #ffd700;
+  border: 2px solid rgba(244, 236, 220, 0.16);
+  border-top-color: var(--lol-teal);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -320,155 +380,208 @@ onBeforeUnmount(() => {
 .error {
   padding: 20px;
   text-align: center;
-  color: #ff6b6b;
+  color: #ff9c96;
   font-size: 14px;
 }
 
 .augments-grid {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .augment-item {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  background: linear-gradient(135deg, rgba(30, 30, 50, 0.95) 0%, rgba(20, 20, 40, 0.95) 100%);
-  border: 2px solid rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
+  gap: 7px;
+  height: 152px;
+  padding: 9px;
+  background:
+    linear-gradient(180deg, rgba(244, 236, 220, 0.035), transparent),
+    rgba(12, 18, 25, 0.76);
+  border: 1px solid rgba(244, 236, 220, 0.09);
+  border-radius: 8px;
   transition: all 0.2s;
   position: relative;
+  min-width: 0;
 }
 
 .augment-item:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  border-color: rgba(255, 215, 0, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(40, 217, 200, 0.16);
+  border-color: rgba(40, 217, 200, 0.34);
 }
 
 .augment-item.rarity-gold,
 .augment-item.rarity-kGold {
-  border-color: rgba(255, 215, 0, 0.6);
-  background: linear-gradient(135deg, rgba(60, 50, 20, 0.95) 0%, rgba(40, 30, 10, 0.95) 100%);
+  border-color: rgba(200, 169, 106, 0.42);
+  background:
+    linear-gradient(135deg, rgba(200, 169, 106, 0.16), transparent 48%),
+    rgba(12, 18, 25, 0.82);
 }
 
 .augment-item.rarity-silver,
 .augment-item.rarity-kSilver {
-  border-color: rgba(192, 192, 192, 0.6);
-  background: linear-gradient(135deg, rgba(40, 40, 50, 0.95) 0%, rgba(30, 30, 40, 0.95) 100%);
+  border-color: rgba(166, 177, 184, 0.32);
+  background:
+    linear-gradient(135deg, rgba(166, 177, 184, 0.12), transparent 48%),
+    rgba(12, 18, 25, 0.82);
 }
 
 .augment-item.rarity-prismatic,
 .augment-item.rarity-kPrismatic {
-  border-color: rgba(147, 51, 234, 0.6);
-  background: linear-gradient(135deg, rgba(50, 30, 60, 0.95) 0%, rgba(30, 20, 40, 0.95) 100%);
+  border-color: rgba(40, 217, 200, 0.4);
+  background:
+    linear-gradient(135deg, rgba(40, 217, 200, 0.14), transparent 48%),
+    rgba(12, 18, 25, 0.82);
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .rank {
-  position: absolute;
-  top: -8px;
-  left: -8px;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
-  color: #1a1a1a;
-  font-size: 14px;
-  font-weight: bold;
-  border-radius: 50%;
-  border: 2px solid rgba(0, 0, 0, 0.3);
-  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.5);
+  background: rgba(7, 10, 13, 0.42);
+  color: var(--lol-gold-2);
+  font-size: 12px;
+  font-weight: 900;
+  border-radius: 6px;
+  border: 1px solid var(--lol-border-soft);
 }
 
 .content {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   flex: 1;
+  min-height: 0;
 }
 
 .name {
-  font-size: 15px;
-  font-weight: 600;
-  color: #ffffff;
-  text-align: center;
-  line-height: 1.3;
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--lol-ivory);
+  text-align: left;
+  line-height: 1.25;
+  min-height: 36px;
+  display: -webkit-box;
+  overflow: hidden;
+  padding-left: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .stats {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .stat {
-  padding: 3px 8px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  padding: 5px 7px;
+  background: rgba(7, 10, 13, 0.34);
+  border: 1px solid var(--lol-border-soft);
+  border-radius: 6px;
   white-space: nowrap;
 }
 
+.stat small {
+  display: block;
+  margin-bottom: 1px;
+  color: var(--lol-faint);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.stat strong {
+  color: var(--lol-ivory);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.score-track {
+  height: 5px;
+  overflow: hidden;
+  background: rgba(244, 236, 220, 0.08);
+  border-radius: 999px;
+}
+
+.score-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--lol-teal), var(--lol-gold-2));
+  border-radius: inherit;
+}
+
 .badge {
-  padding: 6px 12px;
+  min-width: 50px;
+  padding: 4px 8px;
   text-align: center;
-  font-size: 13px;
-  font-weight: bold;
+  font-size: 11px;
+  font-weight: 900;
   border-radius: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .badge.must {
-  background: linear-gradient(135deg, #ff4757 0%, #ff6b81 100%);
-  color: white;
+  background: rgba(229, 83, 75, 0.2);
+  color: #ffb0aa;
+  border: 1px solid rgba(229, 83, 75, 0.34);
   animation: pulse 2s ease-in-out infinite;
 }
 
 .badge.strong {
-  background: linear-gradient(135deg, #ffa502 0%, #ffb700 100%);
-  color: white;
+  background: rgba(200, 169, 106, 0.18);
+  color: var(--lol-gold-2);
+  border: 1px solid rgba(200, 169, 106, 0.34);
 }
 
 .badge.good {
-  background: linear-gradient(135deg, #5f27cd 0%, #a55eea 100%);
-  color: white;
+  background: rgba(40, 217, 200, 0.16);
+  color: var(--lol-teal-2);
+  border: 1px solid rgba(40, 217, 200, 0.32);
 }
 
 .badge.ok {
-  background: linear-gradient(135deg, #0984e3 0%, #74b9ff 100%);
-  color: white;
+  background: rgba(84, 216, 132, 0.14);
+  color: var(--lol-success);
+  border: 1px solid rgba(84, 216, 132, 0.28);
 }
 
 .badge.cold {
-  background: rgba(100, 100, 120, 0.8);
-  color: rgba(255, 255, 255, 0.8);
+  background: rgba(111, 122, 130, 0.18);
+  color: var(--lol-muted);
+  border: 1px solid rgba(111, 122, 130, 0.28);
 }
 
 .badge.unknown {
-  background: rgba(60, 60, 60, 0.8);
-  color: rgba(255, 255, 255, 0.6);
+  background: rgba(244, 236, 220, 0.06);
+  color: var(--lol-faint);
+  border: 1px solid var(--lol-border-soft);
 }
 
 @keyframes pulse {
   0%, 100% {
     transform: scale(1);
-    box-shadow: 0 2px 8px rgba(255, 71, 87, 0.5);
+    box-shadow: 0 2px 8px rgba(229, 83, 75, 0.32);
   }
   50% {
-    transform: scale(1.05);
-    box-shadow: 0 4px 16px rgba(255, 71, 87, 0.8);
+    transform: scale(1.02);
+    box-shadow: 0 4px 16px rgba(229, 83, 75, 0.44);
+  }
+}
+
+@media (max-width: 760px) {
+  .augments-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

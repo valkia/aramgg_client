@@ -231,10 +231,10 @@ const getRarityLabel = (rarity) => {
  */
 const getTierColor = (tier) => {
   const tierNum = parseInt(tier)
-  if (tierNum <= 1) return '#52c41a'
-  if (tierNum <= 2) return '#faad14'
-  if (tierNum <= 3) return '#f5222d'
-  return '#60a5fa'
+  if (tierNum <= 1) return '#54d884'
+  if (tierNum <= 2) return '#e2c27a'
+  if (tierNum <= 3) return '#e5534b'
+  return '#28d9c8'
 }
 </script>
 
@@ -245,10 +245,10 @@ const getTierColor = (tier) => {
 
 .filter-section {
   margin-bottom: 20px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(7, 10, 13, 0.32);
   padding: 15px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--lol-border-soft);
 }
 
 .filter-grid {
@@ -263,28 +263,32 @@ const getTierColor = (tier) => {
 
 .select-trigger {
   width: 100%;
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.9);
+  background: rgba(17, 25, 35, 0.72);
+  border-color: var(--lol-border-soft);
+  color: var(--lol-ivory);
 }
 
 .augments-table {
   width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--lol-border-soft);
+  border-radius: 8px;
 }
 
 .augment-icon {
   width: 40px;
   height: 40px;
-  border-radius: 4px;
+  border-radius: 6px;
+  border: 1px solid var(--lol-border-soft);
   object-fit: cover;
 }
 
 .table-row-hover:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(40, 217, 200, 0.07);
 }
 
 .no-data {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--lol-faint);
 }
 
 .tier-text {
@@ -294,28 +298,31 @@ const getTierColor = (tier) => {
 
 /* Rarity badge styles */
 .rarity-silver {
-  background: rgba(192, 192, 192, 0.2);
-  border-color: rgba(192, 192, 192, 0.3);
-  color: #c0c0c0;
+  background: rgba(166, 177, 184, 0.16);
+  border-color: rgba(166, 177, 184, 0.32);
+  color: #d4dde2;
 }
 
 .rarity-gold {
-  background: rgba(255, 215, 0, 0.2);
-  border-color: rgba(255, 215, 0, 0.3);
-  color: #ffd700;
+  background: rgba(200, 169, 106, 0.17);
+  border-color: rgba(200, 169, 106, 0.36);
+  color: var(--lol-gold-2);
 }
 
 .rarity-prismatic {
-  background: rgba(148, 0, 211, 0.2);
-  border-color: rgba(148, 0, 211, 0.3);
-  color: #da70d6;
+  background: rgba(40, 217, 200, 0.14);
+  border-color: rgba(40, 217, 200, 0.32);
+  color: var(--lol-teal-2);
 }
 
 /* Empty State */
 .empty-state {
   text-align: center;
   padding: 40px 20px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--lol-muted);
+  border: 1px dashed var(--lol-border);
+  border-radius: 8px;
+  background: rgba(7, 10, 13, 0.28);
 }
 
 /* Responsive */

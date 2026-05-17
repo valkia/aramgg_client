@@ -35,38 +35,38 @@ const variantClasses = {
 }
 
 .badge-default {
-  background: hsl(217 91% 60%);
-  color: hsl(222 47% 11%);
-  border-color: transparent;
+  background: var(--lol-teal);
+  color: var(--lol-bg);
+  border-color: rgba(108, 241, 229, 0.32);
 }
 
 .badge-default:hover {
-  background: hsl(217 91% 50%);
+  background: var(--lol-teal-2);
 }
 
 .badge-secondary {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.9);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(200, 169, 106, 0.14);
+  color: var(--lol-gold-2);
+  border-color: rgba(200, 169, 106, 0.28);
 }
 
 .badge-secondary:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(200, 169, 106, 0.2);
 }
 
 .badge-destructive {
-  background: hsl(0 63% 31%);
-  color: rgba(255, 255, 255, 0.9);
-  border-color: transparent;
+  background: rgba(229, 83, 75, 0.18);
+  color: #ffb0aa;
+  border-color: rgba(229, 83, 75, 0.34);
 }
 
 .badge-destructive:hover {
-  background: hsl(0 63% 25%);
+  background: rgba(229, 83, 75, 0.26);
 }
 
 .badge-outline {
   background: transparent;
-  color: rgba(255, 255, 255, 0.9);
-  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--lol-ivory);
+  border-color: var(--lol-border);
 }
 </style>

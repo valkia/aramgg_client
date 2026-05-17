@@ -12,7 +12,7 @@
 
       <!-- 错误状态 -->
       <div v-else-if="error" class="error-state">
-        <p>⚠️ {{ error }}</p>
+        <p>{{ error }}</p>
       </div>
 
       <!-- 主内容区 -->
@@ -167,7 +167,7 @@
                 <!-- 情境装备 -->
                 <div v-if="situationalItems.length > 0" class="build-section">
                   <h4 class="section-title situational-title">
-                    ✨ 情境装备
+                    情境装备
                     <span class="title-hint">（前12个）</span>
                   </h4>
                   <div class="situational-grid">
@@ -254,8 +254,8 @@ const unsubscribeEvents = []
 
 // Tabs 配置
 const tabs = [
-  { key: 'augments', label: '海克斯', icon: '🎯' },
-  { key: 'builds', label: '出装', icon: '⚔️' }
+  { key: 'augments', label: '海克斯', icon: 'HX' },
+  { key: 'builds', label: '出装', icon: 'BD' }
 ]
 
 // 稀有度选项
@@ -547,14 +547,16 @@ defineExpose({
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 500px;
+  width: min(640px, calc(100vw - 32px));
   max-height: 85vh;
-  background: linear-gradient(145deg, #1a1d29 0%, #0f1218 100%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
-  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  background:
+    linear-gradient(145deg, rgba(22, 34, 48, 0.98), rgba(7, 10, 13, 0.98)),
+    var(--lol-panel-raised);
+  border: 1px solid rgba(200, 169, 106, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(40, 217, 200, 0.08);
   padding: 0;
-  color: white;
+  color: var(--lol-ivory);
   font-family: 'Microsoft YaHei', Arial, sans-serif;
   font-size: 13px;
   overflow: hidden;
@@ -577,9 +579,9 @@ defineExpose({
   position: absolute;
   top: 12px;
   right: 12px;
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  color: rgba(255, 255, 255, 0.7);
+  background: rgba(244, 236, 220, 0.06);
+  border: 1px solid var(--lol-border-soft);
+  color: var(--lol-muted);
   font-size: 20px;
   cursor: pointer;
   padding: 0;
@@ -594,8 +596,9 @@ defineExpose({
 }
 
 .close-btn:hover {
-  background: rgba(239, 68, 68, 0.3);
-  color: white;
+  background: rgba(229, 83, 75, 0.18);
+  color: #ffb0aa;
+  border-color: rgba(229, 83, 75, 0.42);
 }
 
 /* 加载状态 */
@@ -611,8 +614,8 @@ defineExpose({
 .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(59, 130, 246, 0.2);
-  border-top-color: #3b82f6;
+  border: 3px solid rgba(244, 236, 220, 0.14);
+  border-top-color: var(--lol-teal);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 16px;
@@ -624,15 +627,15 @@ defineExpose({
 
 .error-state {
   padding: 40px 20px;
-  background: rgba(239, 68, 68, 0.1);
+  background: rgba(229, 83, 75, 0.1);
   text-align: center;
-  color: #fca5a5;
+  color: #ffb0aa;
 }
 
 .no-data {
   text-align: center;
   padding: 60px 20px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--lol-muted);
 }
 
 /* 主内容区 */
@@ -645,14 +648,17 @@ defineExpose({
 
 /* 英雄头部 */
 .champion-header {
-  background: linear-gradient(135deg, rgba(30, 64, 175, 0.4) 0%, rgba(124, 58, 237, 0.3) 100%);
-  padding: 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(135deg, rgba(40, 217, 200, 0.12), transparent 48%),
+    radial-gradient(circle at 84% 0%, rgba(200, 169, 106, 0.12), transparent 260px),
+    rgba(7, 10, 13, 0.3);
+  padding: 24px;
+  border-bottom: 1px solid var(--lol-border-soft);
 }
 
 .header-main {
   display: flex;
-  gap: 16px;
+  gap: 18px;
   align-items: center;
 }
 
@@ -662,11 +668,11 @@ defineExpose({
 }
 
 .champion-avatar {
-  width: 80px;
-  height: 107px;
-  border-radius: 10px;
+  width: 92px;
+  height: 122px;
+  border-radius: 8px;
   object-fit: cover;
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--lol-border);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
@@ -675,13 +681,13 @@ defineExpose({
   bottom: -6px;
   left: 50%;
   transform: translateX(-50%);
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-  color: #1a1a1a;
+  background: linear-gradient(135deg, var(--lol-gold-2), var(--lol-teal));
+  color: var(--lol-bg);
   font-size: 11px;
   font-weight: 700;
   padding: 3px 10px;
-  border-radius: 20px;
-  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.4);
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(200, 169, 106, 0.32);
 }
 
 .champion-info {
@@ -690,42 +696,43 @@ defineExpose({
 }
 
 .champion-name {
-  margin: 0 0 12px 0;
-  font-size: 22px;
-  font-weight: 700;
-  color: #fff;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  margin: 0 0 14px 0;
+  font-size: 26px;
+  font-weight: 900;
+  color: var(--lol-ivory);
 }
 
 .champion-stats-row {
   display: flex;
-  gap: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .stat-box {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.2);
+  padding: 10px 12px;
+  background: rgba(7, 10, 13, 0.38);
+  border: 1px solid var(--lol-border-soft);
   border-radius: 8px;
-  min-width: 60px;
+  min-width: 78px;
 }
 
 .stat-box .stat-label {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--lol-faint);
 }
 
 .stat-box .stat-value {
   font-size: 15px;
   font-weight: 700;
-  color: #fff;
+  color: var(--lol-ivory);
 }
 
-.stat-box .stat-value.high { color: #4ade80; }
-.stat-box .stat-value.medium { color: #fbbf24; }
-.stat-box .stat-value.low { color: #f87171; }
+.stat-box .stat-value.high { color: var(--lol-success); }
+.stat-box .stat-value.medium { color: var(--lol-gold-2); }
+.stat-box .stat-value.low { color: #ff9c96; }
 
 /* Tabs */
 .tabs-container {
@@ -737,58 +744,63 @@ defineExpose({
 
 .tabs-list {
   display: flex;
-  gap: 8px;
-  padding: 12px 16px 0;
-  background: rgba(0, 0, 0, 0.2);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 6px;
+  padding: 12px 16px;
+  background: rgba(7, 10, 13, 0.38);
+  border-bottom: 1px solid var(--lol-border-soft);
 }
 
 .tab-btn {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 18px;
+  padding: 10px 16px;
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--lol-muted);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 700;
   cursor: pointer;
-  border-radius: 8px 8px 0 0;
+  border-radius: 7px;
   transition: all 0.2s;
   position: relative;
 }
 
 .tab-btn:hover {
-  color: rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--lol-ivory);
+  background: rgba(244, 236, 220, 0.05);
 }
 
 .tab-btn.active {
-  color: #60a5fa;
-  background: rgba(30, 64, 175, 0.2);
+  color: var(--lol-bg);
+  background: linear-gradient(135deg, var(--lol-teal-2), var(--lol-teal));
 }
 
 .tab-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: #60a5fa;
-  border-radius: 2px 2px 0 0;
+  display: none;
+}
+
+.tab-btn.active .tab-icon {
+  color: var(--lol-bg);
+  border-color: rgba(7, 10, 13, 0.22);
 }
 
 .tab-icon {
-  font-size: 14px;
+  min-width: 22px;
+  padding: 2px 4px;
+  border: 1px solid var(--lol-border-soft);
+  border-radius: 4px;
+  color: var(--lol-gold-2);
+  font-size: 10px;
+  font-weight: 900;
+  text-align: center;
 }
 
 /* Tab 内容 */
 .tab-content {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 18px;
 }
 
 .tab-panel {
@@ -804,99 +816,103 @@ defineExpose({
 .filter-bar {
   display: flex;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
   flex-wrap: wrap;
 }
 
 .filter-chip {
-  padding: 6px 12px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.7);
-  border-radius: 20px;
+  padding: 7px 12px;
+  background: rgba(244, 236, 220, 0.05);
+  border: 1px solid var(--lol-border-soft);
+  color: var(--lol-muted);
+  border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
   transition: all 0.2s;
 }
 
 .filter-chip:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(244, 236, 220, 0.09);
 }
 
 .filter-chip.active {
-  background: rgba(59, 130, 246, 0.25);
-  border-color: rgba(59, 130, 246, 0.5);
-  color: #60a5fa;
+  background: rgba(40, 217, 200, 0.16);
+  border-color: rgba(40, 217, 200, 0.38);
+  color: var(--lol-teal-2);
 }
 
 .filter-chip.kGold.active {
-  background: rgba(251, 191, 36, 0.25);
-  border-color: rgba(251, 191, 36, 0.5);
-  color: #fbbf24;
+  background: rgba(200, 169, 106, 0.18);
+  border-color: rgba(200, 169, 106, 0.42);
+  color: var(--lol-gold-2);
 }
 
 .filter-chip.kPrismatic.active {
-  background: rgba(192, 132, 252, 0.25);
-  border-color: rgba(192, 132, 252, 0.5);
-  color: #c084fc;
+  background: rgba(40, 217, 200, 0.16);
+  border-color: rgba(40, 217, 200, 0.38);
+  color: var(--lol-teal-2);
 }
 
 .filter-chip.kSilver.active {
-  background: rgba(156, 163, 175, 0.25);
-  border-color: rgba(156, 163, 175, 0.5);
-  color: #9ca3af;
+  background: rgba(166, 177, 184, 0.18);
+  border-color: rgba(166, 177, 184, 0.38);
+  color: #d4dde2;
 }
 
 /* 海克斯列表 */
 .augments-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .augment-card {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-left: 3px solid rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
+  gap: 12px;
+  padding: 12px;
+  background:
+    linear-gradient(90deg, rgba(244, 236, 220, 0.025), transparent),
+    rgba(7, 10, 13, 0.34);
+  border: 1px solid var(--lol-border-soft);
+  border-left: 3px solid var(--lol-border);
+  border-radius: 8px;
   transition: all 0.2s;
 }
 
 .augment-card:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(40, 217, 200, 0.07);
   transform: translateX(2px);
+  border-color: rgba(40, 217, 200, 0.22);
 }
 
 .augment-card.rarity-kGold {
-  border-left-color: #fbbf24;
-  background: rgba(251, 191, 36, 0.06);
+  border-left-color: var(--lol-gold);
+  background: rgba(200, 169, 106, 0.07);
 }
 
 .augment-card.rarity-kPrismatic {
-  border-left-color: #c084fc;
-  background: rgba(192, 132, 252, 0.06);
+  border-left-color: var(--lol-teal);
+  background: rgba(40, 217, 200, 0.07);
 }
 
 .augment-card.rarity-kSilver {
-  border-left-color: #9ca3af;
-  background: rgba(156, 163, 175, 0.06);
+  border-left-color: #a6b1b8;
+  background: rgba(166, 177, 184, 0.06);
 }
 
 .augment-rank {
-  min-width: 22px;
-  height: 22px;
+  min-width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 50%;
-  font-size: 11px;
-  font-weight: 700;
-  color: #60a5fa;
+  background: rgba(40, 217, 200, 0.14);
+  border: 1px solid rgba(40, 217, 200, 0.26);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--lol-teal-2);
   flex-shrink: 0;
 }
 
@@ -905,9 +921,10 @@ defineExpose({
 }
 
 .augment-icon {
-  width: 36px;
-  height: 36px;
+  width: 42px;
+  height: 42px;
   border-radius: 6px;
+  border: 1px solid var(--lol-border-soft);
   object-fit: cover;
 }
 
@@ -916,13 +933,13 @@ defineExpose({
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .augment-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--lol-ivory);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -930,7 +947,7 @@ defineExpose({
 
 .augment-stats {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   font-size: 11px;
 }
 
@@ -940,16 +957,16 @@ defineExpose({
 }
 
 .stat-item .stat-label {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--lol-faint);
 }
 
 .stat-item .stat-value {
   font-weight: 600;
-  color: #93c5fd;
+  color: var(--lol-gold-2);
 }
 
 .stat-item .stat-value.winrate {
-  color: #4ade80;
+  color: var(--lol-success);
 }
 
 .recommend-indicator {
@@ -958,27 +975,28 @@ defineExpose({
   flex-direction: column;
   gap: 3px;
   align-items: flex-end;
-  min-width: 70px;
+  min-width: 86px;
 }
 
 .score-bar {
-  width: 60px;
+  width: 82px;
   height: 5px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(244, 236, 220, 0.08);
   border-radius: 3px;
   overflow: hidden;
 }
 
 .score-fill {
   height: 100%;
-  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  background: linear-gradient(90deg, var(--lol-teal), var(--lol-gold-2));
   border-radius: 3px;
   transition: width 0.3s ease;
 }
 
 .score-text {
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--lol-muted);
+  font-weight: 800;
 }
 
 /* 出装样式 */
@@ -989,18 +1007,19 @@ defineExpose({
 }
 
 .build-section {
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 10px;
+  background: rgba(7, 10, 13, 0.32);
+  border: 1px solid var(--lol-border-soft);
+  border-radius: 8px;
   padding: 12px;
 }
 
 .section-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--lol-ivory);
   margin: 0 0 10px 0;
   padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--lol-border-soft);
 }
 
 .situational-title {
@@ -1012,7 +1031,7 @@ defineExpose({
 .title-hint {
   font-size: 11px;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--lol-faint);
 }
 
 .situational-grid {
@@ -1032,8 +1051,8 @@ defineExpose({
   align-items: center;
   gap: 12px;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(17, 25, 35, 0.62);
+  border: 1px solid var(--lol-border-soft);
   border-radius: 8px;
 }
 
@@ -1051,7 +1070,7 @@ defineExpose({
   width: 38px;
   height: 38px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--lol-border-soft);
   object-fit: cover;
 }
 
@@ -1075,12 +1094,12 @@ defineExpose({
 }
 
 .build-stat .label {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--lol-faint);
 }
 
 .build-stat .value {
   font-weight: 600;
-  color: #4ade80;
+  color: var(--lol-success);
   min-width: 45px;
 }
 
@@ -1088,18 +1107,18 @@ defineExpose({
 .empty-state {
   text-align: center;
   padding: 40px 20px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--lol-muted);
 }
 
 /* 底部信息 */
 .overlay-footer {
   padding: 10px 16px;
-  background: rgba(0, 0, 0, 0.2);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(7, 10, 13, 0.34);
+  border-top: 1px solid var(--lol-border-soft);
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--lol-faint);
 }
 
 /* 滚动条美化 */
@@ -1112,12 +1131,12 @@ defineExpose({
 }
 
 .tab-content::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(200, 169, 106, 0.5);
   border-radius: 3px;
 }
 
 .tab-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(40, 217, 200, 0.5);
 }
 
 /* 响应式 */

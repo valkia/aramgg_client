@@ -13,7 +13,7 @@ const props = defineProps({
 <style scoped>
 .skeleton {
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.1);
+  background: linear-gradient(90deg, rgba(244, 236, 220, 0.06), rgba(40, 217, 200, 0.12), rgba(244, 236, 220, 0.06));
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 

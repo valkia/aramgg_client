@@ -29,14 +29,14 @@ const variantClasses = {
 }
 
 .alert-default {
-  background: rgba(96, 165, 250, 0.1);
-  border-color: rgba(96, 165, 250, 0.2);
-  color: rgba(255, 255, 255, 0.9);
+  background: rgba(40, 217, 200, 0.1);
+  border-color: rgba(40, 217, 200, 0.22);
+  color: var(--lol-ivory);
 }
 
 .alert-destructive {
-  background: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.3);
-  color: #fca5a5;
+  background: rgba(229, 83, 75, 0.1);
+  border-color: rgba(229, 83, 75, 0.3);
+  color: #ffb0aa;
 }
 </style>

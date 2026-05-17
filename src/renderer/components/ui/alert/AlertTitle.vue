@@ -17,7 +17,7 @@ const props = defineProps({
   margin-bottom: 4px;
   font-weight: 500;
   line-height: 1;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
   color: inherit;
 }
 </style>

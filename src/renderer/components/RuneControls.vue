@@ -1,21 +1,21 @@
 <template>
     <div class="config-card">
         <div class="card-header">
-            <span class="card-icon">⚡</span>
+            <Sparkles class="card-icon" />
             <h3 class="card-title">符文数据</h3>
         </div>
         <div class="card-content">
             <div class="action-buttons">
                 <Button @click="getOpggPerks" class="action-btn action-btn-primary">
-                    <span class="btn-icon">🗂️</span>
+                    <DownloadCloud class="btn-icon" />
                     获取符文
                 </Button>
                 <Button @click="time" class="action-btn action-btn-secondary">
-                    <span class="btn-icon">🔧</span>
+                    <Wrench class="btn-icon" />
                     测试
                 </Button>
                 <Button @click="goToChampionStats" class="action-btn action-btn-accent">
-                    <span class="btn-icon">📊</span>
+                    <BarChart3 class="btn-icon" />
                     英雄统计
                 </Button>
             </div>
@@ -41,6 +41,7 @@ import { Button } from '@/components/ui/button'
 import { getLolVer } from "../service/data-source/lol-qq"
 import OpGG from "../service/data-source/op-gg"
 import configCache from '../service/config-cache'
+import { BarChart3, DownloadCloud, Sparkles, Wrench } from 'lucide-vue-next'
 
 const router = useRouter()
 const isLoading = ref(false)
@@ -114,35 +115,38 @@ const goToChampionStats = () => {
 
 <style scoped>
 .config-card {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 12px;
+    height: 100%;
+    background: var(--lol-panel);
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 8px;
     overflow: hidden;
-    backdrop-filter: blur(10px);
+    box-shadow: var(--lol-shadow);
 }
 
 .card-header {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 16px 20px;
-    background: rgba(168, 85, 247, 0.1);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 15px 18px;
+    background: rgba(40, 217, 200, 0.08);
+    border-bottom: 1px solid var(--lol-border-soft);
 }
 
 .card-icon {
-    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: var(--lol-teal-2);
 }
 
 .card-title {
     margin: 0;
     font-size: 15px;
-    font-weight: 600;
-    color: #fff;
+    font-weight: 700;
+    color: var(--lol-ivory);
 }
 
 .card-content {
-    padding: 20px;
+    padding: 18px;
 }
 
 .action-buttons {
@@ -156,58 +160,63 @@ const goToChampionStats = () => {
     align-items: center;
     gap: 8px;
     padding: 12px 20px;
-    border: none;
-    border-radius: 10px;
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 6px;
     cursor: pointer;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 700;
     transition: all 0.2s;
 }
 
 .btn-icon {
-    font-size: 16px;
+    width: 16px;
+    height: 16px;
 }
 
 .action-btn-primary {
-    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-    color: #fff;
+    background: linear-gradient(135deg, var(--lol-teal), #169a91);
+    border-color: rgba(108, 241, 229, 0.32);
+    color: var(--lol-bg);
 }
 
 .action-btn-primary:hover {
-    background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, var(--lol-teal-2), var(--lol-teal));
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    box-shadow: var(--lol-glow);
 }
 
 .action-btn-secondary {
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #fff;
+    background: rgba(244, 236, 220, 0.05);
+    border: 1px solid var(--lol-border-soft);
+    color: var(--lol-ivory);
 }
 
 .action-btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(244, 236, 220, 0.09);
+    border-color: var(--lol-border);
     transform: translateY(-2px);
 }
 
 .action-btn-accent {
-    background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
-    color: #fff;
+    background: rgba(200, 169, 106, 0.13);
+    border-color: rgba(200, 169, 106, 0.38);
+    color: var(--lol-gold-2);
 }
 
 .action-btn-accent:hover {
-    background: linear-gradient(135deg, #22d3ee 0%, #06b6d4 100%);
+    background: rgba(200, 169, 106, 0.2);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(6, 182, 212, 0.4);
+    box-shadow: 0 10px 24px rgba(200, 169, 106, 0.12);
 }
 
 .status-message {
     margin-top: 16px;
     padding: 10px 14px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
+    background: rgba(7, 10, 13, 0.36);
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 6px;
     font-size: 13px;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--lol-muted);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -220,14 +229,14 @@ const goToChampionStats = () => {
 .progress-container {
     margin-top: 16px;
     height: 6px;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(244, 236, 220, 0.08);
     border-radius: 3px;
     overflow: hidden;
 }
 
 .progress-bar {
     height: 100%;
-    background: linear-gradient(90deg, #8b5cf6 0%, #a78bfa 100%);
+    background: linear-gradient(90deg, var(--lol-teal), var(--lol-gold-2));
     border-radius: 3px;
     transition: width 0.3s ease;
     animation: pulse 1.5s infinite;

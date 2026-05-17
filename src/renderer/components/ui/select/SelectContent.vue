@@ -63,7 +63,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
           props.class,
         )
       "
-      style="background: hsl(222 47% 14%); color: rgba(255, 255, 255, 0.9); border-color: rgba(255, 255, 255, 0.1);"
+      style="background: var(--lol-surface); color: var(--lol-ivory); border-color: var(--lol-border-soft);"
     >
       <SelectScrollUpButton />
       <SelectViewport

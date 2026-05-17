@@ -47,11 +47,11 @@ const forwardedProps = useForwardProps(delegatedProps);
 
 <style scoped>
 .select-item-dark {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--lol-ivory);
 }
 .select-item-dark:hover,
 .select-item-dark:focus {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: rgba(40, 217, 200, 0.1);
+  color: var(--lol-teal-2);
 }
 </style>

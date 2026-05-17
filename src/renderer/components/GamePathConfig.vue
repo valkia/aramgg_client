@@ -1,7 +1,7 @@
 <template>
     <div class="config-card">
         <div class="card-header">
-            <span class="card-icon">📂</span>
+            <FolderOpen class="card-icon" />
             <h3 class="card-title">游戏路径配置</h3>
         </div>
         <div class="card-content">
@@ -13,15 +13,17 @@
                 />
                 <div class="button-group">
                     <Button @click="selectLolDirectory" class="btn-ghost" title="浏览目录">
+                        <FolderSearch class="btn-icon" />
                         浏览
                     </Button>
                     <Button @click="saveLolPath" class="btn-accent">
+                        <Save class="btn-icon" />
                         保存
                     </Button>
                 </div>
             </div>
             <p v-if="lolPath" class="path-hint">
-                <span class="hint-icon">✓</span> {{ lolPath }}
+                <Check class="hint-icon" /> {{ lolPath }}
             </p>
         </div>
     </div>
@@ -33,6 +35,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import configCache from '../service/config-cache'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
+import { Check, FolderOpen, FolderSearch, Save } from 'lucide-vue-next'
 
 const lolPath = ref('')
 const emit = defineEmits(['path-changed'])
@@ -108,35 +111,38 @@ onMounted(() => {
 
 <style scoped>
 .config-card {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 12px;
+    height: 100%;
+    background: var(--lol-panel);
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 8px;
     overflow: hidden;
-    backdrop-filter: blur(10px);
+    box-shadow: var(--lol-shadow);
 }
 
 .card-header {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 16px 20px;
-    background: rgba(30, 136, 229, 0.1);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 15px 18px;
+    background: rgba(200, 169, 106, 0.08);
+    border-bottom: 1px solid var(--lol-border-soft);
 }
 
 .card-icon {
-    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: var(--lol-gold-2);
 }
 
 .card-title {
     margin: 0;
     font-size: 15px;
-    font-weight: 600;
-    color: #fff;
+    font-weight: 700;
+    color: var(--lol-ivory);
 }
 
 .card-content {
-    padding: 20px;
+    padding: 18px;
 }
 
 .input-group {
@@ -147,22 +153,22 @@ onMounted(() => {
 
 .path-input {
     flex: 1;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: #fff;
+    background: rgba(7, 10, 13, 0.55);
+    border: 1px solid var(--lol-border-soft);
+    color: var(--lol-ivory);
     padding: 10px 14px;
-    border-radius: 8px;
+    border-radius: 6px;
     font-size: 13px;
 }
 
 .path-input::placeholder {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--lol-faint);
 }
 
 .path-input:focus {
     outline: none;
-    border-color: #60a5fa;
-    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+    border-color: rgba(40, 217, 200, 0.55);
+    box-shadow: 0 0 0 3px rgba(40, 217, 200, 0.12);
 }
 
 .button-group {
@@ -172,50 +178,60 @@ onMounted(() => {
 
 .btn-ghost {
     padding: 10px 16px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #fff;
-    border-radius: 8px;
+    background: rgba(244, 236, 220, 0.05);
+    border: 1px solid var(--lol-border-soft);
+    color: var(--lol-ivory);
+    border-radius: 6px;
     cursor: pointer;
     font-size: 13px;
     transition: all 0.2s;
 }
 
 .btn-ghost:hover {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(244, 236, 220, 0.09);
+    border-color: var(--lol-border);
 }
 
 .btn-accent {
     padding: 10px 20px;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    border: none;
-    color: #fff;
-    border-radius: 8px;
+    background: linear-gradient(135deg, var(--lol-teal), #169a91);
+    border: 1px solid rgba(108, 241, 229, 0.32);
+    color: var(--lol-bg);
+    border-radius: 6px;
     cursor: pointer;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 700;
     transition: all 0.2s;
 }
 
 .btn-accent:hover {
-    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+    background: linear-gradient(135deg, var(--lol-teal-2), var(--lol-teal));
     transform: translateY(-1px);
+}
+
+.btn-icon {
+    width: 15px;
+    height: 15px;
 }
 
 .path-hint {
     margin: 12px 0 0;
     padding: 8px 12px;
-    background: rgba(34, 197, 94, 0.1);
+    background: rgba(84, 216, 132, 0.08);
+    border: 1px solid rgba(84, 216, 132, 0.16);
     border-radius: 6px;
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--lol-muted);
     display: flex;
     align-items: center;
     gap: 6px;
 }
 
 .hint-icon {
-    color: #22c55e;
+    width: 14px;
+    height: 14px;
+    color: var(--lol-success);
+    flex: 0 0 auto;
 }
 
 @media (max-width: 640px) {

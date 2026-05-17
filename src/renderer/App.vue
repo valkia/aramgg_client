@@ -23,18 +23,24 @@ onMounted(() => {
 }
 
 html {
-  @apply h-full bg-neutral-100;
+  @apply h-full;
+  background: var(--lol-bg);
 }
 
 body {
   @apply m-0 h-full;
+  background: var(--lol-bg);
+  color: var(--lol-ivory);
 }
 
 .return-btn {
-  @apply absolute left-0 text-white hover:text-neutral-400 border-none;
+  @apply absolute left-0 border-none;
+  color: var(--lol-ivory);
 }
 
 .nav {
-  @apply py-xs px-sm h-10 text-center bg-secondary-500 text-white;
+  @apply py-xs px-sm h-10 text-center;
+  background: var(--lol-surface);
+  color: var(--lol-ivory);
 }
 </style>

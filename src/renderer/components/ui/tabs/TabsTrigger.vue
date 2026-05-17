@@ -36,21 +36,21 @@ const forwardedProps = useForwardProps(delegatedProps);
   border-radius: 6px;
   padding: 6px 12px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 700;
   transition: all 0.2s;
   outline: none;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--lol-muted);
   background: transparent;
   border: none;
   cursor: pointer;
 }
 
 .tabs-trigger:hover {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--lol-ivory);
 }
 
 .tabs-trigger:focus-visible {
-  outline: 2px solid hsl(217 91% 60%);
+  outline: 2px solid var(--lol-teal);
   outline-offset: 2px;
 }
 
@@ -60,8 +60,8 @@ const forwardedProps = useForwardProps(delegatedProps);
 }
 
 .tabs-trigger[data-state="active"] {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(135deg, rgba(40, 217, 200, 0.18), rgba(200, 169, 106, 0.16));
+  color: var(--lol-ivory);
+  box-shadow: inset 0 0 0 1px rgba(40, 217, 200, 0.24);
 }
 </style>

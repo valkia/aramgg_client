@@ -1,7 +1,7 @@
 <template>
     <div class="config-card">
         <div class="card-header">
-            <span class="card-icon">🎯</span>
+            <Radar class="card-icon" />
             <h3 class="card-title">英雄监控</h3>
             <div class="monitor-status" :class="{ 'status-active': isMonitoring }">
                 <span class="status-dot"></span>
@@ -14,23 +14,26 @@
                     :class="['toggle-btn', isMonitoring ? 'toggle-active' : 'toggle-inactive']"
                     @click="toggleChampionMonitor"
                 >
-                    <span class="btn-icon">{{ isMonitoring ? '⏹' : '▶' }}</span>
+                    <Square v-if="isMonitoring" class="btn-icon" />
+                    <Play v-else class="btn-icon" />
                     {{ isMonitoring ? '停止监控' : '启动监控' }}
                 </Button>
 
                 <div class="secondary-actions">
                     <Button
-                        @click="startChampionMonitor"
-                        class="action-btn-sm"
-                        :disabled="isMonitoring"
-                    >
+                    @click="startChampionMonitor"
+                    class="action-btn-sm"
+                    :disabled="isMonitoring"
+                >
+                        <Power class="btn-icon" />
                         手动启动
                     </Button>
                     <Button
                         @click="stopChampionMonitor"
-                        class="action-btn-sm action-btn-danger"
-                        :disabled="!isMonitoring"
-                    >
+                    class="action-btn-sm action-btn-danger"
+                    :disabled="!isMonitoring"
+                >
+                        <OctagonX class="btn-icon" />
                         强制停止
                     </Button>
                 </div>
@@ -55,6 +58,7 @@
 import { ref, onBeforeUnmount, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
+import { OctagonX, Play, Power, Radar, Square } from 'lucide-vue-next'
 
 const isMonitoring = ref(false)
 const selectedChampion = ref('')
@@ -215,31 +219,33 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .config-card {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 12px;
+    background: var(--lol-panel);
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 8px;
     overflow: hidden;
-    backdrop-filter: blur(10px);
+    box-shadow: var(--lol-shadow);
 }
 
 .card-header {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 16px 20px;
-    background: rgba(34, 197, 94, 0.1);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 15px 18px;
+    background: rgba(84, 216, 132, 0.08);
+    border-bottom: 1px solid var(--lol-border-soft);
 }
 
 .card-icon {
-    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: var(--lol-success);
 }
 
 .card-title {
     margin: 0;
     font-size: 15px;
-    font-weight: 600;
-    color: #fff;
+    font-weight: 700;
+    color: var(--lol-ivory);
     flex: 1;
 }
 
@@ -248,26 +254,28 @@ onBeforeUnmount(() => {
     align-items: center;
     gap: 6px;
     padding: 4px 10px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
+    background: rgba(244, 236, 220, 0.06);
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 999px;
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--lol-muted);
 }
 
 .monitor-status.status-active {
-    background: rgba(34, 197, 94, 0.2);
-    color: #22c55e;
+    background: rgba(84, 216, 132, 0.12);
+    border-color: rgba(84, 216, 132, 0.24);
+    color: var(--lol-success);
 }
 
 .status-dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.4);
+    background: var(--lol-faint);
 }
 
 .status-active .status-dot {
-    background: #22c55e;
+    background: var(--lol-success);
     animation: blink 1.5s infinite;
 }
 
@@ -277,7 +285,7 @@ onBeforeUnmount(() => {
 }
 
 .card-content {
-    padding: 20px;
+    padding: 18px;
 }
 
 .monitor-controls {
@@ -292,38 +300,41 @@ onBeforeUnmount(() => {
     align-items: center;
     gap: 8px;
     padding: 14px 24px;
-    border: none;
-    border-radius: 10px;
+    border: 1px solid transparent;
+    border-radius: 6px;
     cursor: pointer;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 700;
     transition: all 0.2s;
 }
 
 .btn-icon {
-    font-size: 14px;
+    width: 15px;
+    height: 15px;
 }
 
 .toggle-inactive {
-    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-    color: #fff;
+    background: linear-gradient(135deg, var(--lol-teal), #169a91);
+    border-color: rgba(108, 241, 229, 0.32);
+    color: var(--lol-bg);
 }
 
 .toggle-inactive:hover {
-    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+    background: linear-gradient(135deg, var(--lol-teal-2), var(--lol-teal));
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+    box-shadow: var(--lol-glow);
 }
 
 .toggle-active {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-    color: #fff;
+    background: rgba(229, 83, 75, 0.16);
+    border-color: rgba(229, 83, 75, 0.38);
+    color: #ffb0aa;
 }
 
 .toggle-active:hover {
-    background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+    background: rgba(229, 83, 75, 0.24);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    box-shadow: 0 10px 24px rgba(229, 83, 75, 0.14);
 }
 
 .secondary-actions {
@@ -333,17 +344,18 @@ onBeforeUnmount(() => {
 
 .action-btn-sm {
     padding: 10px 16px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #fff;
-    border-radius: 8px;
+    background: rgba(244, 236, 220, 0.05);
+    border: 1px solid var(--lol-border-soft);
+    color: var(--lol-ivory);
+    border-radius: 6px;
     cursor: pointer;
     font-size: 13px;
     transition: all 0.2s;
 }
 
 .action-btn-sm:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(244, 236, 220, 0.09);
+    border-color: var(--lol-border);
 }
 
 .action-btn-sm:disabled {
@@ -352,12 +364,13 @@ onBeforeUnmount(() => {
 }
 
 .action-btn-danger {
-    border-color: rgba(239, 68, 68, 0.3);
+    border-color: rgba(229, 83, 75, 0.32);
+    color: #ffb0aa;
 }
 
 .action-btn-danger:hover:not(:disabled) {
-    background: rgba(239, 68, 68, 0.15);
-    border-color: rgba(239, 68, 68, 0.5);
+    background: rgba(229, 83, 75, 0.14);
+    border-color: rgba(229, 83, 75, 0.5);
 }
 
 .champion-info {
@@ -372,22 +385,23 @@ onBeforeUnmount(() => {
     flex-direction: column;
     gap: 4px;
     padding: 10px 14px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
+    background: rgba(7, 10, 13, 0.34);
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 6px;
     min-width: 120px;
 }
 
 .info-label {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--lol-faint);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0;
 }
 
 .info-value {
     font-size: 14px;
-    font-weight: 500;
-    color: #fff;
+    font-weight: 700;
+    color: var(--lol-ivory);
 }
 
 @media (max-width: 640px) {

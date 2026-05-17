@@ -110,11 +110,13 @@ const handleImageError = () => {
 
 <style scoped>
 .champion-header {
-    background: linear-gradient(135deg, rgba(30, 64, 175, 0.3) 0%, rgba(124, 58, 237, 0.3) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 30px;
-    backdrop-filter: blur(10px);
+    background:
+        linear-gradient(135deg, rgba(40, 217, 200, 0.08), transparent 42%),
+        var(--lol-panel-raised);
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 8px;
+    padding: 26px;
+    box-shadow: var(--lol-shadow);
 }
 
 .header-grid {
@@ -132,16 +134,16 @@ const handleImageError = () => {
 .champion-avatar {
     width: 180px;
     height: 240px;
-    border-radius: 12px;
+    border-radius: 8px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     object-fit: cover;
     transition: transform 0.3s ease;
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--lol-border);
 }
 
 .champion-avatar:hover {
-    transform: scale(1.05);
-    border-color: rgba(96, 165, 250, 0.5);
+    transform: translateY(-2px);
+    border-color: rgba(40, 217, 200, 0.5);
 }
 
 .info-section {
@@ -160,14 +162,16 @@ const handleImageError = () => {
     margin: 0;
     font-size: 28px;
     font-weight: 700;
-    color: #fff;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    color: var(--lol-ivory);
 }
 
 .tier-badge {
     font-size: 14px;
     font-weight: 600;
     padding: 6px 14px;
+    border-color: var(--lol-border);
+    background: rgba(200, 169, 106, 0.14);
+    color: var(--lol-gold-2);
 }
 
 .stats-grid {
@@ -180,18 +184,19 @@ const handleImageError = () => {
     display: flex;
     gap: 15px;
     padding-top: 16px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--lol-border-soft);
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--lol-muted);
 }
 
 .version-tag,
 .date-tag {
     display: inline-block;
     padding: 6px 12px;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(7, 10, 13, 0.35);
+    border: 1px solid var(--lol-border-soft);
     border-radius: 6px;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--lol-muted);
 }
 
 /* Responsive styles */

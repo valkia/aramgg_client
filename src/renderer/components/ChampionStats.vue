@@ -3,7 +3,8 @@
     <!-- 页面头部导航 -->
     <nav class="stats-nav">
       <router-link to="/" class="back-link">
-        ← 返回控制台
+        <ChevronLeft class="nav-icon" />
+        返回控制台
       </router-link>
       <span class="nav-title">英雄统计</span>
     </nav>
@@ -45,10 +46,12 @@
           <Tabs v-model="activeTab" class="w-full">
             <TabsList class="tabs-list">
               <TabsTrigger value="augments" class="tab-trigger">
-                🎯 海克斯增益
+                <Crosshair class="tab-icon-svg" />
+                海克斯增益
               </TabsTrigger>
               <TabsTrigger value="builds" class="tab-trigger">
-                ⚔️ 装备Build
+                <Package class="tab-icon-svg" />
+                装备Build
               </TabsTrigger>
             </TabsList>
 
@@ -83,6 +86,7 @@ import ChampionStatsHeader from './ChampionStatsHeader.vue'
 import AugmentsList from './AugmentsList.vue'
 import BuildCard from './BuildCard.vue'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
+import { ChevronLeft, Crosshair, Package } from 'lucide-vue-next'
 
 const route = useRoute()
 const championId = ref(route.params.id)
@@ -170,7 +174,10 @@ onMounted(() => {
 <style scoped>
 .stats-page {
     min-height: 100vh;
-    background: linear-gradient(180deg, #1a1c2c 0%, #16213e 50%, #0f1626 100%);
+    background:
+        radial-gradient(circle at 85% 0%, rgba(200, 169, 106, 0.13), transparent 320px),
+        linear-gradient(180deg, var(--lol-bg-2), var(--lol-bg));
+    color: var(--lol-ivory);
 }
 
 .stats-nav {
@@ -178,29 +185,39 @@ onMounted(() => {
     align-items: center;
     gap: 16px;
     padding: 16px 24px;
-    background: rgba(0, 0, 0, 0.3);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(7, 10, 13, 0.78);
+    border-bottom: 1px solid var(--lol-border);
+    backdrop-filter: blur(18px);
 }
 
 .back-link {
-    color: rgba(255, 255, 255, 0.7);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--lol-muted);
     text-decoration: none;
     font-size: 14px;
     transition: color 0.2s;
 }
 
 .back-link:hover {
-    color: #60a5fa;
+    color: var(--lol-teal-2);
+}
+
+.nav-icon,
+.tab-icon-svg {
+    width: 16px;
+    height: 16px;
 }
 
 .nav-title {
-    color: #fff;
+    color: var(--lol-ivory);
     font-size: 16px;
-    font-weight: 600;
+    font-weight: 800;
 }
 
 .stats-container {
-    max-width: 1200px;
+    max-width: 1220px;
     margin: 0 auto;
     padding: 24px;
 }
@@ -213,8 +230,9 @@ onMounted(() => {
 .loading-card {
     display: flex;
     gap: 24px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
+    background: var(--lol-panel);
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 8px;
     padding: 24px;
     margin-bottom: 24px;
 }
@@ -234,16 +252,17 @@ onMounted(() => {
 }
 
 .loading-tabs {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
+    background: var(--lol-panel);
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 8px;
     padding: 24px;
 }
 
 /* Error Alert */
 .error-alert {
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    border-radius: 12px;
+    background: rgba(229, 83, 75, 0.1);
+    border: 1px solid rgba(229, 83, 75, 0.28);
+    border-radius: 8px;
     margin-bottom: 24px;
 }
 
@@ -255,10 +274,11 @@ onMounted(() => {
 
 /* Tabs Section */
 .tabs-section {
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 12px;
-    padding: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--lol-panel);
+    border-radius: 8px;
+    padding: 18px;
+    border: 1px solid var(--lol-border-soft);
+    box-shadow: var(--lol-shadow);
     animation: slideUp 0.5s ease-out;
 }
 
@@ -266,21 +286,24 @@ onMounted(() => {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(7, 10, 13, 0.45);
     padding: 4px;
     border-radius: 8px;
+    border: 1px solid var(--lol-border-soft);
 }
 
 .tab-trigger {
+    display: inline-flex;
+    gap: 8px;
     padding: 12px 16px;
     font-size: 14px;
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.7);
+    font-weight: 800;
+    color: var(--lol-muted);
     transition: all 0.2s;
 }
 
 .tab-trigger:hover {
-    color: #fff;
+    color: var(--lol-ivory);
 }
 
 .tab-content {

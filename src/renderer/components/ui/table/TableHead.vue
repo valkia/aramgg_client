@@ -14,8 +14,14 @@ const props = defineProps({
         props.class,
       )
     "
-    style="color: rgba(255, 255, 255, 0.7);"
   >
     <slot />
   </th>
 </template>
+
+<style scoped>
+th {
+  color: var(--lol-gold-2);
+  font-weight: 800;
+}
+</style>

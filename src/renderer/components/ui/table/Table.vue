@@ -8,8 +8,14 @@ const props = defineProps({
 
 <template>
   <div class="relative w-full overflow-auto">
-    <table :class="cn('w-full caption-bottom text-sm', props.class)" style="color: rgba(255, 255, 255, 0.9);">
+    <table :class="cn('w-full caption-bottom text-sm', props.class)">
       <slot />
     </table>
   </div>
 </template>
+
+<style scoped>
+table {
+  color: var(--lol-ivory);
+}
+</style>

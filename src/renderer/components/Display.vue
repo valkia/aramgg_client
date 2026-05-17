@@ -1,61 +1,78 @@
 <template id='Display'>
     <div class="display-page">
-        <!-- 页面头部 -->
         <header class="page-header">
             <div class="header-content">
-                <h1 class="page-title">🎮 LoL 助手控制台</h1>
-                <p class="page-subtitle">配置游戏路径、获取符文数据、监控英雄选择</p>
+                <div class="title-block">
+                    <p class="page-kicker">ARENA ASSISTANT</p>
+                    <h1 class="page-title">LoL 助手控制台</h1>
+                    <p class="page-subtitle">配置游戏路径、拉取符文数据、监控英雄选择与海克斯推荐。</p>
+                </div>
+
+                <div class="header-metrics">
+                    <div class="metric-card">
+                        <span class="metric-label">路径状态</span>
+                        <strong>{{ currentLolPath ? '已配置' : '待配置' }}</strong>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">监控模式</span>
+                        <strong>实时</strong>
+                    </div>
+                </div>
             </div>
         </header>
 
-        <!-- 主要内容区 -->
         <main class="main-content">
-            <!-- 游戏路径配置 -->
             <section class="config-section">
                 <GamePathConfig @path-changed="onPathChanged" />
             </section>
 
-            <!-- 符文控制 -->
             <section class="config-section">
                 <RuneControls @opgg-data-ready="onOpggDataReady" />
             </section>
 
-            <!-- 英雄监控控制 -->
             <section class="config-section">
                 <ChampionMonitor />
             </section>
 
-            <!-- 窗口测试区域 -->
             <section class="config-section">
                 <div class="test-section">
                     <div class="section-header">
-                        <h3>🧪 窗口测试</h3>
+                        <p class="section-kicker">WINDOW PREVIEW</p>
+                        <h3>窗口测试</h3>
                         <p class="section-description">测试海克斯推荐窗口的显示效果</p>
                     </div>
 
                     <div class="test-controls">
                         <button class="test-btn primary" @click="testFloatingWindow">
-                            <span class="icon">🎯</span>
-                            <span class="text">测试浮动窗口</span>
-                            <span class="hint">游戏内透明浮窗</span>
+                            <Target class="icon" />
+                            <span class="button-copy">
+                                <span class="text">测试浮动窗口</span>
+                                <span class="hint">游戏内透明浮窗</span>
+                            </span>
                         </button>
 
                         <button class="test-btn secondary" @click="testPopupWindow">
-                            <span class="icon">📋</span>
-                            <span class="text">测试详情弹窗</span>
-                            <span class="hint">完整数据展示</span>
+                            <ClipboardList class="icon" />
+                            <span class="button-copy">
+                                <span class="text">测试详情弹窗</span>
+                                <span class="hint">完整数据展示</span>
+                            </span>
                         </button>
 
                         <button class="test-btn warning" @click="testDatabaseLoad">
-                            <span class="icon">📂</span>
-                            <span class="text">测试数据库路径</span>
-                            <span class="hint">检查 augments 文件</span>
+                            <Database class="icon" />
+                            <span class="button-copy">
+                                <span class="text">测试数据库路径</span>
+                                <span class="hint">检查 augments 文件</span>
+                            </span>
                         </button>
 
                         <button class="test-btn danger" @click="hideAllWindows">
-                            <span class="icon">❌</span>
-                            <span class="text">隐藏所有窗口</span>
-                            <span class="hint">关闭测试窗口</span>
+                            <EyeOff class="icon" />
+                            <span class="button-copy">
+                                <span class="text">隐藏所有窗口</span>
+                                <span class="hint">关闭测试窗口</span>
+                            </span>
                         </button>
                     </div>
 
@@ -74,6 +91,7 @@ import GamePathConfig from './GamePathConfig.vue'
 import RuneControls from './RuneControls.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
 import { electronAPI } from '../native/electron-api.js'
+import { ClipboardList, Database, EyeOff, Target } from 'lucide-vue-next'
 
 const currentLolPath = ref('')
 const testStatus = ref(null)
@@ -186,42 +204,89 @@ const hideAllWindows = () => {
 <style scoped>
 .display-page {
     min-height: 100vh;
-    background: linear-gradient(135deg, #1a1c2c 0%, #2d3561 50%, #1a1c2c 100%);
+    background:
+        linear-gradient(180deg, rgba(40, 217, 200, 0.06) 0%, transparent 260px),
+        radial-gradient(circle at 88% 8%, rgba(200, 169, 106, 0.12), transparent 280px),
+        var(--lol-bg);
+    color: var(--lol-ivory);
 }
 
 .page-header {
-    background: linear-gradient(90deg, rgba(30, 136, 229, 0.15) 0%, rgba(103, 58, 183, 0.15) 100%);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 24px;
+    border-bottom: 1px solid var(--lol-border);
+    background: rgba(7, 10, 13, 0.72);
+    backdrop-filter: blur(18px);
+    padding: 28px 24px 24px;
 }
 
 .header-content {
-    max-width: 1200px;
+    max-width: 1220px;
     margin: 0 auto;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.page-kicker,
+.section-kicker {
+    margin: 0 0 8px;
+    color: var(--lol-gold-2);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: uppercase;
 }
 
 .page-title {
-    font-size: 24px;
-    font-weight: 700;
-    color: #fff;
-    margin: 0 0 8px 0;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--lol-ivory);
+    margin: 0 0 8px;
 }
 
 .page-subtitle {
     font-size: 14px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--lol-muted);
     margin: 0;
+    max-width: 580px;
+}
+
+.header-metrics {
+    display: flex;
+    gap: 12px;
+}
+
+.metric-card {
+    min-width: 118px;
+    padding: 12px 14px;
+    background: rgba(17, 25, 35, 0.78);
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 8px;
+}
+
+.metric-label {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--lol-faint);
+    font-size: 11px;
+}
+
+.metric-card strong {
+    color: var(--lol-teal-2);
+    font-size: 15px;
 }
 
 .main-content {
-    max-width: 1200px;
+    max-width: 1220px;
     margin: 0 auto;
     padding: 24px;
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 16px;
 }
 
 .config-section {
-    margin-bottom: 16px;
+    grid-column: span 6;
     animation: slideUp 0.4s ease-out;
     animation-fill-mode: both;
 }
@@ -229,6 +294,11 @@ const hideAllWindows = () => {
 .config-section:nth-child(1) { animation-delay: 0.1s; }
 .config-section:nth-child(2) { animation-delay: 0.2s; }
 .config-section:nth-child(3) { animation-delay: 0.3s; }
+.config-section:nth-child(4) { animation-delay: 0.4s; }
+.config-section:nth-child(3),
+.config-section:nth-child(4) {
+    grid-column: 1 / -1;
+}
 
 @keyframes slideUp {
     from {
@@ -241,28 +311,28 @@ const hideAllWindows = () => {
     }
 }
 
-/* 测试区域样式 */
 .test-section {
-    background: linear-gradient(135deg, rgba(45, 52, 54, 0.8) 0%, rgba(30, 39, 46, 0.8) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 20px;
+    background: var(--lol-panel);
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 8px;
+    padding: 18px;
+    box-shadow: var(--lol-shadow);
 }
 
 .section-header {
-    margin-bottom: 16px;
+    margin-bottom: 14px;
 }
 
 .section-header h3 {
     font-size: 18px;
-    font-weight: 600;
-    color: #fff;
+    font-weight: 700;
+    color: var(--lol-ivory);
     margin: 0 0 4px 0;
 }
 
 .section-description {
     font-size: 13px;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--lol-muted);
     margin: 0;
 }
 
@@ -276,17 +346,20 @@ const hideAllWindows = () => {
     flex: 1;
     min-width: 200px;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    gap: 6px;
-    padding: 16px 20px;
-    border: 2px solid transparent;
-    border-radius: 10px;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 8px;
     font-family: inherit;
     cursor: pointer;
     transition: all 0.2s ease;
     position: relative;
     overflow: hidden;
+    text-align: left;
+    background: rgba(17, 25, 35, 0.78);
+    color: var(--lol-ivory);
 }
 
 .test-btn::before {
@@ -296,7 +369,7 @@ const hideAllWindows = () => {
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    background: linear-gradient(90deg, transparent, rgba(40, 217, 200, 0.12), transparent);
     transition: left 0.5s ease;
 }
 
@@ -305,57 +378,64 @@ const hideAllWindows = () => {
 }
 
 .test-btn.primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    border-color: rgba(40, 217, 200, 0.34);
 }
 
 .test-btn.primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+    box-shadow: var(--lol-glow);
 }
 
 .test-btn.secondary {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    color: white;
+    border-color: rgba(200, 169, 106, 0.36);
 }
 
 .test-btn.secondary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(240, 147, 251, 0.4);
+    box-shadow: 0 12px 26px rgba(200, 169, 106, 0.12);
 }
 
 .test-btn.warning {
-    background: linear-gradient(135deg, #ffa726 0%, #fb8c00 100%);
-    color: white;
+    border-color: rgba(226, 194, 122, 0.4);
 }
 
 .test-btn.warning:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(255, 167, 38, 0.4);
+    box-shadow: 0 12px 26px rgba(226, 194, 122, 0.12);
 }
 
 .test-btn.danger {
-    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-    color: #333;
+    border-color: rgba(229, 83, 75, 0.36);
 }
 
 .test-btn.danger:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(250, 112, 154, 0.4);
+    box-shadow: 0 12px 26px rgba(229, 83, 75, 0.14);
 }
 
 .test-btn .icon {
-    font-size: 28px;
+    width: 24px;
+    height: 24px;
+    color: var(--lol-teal-2);
+    flex: 0 0 auto;
+}
+
+.button-copy {
+    min-width: 0;
 }
 
 .test-btn .text {
+    display: block;
     font-size: 15px;
-    font-weight: 600;
+    font-weight: 700;
+    line-height: 1.2;
 }
 
 .test-btn .hint {
+    display: block;
+    margin-top: 3px;
     font-size: 12px;
-    opacity: 0.8;
+    color: var(--lol-muted);
 }
 
 .test-status {
@@ -363,24 +443,55 @@ const hideAllWindows = () => {
     padding: 12px 16px;
     border-radius: 8px;
     font-size: 13px;
-    text-align: center;
+    white-space: pre-line;
 }
 
 .test-status.info {
-    background: rgba(59, 130, 246, 0.15);
-    color: #93c5fd;
-    border: 1px solid rgba(59, 130, 246, 0.3);
+    background: rgba(40, 217, 200, 0.1);
+    color: var(--lol-teal-2);
+    border: 1px solid rgba(40, 217, 200, 0.24);
 }
 
 .test-status.success {
-    background: rgba(34, 197, 94, 0.15);
-    color: #86efac;
-    border: 1px solid rgba(34, 197, 94, 0.3);
+    background: rgba(84, 216, 132, 0.1);
+    color: var(--lol-success);
+    border: 1px solid rgba(84, 216, 132, 0.24);
 }
 
 .test-status.error {
-    background: rgba(239, 68, 68, 0.15);
-    color: #fca5a5;
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: rgba(229, 83, 75, 0.1);
+    color: #ff9c96;
+    border: 1px solid rgba(229, 83, 75, 0.24);
+}
+
+@media (max-width: 860px) {
+    .header-content {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .header-metrics {
+        width: 100%;
+    }
+
+    .metric-card {
+        flex: 1;
+    }
+
+    .config-section {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 560px) {
+    .main-content,
+    .page-header {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .test-btn {
+        min-width: 100%;
+    }
 }
 </style>

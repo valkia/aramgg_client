@@ -26,7 +26,7 @@ const forwardedProps = useForwardProps(delegatedProps);
         props.class,
       )
     "
-    style="background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.9);"
+    style="background: rgba(7, 10, 13, 0.42); border-color: var(--lol-border-soft); color: var(--lol-ivory);"
   >
     <slot />
     <SelectIcon as-child>
