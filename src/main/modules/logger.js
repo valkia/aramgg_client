@@ -1,6 +1,6 @@
 /**
  * 日志模块 - 提供文件日志记录功能
- * 日志存储位置: ~/.lol-tips-client/logs/
+ * 日志存储位置: ~/.aramgg_client/logs/
  */
 import path from 'path'
 import fs from 'fs-extra'
@@ -19,7 +19,7 @@ const currentLevel = LOG_LEVELS[process.env.LOG_LEVEL?.toUpperCase()] ?? LOG_LEV
 
 // 日志目录
 const getLogDir = () => {
-    const logDir = path.join(os.homedir(), '.lol-tips-client', 'logs')
+    const logDir = path.join(os.homedir(), '.aramgg_client', 'logs')
     fs.ensureDirSync(logDir)
     return logDir
 }

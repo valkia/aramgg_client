@@ -7,8 +7,8 @@ import os from 'os'
 import { analyzeScreenshot } from '../../src/main/image-analyzer.js'
 import logger from '../../src/main/modules/logger.js'
 
-// 真实海克斯截图列表（在 ~/.lol-tips-client/screenshots 目录中）
-const screenshotDir = path.join(os.homedir(), '.lol-tips-client', 'screenshots')
+// 真实海克斯截图列表（在 ~/.aramgg_client/screenshots 目录中）
+const screenshotDir = path.join(os.homedir(), '.aramgg_client', 'screenshots')
 const realAugments = []
 for (let i = 1; i <= 17; i++) {
     realAugments.push(path.join(screenshotDir, `q${i}.png`))

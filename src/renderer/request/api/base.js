@@ -10,7 +10,7 @@ log.info(process.env.NODE_ENV);
 
 //主机地址 http://localhost:8090
 let host = window.location.origin;
-//项目名 /lol_tips_client
+//项目名 /aramgg_client
 var pathName = window.location.pathname;
 var projectName = pathName.substring(0,pathName.substr(1).indexOf('/')+1);
 

@@ -74,7 +74,7 @@ export const testDesktopCapturer = async () => {
             logger.info(`   尺寸: ${size.width}x${size.height}`)
 
             // 4. 保存测试截图
-            const testDir = path.join(os.homedir(), '.lol-tips-client', 'test-screenshots')
+            const testDir = path.join(os.homedir(), '.aramgg_client', 'test-screenshots')
             await fs.ensureDir(testDir)
             const testPath = path.join(testDir, `test-game-window-${Date.now()}.png`)
 

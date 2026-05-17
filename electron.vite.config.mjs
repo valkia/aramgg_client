@@ -29,7 +29,7 @@ export default defineConfig({
         external: ['electron', 'electron-store', 'axios', 'fs', 'path', 'https']
       },
       outDir: 'dist-electron',
-      emptyOutDir: false
+      emptyOutDir: true
     },
     resolve: {
       // 添加 TypeScript 支持

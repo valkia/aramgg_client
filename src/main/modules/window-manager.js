@@ -45,7 +45,7 @@ export const createMainWindow = async (isDev, devServerUrl) => {
         width: 800,
         height: 600,
         webPreferences,
-        title: 'lol符文助手',
+        title: 'aramgg_client',
     })
 
     mainWindow.on('close', () => {
@@ -71,7 +71,9 @@ export const createMainWindow = async (isDev, devServerUrl) => {
         mainWindow.loadURL(`${devServerUrl}/#/display`)
         mainWindow.webContents.openDevTools()
     } else {
-        mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
+        mainWindow.loadFile(path.join(__dirname, '../dist/index.html'), {
+            hash: '/display',
+        })
     }
 
     return mainWindow

@@ -13,7 +13,7 @@ import { analyzeScreenshot } from '../../src/main/image-analyzer.js'
 import logger from '../../src/main/modules/logger.js'
 
 // 截图目录
-const SCREENSHOT_DIR = path.join(os.homedir(), '.lol-tips-client', 'screenshots')
+const SCREENSHOT_DIR = path.join(os.homedir(), '.aramgg_client', 'screenshots')
 
 // 颜色输出工具
 const colors = {
