@@ -130,6 +130,18 @@ const props = defineProps({
   }
 })
 
+const normalizeItemIds = (itemIds) => {
+  if (Array.isArray(itemIds)) {
+    return itemIds.map(id => String(id).trim()).filter(Boolean)
+  }
+
+  if (typeof itemIds === 'string') {
+    return itemIds.split(',').map(id => id.trim()).filter(Boolean)
+  }
+
+  return []
+}
+
 /**
  * Parse recommended items into structured format
  */
@@ -139,7 +151,7 @@ const parsedRecommended = computed(() => {
   }
 
   return props.buildData.recommended.map(rec => {
-    const itemIds = rec.itemIds.split(',').map(id => id.trim())
+    const itemIds = normalizeItemIds(rec.itemIds)
     return {
       items: itemIds,
       games: parseInt(rec.games) || 0,

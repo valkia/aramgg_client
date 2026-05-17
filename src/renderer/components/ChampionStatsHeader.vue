@@ -3,7 +3,7 @@
     <div class="header-grid">
       <div class="avatar-section">
         <img
-          :src="getChampionIconUrl(championId)"
+          :src="stats.iconUrl || getChampionIconUrl(championId)"
           :alt="stats.championId"
           class="champion-avatar"
           @error="handleImageError"
@@ -12,7 +12,7 @@
 
       <div class="info-section">
         <div class="champion-info">
-          <h2 class="champion-name">ID: {{ championId }}</h2>
+          <h2 class="champion-name">{{ stats.nameCN || `ID: ${championId}` }}</h2>
           <Badge :variant="getTierVariant(stats.tier)" class="tier-badge">
             Tier {{ stats.tier }}
           </Badge>

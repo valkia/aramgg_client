@@ -23,15 +23,6 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
-    "extraResources": [
-      {
-        "from": "electron/data",
-        "to": "data",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
     "win": {
       "icon": "xxx/icon.ico"
     }

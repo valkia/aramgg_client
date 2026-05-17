@@ -6,6 +6,7 @@ import { registerIpcHandlers } from './ipc-handlers.js'
 import { createMainWindow, createPopupWindow, createFloatingWindow, toggleMainWindow, getFloatingWindow } from './window-manager.js'
 import autoScreenshotService from '../auto-screenshot-service.js'
 import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
+import { checkForClientUpdate } from '../version-checker.js'
 import logger from './logger.js'
 
 const __dirname = import.meta.dirname
@@ -43,6 +44,12 @@ export async function init() {
         popup: !!popupWindow,
         floating: !!floatingWindow
     })
+
+    setTimeout(() => {
+        checkForClientUpdate(mainWindow).catch((error) => {
+            logger.warn('Client update check failed:', error.message)
+        })
+    }, 1000)
 
     // 初始化游戏流程监控（延迟初始化，避免阻塞应用启动）
     logger.info('将在后台初始化游戏流程监控...')

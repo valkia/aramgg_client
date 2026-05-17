@@ -1,234 +1,393 @@
-import fs from 'fs'
-import path from 'path'
-import { app } from 'electron'
+import logger from './modules/logger.js'
 
-/** 海克斯胜率数据 */
-interface AugmentWinrateData {
-  win_rate: string | number;
-  pick_rate: string | number;
-  num_games: string | number;
-  num_win_games: string | number;
-  [key: string]: any;
+declare const fetch: any
+
+export const DATA_API_ORIGIN =
+  process.env.ARAMGG_DATA_API_ORIGIN || 'https://aramgg-data-api.djlinguge.workers.dev'
+export const DATA_API_PREFIX = '/v1/zh-CN'
+
+const CACHE_TTL_MS = 10 * 60 * 1000
+const cache = new Map<string, { data: any; createdAt: number }>()
+const pendingRequests = new Map<string, Promise<any>>()
+let electronFetch: any = null
+
+const rarityMap: Record<string, string> = {
+  0: 'kSilver',
+  1: 'kGold',
+  2: 'kPrismatic',
+  silver: 'kSilver',
+  gold: 'kGold',
+  prismatic: 'kPrismatic',
 }
 
-/** 海克斯统计数据（计算后） */
-interface AugmentStats {
-  augmentId: number;
-  name: string;
-  rarity: string;
-  iconUrl: string | null;
-  winRate: number;
-  pickRate: number;
-  playCount: number;
-  winCount: number;
-  recommendScore: number;
+function getApiUrl(resourcePath: string): string {
+  if (/^https?:\/\//i.test(resourcePath)) {
+    return resourcePath
+  }
+
+  const path = resourcePath.startsWith('/') ? resourcePath : `${DATA_API_PREFIX}/${resourcePath}`
+  return new URL(path, DATA_API_ORIGIN).toString()
 }
 
-/** 英雄海克斯映射 */
-interface ChampionAugments {
-  [augmentId: string]: AugmentWinrateData;
+async function fetchJson(resourcePath: string): Promise<any> {
+  const url = getApiUrl(resourcePath)
+  const cached = cache.get(url)
+  if (cached && Date.now() - cached.createdAt < CACHE_TTL_MS) {
+    return cached.data
+  }
+
+  const pending = pendingRequests.get(url)
+  if (pending) {
+    return pending
+  }
+
+  const transportFetch = await getTransportFetch()
+  const request = transportFetch(url, {
+    headers: {
+      accept: 'application/json',
+    },
+  })
+    .then(async (response: any) => {
+      if (!response.ok) {
+        throw new Error(`Remote data request failed: ${response.status} ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      cache.set(url, { data, createdAt: Date.now() })
+      return data
+    })
+    .finally(() => {
+      pendingRequests.delete(url)
+    })
+
+  pendingRequests.set(url, request)
+  return request
 }
 
-/** 海克斯基础信息 */
-interface AugmentBase {
-  id: number;
-  name: string;
-  rarity: string;
-  iconUrl?: string;
-  [key: string]: any;
-}
-
-// Cache for loaded data
-const cache = new Map<string, any>()
-
-/**
- * Get the data directory path
- * Works in both development and production (Electron app)
- */
-function getDataPath(filename: string): string {
-  // In Electron production: use resourcesPath
-  if (typeof process !== 'undefined' && (process as any).resourcesPath) {
-    const resourcePath = path.join((process as any).resourcesPath, 'data', filename)
-    if (fs.existsSync(resourcePath)) {
-      return resourcePath
+async function getTransportFetch(): Promise<any> {
+  if (process.versions?.electron) {
+    if (!electronFetch) {
+      const { net } = await import('electron')
+      electronFetch = net.fetch.bind(net)
     }
+
+    return electronFetch
   }
 
-  // Development: get project root directory
-  let appPath = app.getAppPath()
-
-  // If appPath ends with 'electron', go up one level to get project root
-  if (appPath.endsWith('electron')) {
-    appPath = path.dirname(appPath)
-  }
-
-  return path.resolve(appPath, 'electron', 'data', filename)
+  return fetch
 }
 
-/**
- * Load and cache JSON file
- */
-function loadJsonFile<T = any>(filename: string): T {
-  if (cache.has(filename)) {
-    return cache.get(filename) as T
-  }
-
-  const filePath = getDataPath(filename)
-
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Data file not found: ${filePath}`)
-  }
-
-  const content = fs.readFileSync(filePath, 'utf-8')
-  const data = JSON.parse(content) as T
-
-  cache.set(filename, data)
-  return data
+function unwrapEnvelope(payload: any): any {
+  return payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload
 }
 
-/**
- * Load champion stats data
- * @param championId - Champion ID
- * @returns Champion stats object
- */
-export function loadChampionStats(championId: string | number): any {
-  const allStats = loadJsonFile('champions-stats.json')
-  const stat = (allStats as any[]).find((s: any) => s.championId === String(championId))
+function toNumber(value: any, fallback = 0): number {
+  if (value == null || value === '') {
+    return fallback
+  }
 
-  if (!stat) {
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) ? numberValue : fallback
+}
+
+function toNullableNumber(value: any): number | null {
+  if (value == null || value === '') {
+    return null
+  }
+
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) ? numberValue : null
+}
+
+function normalizeRarity(augment: any): string {
+  const byName = rarityMap[String(augment?.rarityName || '').toLowerCase()]
+  if (byName) {
+    return byName
+  }
+
+  return rarityMap[String(Number(augment?.rarity))] || 'unknown'
+}
+
+function normalizeItemIds(itemIds: any): string[] {
+  if (Array.isArray(itemIds)) {
+    return itemIds.map((id) => String(id).trim()).filter(Boolean)
+  }
+
+  if (typeof itemIds === 'string') {
+    return itemIds.split(',').map((id) => id.trim()).filter(Boolean)
+  }
+
+  return []
+}
+
+function mapPublicAugmentBase(augment: any): any {
+  return {
+    id: augment.id,
+    name: augment.name,
+    rarity: normalizeRarity(augment),
+    rarityName: augment.rarityName || null,
+    rarityDisplayName: augment.rarityDisplayName || null,
+    iconPath: augment.iconUrl || null,
+    iconUrl: augment.iconUrl || null,
+    key: augment.key || null,
+    enabled: augment.enabled ?? null,
+    description: augment.description || null,
+    tooltip: augment.tooltip || null,
+  }
+}
+
+function mapPublicChampionStats(champion: any, meta: any = {}): any {
+  const stats = champion?.stats || {}
+
+  return {
+    championId: String(champion?.id),
+    id: champion?.id,
+    alias: champion?.alias || '',
+    nameCN: champion?.name || '',
+    nameEN: champion?.alias || '',
+    title: champion?.title || '',
+    roles: champion?.roles || [],
+    iconUrl: champion?.iconUrl || null,
+    tier: toNullableNumber(stats.tier),
+    winRate: toNumber(stats.winRate),
+    numWinGames: toNumber(stats.wins),
+    numGames: toNumber(stats.games),
+    pickRate: toNumber(stats.pickRate),
+    version: stats.gamePatch || meta.gamePatch || '',
+    date: stats.date || meta.publishedAt || meta.generatedAt || '',
+  }
+}
+
+function mapPublicChampionName(champion: any): any {
+  return {
+    id: champion?.id,
+    title: champion?.title || '',
+    nameCN: champion?.name || `英雄 ${champion?.id || ''}`,
+    nameEN: champion?.alias || '',
+    roles: champion?.roles || [],
+    iconUrl: champion?.iconUrl || null,
+  }
+}
+
+function mapPublicAugmentStats(augment: any): any {
+  const stats = augment?.stats || {}
+
+  return {
+    tier: toNullableNumber(stats.tier),
+    num_win_games: toNumber(stats.wins),
+    win_rate: toNumber(stats.winRate),
+    num_games: toNumber(stats.games),
+    pick_rate: toNumber(stats.pickRate),
+    gamePatch: stats.gamePatch || null,
+    date: stats.date || null,
+  }
+}
+
+function mapPublicAugmentRecommendation(augment: any): any {
+  const stats = mapPublicAugmentStats(augment)
+  const winRate = toNumber(stats.win_rate)
+  const pickRate = toNumber(stats.pick_rate)
+  const games = toNumber(stats.num_games)
+
+  return {
+    augmentId: augment.id,
+    id: augment.id,
+    name: augment.name || '未知',
+    rarity: normalizeRarity(augment),
+    rarityName: augment.rarityName || null,
+    iconPath: augment.iconUrl || null,
+    iconUrl: augment.iconUrl || null,
+    tier: stats.tier,
+    winRate,
+    pickRate,
+    playCount: games,
+    winCount: toNumber(stats.num_win_games),
+    win_rate: winRate,
+    pick_rate: pickRate,
+    num_games: games,
+    num_win_games: toNumber(stats.num_win_games),
+    recommendScore: winRate * 0.6 + pickRate * 0.2 + Math.min(games / 1000, 1) * 0.2,
+  }
+}
+
+function mapBuildSet(record: any, itemIdsAsString = false): any {
+  const ids = normalizeItemIds(record?.itemIds)
+
+  return {
+    ...record,
+    itemIds: itemIdsAsString ? ids.join(',') : ids,
+    items: ids,
+    games: toNumber(record?.games),
+    wins: toNumber(record?.wins),
+    pick_rate: toNumber(record?.pickRate),
+    pickRate: toNumber(record?.pickRate),
+    winRate: toNumber(record?.winRate),
+  }
+}
+
+function mapPublicBuild(publicBuild: any, championId: string | number): any {
+  if (!publicBuild) {
+    return null
+  }
+
+  const coreItems = (publicBuild.coreItems || []).map((record: any) => mapBuildSet(record, true))
+  const startingItems = (publicBuild.startingItems || []).map((record: any) => mapBuildSet(record))
+  const situationalItems = (publicBuild.situationalItems || []).map((item: any) => ({
+    ...item,
+    itemId: String(item.id),
+    games: toNumber(item.games),
+    wins: toNumber(item.wins),
+    pick_rate: toNumber(item.pickRate),
+    pickRate: toNumber(item.pickRate),
+    winRate: toNumber(item.winRate),
+    distinctive_score: toNumber(item.averageIndex, toNumber(item.pickRate)),
+  }))
+
+  return {
+    patch: publicBuild.patch || '',
+    championId: String(championId),
+    queue: publicBuild.queueId || 'HOWLING_ABYSS_ARAM',
+    role: publicBuild.role || 'ALL',
+    tier: publicBuild.tier || null,
+    tags: publicBuild.tags || {},
+    buildTags: Array.isArray(publicBuild.tags)
+      ? publicBuild.tags.join(', ')
+      : Object.values(publicBuild.tags || {}).join(', '),
+    coreItems,
+    recommended: coreItems,
+    itemSequences: {},
+    itemExtensions: publicBuild.itemExtensions || [],
+    situationalItems,
+    startingItems,
+    games: toNumber(publicBuild.stats?.games),
+    wins: toNumber(publicBuild.stats?.wins),
+    pickRate: toNumber(publicBuild.stats?.pickRate),
+    winRate: toNumber(publicBuild.stats?.winRate),
+    allBuilds: [],
+  }
+}
+
+function mapPublicItem(item: any): any {
+  return {
+    ...item,
+    id: item.id,
+    name: {
+      zh_cn: item.name,
+      zh_CN: item.name,
+      en_us: item.name,
+    },
+    description: {
+      zh_cn: item.description || '',
+      zh_CN: item.description || '',
+      en_us: item.description || '',
+    },
+    iconPath: item.iconUrl || null,
+    iconUrl: item.iconUrl || null,
+  }
+}
+
+async function loadPublicChampionDetail(championId: string | number): Promise<any> {
+  const payload = await fetchJson(`${DATA_API_PREFIX}/champions/${championId}.json`)
+  return {
+    meta: payload.meta || {},
+    data: unwrapEnvelope(payload),
+  }
+}
+
+export async function loadDataApiConfig(): Promise<any> {
+  return fetchJson(`${DATA_API_PREFIX}/config.json`)
+}
+
+export async function loadChampionStats(championId: string | number): Promise<any> {
+  const { meta, data } = await loadPublicChampionDetail(championId)
+  const stats = mapPublicChampionStats(data.champion, meta)
+
+  if (!stats.championId) {
     throw new Error(`Champion stats not found for ID: ${championId}`)
   }
 
-  return stat
+  return stats
 }
 
-/**
- * Load augment base data (list of all augments with names and rarity)
- * @returns Array of augment objects
- */
-export function loadAugmentBase(): AugmentBase[] {
-  return loadJsonFile<AugmentBase[]>('augments-base.json')
-}
-
-/**
- * Load augment details (descriptions, tags, etc.)
- * @returns Augment details object keyed by augment ID
- */
-export function loadAugmentDetail(): Record<string, any> {
-  return loadJsonFile('augment-detail.json')
-}
-
-/**
- * Load champion-specific augment stats
- * @param championId - Champion ID
- * @returns Augment stats for the champion
- */
-export function loadChampionAugments(championId: string | number): ChampionAugments {
-  const championIdStr = String(championId)
-  const filename = `champion-augments/${championIdStr}.json`
-
+export async function loadChampionName(championId: string | number): Promise<any> {
   try {
-    const allData = loadJsonFile<any[]>(filename)
+    const { data } = await loadPublicChampionDetail(championId)
+    return mapPublicChampionName(data.champion)
+  } catch (error: any) {
+    logger.warn(`Failed to load champion name for ${championId}:`, error.message)
+    return { nameCN: `英雄 ${championId}`, nameEN: '', title: '', roles: [], iconUrl: null }
+  }
+}
 
-    // Parse the data structure [[championId, JSON string]]
-    if (Array.isArray(allData) && allData.length > 0) {
-      const firstElement = allData[0]
-      if (Array.isArray(firstElement) && firstElement.length >= 2) {
-        const augmentDataStr = firstElement[1]
-        const augmentData = JSON.parse(augmentDataStr)
-        return augmentData.augments || {}
-      }
-    }
+export async function loadAugmentBase(): Promise<any[]> {
+  const payload = await fetchJson(`${DATA_API_PREFIX}/augments.json`)
+  return unwrapEnvelope(payload).map(mapPublicAugmentBase)
+}
 
-    return {}
-  } catch (error) {
-    console.warn(
-      `Failed to load augments for champion ${championId}:`,
-      error instanceof Error ? error.message : String(error)
-    )
+export async function loadAugmentDetail(): Promise<Record<string, any>> {
+  const augments = await loadAugmentBase()
+  return augments.reduce((result: Record<string, any>, augment: any) => {
+    result[String(augment.id)] = augment
+    return result
+  }, {})
+}
+
+export async function loadChampionAugments(championId: string | number): Promise<Record<string, any>> {
+  try {
+    const { data } = await loadPublicChampionDetail(championId)
+    return (data.augments || []).reduce((result: Record<string, any>, augment: any) => {
+      result[String(augment.id)] = mapPublicAugmentStats(augment)
+      return result
+    }, {})
+  } catch (error: any) {
+    logger.warn(`Failed to load augments for champion ${championId}:`, error.message)
     return {}
   }
 }
 
-/**
- * Load champion build data
- * @param championId - Champion ID
- * @returns Build data for the champion
- */
-export function loadChampionBuild(championId: string | number): any {
-  const championIdStr = String(championId)
-  const filename = `builds_aram/${championIdStr}.json`
-
+export async function loadChampionBuild(championId: string | number): Promise<any> {
   try {
-    const buildData = loadJsonFile<any>(filename)
-
-    // Extract the core build data from the result
-    if (buildData.data && buildData.data.result && buildData.data.result.dataArray) {
-      const rows = buildData.data.result.dataArray
-      if (rows.length > 0) {
-        // Parse the build row data
-        const row = rows[0]
-        const builds = {
-          patch: row[0],
-          championId: row[1],
-          queue: row[2],
-          role: row[3],
-          matchup: row[4],
-          metadata: row[6],
-          tags: row[7] ? JSON.parse(row[7]) : {},
-          recommended: row[8] ? JSON.parse(row[8]) : [],
-          itemSequences: row[9] ? JSON.parse(row[9]) : {},
-        }
-
-        return builds
-      }
-    }
-
-    return null
-  } catch (error) {
-    console.warn(
-      `Failed to load build for champion ${championId}:`,
-      error instanceof Error ? error.message : String(error)
-    )
+    const { data } = await loadPublicChampionDetail(championId)
+    return mapPublicBuild(data.build, championId)
+  } catch (error: any) {
+    logger.warn(`Failed to load build for champion ${championId}:`, error.message)
     return null
   }
 }
 
-/**
- * Load items data
- * @returns Items data keyed by item ID
- */
-export function loadItems(): Record<string, any> {
-  return loadJsonFile('items-i18n.json')
+export async function loadItems(): Promise<any[]> {
+  const payload = await fetchJson(`${DATA_API_PREFIX}/items.json`)
+  return unwrapEnvelope(payload).map(mapPublicItem)
 }
 
-/**
- * Get all champion detail data at once
- * @param championId - Champion ID
- * @returns Complete data object with stats, augments, and builds
- */
-export function getChampionDetailData(championId: string | number): any {
+export async function getChampionDetailData(championId: string | number): Promise<any> {
+  const [stats, augmentBase, augmentDetail, augments, build, items, championName] =
+    await Promise.all([
+      loadChampionStats(championId),
+      loadAugmentBase(),
+      loadAugmentDetail(),
+      loadChampionAugments(championId),
+      loadChampionBuild(championId),
+      loadItems(),
+      loadChampionName(championId),
+    ])
+
   return {
-    stats: loadChampionStats(championId),
-    augmentBase: loadAugmentBase(),
-    augmentDetail: loadAugmentDetail(),
-    augments: loadChampionAugments(championId),
-    build: loadChampionBuild(championId),
-    items: loadItems(),
+    stats,
+    augmentBase,
+    augmentDetail,
+    augments,
+    build,
+    items,
+    championName,
   }
 }
 
-/**
- * 获取英雄的单个海克斯胜率数据
- * @param championId - 英雄ID
- * @param augmentId - 海克斯ID
- * @returns 海克斯胜率数据或null
- */
-export function getAugmentWinrate(
+export async function getAugmentWinrate(
   championId: string | number,
   augmentId: string | number
-): Partial<AugmentStats> | null {
-  const augments = loadChampionAugments(championId)
+): Promise<any> {
+  const augments = await loadChampionAugments(championId)
   const augmentIdStr = String(augmentId)
 
   if (!augments[augmentIdStr]) {
@@ -237,70 +396,31 @@ export function getAugmentWinrate(
 
   const winrateData = augments[augmentIdStr]
   return {
-    augmentId: parseInt(augmentIdStr),
-    winRate: parseFloat(String(winrateData.win_rate)) || 0,
-    pickRate: parseFloat(String(winrateData.pick_rate)) || 0,
-    playCount: parseInt(String(winrateData.num_games)) || 0,
-    winCount: parseInt(String(winrateData.num_win_games)) || 0,
+    augmentId: parseInt(augmentIdStr, 10),
+    winRate: toNumber(winrateData.win_rate),
+    pickRate: toNumber(winrateData.pick_rate),
+    playCount: toNumber(winrateData.num_games),
+    winCount: toNumber(winrateData.num_win_games),
   }
 }
 
-/**
- * 获取英雄的所有海克斯胜率数据（已排序）
- * @param championId - 英雄ID
- * @returns 按胜率排序的海克斯数组
- */
-export function getChampionAugmentStats(championId: string | number): AugmentStats[] {
-  const championIdStr = String(championId)
-  const augments = loadChampionAugments(championIdStr)
-  const augmentBase = loadAugmentBase()
+export async function getChampionAugmentStats(championId: string | number): Promise<any[]> {
+  const { data } = await loadPublicChampionDetail(championId)
 
-  // 组合胜率和基础信息
-  const augmentStats: AugmentStats[] = Object.entries(augments)
-    .map(([augmentId, data]) => {
-      const baseInfo = augmentBase.find((a) => a.id === parseInt(augmentId))
-      const winRate = parseFloat(String(data.win_rate)) || 0
-      const pickRate = parseFloat(String(data.pick_rate)) || 0
-      const numGames = parseInt(String(data.num_games)) || 0
-
-      return {
-        augmentId: parseInt(augmentId),
-        name: baseInfo?.name || '未知',
-        rarity: baseInfo?.rarity || 'unknown',
-        iconUrl: baseInfo?.iconUrl || null,
-        winRate,
-        pickRate,
-        playCount: numGames,
-        winCount: parseInt(String(data.num_win_games)) || 0,
-        // 推荐指数 = 胜率 * 0.6 + 选择率 * 0.2 + min(场次/1000, 1) * 0.2
-        recommendScore: winRate * 0.6 + pickRate * 0.2 + Math.min(numGames / 1000, 1) * 0.2,
-      }
-    })
-    .sort((a, b) => b.recommendScore - a.recommendScore)
-
-  return augmentStats
+  return (data.augments || [])
+    .map(mapPublicAugmentRecommendation)
+    .sort((a: any, b: any) => b.recommendScore - a.recommendScore)
 }
 
-/**
- * 按稀有度筛选海克斯
- * @param augmentStats - 海克斯统计数组
- * @param rarity - 稀有度过滤（'gold'|'purple'|'blue'|null）
- * @returns 筛选后的数组
- */
-export function filterAugmentsByRarity(
-  augmentStats: AugmentStats[],
-  rarity: string | null
-): AugmentStats[] {
+export function filterAugmentsByRarity(augmentStats: any[], rarity: string | null): any[] {
   if (!rarity || rarity === 'all') {
     return augmentStats
   }
 
-  return augmentStats.filter((a) => a.rarity === rarity)
+  return augmentStats.filter((augment) => augment.rarity === rarity)
 }
 
-/**
- * Clear cache (useful for memory management in long-running apps)
- */
 export function clearCache(): void {
   cache.clear()
+  pendingRequests.clear()
 }

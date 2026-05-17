@@ -17,6 +17,16 @@
                         <span class="metric-label">监控模式</span>
                         <strong>实时</strong>
                     </div>
+                    <div class="metric-card">
+                        <span class="metric-label">客户端版本</span>
+                        <strong>{{ clientVersionLabel }}</strong>
+                        <small v-if="versionHint">{{ versionHint }}</small>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">数据版本</span>
+                        <strong>{{ dataVersionLabel }}</strong>
+                        <small v-if="versionInfo?.gamePatch">LOL {{ versionInfo.gamePatch }}</small>
+                    </div>
                 </div>
             </div>
         </header>
@@ -86,7 +96,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import GamePathConfig from './GamePathConfig.vue'
 import RuneControls from './RuneControls.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
@@ -95,6 +105,44 @@ import { ClipboardList, Database, EyeOff, Target } from 'lucide-vue-next'
 
 const currentLolPath = ref('')
 const testStatus = ref(null)
+const versionInfo = ref(null)
+
+const clientVersionLabel = computed(() => {
+    if (!versionInfo.value) {
+        return '-'
+    }
+
+    return versionInfo.value.currentVersion || '-'
+})
+
+const dataVersionLabel = computed(() => versionInfo.value?.dataVersion || '-')
+
+const versionHint = computed(() => {
+    if (!versionInfo.value) {
+        return ''
+    }
+
+    if (!versionInfo.value.isNewer) {
+        return versionInfo.value.latestVersion ? `最新 ${versionInfo.value.latestVersion}` : ''
+    }
+
+    if (versionInfo.value.severity === 'patch') {
+        return `小版本 ${versionInfo.value.latestVersion}`
+    }
+
+    return `${versionInfo.value.statusText} ${versionInfo.value.latestVersion}`
+})
+
+const loadVersionInfo = async () => {
+    try {
+        const result = await electronAPI.appInfo.getVersionInfo()
+        if (result.success) {
+            versionInfo.value = result.data
+        }
+    } catch (error) {
+        console.warn('Failed to load version info:', error)
+    }
+}
 
 // 模拟海克斯数据（使用真实的英雄ID和海克斯ID，以便能查询到胜率）
 const mockAugmentData = {
@@ -199,6 +247,9 @@ const hideAllWindows = () => {
     electronAPI.windows.hideFloating()
     testStatus.value = { type: 'info', message: '已发送隐藏指令' }
 }
+onMounted(() => {
+    loadVersionInfo()
+})
 </script>
 
 <style scoped>
@@ -254,6 +305,8 @@ const hideAllWindows = () => {
 .header-metrics {
     display: flex;
     gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .metric-card {
@@ -272,8 +325,16 @@ const hideAllWindows = () => {
 }
 
 .metric-card strong {
+    display: block;
     color: var(--lol-teal-2);
     font-size: 15px;
+}
+
+.metric-card small {
+    display: block;
+    margin-top: 4px;
+    color: var(--lol-muted);
+    font-size: 11px;
 }
 
 .main-content {

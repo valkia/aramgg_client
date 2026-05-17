@@ -12,7 +12,7 @@ app.whenReady().then(async () => {
     const { getChampionAugmentStats } = await import('../../src/main/data-loader.js')
 
     console.log('\n1. 测试加载英雄63（Brand）的海克斯胜率数据...')
-    const augmentStats = getChampionAugmentStats(63)
+    const augmentStats = await getChampionAugmentStats(63)
     console.log('✅ 成功加载，总数:', augmentStats.length)
     console.log('前3条:', augmentStats.slice(0, 3))
 

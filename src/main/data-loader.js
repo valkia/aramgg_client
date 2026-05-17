@@ -1,220 +1,395 @@
-import logger from './modules/logger.js';
-import fs from 'fs'
-import path from 'path'
-import { app } from 'electron'
+import logger from './modules/logger.js'
 
-// Cache for loaded data
+export const DATA_API_ORIGIN =
+  process.env.ARAMGG_DATA_API_ORIGIN || 'https://aramgg-data-api.djlinguge.workers.dev'
+export const DATA_API_PREFIX = '/v1/zh-CN'
+
+const CACHE_TTL_MS = 10 * 60 * 1000
 const cache = new Map()
+const pendingRequests = new Map()
+let electronFetch = null
 
-/**
- * Get the data directory path
- * Works in both development and production (Electron app)
- */
-function getDataPath(filename) {
-  // In Electron production: use resourcesPath
-  if (typeof process !== 'undefined' && process.resourcesPath) {
-    const resourcePath = path.join(process.resourcesPath, 'data', filename)
-    if (fs.existsSync(resourcePath)) {
-      return resourcePath
+const rarityMap = {
+  0: 'kSilver',
+  1: 'kGold',
+  2: 'kPrismatic',
+  silver: 'kSilver',
+  gold: 'kGold',
+  prismatic: 'kPrismatic',
+}
+
+function getApiUrl(resourcePath) {
+  if (/^https?:\/\//i.test(resourcePath)) {
+    return resourcePath
+  }
+
+  const path = resourcePath.startsWith('/') ? resourcePath : `${DATA_API_PREFIX}/${resourcePath}`
+  return new URL(path, DATA_API_ORIGIN).toString()
+}
+
+async function fetchJson(resourcePath) {
+  const url = getApiUrl(resourcePath)
+  const cached = cache.get(url)
+  if (cached && Date.now() - cached.createdAt < CACHE_TTL_MS) {
+    return cached.data
+  }
+
+  if (pendingRequests.has(url)) {
+    return pendingRequests.get(url)
+  }
+
+  const transportFetch = await getTransportFetch()
+  const request = transportFetch(url, {
+    headers: {
+      accept: 'application/json',
+    },
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`Remote data request failed: ${response.status} ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      cache.set(url, { data, createdAt: Date.now() })
+      return data
+    })
+    .finally(() => {
+      pendingRequests.delete(url)
+    })
+
+  pendingRequests.set(url, request)
+  return request
+}
+
+async function getTransportFetch() {
+  if (process.versions?.electron) {
+    if (!electronFetch) {
+      const { net } = await import('electron')
+      electronFetch = net.fetch.bind(net)
     }
+
+    return electronFetch
   }
 
-  // Development: get project root directory
-  let appPath = app.getAppPath()
-
-  // If appPath ends with 'electron', go up one level to get project root
-  if (appPath.endsWith('electron')) {
-    appPath = path.dirname(appPath)
-  }
-
-  return path.resolve(appPath, 'electron', 'data', filename)
+  return fetch
 }
 
-/**
- * Load and cache JSON file
- */
-function loadJsonFile(filename) {
-  if (cache.has(filename)) {
-    return cache.get(filename)
-  }
-
-  const filePath = getDataPath(filename)
-
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Data file not found: ${filePath}`)
-  }
-
-  const content = fs.readFileSync(filePath, 'utf-8')
-  const data = JSON.parse(content)
-
-  cache.set(filename, data)
-  return data
+function unwrapEnvelope(payload) {
+  return payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload
 }
 
-/**
- * Load champion stats data
- * @param {string|number} championId - Champion ID
- * @returns {Object} Champion stats object
- */
-export function loadChampionStats(championId) {
-  const allStats = loadJsonFile('champions-stats.json')
-  const stat = allStats.find(s => s.championId === String(championId))
+function toNumber(value, fallback = 0) {
+  if (value == null || value === '') {
+    return fallback
+  }
 
-  if (!stat) {
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) ? numberValue : fallback
+}
+
+function toNullableNumber(value) {
+  if (value == null || value === '') {
+    return null
+  }
+
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) ? numberValue : null
+}
+
+function normalizeRarity(augment) {
+  const byName = rarityMap[String(augment?.rarityName || '').toLowerCase()]
+  if (byName) {
+    return byName
+  }
+
+  const byValue = rarityMap[Number(augment?.rarity)]
+  return byValue || 'unknown'
+}
+
+function normalizeItemIds(itemIds) {
+  if (Array.isArray(itemIds)) {
+    return itemIds.map((id) => String(id).trim()).filter(Boolean)
+  }
+
+  if (typeof itemIds === 'string') {
+    return itemIds.split(',').map((id) => id.trim()).filter(Boolean)
+  }
+
+  return []
+}
+
+function mapPublicAugmentBase(augment) {
+  return {
+    id: augment.id,
+    name: augment.name,
+    rarity: normalizeRarity(augment),
+    rarityName: augment.rarityName || null,
+    rarityDisplayName: augment.rarityDisplayName || null,
+    iconPath: augment.iconUrl || null,
+    iconUrl: augment.iconUrl || null,
+    key: augment.key || null,
+    enabled: augment.enabled ?? null,
+    description: augment.description || null,
+    tooltip: augment.tooltip || null,
+  }
+}
+
+function mapPublicChampionStats(champion, meta = {}) {
+  const stats = champion?.stats || {}
+
+  return {
+    championId: String(champion?.id),
+    id: champion?.id,
+    alias: champion?.alias || '',
+    nameCN: champion?.name || '',
+    nameEN: champion?.alias || '',
+    title: champion?.title || '',
+    roles: champion?.roles || [],
+    iconUrl: champion?.iconUrl || null,
+    tier: toNullableNumber(stats.tier),
+    winRate: toNumber(stats.winRate),
+    numWinGames: toNumber(stats.wins),
+    numGames: toNumber(stats.games),
+    pickRate: toNumber(stats.pickRate),
+    version: stats.gamePatch || meta.gamePatch || '',
+    date: stats.date || meta.publishedAt || meta.generatedAt || '',
+  }
+}
+
+function mapPublicChampionName(champion) {
+  return {
+    id: champion?.id,
+    title: champion?.title || '',
+    nameCN: champion?.name || `英雄 ${champion?.id || ''}`,
+    nameEN: champion?.alias || '',
+    roles: champion?.roles || [],
+    iconUrl: champion?.iconUrl || null,
+  }
+}
+
+function mapPublicAugmentStats(augment) {
+  const stats = augment?.stats || {}
+  const games = toNumber(stats.games)
+  const wins = toNumber(stats.wins)
+  const winRate = toNumber(stats.winRate)
+  const pickRate = toNumber(stats.pickRate)
+  const tier = toNullableNumber(stats.tier)
+
+  return {
+    tier,
+    num_win_games: wins,
+    win_rate: winRate,
+    num_games: games,
+    pick_rate: pickRate,
+    gamePatch: stats.gamePatch || null,
+    date: stats.date || null,
+  }
+}
+
+function mapPublicAugmentRecommendation(augment) {
+  const stats = mapPublicAugmentStats(augment)
+  const winRate = toNumber(stats.win_rate)
+  const pickRate = toNumber(stats.pick_rate)
+  const games = toNumber(stats.num_games)
+
+  return {
+    augmentId: augment.id,
+    id: augment.id,
+    name: augment.name || '未知',
+    rarity: normalizeRarity(augment),
+    rarityName: augment.rarityName || null,
+    iconPath: augment.iconUrl || null,
+    iconUrl: augment.iconUrl || null,
+    tier: stats.tier,
+    winRate,
+    pickRate,
+    playCount: games,
+    winCount: toNumber(stats.num_win_games),
+    win_rate: winRate,
+    pick_rate: pickRate,
+    num_games: games,
+    num_win_games: toNumber(stats.num_win_games),
+    recommendScore: winRate * 0.6 + pickRate * 0.2 + Math.min(games / 1000, 1) * 0.2,
+  }
+}
+
+function mapBuildSet(record, { itemIdsAsString = false } = {}) {
+  const ids = normalizeItemIds(record?.itemIds)
+
+  return {
+    ...record,
+    itemIds: itemIdsAsString ? ids.join(',') : ids,
+    items: ids,
+    games: toNumber(record?.games),
+    wins: toNumber(record?.wins),
+    pick_rate: toNumber(record?.pickRate),
+    pickRate: toNumber(record?.pickRate),
+    winRate: toNumber(record?.winRate),
+  }
+}
+
+function mapPublicBuild(publicBuild, championId) {
+  if (!publicBuild) {
+    return null
+  }
+
+  const coreItems = (publicBuild.coreItems || []).map((record) =>
+    mapBuildSet(record, { itemIdsAsString: true })
+  )
+  const startingItems = (publicBuild.startingItems || []).map((record) => mapBuildSet(record))
+  const situationalItems = (publicBuild.situationalItems || []).map((item) => ({
+    ...item,
+    itemId: String(item.id),
+    games: toNumber(item.games),
+    wins: toNumber(item.wins),
+    pick_rate: toNumber(item.pickRate),
+    pickRate: toNumber(item.pickRate),
+    winRate: toNumber(item.winRate),
+    distinctive_score: toNumber(item.averageIndex, toNumber(item.pickRate)),
+  }))
+
+  return {
+    patch: publicBuild.patch || '',
+    championId: String(championId),
+    queue: publicBuild.queueId || 'HOWLING_ABYSS_ARAM',
+    role: publicBuild.role || 'ALL',
+    tier: publicBuild.tier || null,
+    tags: publicBuild.tags || {},
+    buildTags: Array.isArray(publicBuild.tags)
+      ? publicBuild.tags.join(', ')
+      : Object.values(publicBuild.tags || {}).join(', '),
+    coreItems,
+    recommended: coreItems,
+    itemSequences: {},
+    itemExtensions: publicBuild.itemExtensions || [],
+    situationalItems,
+    startingItems,
+    games: toNumber(publicBuild.stats?.games),
+    wins: toNumber(publicBuild.stats?.wins),
+    pickRate: toNumber(publicBuild.stats?.pickRate),
+    winRate: toNumber(publicBuild.stats?.winRate),
+    allBuilds: [],
+  }
+}
+
+function mapPublicItem(item) {
+  return {
+    ...item,
+    id: item.id,
+    name: {
+      zh_cn: item.name,
+      zh_CN: item.name,
+      en_us: item.name,
+    },
+    description: {
+      zh_cn: item.description || '',
+      zh_CN: item.description || '',
+      en_us: item.description || '',
+    },
+    iconPath: item.iconUrl || null,
+    iconUrl: item.iconUrl || null,
+  }
+}
+
+async function loadPublicChampionDetail(championId) {
+  const payload = await fetchJson(`${DATA_API_PREFIX}/champions/${championId}.json`)
+  return {
+    meta: payload.meta || {},
+    data: unwrapEnvelope(payload),
+  }
+}
+
+export async function loadDataApiConfig() {
+  return fetchJson(`${DATA_API_PREFIX}/config.json`)
+}
+
+export async function loadChampionStats(championId) {
+  const { meta, data } = await loadPublicChampionDetail(championId)
+  const stats = mapPublicChampionStats(data.champion, meta)
+
+  if (!stats.championId) {
     throw new Error(`Champion stats not found for ID: ${championId}`)
   }
 
-  return stat
+  return stats
 }
 
-/**
- * Load champion name by ID
- * @param {string|number} championId - Champion ID
- * @returns {Object} Champion name object with nameCN, nameEN, title
- */
-export function loadChampionName(championId) {
-  const names = loadJsonFile('champions-names-cn.json')
-  const champion = names[String(championId)]
-
-  if (!champion) {
-    return { nameCN: `英雄 ${championId}`, nameEN: '', title: '' }
-  }
-
-  return champion
-}
-
-/**
- * Load augment base data (list of all augments with names and rarity)
- * @returns {Array} Array of augment objects
- */
-export function loadAugmentBase() {
-  return loadJsonFile('augments-base.json')
-}
-
-/**
- * Load augment details (descriptions, tags, etc.)
- * @returns {Object} Augment details object keyed by augment ID
- */
-export function loadAugmentDetail() {
-  return loadJsonFile('augment-detail.json')
-}
-
-/**
- * Load champion-specific augment stats
- * @param {string|number} championId - Champion ID
- * @returns {Object} Augment stats for the champion
- */
-export function loadChampionAugments(championId) {
-  const championIdStr = String(championId)
-  const filename = `champion-augments/${championIdStr}.json`
-
+export async function loadChampionName(championId) {
   try {
-    const allData = loadJsonFile(filename)
+    const { data } = await loadPublicChampionDetail(championId)
+    return mapPublicChampionName(data.champion)
+  } catch (error) {
+    logger.warn(`Failed to load champion name for ${championId}:`, error.message)
+    return { nameCN: `英雄 ${championId}`, nameEN: '', title: '', roles: [], iconUrl: null }
+  }
+}
 
-    // Parse the data structure [[championId, JSON string]]
-    if (Array.isArray(allData) && allData.length > 0) {
-      const firstElement = allData[0]
-      if (Array.isArray(firstElement) && firstElement.length >= 2) {
-        const augmentDataStr = firstElement[1]
-        const augmentData = JSON.parse(augmentDataStr)
-        return augmentData.augments || {}
-      }
-    }
+export async function loadAugmentBase() {
+  const payload = await fetchJson(`${DATA_API_PREFIX}/augments.json`)
+  return unwrapEnvelope(payload).map(mapPublicAugmentBase)
+}
 
-    return {}
+export async function loadAugmentDetail() {
+  const augments = await loadAugmentBase()
+  return augments.reduce((result, augment) => {
+    result[String(augment.id)] = augment
+    return result
+  }, {})
+}
+
+export async function loadChampionAugments(championId) {
+  try {
+    const { data } = await loadPublicChampionDetail(championId)
+    return (data.augments || []).reduce((result, augment) => {
+      result[String(augment.id)] = mapPublicAugmentStats(augment)
+      return result
+    }, {})
   } catch (error) {
     logger.warn(`Failed to load augments for champion ${championId}:`, error.message)
     return {}
   }
 }
 
-/**
- * 解析单行出装数据
- * @param {Array} row - 数据行
- * @returns {Object} 解析后的出装数据
- */
-function parseBuildRow(row) {
-  return {
-    patch: row[0],
-    championId: row[1],
-    buildTags: row[7] ? (JSON.parse(row[7])?.primary_tags_f3pie || '') : '',
-    coreItems: row[8] ? JSON.parse(row[8]) : [],
-    situationalItems: row[10] ? JSON.parse(row[10]) : [],
-    startingItems: row[11] ? JSON.parse(row[11]) : [],
-    games: parseInt(row[12]) || 0,
-    wins: parseInt(row[13]) || 0,
-    pickRate: parseFloat(row[14]) || 0,
-    winRate: parseFloat(row[15]) || 0,
-  }
-}
-
-/**
- * Load champion build data
- * @param {string|number} championId - Champion ID
- * @returns {Object} Build data for the champion
- */
-export function loadChampionBuild(championId) {
-  const championIdStr = String(championId)
-  const filename = `builds_aram/${championIdStr}.json`
-
+export async function loadChampionBuild(championId) {
   try {
-    const buildData = loadJsonFile(filename)
-
-    if (buildData.data && buildData.data.result && buildData.data.result.dataArray) {
-      const rows = buildData.data.result.dataArray
-      if (rows.length > 0) {
-        // 解析所有出装方案，按场次降序排列
-        const builds = rows.map(parseBuildRow)
-          .sort((a, b) => b.games - a.games)
-
-        // 兼容旧字段：保留 recommended 指向第一套出装的核心装备
-        return {
-          ...builds[0],
-          recommended: builds[0].coreItems,
-          allBuilds: builds,
-        }
-      }
-    }
-
-    return null
+    const { data } = await loadPublicChampionDetail(championId)
+    return mapPublicBuild(data.build, championId)
   } catch (error) {
     logger.warn(`Failed to load build for champion ${championId}:`, error.message)
     return null
   }
 }
 
-/**
- * Load items data
- * @returns {Object} Items data keyed by item ID
- */
-export function loadItems() {
-  return loadJsonFile('items-i18n.json')
+export async function loadItems() {
+  const payload = await fetchJson(`${DATA_API_PREFIX}/items.json`)
+  return unwrapEnvelope(payload).map(mapPublicItem)
 }
 
-/**
- * Get all champion detail data at once
- * @param {string|number} championId - Champion ID
- * @returns {Object} Complete data object with stats, augments, and builds
- */
-export function getChampionDetailData(championId) {
+export async function getChampionDetailData(championId) {
+  const [stats, augmentBase, augmentDetail, augments, build, items, championName] =
+    await Promise.all([
+      loadChampionStats(championId),
+      loadAugmentBase(),
+      loadAugmentDetail(),
+      loadChampionAugments(championId),
+      loadChampionBuild(championId),
+      loadItems(),
+      loadChampionName(championId),
+    ])
+
   return {
-    stats: loadChampionStats(championId),
-    augmentBase: loadAugmentBase(),
-    augmentDetail: loadAugmentDetail(),
-    augments: loadChampionAugments(championId),
-    build: loadChampionBuild(championId),
-    items: loadItems()
+    stats,
+    augmentBase,
+    augmentDetail,
+    augments,
+    build,
+    items,
+    championName,
   }
 }
 
-/**
- * 获取英雄的单个海克斯胜率数据
- * @param {string|number} championId - 英雄ID
- * @param {string|number} augmentId - 海克斯ID
- * @returns {Object|null} 海克斯胜率数据或null
- */
-export function getAugmentWinrate(championId, augmentId) {
-  const augments = loadChampionAugments(championId)
+export async function getAugmentWinrate(championId, augmentId) {
+  const augments = await loadChampionAugments(championId)
   const augmentIdStr = String(augmentId)
 
   if (!augments[augmentIdStr]) {
@@ -223,67 +398,31 @@ export function getAugmentWinrate(championId, augmentId) {
 
   const winrateData = augments[augmentIdStr]
   return {
-    augmentId: augmentIdStr,
-    winRate: parseFloat(winrateData.win_rate) || 0,
-    pickRate: parseFloat(winrateData.pick_rate) || 0,
-    playCount: parseInt(winrateData.num_games) || 0,
-    winCount: parseInt(winrateData.num_win_games) || 0
+    augmentId: parseInt(augmentIdStr, 10),
+    winRate: toNumber(winrateData.win_rate),
+    pickRate: toNumber(winrateData.pick_rate),
+    playCount: toNumber(winrateData.num_games),
+    winCount: toNumber(winrateData.num_win_games),
   }
 }
 
-/**
- * 获取英雄的所有海克斯胜率数据（已排序）
- * @param {string|number} championId - 英雄ID
- * @returns {Array} 按胜率排序的海克斯数组
- */
-export function getChampionAugmentStats(championId) {
-  const championIdStr = String(championId)
-  const augments = loadChampionAugments(championIdStr)
-  const augmentBase = loadAugmentBase()
+export async function getChampionAugmentStats(championId) {
+  const { data } = await loadPublicChampionDetail(championId)
 
-  // 组合胜率和基础信息
-  const augmentStats = Object.entries(augments)
-    .map(([augmentId, data]) => {
-      const baseInfo = augmentBase.find(a => a.id === parseInt(augmentId))
-
-      return {
-        augmentId: parseInt(augmentId),
-        name: baseInfo?.name || '未知',
-        rarity: baseInfo?.rarity || 'unknown',
-        iconUrl: baseInfo?.iconUrl || null,
-        winRate: parseFloat(data.win_rate) || 0,
-        pickRate: parseFloat(data.pick_rate) || 0,
-        playCount: parseInt(data.num_games) || 0,
-        winCount: parseInt(data.num_win_games) || 0,
-        // 推荐指数 = 胜率 * 0.6 + 选择率 * 0.2 + min(场次/1000, 1) * 0.2
-        recommendScore:
-          parseFloat(data.win_rate) * 0.6 +
-          parseFloat(data.pick_rate) * 0.2 +
-          Math.min(parseInt(data.num_games) / 1000, 1) * 0.2
-      }
-    })
+  return (data.augments || [])
+    .map(mapPublicAugmentRecommendation)
     .sort((a, b) => b.recommendScore - a.recommendScore)
-
-  return augmentStats
 }
 
-/**
- * 按稀有度筛选海克斯
- * @param {Array} augmentStats - 海克斯统计数组
- * @param {string|null} rarity - 稀有度过滤（'gold'|'purple'|'blue'|null）
- * @returns {Array} 筛选后的数组
- */
 export function filterAugmentsByRarity(augmentStats, rarity) {
   if (!rarity || rarity === 'all') {
     return augmentStats
   }
 
-  return augmentStats.filter(a => a.rarity === rarity)
+  return augmentStats.filter((augment) => augment.rarity === rarity)
 }
 
-/**
- * Clear cache (useful for memory management in long-running apps)
- */
 export function clearCache() {
   cache.clear()
+  pendingRequests.clear()
 }

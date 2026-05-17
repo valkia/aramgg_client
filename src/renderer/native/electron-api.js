@@ -24,6 +24,9 @@ export const electronAPI = {
     toggleMain: (...args) => requireElectronAPI().windows.toggleMain(...args),
     restart: (...args) => requireElectronAPI().windows.restart(...args),
   },
+  appInfo: {
+    getVersionInfo: (...args) => requireElectronAPI().appInfo.getVersionInfo(...args),
+  },
   screenshot: {
     capture: (...args) => requireElectronAPI().screenshot.capture(...args),
     analyze: (...args) => requireElectronAPI().screenshot.analyze(...args),

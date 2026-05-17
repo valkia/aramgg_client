@@ -4,16 +4,18 @@ import { captureScreenshot } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
 import autoScreenshotService from '../auto-screenshot-service.js'
 import { registerLCUIpcHandlers } from '../services/lcu/ipc-handlers.ts'
-import { createPopupWindow, getFloatingWindow, getMainWindow, getPopupWindow, toggleMainWindow } from './window-manager.js'
+import {
+    createPopupWindow,
+    getFloatingWindow,
+    getMainWindow,
+    getPopupWindow,
+    toggleMainWindow,
+} from './window-manager.js'
 import logger from './logger.js'
 
 const store = new Store()
 
-/**
- * 注册主进程 IPC 处理器
- */
 export function registerIpcHandlers(isDev) {
-    // electron-store IPC handlers
     ipcMain.handle('store-get', (_event, key) => {
         return store.get(key)
     })
@@ -30,21 +32,23 @@ export function registerIpcHandlers(isDev) {
         store.clear()
     })
 
-    ipcMain.on(`broadcast`, (ev, data) => {
+    ipcMain.on('broadcast', (ev, data) => {
         ev.sender.send(data.channel, data)
     })
 
-    // 弹出窗口相关处理
-    ipcMain.on(`show-popup`, async (_ev, data) => {
-        const popupWindow = getPopupWindow()
-        if (!popupWindow) {
+    ipcMain.on('show-popup', async (_ev, data) => {
+        if (!getPopupWindow()) {
             const devServerUrl = isDev ? 'http://localhost:5173' : ''
             await createPopupWindow(isDev, devServerUrl)
         }
 
-        const newPopupWindow = getPopupWindow()
-        newPopupWindow.show()
-        newPopupWindow.webContents.send(`for-popup`, {
+        const popupWindow = getPopupWindow()
+        if (!popupWindow) {
+            return
+        }
+
+        popupWindow.show()
+        popupWindow.webContents.send('for-popup', {
             championId: data.championId,
             position: data.position,
             augments: data.augments,
@@ -53,59 +57,50 @@ export function registerIpcHandlers(isDev) {
         })
     })
 
-    ipcMain.on(`hide-popup`, async () => {
+    ipcMain.on('hide-popup', async () => {
         const popupWindow = getPopupWindow()
-        if (popupWindow) {
-            const isVisible = popupWindow.isVisible()
-            if (isVisible) {
-                popupWindow.hide()
-            }
+        if (popupWindow?.isVisible()) {
+            popupWindow.hide()
         }
     })
 
-    ipcMain.on(`hide-floating`, async () => {
+    ipcMain.on('hide-floating', async () => {
         const floatingWindow = getFloatingWindow()
-        if (floatingWindow && !floatingWindow.isDestroyed()) {
-            const isVisible = floatingWindow.isVisible()
-            if (isVisible) {
-                floatingWindow.hide()
-                logger.info('隐藏浮动窗口')
-            }
+        if (floatingWindow && !floatingWindow.isDestroyed() && floatingWindow.isVisible()) {
+            floatingWindow.hide()
+            logger.info('Floating window hidden')
         }
     })
 
-    // 测试浮动窗口 IPC 处理程序
     ipcMain.handle('test-show-floating', async (_event, data) => {
         try {
             const floatingWindow = getFloatingWindow()
 
             if (!floatingWindow || floatingWindow.isDestroyed()) {
-                logger.error('浮动窗口不存在')
-                return { success: false, error: '浮动窗口不存在' }
+                logger.error('Floating window does not exist')
+                return { success: false, error: 'Floating window does not exist' }
             }
 
-            // 显示窗口
             if (!floatingWindow.isVisible()) {
                 floatingWindow.show()
-                logger.info('✨ 显示浮动窗口（测试）')
+                logger.info('Floating window shown for test')
             }
 
-            // 发送测试数据
             floatingWindow.webContents.send('augment-detected', data)
-            logger.info('📢 已发送测试数据到浮动窗口')
+            logger.info('Test data sent to floating window')
 
             return { success: true }
         } catch (error) {
-            logger.error('测试浮动窗口失败:', error)
+            logger.error('Failed to test floating window:', error)
             return { success: false, error: error.message }
         }
     })
 
-    ipcMain.on(`toggle-main-window`, () => {
+    ipcMain.on('toggle-main-window', () => {
         toggleMainWindow()
     })
 
-    ipcMain.on(`restart-app`, () => {
+    ipcMain.on('restart-app', () => {
         (async () => {
             const { app } = await import('electron')
             app.relaunch()
@@ -113,32 +108,40 @@ export function registerIpcHandlers(isDev) {
         })()
     })
 
-    // 截图 IPC 处理程序
+    ipcMain.handle('get-version-info', async () => {
+        try {
+            const { getVersionInfo } = await import('../version-checker.js')
+            return {
+                success: true,
+                data: await getVersionInfo(),
+            }
+        } catch (error) {
+            logger.warn('Failed to load version info:', error.message)
+            return {
+                success: false,
+                error: error.message,
+            }
+        }
+    })
+
     ipcMain.handle('screenshot-capture', async () => {
-        const result = await captureScreenshot()
-        return result
+        return captureScreenshot()
     })
 
-    // 图像分析 IPC 处理程序
     ipcMain.handle('analyze-screenshot', async (_event, imagePath) => {
-        const result = await analyzeScreenshot(imagePath)
-        return result
+        return analyzeScreenshot(imagePath)
     })
 
-    // 胜率查询 IPC 处理程序
     ipcMain.handle('get-winrate', async (_event, data) => {
         const { championId, augmentIds } = data
 
         try {
             const { getChampionAugmentStats } = await import('../data-loader.js')
+            let augmentStats = await getChampionAugmentStats(championId)
 
-            // 获取英雄的所有海克斯胜率数据
-            let augmentStats = getChampionAugmentStats(championId)
-
-            // 如果指定了海克斯ID，则过滤
             if (augmentIds && augmentIds.length > 0) {
-                const augmentIdSet = new Set(augmentIds.map(id => parseInt(id)))
-                augmentStats = augmentStats.filter(a => augmentIdSet.has(a.augmentId))
+                const augmentIdSet = new Set(augmentIds.map((id) => parseInt(id)))
+                augmentStats = augmentStats.filter((augment) => augmentIdSet.has(augment.augmentId))
             }
 
             return {
@@ -146,7 +149,7 @@ export function registerIpcHandlers(isDev) {
                 championId,
                 augments: augmentStats,
                 timestamp: Date.now(),
-                dataSource: 'local'
+                dataSource: 'remote',
             }
         } catch (error) {
             logger.error('Winrate query error:', error)
@@ -154,23 +157,31 @@ export function registerIpcHandlers(isDev) {
                 success: false,
                 championId,
                 augments: [],
-                error: error.message
+                error: error.message,
             }
         }
     })
 
-    // 数据加载 IPC 处理程序
     ipcMain.handle('load-champion-data', async (_event, championId) => {
-        const { loadChampionStats, loadAugmentBase, loadChampionAugments, loadChampionBuild, loadItems, loadChampionName } = await import('../data-loader.js')
+        const {
+            loadChampionStats,
+            loadAugmentBase,
+            loadChampionAugments,
+            loadChampionBuild,
+            loadItems,
+            loadChampionName,
+        } = await import('../data-loader.js')
+
         try {
             const [stats, augments, augmentStats, build, items, championName] = await Promise.all([
-                Promise.resolve(loadChampionStats(championId)),
-                Promise.resolve(loadAugmentBase()),
-                Promise.resolve(loadChampionAugments(championId)),
-                Promise.resolve(loadChampionBuild(championId)),
-                Promise.resolve(loadItems()),
-                Promise.resolve(loadChampionName(championId))
+                loadChampionStats(championId),
+                loadAugmentBase(),
+                loadChampionAugments(championId),
+                loadChampionBuild(championId),
+                loadItems(),
+                loadChampionName(championId),
             ])
+
             return {
                 success: true,
                 data: {
@@ -179,18 +190,18 @@ export function registerIpcHandlers(isDev) {
                     augmentStats,
                     build,
                     items,
-                    championName
-                }
+                    championName,
+                },
             }
         } catch (error) {
+            logger.error('Champion data load error:', error)
             return {
                 success: false,
-                error: error.message
+                error: error.message,
             }
         }
     })
 
-    // 定时截图服务 IPC 处理程序
     ipcMain.handle('auto-screenshot-start', async (_event, config = {}) => {
         const interval = config.interval || 5000
         const success = await autoScreenshotService.start(interval)
@@ -227,7 +238,6 @@ export function registerIpcHandlers(isDev) {
         return autoScreenshotService.getConfig()
     })
 
-    // 选择游戏目录 IPC 处理程序
     ipcMain.handle('select-lol-directory', async () => {
         const { dialog } = await import('electron')
         const mainWindow = getMainWindow()
@@ -244,15 +254,15 @@ export function registerIpcHandlers(isDev) {
                     success: true,
                     path: result.filePaths[0],
                 }
-            } else {
-                return {
-                    success: false,
-                    path: null,
-                    reason: '用户取消了选择',
-                }
+            }
+
+            return {
+                success: false,
+                path: null,
+                reason: '用户取消了选择',
             }
         } catch (error) {
-            logger.error('选择目录出错:', error)
+            logger.error('Directory selection failed:', error)
             return {
                 success: false,
                 path: null,
@@ -261,11 +271,10 @@ export function registerIpcHandlers(isDev) {
         }
     })
 
-    // 前端错误上报 IPC 处理程序
     ipcMain.handle('log-renderer-error', async (_event, errorData) => {
         const { message, stack, source, line, column, url, type, timestamp, userAgent } = errorData
 
-        logger.error('渲染进程错误上报:', {
+        logger.error('Renderer error reported:', {
             type: type || 'error',
             message: message || 'Unknown error',
             stack: stack || 'No stack trace',
@@ -279,75 +288,36 @@ export function registerIpcHandlers(isDev) {
         return { success: true }
     })
 
-    // 注册 LCU 相关的 IPC 处理器（使用新的统一服务）
     registerLCUIpcHandlers()
 
-    // 测试数据库加载 IPC 处理程序
     ipcMain.handle('test-database-load', async () => {
         try {
-            const path = await import('path')
-            const { fileURLToPath } = await import('url')
-            const { readFileSync, existsSync } = await import('fs')
-
-            // 获取 __dirname
-            const __filename = fileURLToPath(import.meta.url)
-            const __dirname = path.dirname(__filename)
-
-            // 尝试多个可能的路径
-            const possiblePaths = [
-                // 相对于当前文件的 data 目录
-                path.join(__dirname, '..', 'data', 'augments-base.json'),
-                // 相对于当前文件的 data 目录（另一种方式）
-                path.join(__dirname, '../data', 'augments-base.json'),
-                // 使用 process.resourcesPath（打包后）
-                path.join(process.resourcesPath || '', 'data', 'augments-base.json'),
-                // 使用 app.getAppPath()
-                path.join((await import('electron')).app.getAppPath(), 'data', 'augments-base.json'),
-                // 使用当前工作目录
-                path.join(process.cwd(), 'electron', 'data', 'augments-base.json'),
-                // 绝对路径尝试
-                'E:\\ideaProject\\lol_tips_client\\electron\\data\\augments-base.json',
-            ]
-
-            const results = []
-            let successPath = null
-            let dataCount = 0
-
-            for (const testPath of possiblePaths) {
-                const exists = existsSync(testPath)
-                results.push({
-                    path: testPath,
-                    exists: exists,
-                    __dirname: __dirname,
-                    resourcesPath: process.resourcesPath,
-                    cwd: process.cwd(),
-                })
-
-                if (exists && !successPath) {
-                    try {
-                        const content = readFileSync(testPath, 'utf-8')
-                        const data = JSON.parse(content)
-                        successPath = testPath
-                        dataCount = data.length
-                    } catch (e) {
-                        results[results.length - 1].error = e.message
-                    }
-                }
-            }
+            const {
+                DATA_API_ORIGIN,
+                DATA_API_PREFIX,
+                loadDataApiConfig,
+                loadAugmentBase,
+                loadChampionStats,
+            } = await import('../data-loader.js')
+            const [config, augments, championStats] = await Promise.all([
+                loadDataApiConfig(),
+                loadAugmentBase(),
+                loadChampionStats(63),
+            ])
 
             return {
-                success: !!successPath,
-                successPath: successPath,
-                dataCount: dataCount,
-                __dirname: __dirname,
+                success: true,
+                successPath: `${DATA_API_ORIGIN}${DATA_API_PREFIX}`,
+                dataCount: augments.length,
+                dataVersion: config.dataVersion,
+                championStats,
                 resourcesPath: process.resourcesPath,
                 cwd: process.cwd(),
-                isDev: isDev,
+                isDev,
                 nodeEnv: process.env.NODE_ENV,
-                tests: results,
             }
         } catch (error) {
-            logger.error('测试数据库加载失败:', error)
+            logger.error('Remote data load test failed:', error)
             return {
                 success: false,
                 error: error.message,

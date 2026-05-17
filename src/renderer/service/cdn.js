@@ -4,6 +4,10 @@
  * @returns {string} Champion image URL
  */
 export function getChampionIconUrl(championId) {
+  if (/^https?:\/\//i.test(String(championId))) {
+    return championId;
+  }
+
   return `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${championId}_0.jpg`;
 }
 
@@ -22,6 +26,10 @@ export function getChampionPortraitUrl(championId) {
  * @returns {string} Item icon URL
  */
 export function getItemIconUrl(itemId) {
+  if (/^https?:\/\//i.test(String(itemId))) {
+    return itemId;
+  }
+
   return `https://ddragon.leagueoflegends.com/cdn/14.24.1/img/item/${itemId}.png`;
 }
 
@@ -33,6 +41,10 @@ export function getItemIconUrl(itemId) {
 export function getAugmentIconUrl(iconPath) {
   if (!iconPath) {
     return '';
+  }
+
+  if (/^https?:\/\//i.test(iconPath)) {
+    return iconPath;
   }
 
   // Community Dragon CDN base URL

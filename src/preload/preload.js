@@ -49,6 +49,9 @@ const electronAPI = {
         toggleMain: () => ipcRenderer.send('toggle-main-window'),
         restart: () => ipcRenderer.send('restart-app'),
     },
+    appInfo: {
+        getVersionInfo: () => ipcRenderer.invoke('get-version-info'),
+    },
     screenshot: {
         capture: () => ipcRenderer.invoke('screenshot-capture'),
         analyze: (imagePathOrBuffer) => ipcRenderer.invoke('analyze-screenshot', imagePathOrBuffer),

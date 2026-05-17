@@ -22,7 +22,7 @@
           <div class="header-main">
             <div class="champion-avatar-wrapper">
               <img
-                :src="getChampionIconUrl(championId)"
+                :src="championStats?.iconUrl || getChampionIconUrl(championId)"
                 :alt="championName"
                 class="champion-avatar"
                 @error="handleImageError"
@@ -275,12 +275,24 @@ const filteredAugments = computed(() => {
 })
 
 // 解析核心出装
+const normalizeItemIds = (itemIds) => {
+  if (Array.isArray(itemIds)) {
+    return itemIds.map(id => String(id).trim()).filter(Boolean)
+  }
+
+  if (typeof itemIds === 'string') {
+    return itemIds.split(',').map(id => id.trim()).filter(Boolean)
+  }
+
+  return []
+}
+
 const coreItems = computed(() => {
   if (!buildData.value || !buildData.value.coreItems) {
     // 兼容旧数据：从 recommended 中提取
     if (!buildData.value || !buildData.value.recommended) return []
     return buildData.value.recommended.map(rec => {
-      const itemIds = rec.itemIds.split(',').map(id => id.trim())
+      const itemIds = normalizeItemIds(rec.itemIds)
       return {
         items: itemIds,
         games: parseInt(rec.games) || 0,
@@ -291,7 +303,7 @@ const coreItems = computed(() => {
     }).filter(item => item.items.length >= 3).sort((a, b) => b.games - a.games)
   }
   return buildData.value.coreItems.map(rec => {
-    const itemIds = rec.itemIds.split(',').map(id => id.trim())
+    const itemIds = normalizeItemIds(rec.itemIds)
     return {
       items: itemIds,
       games: parseInt(rec.games) || 0,
@@ -317,7 +329,7 @@ const startingItems = computed(() => {
     // 兼容旧数据
     if (!buildData.value || !buildData.value.recommended) return []
     return buildData.value.recommended.map(rec => {
-      const itemIds = rec.itemIds.split(',').map(id => id.trim())
+      const itemIds = normalizeItemIds(rec.itemIds)
       return {
         items: itemIds,
         games: parseInt(rec.games) || 0,
@@ -327,7 +339,7 @@ const startingItems = computed(() => {
     }).filter(item => item.items.length <= 2).sort((a, b) => b.games - a.games)
   }
   return buildData.value.startingItems.map(rec => ({
-    items: (rec.itemIds || []).map(id => String(id).trim()),
+    items: normalizeItemIds(rec.itemIds),
     games: parseInt(rec.games) || 0,
     wins: parseInt(rec.wins) || 0,
     pickRate: parseFloat(rec.pick_rate) || 0,

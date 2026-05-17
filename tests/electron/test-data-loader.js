@@ -10,18 +10,18 @@ console.log('=== 测试数据加载器 ===')
 console.log('App path:', app.getAppPath())
 
 // 等待 app ready
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   try {
     console.log('\n1. 测试加载英雄统计数据...')
-    const championStats = loadChampionStats(63) // Brand
+    const championStats = await loadChampionStats(63) // Brand
     console.log('✅ 成功加载英雄统计数据:', championStats)
 
     console.log('\n2. 测试加载海克斯基础数据...')
-    const augmentBase = loadAugmentBase()
+    const augmentBase = await loadAugmentBase()
     console.log('✅ 成功加载海克斯基础数据，总数:', Object.keys(augmentBase).length)
 
     console.log('\n3. 测试加载英雄海克斯胜率数据...')
-    const augmentStats = getChampionAugmentStats(63)
+    const augmentStats = await getChampionAugmentStats(63)
     console.log('✅ 成功加载英雄海克斯胜率数据，总数:', augmentStats.length)
     console.log('前3条数据:', augmentStats.slice(0, 3))
 

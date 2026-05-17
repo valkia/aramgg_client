@@ -19,6 +19,7 @@ import sharp from 'sharp'
 import path from 'path'
 import { readFileSync, existsSync } from 'fs'
 import { fileURLToPath } from 'url'
+import { loadAugmentBase } from './data-loader.js'
 import logger from './modules/logger.js'
 
 // ES Module 中获取 __dirname
@@ -63,49 +64,10 @@ const AUGMENT_COLORS = {
 let AUGMENT_DATABASE = null
 
 /**
- * 尝试多个路径找到数据文件
- * @returns {string|null} 成功找到的文件路径，或 null
- */
-function findDataFile() {
-    // 尝试多个可能的路径
-    const possiblePaths = [
-        // 1. 相对于当前文件的路径（打包后）
-        path.join(__dirname, 'data', 'augments-base.json'),
-        // 2. 相对于当前文件的上级目录（源代码位置）
-        path.join(__dirname, '..', 'electron', 'data', 'augments-base.json'),
-        // 3. 使用 process.resourcesPath（打包后）
-        path.join(process.resourcesPath || '', 'data', 'augments-base.json'),
-        // 4. 使用当前工作目录
-        path.join(process.cwd(), 'electron', 'data', 'augments-base.json'),
-        // 5. 绝对路径（作为最后备选）
-        'E:\\ideaProject\\lol_tips_client\\electron\\data\\augments-base.json',
-    ]
-
-    logger.debug(`🔍 尝试 ${possiblePaths.length} 个可能的数据文件路径:`)
-
-    for (let i = 0; i < possiblePaths.length; i++) {
-        const testPath = possiblePaths[i]
-        logger.debug(`   [${i + 1}] ${testPath.substring(0, 80)}...`)
-
-        if (existsSync(testPath)) {
-            logger.info(`✅ 找到数据文件: ${testPath}`)
-            return testPath
-        }
-    }
-
-    logger.error(`❌ 在所有路径中均未找到数据文件`)
-    logger.debug(`   __dirname: ${__dirname}`)
-    logger.debug(`   process.resourcesPath: ${process.resourcesPath}`)
-    logger.debug(`   process.cwd(): ${process.cwd()}`)
-
-    return null
-}
-
-/**
  * 初始化海克斯数据库
- * 从 augments-base.json 加载完整列表并建立名称索引
+ * 从远端数据 API 加载完整列表并建立名称索引
  */
-function initAugmentDatabase() {
+async function initAugmentDatabase() {
     // 如果数据库已加载且不为空，直接返回
     if (AUGMENT_DATABASE !== null && Object.keys(AUGMENT_DATABASE).length > 0) {
         logger.debug(`📚 海克斯数据库已缓存: ${Object.keys(AUGMENT_DATABASE).length} 个海克斯`)
@@ -121,22 +83,8 @@ function initAugmentDatabase() {
     logger.info(`📚 正在初始化海克斯数据库...`)
 
     try {
-        // 尝试找到数据文件
-        const augmentsPath = findDataFile()
-
-        if (!augmentsPath) {
-            logger.error(`❌ 无法找到数据文件 augments-base.json`)
-            AUGMENT_DATABASE = {}
-            return AUGMENT_DATABASE
-        }
-
-        logger.info(`   使用数据文件: ${augmentsPath}`)
-
-        const fileContent = readFileSync(augmentsPath, 'utf-8')
-        logger.info(`   数据文件大小: ${fileContent.length} 字符`)
-
-        const augmentsData = JSON.parse(fileContent)
-        logger.info(`   JSON解析成功: ${augmentsData.length} 条原始数据`)
+        const augmentsData = await loadAugmentBase()
+        logger.info(`   远端海克斯数据加载成功: ${augmentsData.length} 条原始数据`)
 
         // 建立按名称索引的数据库（用于快速查找）
         AUGMENT_DATABASE = {}
@@ -650,7 +598,7 @@ async function recognizeAugmentsFromImage(imageBuffer) {
 
         // 匹配数据库
         logger.info(`🔍 开始匹配海克斯数据库...`)
-        const augments = matchAugmentDatabase(recognizedText)
+        const augments = await matchAugmentDatabase(recognizedText)
         logger.info(`✅ 海克斯识别完成: 共 ${augments.length} 个`)
 
         return augments
@@ -797,14 +745,14 @@ function rangesOverlap(a, b) {
  * @param {string} recognizedText - OCR识别的文本
  * @returns {Array} 匹配的海克斯列表
  */
-function matchAugmentDatabase(recognizedText) {
+async function matchAugmentDatabase(recognizedText) {
     if (!recognizedText || recognizedText.trim() === '') {
         logger.warn(`⚠️ matchAugmentDatabase: 输入文本为空或空白`)
         return []
     }
 
     // 确保数据库已初始化
-    const database = initAugmentDatabase()
+    const database = await initAugmentDatabase()
     const databaseSize = Object.keys(database).length
     logger.info(`🔍 开始匹配海克斯数据库: 数据库包含 ${databaseSize} 个海克斯`)
     logger.debug(`📝 输入原文本长度: ${recognizedText.length} 字符`)
