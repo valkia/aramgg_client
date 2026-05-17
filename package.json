@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "pack": "electron-vite build && electron-builder",
+    "pack": "node scripts/pack-electron.mjs",
     "start": "electron .",
     "lint": "eslint src --ext .js,.vue",
     "type-check": "vue-tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
