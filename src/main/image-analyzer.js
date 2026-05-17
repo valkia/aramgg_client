@@ -129,6 +129,10 @@ async function initAugmentDatabase() {
 
 let tesseractWorker = null
 
+const OCR_NAME_ALIASES = new Map([
+    ['夺金', ['厅金']],
+])
+
 /**
  * 将调用方传入的图片输入统一成 Buffer。
  * 运行时截图传 Buffer，IPC 和测试脚本通常传图片路径。
@@ -677,6 +681,20 @@ function fuzzyFind(text, name) {
         return { index: exactIndex, distance: 0, matchLen: nameLen }
     }
 
+    const aliases = OCR_NAME_ALIASES.get(name) || []
+    for (const alias of aliases) {
+        const aliasIndex = text.indexOf(alias)
+        if (aliasIndex !== -1) {
+            logger.info(`   OCR别名匹配成功 "${name}" <= "${alias}" @位置 ${aliasIndex}`)
+            return {
+                index: aliasIndex,
+                distance: 0,
+                matchLen: alias.length,
+                alias,
+            }
+        }
+    }
+
     // ⚠️ 名称太短（≤2字）不做模糊匹配，避免误匹配
     // 两字海克斯必须精确匹配（避免"大力"误匹配到"作寺"等）
     if (nameLen <= 2) {
@@ -810,7 +828,8 @@ async function matchAugmentDatabase(recognizedText) {
 
         if (match) {
             matchedCount++
-            logger.info(`✅ 匹配成功 [#${matchedCount}]: "${augmentData.name}" (id: ${augmentData.id}, 位置: ${match.index}, 编辑距离: ${match.distance})`)
+            const aliasText = match.alias ? `, OCR别名: ${match.alias}` : ''
+            logger.info(`✅ 匹配成功 [#${matchedCount}]: "${augmentData.name}" (id: ${augmentData.id}, 位置: ${match.index}, 编辑距离: ${match.distance}${aliasText})`)
             candidates.push({
                 augmentData,
                 match,

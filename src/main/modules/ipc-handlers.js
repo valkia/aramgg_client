@@ -140,8 +140,14 @@ export function registerIpcHandlers(isDev) {
             let augmentStats = await getChampionAugmentStats(championId)
 
             if (augmentIds && augmentIds.length > 0) {
-                const augmentIdSet = new Set(augmentIds.map((id) => parseInt(id)))
+                const orderedAugmentIds = augmentIds
+                    .map((id) => parseInt(id))
+                    .filter((id) => Number.isFinite(id))
+                const augmentIdSet = new Set(orderedAugmentIds)
+                const augmentOrder = new Map(orderedAugmentIds.map((id, index) => [id, index]))
+
                 augmentStats = augmentStats.filter((augment) => augmentIdSet.has(augment.augmentId))
+                augmentStats.sort((a, b) => augmentOrder.get(a.augmentId) - augmentOrder.get(b.augmentId))
             }
 
             return {

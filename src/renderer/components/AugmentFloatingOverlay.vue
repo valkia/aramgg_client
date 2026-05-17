@@ -62,6 +62,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { electronAPI } from '../native/electron-api.js'
+import { sortAugmentsByDetectedOrder } from '../service/augment-order.js'
 
 const visible = ref(false)
 const loading = ref(false)
@@ -133,7 +134,7 @@ const showOverlay = async (data) => {
     console.log('🔍 [FloatingOverlay] 检查胜率数据:', hasWinrateData)
 
     if (hasWinrateData) {
-      displayAugments.value = data.augments
+      displayAugments.value = sortAugmentsByDetectedOrder(data.augments, data.augments)
       console.log('✅ [FloatingOverlay] 直接显示完整数据')
     } else {
       // 需要查询胜率数据
@@ -179,8 +180,8 @@ const showOverlay = async (data) => {
         })
 
         if (winrateResult.success && winrateResult.augments.length > 0) {
-          // 找到了胜率数据，直接使用
-          displayAugments.value = winrateResult.augments
+          // 找到了胜率数据，按游戏内从左到右的识别顺序展示。
+          displayAugments.value = sortAugmentsByDetectedOrder(winrateResult.augments, data.augments)
           console.log('✅ [FloatingOverlay] 胜率数据查询成功:', winrateResult.augments)
         } else if (winrateResult.success && winrateResult.augments.length === 0) {
           // 查询成功但没有这些海克斯的数据，显示基本信息

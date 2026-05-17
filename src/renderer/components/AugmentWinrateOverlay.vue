@@ -232,6 +232,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { getChampionIconUrl, getAugmentIconUrl, getItemIconUrl } from '../service/cdn'
 import { electronAPI } from '../native/electron-api.js'
+import { sortAugmentsByDetectedOrder } from '../service/augment-order.js'
 
 const visible = ref(false)
 const loading = ref(false)
@@ -394,7 +395,7 @@ const showOverlay = async (data) => {
         const hasWinrateData = data.augments.some(aug => 'winRate' in aug)
 
         if (hasWinrateData) {
-          displayAugments.value = data.augments
+          displayAugments.value = sortAugmentsByDetectedOrder(data.augments, data.augments)
         } else {
           // 查询胜率数据
           const augmentIds = data.augments.map(aug => aug.id).filter(id => id != null)
@@ -404,7 +405,7 @@ const showOverlay = async (data) => {
           })
 
           if (winrateResult.success && winrateResult.augments.length > 0) {
-            displayAugments.value = winrateResult.augments
+            displayAugments.value = sortAugmentsByDetectedOrder(winrateResult.augments, data.augments)
           } else {
             // 查询无结果，使用原始数据并补充默认值
             displayAugments.value = data.augments.map(aug => ({
