@@ -27,6 +27,12 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "chi_sim.traineddata",
+        "to": "data/chi_sim.traineddata"
+      }
+    ],
     "win": {
       "icon": "public/icon.ico",
       "artifactName": "aramgg_client Setup ${version}.${ext}"

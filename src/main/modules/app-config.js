@@ -1,6 +1,6 @@
 import { app, globalShortcut, BrowserWindow } from 'electron'
 import Store from 'electron-store'
-import { captureScreenshot } from '../screenshot.js'
+import { captureScreenshot, getLolGameStatus } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
 import { registerIpcHandlers } from './ipc-handlers.js'
 import { createMainWindow, createPopupWindow, createFloatingWindow, toggleMainWindow, getFloatingWindow } from './window-manager.js'
@@ -14,6 +14,12 @@ const store = new Store()
 
 // 全局游戏流程轮询定时器
 let lcuPollingTimer = null
+const AUTO_SCREENSHOT_INTERVAL_MS = 200
+const AUTO_SCREENSHOT_MAX_CAPTURES = 100
+const GAME_WINDOW_STATUS_LOG_INTERVAL_MS = 30000
+let autoScreenshotManagedByGameFlow = false
+let lastGameWindowStatusKey = null
+let lastGameWindowStatusLogAt = 0
 
 /**
  * 初始化应用
@@ -89,6 +95,80 @@ async function autoDetectLolPath() {
     }
 
     return null
+}
+
+async function startAutoScreenshotForGame(reason) {
+    if (autoScreenshotService.isRunning) {
+        return false
+    }
+
+    autoScreenshotService.setConfig({
+        interval: AUTO_SCREENSHOT_INTERVAL_MS,
+        maxScreenshots: AUTO_SCREENSHOT_MAX_CAPTURES,
+    })
+
+    const success = await autoScreenshotService.start(AUTO_SCREENSHOT_INTERVAL_MS)
+    if (success) {
+        autoScreenshotManagedByGameFlow = true
+        logger.info(`Auto screenshot service started by game monitor: ${reason}`)
+    }
+
+    return success
+}
+
+function stopAutoScreenshotForGame(reason, force = false) {
+    if (!autoScreenshotService.isRunning) {
+        autoScreenshotManagedByGameFlow = false
+        return false
+    }
+
+    if (!force && !autoScreenshotManagedByGameFlow) {
+        return false
+    }
+
+    const success = autoScreenshotService.stop()
+    if (success) {
+        autoScreenshotManagedByGameFlow = false
+        logger.info(`Auto screenshot service stopped by game monitor: ${reason}`)
+    }
+
+    return success
+}
+
+function logLolGameStatus(status, phase) {
+    const processState = status.processRunning === null
+        ? 'unknown'
+        : status.processRunning
+            ? 'running'
+            : 'missing'
+    const windowState = status.found ? status.name : 'missing'
+    const statusKey = `${phase}:${processState}:${windowState}:${autoScreenshotService.isRunning}`
+    const now = Date.now()
+
+    if (
+        statusKey !== lastGameWindowStatusKey ||
+        now - lastGameWindowStatusLogAt > GAME_WINDOW_STATUS_LOG_INTERVAL_MS
+    ) {
+        logger.info(
+            `LoL game status: phase=${phase || 'unknown'}, process=${processState}, window=${windowState}, autoScreenshot=${autoScreenshotService.isRunning}`
+        )
+        lastGameWindowStatusKey = statusKey
+        lastGameWindowStatusLogAt = now
+    }
+}
+
+async function reconcileAutoScreenshotWithLolWindow(phase) {
+    const status = await getLolGameStatus()
+    logLolGameStatus(status, phase)
+
+    if (status.isGameOpen) {
+        await startAutoScreenshotForGame(
+            `LoL game process/window fallback while LCU phase is ${phase || 'unknown'} (${status.name})`
+        )
+        return
+    }
+
+    stopAutoScreenshotForGame('LoL game process/window not found')
 }
 
 /**
@@ -169,30 +249,24 @@ async function initGameFlowMonitor() {
                         case 'InProgress':
                             logger.info('游戏进行中 - 启动自动截图来检测海克斯选择')
                             notifyAllWindows('game-in-progress', {})
-                            // 启动高频率自动截图
-                            if (!autoScreenshotService.isRunning) {
-                                autoScreenshotService.setConfig({
-                                    interval: 200,
-                                    maxScreenshots: 100,
-                                })
-                                autoScreenshotService.start(200).then(() => {
-                                    logger.info('自动截图服务启动成功')
-                                })
-                            }
+                            await startAutoScreenshotForGame('LCU phase InProgress')
                             break
                         case 'WaitingForStats':
                             logger.info('游戏已结束')
                             notifyAllWindows('game-ended', {})
-                            if (autoScreenshotService.isRunning) {
-                                autoScreenshotService.stop()
-                                logger.info('自动截图服务已停止')
-                            }
+                            stopAutoScreenshotForGame('LCU phase WaitingForStats', true)
                             break
                         case 'EndOfGame':
                             logger.info('游戏完全结束')
                             notifyAllWindows('end-of-game', {})
                             break
                     }
+                }
+
+                if (phase === 'InProgress') {
+                    await startAutoScreenshotForGame('LCU phase InProgress')
+                } else if (phase === 'None') {
+                    await reconcileAutoScreenshotWithLolWindow(phase)
                 }
             } catch (error) {
                 logger.warn('游戏流程轮询出错:', error.message)

@@ -1,3 +1,4 @@
+import { execFile } from 'child_process'
 import { desktopCapturer } from 'electron'
 import logger from './modules/logger.js'
 
@@ -7,15 +8,57 @@ import logger from './modules/logger.js'
  * @returns {Object|null} 匹配的游戏窗口源，未找到返回 null
  */
 const findGameWindow = (sources) => {
-    return sources.find(source => {
+    const candidates = sources.map(source => {
         const name = source.name.toLowerCase()
-        return (
-            name.includes('league of legends') ||
-            name.includes('英雄联盟') ||
-            name.includes('lol') ||
-            (name.includes('league') && name.includes('client'))
+        const isOwnWindow =
+            name.includes('aramgg_client') ||
+            name.includes('lol_tips_client') ||
+            name.includes('champr')
+
+        if (isOwnWindow) {
+            return { source, score: 0 }
+        }
+
+        if (name.includes('league of legends') && name.includes('client')) {
+            return { source, score: 100 }
+        }
+
+        if (name.includes('league of legends') || name.includes('英雄联盟')) {
+            return { source, score: 80 }
+        }
+
+        if (name.includes('league') && name.includes('client')) {
+            return { source, score: 60 }
+        }
+
+        return { source, score: 0 }
+    })
+
+    candidates.sort((a, b) => b.score - a.score)
+    return candidates[0]?.score > 0 ? candidates[0].source : null
+}
+
+const isLolGameProcessRunning = () => {
+    if (process.platform !== 'win32') {
+        return Promise.resolve(null)
+    }
+
+    return new Promise((resolve) => {
+        execFile(
+            'tasklist',
+            ['/FI', 'IMAGENAME eq League of Legends.exe', '/FO', 'CSV', '/NH'],
+            { timeout: 3000, windowsHide: true },
+            (error, stdout = '') => {
+                if (error) {
+                    logger.debug('Unable to query LoL game process:', error.message)
+                    resolve(false)
+                    return
+                }
+
+                resolve(stdout.toLowerCase().includes('league of legends.exe'))
+            }
         )
-    }) || null
+    })
 }
 
 /**
@@ -43,6 +86,42 @@ export const getLolGameWindowId = async () => {
     } catch (error) {
         logger.error('获取游戏窗口 ID 失败:', error)
         return null
+    }
+}
+
+export const getLolGameWindowInfo = async () => {
+    try {
+        const sources = await desktopCapturer.getSources({
+            types: ['window'],
+            thumbnailSize: { width: 1, height: 1 },
+        })
+        const gameWindow = findGameWindow(sources)
+        return {
+            found: !!gameWindow,
+            id: gameWindow?.id || null,
+            name: gameWindow?.name || null,
+        }
+    } catch (error) {
+        logger.error('Failed to query LoL game window:', error)
+        return {
+            found: false,
+            id: null,
+            name: null,
+            error: error.message,
+        }
+    }
+}
+
+export const getLolGameStatus = async () => {
+    const [processRunning, windowInfo] = await Promise.all([
+        isLolGameProcessRunning(),
+        getLolGameWindowInfo(),
+    ])
+
+    return {
+        ...windowInfo,
+        processRunning,
+        isGameOpen: windowInfo.found && (processRunning === null || processRunning),
     }
 }
 
