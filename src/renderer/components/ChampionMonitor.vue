@@ -65,6 +65,7 @@ const selectedChampion = ref('')
 const lastChampion = ref('')
 const monitorTimer = ref(null)
 const lastQueryChampionId = ref(null) // 追踪最后一次查询的英雄ID，避免重复查询
+const resumeAfterHidden = ref(false)
 
 /**
  * 通过 IPC 向主进程查询当前选择的英雄ID
@@ -160,6 +161,19 @@ const stopChampionMonitor = () => {
     console.log('🛑 停止英雄选择监控')
 }
 
+const handleVisibilityChange = () => {
+    if (document.hidden) {
+        resumeAfterHidden.value = isMonitoring.value
+        stopChampionMonitor()
+        return
+    }
+
+    if (resumeAfterHidden.value) {
+        resumeAfterHidden.value = false
+        startChampionMonitor()
+    }
+}
+
 /**
  * 切换英雄监控状态
  */
@@ -208,11 +222,15 @@ const queryAugmentWinrates = async (championId) => {
 // 组件挂载时自动启动英雄监控
 onMounted(() => {
     console.log('🎯 ChampionMonitor 组件已挂载，自动启动英雄监控...')
-    startChampionMonitor()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    if (!document.hidden) {
+        startChampionMonitor()
+    }
 })
 
 // 组件卸载时清理定时器
 onBeforeUnmount(() => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
     stopChampionMonitor()
 })
 </script>

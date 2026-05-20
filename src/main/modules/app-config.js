@@ -1,4 +1,4 @@
-import { app, globalShortcut, BrowserWindow } from 'electron'
+import { app, globalShortcut, BrowserWindow, ipcMain } from 'electron'
 import Store from 'electron-store'
 import { captureScreenshot, getLolGameStatus } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
@@ -20,6 +20,8 @@ const GAME_WINDOW_STATUS_LOG_INTERVAL_MS = 30000
 let autoScreenshotManagedByGameFlow = false
 let lastGameWindowStatusKey = null
 let lastGameWindowStatusLogAt = 0
+let backgroundMonitoringEnabled = true
+let gameFlowMonitorInitializing = false
 
 /**
  * 初始化应用
@@ -57,10 +59,12 @@ export async function init() {
         })
     }, 1000)
 
+    registerBackgroundMonitoringIpc()
+
     // 初始化游戏流程监控（延迟初始化，避免阻塞应用启动）
     logger.info('将在后台初始化游戏流程监控...')
     setTimeout(() => {
-        initGameFlowMonitor()
+        startGameFlowMonitor('startup')
     }, 2000)
 
     // 注册 F1 全局快捷键
@@ -135,6 +139,68 @@ function stopAutoScreenshotForGame(reason, force = false) {
     return success
 }
 
+async function startGameFlowMonitor(reason) {
+    if (!backgroundMonitoringEnabled) {
+        logger.info(`Game flow monitor start skipped while disabled: ${reason}`)
+        return false
+    }
+
+    if (lcuPollingTimer || gameFlowMonitorInitializing) {
+        return false
+    }
+
+    gameFlowMonitorInitializing = true
+    try {
+        await initGameFlowMonitor()
+        return !!lcuPollingTimer
+    } finally {
+        gameFlowMonitorInitializing = false
+    }
+}
+
+function stopGameFlowMonitor(reason) {
+    let stopped = false
+
+    if (lcuPollingTimer) {
+        clearInterval(lcuPollingTimer)
+        lcuPollingTimer = null
+        logger.info(`Game flow polling stopped: ${reason}`)
+        stopped = true
+    }
+
+    if (autoScreenshotService && autoScreenshotService.isRunning) {
+        autoScreenshotService.stop()
+        autoScreenshotManagedByGameFlow = false
+        logger.info(`Auto screenshot service stopped: ${reason}`)
+        stopped = true
+    }
+
+    return stopped
+}
+
+async function setBackgroundMonitoringEnabled(enabled, reason) {
+    backgroundMonitoringEnabled = enabled
+
+    if (!enabled) {
+        stopGameFlowMonitor(reason)
+    } else {
+        await startGameFlowMonitor(reason)
+    }
+
+    return {
+        success: true,
+        enabled: backgroundMonitoringEnabled,
+        polling: !!lcuPollingTimer,
+        autoScreenshot: !!autoScreenshotService?.isRunning,
+    }
+}
+
+function registerBackgroundMonitoringIpc() {
+    ipcMain.handle('set-background-monitoring-enabled', async (_event, enabled) => {
+        return setBackgroundMonitoringEnabled(Boolean(enabled), 'renderer visibility changed')
+    })
+}
+
 function logLolGameStatus(status, phase) {
     const processState = status.processRunning === null
         ? 'unknown'
@@ -177,6 +243,16 @@ async function reconcileAutoScreenshotWithLolWindow(phase) {
  */
 async function initGameFlowMonitor() {
     try {
+        if (!backgroundMonitoringEnabled) {
+            logger.info('Game flow monitor initialization skipped while disabled')
+            return
+        }
+
+        if (lcuPollingTimer) {
+            logger.info('Game flow monitor already running')
+            return
+        }
+
         // 获取游戏目录（从 store 中读取）
         let lolPath = store.get('lolPath')
 

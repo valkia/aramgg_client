@@ -83,6 +83,9 @@ const electronAPI = {
         logRendererError: (errorData) => ipcRenderer.invoke('log-renderer-error', errorData),
         testDatabaseLoad: () => ipcRenderer.invoke('test-database-load'),
     },
+    monitoring: {
+        setEnabled: (enabled) => ipcRenderer.invoke('set-background-monitoring-enabled', enabled),
+    },
     shell: {
         openExternal: (url) => {
             const parsedUrl = new URL(url)

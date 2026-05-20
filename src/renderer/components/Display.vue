@@ -100,7 +100,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import GamePathConfig from './GamePathConfig.vue'
 import RuneControls from './RuneControls.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
@@ -232,8 +232,21 @@ const hideAllWindows = () => {
     testStatus.value = { type: 'info', message: 'Hide command sent' }
 }
 
-const hideMainWindow = () => {
+const setBackgroundMonitoringEnabled = async (enabled) => {
     try {
+        await electronAPI.monitoring.setEnabled(enabled)
+    } catch (error) {
+        console.warn('Failed to update background monitoring:', error)
+    }
+}
+
+const handleVisibilityChange = () => {
+    setBackgroundMonitoringEnabled(!document.hidden)
+}
+
+const hideMainWindow = async () => {
+    try {
+        await setBackgroundMonitoringEnabled(false)
         electronAPI.windows.toggleMain()
     } catch (error) {
         console.warn('Failed to hide main window:', error)
@@ -242,6 +255,13 @@ const hideMainWindow = () => {
 
 onMounted(() => {
     loadVersionInfo()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    handleVisibilityChange()
+})
+
+onBeforeUnmount(() => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
+    setBackgroundMonitoringEnabled(false)
 })
 </script>
 
