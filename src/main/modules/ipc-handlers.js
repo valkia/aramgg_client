@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { app, dialog, ipcMain } from 'electron'
 import Store from 'electron-store'
 import { captureScreenshot } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
@@ -104,12 +104,33 @@ export function registerIpcHandlers(isDev) {
         toggleMainWindow()
     })
 
+    ipcMain.handle('confirm-quit-app', async () => {
+        const mainWindow = getMainWindow()
+        const options = {
+            type: 'question',
+            buttons: ['Exit', 'Cancel'],
+            defaultId: 1,
+            cancelId: 1,
+            noLink: true,
+            title: 'Exit Aetheris Hex-Core',
+            message: 'Exit Aetheris Hex-Core?',
+            detail: 'Monitoring, screenshots, and overlay updates stop after the app exits.',
+        }
+        const result = mainWindow && !mainWindow.isDestroyed()
+            ? await dialog.showMessageBox(mainWindow, options)
+            : await dialog.showMessageBox(options)
+
+        if (result.response === 0) {
+            app.quit()
+            return { success: true, quit: true }
+        }
+
+        return { success: true, quit: false }
+    })
+
     ipcMain.on('restart-app', () => {
-        (async () => {
-            const { app } = await import('electron')
-            app.relaunch()
-            app.exit()
-        })()
+        app.relaunch()
+        app.exit()
     })
 
     ipcMain.handle('get-version-info', async () => {

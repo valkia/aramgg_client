@@ -47,6 +47,7 @@ const electronAPI = {
         hidePopup: () => ipcRenderer.send('hide-popup'),
         hideFloating: () => ipcRenderer.send('hide-floating'),
         toggleMain: () => ipcRenderer.send('toggle-main-window'),
+        confirmQuit: () => ipcRenderer.invoke('confirm-quit-app'),
         restart: () => ipcRenderer.send('restart-app'),
     },
     appInfo: {
@@ -82,9 +83,6 @@ const electronAPI = {
         testShowFloating: (data) => ipcRenderer.invoke('test-show-floating', data),
         logRendererError: (errorData) => ipcRenderer.invoke('log-renderer-error', errorData),
         testDatabaseLoad: () => ipcRenderer.invoke('test-database-load'),
-    },
-    monitoring: {
-        setEnabled: (enabled) => ipcRenderer.invoke('set-background-monitoring-enabled', enabled),
     },
     shell: {
         openExternal: (url) => {

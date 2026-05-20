@@ -13,7 +13,7 @@
                     <button class="window-control" type="button" title="Hide" @click="hideMainWindow">
                         <Minus class="window-icon" />
                     </button>
-                    <button class="window-control danger" type="button" title="Hide" @click="hideMainWindow">
+                    <button class="window-control danger" type="button" title="Exit" @click="confirmQuitApp">
                         <X class="window-icon" />
                     </button>
                 </div>
@@ -100,7 +100,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import GamePathConfig from './GamePathConfig.vue'
 import RuneControls from './RuneControls.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
@@ -232,36 +232,24 @@ const hideAllWindows = () => {
     testStatus.value = { type: 'info', message: 'Hide command sent' }
 }
 
-const setBackgroundMonitoringEnabled = async (enabled) => {
+const hideMainWindow = () => {
     try {
-        await electronAPI.monitoring.setEnabled(enabled)
-    } catch (error) {
-        console.warn('Failed to update background monitoring:', error)
-    }
-}
-
-const handleVisibilityChange = () => {
-    setBackgroundMonitoringEnabled(!document.hidden)
-}
-
-const hideMainWindow = async () => {
-    try {
-        await setBackgroundMonitoringEnabled(false)
         electronAPI.windows.toggleMain()
     } catch (error) {
         console.warn('Failed to hide main window:', error)
     }
 }
 
+const confirmQuitApp = async () => {
+    try {
+        await electronAPI.windows.confirmQuit()
+    } catch (error) {
+        console.warn('Failed to quit app:', error)
+    }
+}
+
 onMounted(() => {
     loadVersionInfo()
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    handleVisibilityChange()
-})
-
-onBeforeUnmount(() => {
-    document.removeEventListener('visibilitychange', handleVisibilityChange)
-    setBackgroundMonitoringEnabled(false)
 })
 </script>
 

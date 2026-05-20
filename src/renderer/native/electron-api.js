@@ -22,6 +22,7 @@ export const electronAPI = {
     hidePopup: (...args) => requireElectronAPI().windows.hidePopup(...args),
     hideFloating: (...args) => requireElectronAPI().windows.hideFloating(...args),
     toggleMain: (...args) => requireElectronAPI().windows.toggleMain(...args),
+    confirmQuit: (...args) => requireElectronAPI().windows.confirmQuit(...args),
     restart: (...args) => requireElectronAPI().windows.restart(...args),
   },
   appInfo: {
@@ -57,9 +58,6 @@ export const electronAPI = {
     testShowFloating: (...args) => requireElectronAPI().diagnostics.testShowFloating(...args),
     logRendererError: (...args) => requireElectronAPI().diagnostics.logRendererError(...args),
     testDatabaseLoad: (...args) => requireElectronAPI().diagnostics.testDatabaseLoad(...args),
-  },
-  monitoring: {
-    setEnabled: (...args) => requireElectronAPI().monitoring.setEnabled(...args),
   },
   events: {
     on: (...args) => requireElectronAPI().events.on(...args),
