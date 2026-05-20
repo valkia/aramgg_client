@@ -1,14 +1,7 @@
 <template>
   <transition name="float-fade">
     <div v-if="visible" class="floating-overlay">
-      <div class="floating-header">
-        <div class="floating-title">
-          <span class="title-mark"></span>
-          <span>海克斯推荐</span>
-          <small>实时浮窗</small>
-        </div>
-        <button class="close-btn" @click="closeOverlay" title="关闭">×</button>
-      </div>
+      <button class="close-btn" @click="closeOverlay" title="关闭">x</button>
 
       <!-- 加载状态 -->
       <div v-if="loading" class="loading">
@@ -17,32 +10,43 @@
       </div>
 
       <!-- 海克斯推荐列表 -->
-      <div v-else-if="displayAugments && displayAugments.length > 0" class="augments-grid">
+      <div v-else-if="previewAugments.length > 0" class="augments-grid">
         <div
-          v-for="(augment, index) in displayAugments.slice(0, 3)"
-          :key="augment.augmentId"
+          v-for="(augment, index) in previewAugments"
+          :key="getAugmentKey(augment, index)"
           class="augment-item"
-          :class="`rarity-${augment.rarity}`"
+          :class="[`rarity-${augment.rarity}`, { 'top-pick': isTopPick(augment, index) }]"
         >
-          <div class="card-top">
-            <div class="rank">{{ String(index + 1).padStart(2, '0') }}</div>
-            <div class="badge" :class="getBadgeClass(augment.recommendScore)">
-              {{ getRecommendText(augment.recommendScore) }}
-            </div>
+          <div v-if="isTopPick(augment, index)" class="top-pick-badge">
+            <span>*</span>
+            TOP PICK
+          </div>
+
+          <div class="augment-icon-frame">
+            <img
+              v-if="augment.iconPath"
+              :src="getAugmentIconUrl(augment.iconPath)"
+              :alt="augment.name"
+              class="augment-icon"
+            />
+            <span v-else>{{ String(index + 1).padStart(2, '0') }}</span>
           </div>
 
           <div class="content">
-            <div class="name">{{ augment.name }}</div>
-            <div class="stats">
-              <span class="stat">
-                <small>胜率</small>
+            <h3 class="name">{{ augment.name }}</h3>
+            <div class="stats-lines">
+              <div class="stat-line">
+                <span>Pick Rate</span>
+                <strong>{{ formatPercent(augment.pickRate) }}</strong>
+              </div>
+              <div class="stat-line">
+                <span>Win Rate</span>
                 <strong>{{ formatPercent(augment.winRate) }}</strong>
-              </span>
-              <span class="stat">
-                <small>推荐</small>
-                <strong>{{ formatScore(augment.recommendScore) }}</strong>
-              </span>
+              </div>
             </div>
+            <span class="recommend-label" :class="getBadgeClass(augment.recommendScore)">
+              {{ getRecommendText(augment.recommendScore) }} - {{ formatScore(augment.recommendScore) }}
+            </span>
           </div>
 
           <div class="score-track">
@@ -60,9 +64,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { electronAPI } from '../native/electron-api.js'
 import { sortAugmentsByDetectedOrder } from '../service/augment-order.js'
+import { getAugmentIconUrl } from '../service/cdn'
 
 const visible = ref(false)
 const loading = ref(false)
@@ -70,6 +75,36 @@ const error = ref(null)
 const displayAugments = ref([])
 const championId = ref(null)
 const unsubscribeEvents = []
+
+const previewAugments = computed(() => displayAugments.value.slice(0, 3))
+
+const getAugmentKey = (augment, index) => augment.augmentId || augment.id || augment.name || index
+
+const getAugmentScore = (augment) => {
+  const score = Number(augment?.recommendScore)
+  if (!Number.isNaN(score)) return score
+  const winRate = Number(augment?.winRate)
+  if (!Number.isNaN(winRate)) return winRate
+  return -1
+}
+
+const topPickKey = computed(() => {
+  if (!previewAugments.value.length) return null
+
+  let bestIndex = 0
+  let bestScore = getAugmentScore(previewAugments.value[0])
+  previewAugments.value.forEach((augment, index) => {
+    const score = getAugmentScore(augment)
+    if (score > bestScore) {
+      bestScore = score
+      bestIndex = index
+    }
+  })
+
+  return getAugmentKey(previewAugments.value[bestIndex], bestIndex)
+})
+
+const isTopPick = (augment, index) => getAugmentKey(augment, index) === topPickKey.value
 
 /**
  * 格式化百分比
@@ -329,7 +364,7 @@ onBeforeUnmount(() => {
 .float-fade-enter-from,
 .float-fade-leave-to {
   opacity: 0;
-  transform: translateX(-50%) translateY(-20px);
+  transform: translateY(-10px);
 }
 
 .close-btn {
@@ -583,6 +618,272 @@ onBeforeUnmount(() => {
 @media (max-width: 760px) {
   .augments-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Stitch floating reference skin */
+.floating-overlay {
+  top: 0;
+  left: 0;
+  transform: none;
+  width: 100vw;
+  height: 100vh;
+  min-height: 0;
+  max-height: none;
+  padding: 16px 18px;
+  display: flex;
+  align-items: stretch;
+  background:
+    radial-gradient(circle at top right, rgba(10, 200, 185, 0.15), transparent 42%),
+    radial-gradient(circle at bottom left, rgba(226, 195, 132, 0.07), transparent 42%),
+    rgba(4, 15, 24, 0.86);
+  border: 1px solid rgba(71, 228, 213, 0.22);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 0 20px rgba(10, 200, 185, 0.1),
+    0 18px 44px rgba(0, 0, 0, 0.58);
+  font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+}
+
+.floating-overlay::before,
+.floating-overlay::after {
+  content: '';
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+.floating-overlay::before {
+  top: 0;
+  left: 0;
+  border-top: 2px solid rgba(226, 195, 132, 0.55);
+  border-left: 2px solid rgba(226, 195, 132, 0.55);
+  border-top-left-radius: 12px;
+}
+
+.floating-overlay::after {
+  right: 0;
+  bottom: 0;
+  border-right: 2px solid rgba(226, 195, 132, 0.55);
+  border-bottom: 2px solid rgba(226, 195, 132, 0.55);
+  border-bottom-right-radius: 12px;
+}
+
+.close-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-color: rgba(60, 74, 71, 0.45);
+  background: rgba(4, 15, 24, 0.54);
+  color: #bacac6;
+}
+
+.close-btn:hover {
+  background: rgba(255, 180, 171, 0.14);
+  border-color: rgba(255, 180, 171, 0.42);
+  color: #ffb4ab;
+}
+
+.loading,
+.error {
+  width: 100%;
+}
+
+.augments-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+.augment-item {
+  min-width: 0;
+  height: auto;
+  min-height: 168px;
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  position: relative;
+  border: 1px solid rgba(60, 74, 71, 0.38);
+  border-radius: 8px;
+  background: rgba(31, 43, 53, 0.55);
+  box-shadow: none;
+}
+
+.augment-item:hover {
+  transform: none;
+  border-color: rgba(71, 228, 213, 0.46);
+}
+
+.augment-item.top-pick {
+  border: 2px solid #e2c384;
+  background: rgba(17, 29, 38, 0.92);
+  box-shadow: inset 0 0 15px rgba(226, 195, 132, 0.18), 0 0 22px rgba(226, 195, 132, 0.14);
+  transform: none;
+  z-index: 2;
+}
+
+.augment-item.top-pick:hover {
+  transform: none;
+}
+
+.top-pick-badge {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: #e2c384;
+  color: #402d00;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 0 12px rgba(226, 195, 132, 0.46);
+}
+
+.augment-icon-frame {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(71, 228, 213, 0.34);
+  border-radius: 8px;
+  background: rgba(8, 21, 30, 0.9);
+  color: #47e4d5;
+  font-size: 16px;
+  font-weight: 900;
+  overflow: hidden;
+  box-shadow: inset 0 0 10px rgba(10, 200, 185, 0.12);
+}
+
+.top-pick .augment-icon-frame {
+  border-color: rgba(226, 195, 132, 0.62);
+  box-shadow: inset 0 0 15px rgba(226, 195, 132, 0.16), 0 0 12px rgba(226, 195, 132, 0.24);
+}
+
+.augment-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.name {
+  min-height: 0;
+  margin: 0;
+  display: block;
+  overflow: hidden;
+  color: #d7e4f1;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-pick .name {
+  color: #e2c384;
+  text-shadow: 0 0 7px rgba(226, 195, 132, 0.28);
+}
+
+.stats-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(71, 228, 213, 0.16);
+}
+
+.stat-line span {
+  color: #bacac6;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.stat-line strong {
+  color: #47e4d5;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.top-pick .stat-line strong {
+  color: #e2c384;
+}
+
+.recommend-label {
+  align-self: flex-start;
+  padding: 3px 8px;
+  border: 1px solid rgba(71, 228, 213, 0.28);
+  border-radius: 999px;
+  background: rgba(10, 200, 185, 0.1);
+  color: #47e4d5;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.recommend-label.strong,
+.recommend-label.must {
+  border-color: rgba(226, 195, 132, 0.42);
+  background: rgba(226, 195, 132, 0.12);
+  color: #e2c384;
+}
+
+.score-track {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 10px;
+  height: 4px;
+  background: rgba(215, 228, 241, 0.08);
+}
+
+.score-fill {
+  background: linear-gradient(90deg, #47e4d5, #e2c384);
+}
+
+@media (max-width: 820px) {
+  .floating-overlay {
+    top: 0;
+    left: 0;
+    transform: none;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .augments-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .augment-item.top-pick,
+  .augment-item.top-pick:hover {
+    transform: none;
   }
 }
 </style>

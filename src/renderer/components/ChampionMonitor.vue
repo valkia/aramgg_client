@@ -219,33 +219,37 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .config-card {
-    background: var(--lol-panel);
-    border: 1px solid var(--lol-border-soft);
+    background: rgba(31, 43, 53, 0.42);
+    border: 1px solid rgba(60, 74, 71, 0.42);
     border-radius: 8px;
+    padding: 14px;
     overflow: hidden;
-    box-shadow: var(--lol-shadow);
+    color: #d7e4f1;
+    box-shadow: inset 0 0 18px rgba(10, 200, 185, 0.04);
 }
 
 .card-header {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 15px 18px;
-    background: rgba(84, 216, 132, 0.08);
-    border-bottom: 1px solid var(--lol-border-soft);
+    padding: 0 0 12px;
+    background: transparent;
+    border-bottom: 0;
 }
 
 .card-icon {
-    width: 18px;
-    height: 18px;
-    color: var(--lol-success);
+    width: 16px;
+    height: 16px;
+    color: #e2c384;
 }
 
 .card-title {
     margin: 0;
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--lol-ivory);
+    color: #e2c384;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0;
+    text-transform: uppercase;
     flex: 1;
 }
 
@@ -254,28 +258,29 @@ onBeforeUnmount(() => {
     align-items: center;
     gap: 6px;
     padding: 4px 10px;
-    background: rgba(244, 236, 220, 0.06);
-    border: 1px solid var(--lol-border-soft);
+    background: rgba(4, 15, 24, 0.42);
+    border: 1px solid rgba(60, 74, 71, 0.42);
     border-radius: 999px;
-    font-size: 12px;
-    color: var(--lol-muted);
+    font-size: 11px;
+    color: #bacac6;
 }
 
 .monitor-status.status-active {
-    background: rgba(84, 216, 132, 0.12);
-    border-color: rgba(84, 216, 132, 0.24);
-    color: var(--lol-success);
+    background: rgba(10, 200, 185, 0.12);
+    border-color: rgba(71, 228, 213, 0.28);
+    color: #47e4d5;
 }
 
 .status-dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--lol-faint);
+    background: #859491;
 }
 
 .status-active .status-dot {
-    background: var(--lol-success);
+    background: #47e4d5;
+    box-shadow: 0 0 8px rgba(71, 228, 213, 0.72);
     animation: blink 1.5s infinite;
 }
 
@@ -285,26 +290,27 @@ onBeforeUnmount(() => {
 }
 
 .card-content {
-    padding: 18px;
+    padding: 0;
 }
 
 .monitor-controls {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
 }
 
 .toggle-btn {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
-    padding: 14px 24px;
+    width: 100%;
+    padding: 12px;
     border: 1px solid transparent;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 14px;
-    font-weight: 700;
+    font-size: 13px;
+    font-weight: 900;
     transition: all 0.2s;
 }
 
@@ -314,48 +320,54 @@ onBeforeUnmount(() => {
 }
 
 .toggle-inactive {
-    background: linear-gradient(135deg, var(--lol-teal), #169a91);
-    border-color: rgba(108, 241, 229, 0.32);
-    color: var(--lol-bg);
+    background: rgba(10, 200, 185, 0.16);
+    border-color: rgba(71, 228, 213, 0.36);
+    color: #47e4d5;
 }
 
 .toggle-inactive:hover {
-    background: linear-gradient(135deg, var(--lol-teal-2), var(--lol-teal));
-    transform: translateY(-2px);
-    box-shadow: var(--lol-glow);
+    background: rgba(10, 200, 185, 0.24);
+    transform: translateY(-1px);
+    box-shadow: 0 0 18px rgba(10, 200, 185, 0.14);
 }
 
 .toggle-active {
-    background: rgba(229, 83, 75, 0.16);
-    border-color: rgba(229, 83, 75, 0.38);
-    color: #ffb0aa;
+    background: rgba(255, 180, 171, 0.12);
+    border-color: rgba(255, 180, 171, 0.34);
+    color: #ffb4ab;
 }
 
 .toggle-active:hover {
-    background: rgba(229, 83, 75, 0.24);
-    transform: translateY(-2px);
-    box-shadow: 0 10px 24px rgba(229, 83, 75, 0.14);
+    background: rgba(255, 180, 171, 0.18);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(255, 180, 171, 0.12);
 }
 
 .secondary-actions {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
 }
 
 .action-btn-sm {
-    padding: 10px 16px;
-    background: rgba(244, 236, 220, 0.05);
-    border: 1px solid var(--lol-border-soft);
-    color: var(--lol-ivory);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px;
+    background: rgba(17, 29, 38, 0.72);
+    border: 1px solid rgba(60, 74, 71, 0.46);
+    color: #d7e4f1;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
+    font-weight: 800;
     transition: all 0.2s;
 }
 
 .action-btn-sm:hover:not(:disabled) {
-    background: rgba(244, 236, 220, 0.09);
-    border-color: var(--lol-border);
+    background: rgba(42, 54, 64, 0.7);
+    border-color: rgba(71, 228, 213, 0.38);
 }
 
 .action-btn-sm:disabled {
@@ -364,58 +376,53 @@ onBeforeUnmount(() => {
 }
 
 .action-btn-danger {
-    border-color: rgba(229, 83, 75, 0.32);
-    color: #ffb0aa;
+    border-color: rgba(255, 180, 171, 0.32);
+    color: #ffb4ab;
 }
 
 .action-btn-danger:hover:not(:disabled) {
-    background: rgba(229, 83, 75, 0.14);
-    border-color: rgba(229, 83, 75, 0.5);
+    background: rgba(255, 180, 171, 0.12);
+    border-color: rgba(255, 180, 171, 0.46);
 }
 
 .champion-info {
-    margin-top: 16px;
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
 }
 
 .info-item {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 10px 14px;
-    background: rgba(7, 10, 13, 0.34);
-    border: 1px solid var(--lol-border-soft);
+    padding: 10px;
+    background: rgba(4, 15, 24, 0.42);
+    border: 1px solid rgba(60, 74, 71, 0.42);
     border-radius: 6px;
-    min-width: 120px;
+    min-width: 0;
 }
 
 .info-label {
     font-size: 11px;
-    color: var(--lol-faint);
+    color: #859491;
     text-transform: uppercase;
     letter-spacing: 0;
 }
 
 .info-value {
     font-size: 14px;
-    font-weight: 700;
-    color: var(--lol-ivory);
+    font-weight: 800;
+    color: #d7e4f1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 @media (max-width: 640px) {
-    .monitor-controls {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .toggle-btn {
-        justify-content: center;
-    }
-
-    .secondary-actions {
-        justify-content: center;
+    .secondary-actions,
+    .champion-info {
+        grid-template-columns: 1fr;
     }
 }
 </style>

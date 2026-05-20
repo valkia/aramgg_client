@@ -1,8 +1,13 @@
 <template>
   <transition name="overlay-fade">
     <div v-if="visible" class="augment-overlay">
-      <!-- 关闭按钮 -->
-      <button class="close-btn" @click="closeOverlay">×</button>
+      <header class="insight-titlebar">
+        <h1>Champion Insight</h1>
+        <div class="window-controls">
+          <button class="window-control" type="button" aria-label="Minimize" @click="closeOverlay">-</button>
+          <button class="window-control danger" type="button" aria-label="Close" @click="closeOverlay">x</button>
+        </div>
+      </header>
 
       <!-- 加载状态 -->
       <div v-if="loading" class="loading-state">
@@ -17,43 +22,44 @@
 
       <!-- 主内容区 -->
       <div v-else-if="championStats" class="overlay-content">
-        <!-- 英雄头部信息 -->
-        <div class="champion-header">
-          <div class="header-main">
-            <div class="champion-avatar-wrapper">
-              <img
-                :src="championStats?.iconUrl || getChampionIconUrl(championId)"
-                :alt="championName"
-                class="champion-avatar"
-                @error="handleImageError"
-              />
-              <div class="champion-tier" v-if="championStats?.tier">
-                Tier {{ championStats.tier }}
-              </div>
+        <section class="champion-hero">
+          <img
+            :src="getChampionIconUrl(championId)"
+            :alt="championName"
+            class="hero-image"
+            @error="handleImageError"
+          />
+          <div class="hero-shade"></div>
+          <div class="hero-content">
+            <div>
+              <span class="hero-kicker">Champion Profile</span>
+              <h2 class="champion-name">{{ championName || `Champion ${championId}` }}</h2>
             </div>
-            <div class="champion-info">
-              <h2 class="champion-name">{{ championName }}</h2>
-              <div class="champion-stats-row">
-                <div class="stat-box">
-                  <span class="stat-label">胜率</span>
-                  <span class="stat-value" :class="getWinRateClass(championStats?.winRate)">
-                    {{ formatPercent(championStats?.winRate) }}
-                  </span>
-                </div>
-                <div class="stat-box">
-                  <span class="stat-label">选取率</span>
-                  <span class="stat-value">
-                    {{ formatPercent(championStats?.pickRate) }}
-                  </span>
-                </div>
-                <div class="stat-box">
-                  <span class="stat-label">场次</span>
-                  <span class="stat-value">{{ formatNumber(championStats?.numGames) }}</span>
-                </div>
-              </div>
+            <div class="hero-badges">
+              <span class="tier-badge">Tier {{ championStats?.tier || '-' }}</span>
+              <span class="winrate-badge" :class="getWinRateClass(championStats?.winRate)">
+                {{ formatPercent(championStats?.winRate) }} WR
+              </span>
             </div>
           </div>
-        </div>
+        </section>
+
+        <section class="stat-strip">
+          <div class="stat-box">
+            <span>Win Rate</span>
+            <strong :class="getWinRateClass(championStats?.winRate)">
+              {{ formatPercent(championStats?.winRate) }}
+            </strong>
+          </div>
+          <div class="stat-box">
+            <span>Pick Rate</span>
+            <strong>{{ formatPercent(championStats?.pickRate) }}</strong>
+          </div>
+          <div class="stat-box">
+            <span>Games</span>
+            <strong>{{ formatNumber(championStats?.numGames) }}</strong>
+          </div>
+        </section>
 
         <!-- Tab 切换 -->
         <div class="tabs-container">
@@ -74,7 +80,11 @@
           <div class="tab-content">
             <!-- 海克斯 Tab -->
             <div v-if="activeTab === 'augments'" class="tab-panel">
-              <!-- 稀有度过滤 -->
+              <div class="section-title-row">
+                <h3>Core Augments</h3>
+                <span></span>
+              </div>
+
               <div class="filter-bar">
                 <button
                   v-for="rarity in rarityOptions"
@@ -87,89 +97,69 @@
                 </button>
               </div>
 
-              <!-- 海克斯列表 -->
               <div v-if="filteredAugments.length > 0" class="augments-list">
                 <div
                   v-for="(augment, index) in filteredAugments"
-                  :key="augment.augmentId"
+                  :key="augment.augmentId || augment.id || index"
                   class="augment-card"
                   :class="`rarity-${augment.rarity}`"
                 >
-                  <div class="augment-rank">{{ index + 1 }}</div>
-                  <div class="augment-icon-wrapper" v-if="augment.iconPath">
+                  <div class="augment-icon-wrapper">
                     <img
+                      v-if="augment.iconPath"
                       :src="getAugmentIconUrl(augment.iconPath)"
                       :alt="augment.name"
                       class="augment-icon"
                     />
+                    <span v-else>{{ index + 1 }}</span>
                   </div>
                   <div class="augment-main">
                     <div class="augment-name">{{ augment.name }}</div>
-                    <div class="augment-stats">
-                      <span class="stat-item">
-                        <span class="stat-label">胜率</span>
-                        <span class="stat-value winrate">{{ formatPercent(augment.winRate) }}</span>
-                      </span>
-                      <span class="stat-item">
-                        <span class="stat-label">选取率</span>
-                        <span class="stat-value">{{ formatPercent(augment.pickRate) }}</span>
-                      </span>
-                    </div>
+                    <p>{{ getRecommendLabel(augment.recommendScore) }}</p>
                   </div>
-                  <div class="recommend-indicator">
-                    <div class="score-bar">
-                      <div class="score-fill" :style="{ width: ((augment.recommendScore || 0) * 100) + '%' }"></div>
-                    </div>
-                    <span class="score-text">{{ getRecommendLabel(augment.recommendScore) }}</span>
+                  <div class="augment-rate">
+                    <strong>{{ formatPercent(augment.winRate) }}</strong>
+                    <span>WIN RATE</span>
                   </div>
                 </div>
               </div>
               <div v-else class="empty-state">
-                <p>暂无海克斯数据</p>
+                <p>No augment data</p>
               </div>
             </div>
 
             <!-- 出装 Tab -->
             <div v-if="activeTab === 'builds'" class="tab-panel">
-              <div v-if="buildData && (coreItems.length > 0 || situationalItems.length > 0)" class="build-content">
-                <!-- 核心出装 -->
-                <div v-if="coreItems.length > 0" class="build-section">
-                  <h4 class="section-title">核心出装</h4>
-                  <div class="build-list">
-                    <div
-                      v-for="(build, idx) in coreItems.slice(0, 3)"
-                      :key="idx"
-                      class="build-item"
-                    >
-                      <div class="item-icons">
-                        <img
-                          v-for="itemId in build.items.slice(0, 6)"
-                          :key="itemId"
-                          :src="getItemIconUrl(itemId)"
-                          class="item-icon"
-                          :alt="itemId"
-                        />
-                      </div>
-                      <div class="build-stats">
-                        <div class="build-stat">
-                          <span class="label">胜率</span>
-                          <span class="value">{{ formatPercent(build.winRate) }}</span>
-                        </div>
-                        <div class="build-stat">
-                          <span class="label">场次</span>
-                          <span class="value">{{ build.games.toLocaleString() }}</span>
-                        </div>
-                      </div>
+              <div class="section-title-row">
+                <h3>Build Path</h3>
+                <span></span>
+              </div>
+
+              <div v-if="buildData && (coreItems.length > 0 || situationalItems.length > 0 || startingItems.length > 0)" class="build-content">
+                <div v-if="coreItems.length > 0" class="build-grid">
+                  <div
+                    v-for="(build, idx) in coreItems.slice(0, 6)"
+                    :key="idx"
+                    class="build-tile"
+                  >
+                    <div class="item-icons">
+                      <img
+                        v-for="itemId in build.items.slice(0, 6)"
+                        :key="itemId"
+                        :src="getItemIconUrl(itemId)"
+                        class="item-icon"
+                        :alt="itemId"
+                      />
+                    </div>
+                    <div class="build-stats">
+                      <span>{{ formatPercent(build.winRate) }}</span>
+                      <small>{{ build.games.toLocaleString() }} games</small>
                     </div>
                   </div>
                 </div>
 
-                <!-- 情境装备 -->
-                <div v-if="situationalItems.length > 0" class="build-section">
-                  <h4 class="section-title situational-title">
-                    情境装备
-                    <span class="title-hint">（前12个）</span>
-                  </h4>
+                <section v-if="situationalItems.length > 0" class="item-section">
+                  <h4>Situational Items</h4>
                   <div class="situational-grid">
                     <img
                       v-for="(item, idx) in situationalItems"
@@ -179,16 +169,15 @@
                       :alt="'item-' + item.itemId"
                     />
                   </div>
-                </div>
+                </section>
 
-                <!-- 出门装 -->
-                <div v-if="startingItems.length > 0" class="build-section">
-                  <h4 class="section-title">出门装</h4>
-                  <div class="build-list">
+                <section v-if="startingItems.length > 0" class="item-section">
+                  <h4>Starter Sets</h4>
+                  <div class="starter-list">
                     <div
                       v-for="(build, idx) in startingItems.slice(0, 3)"
                       :key="idx"
-                      class="build-item small"
+                      class="starter-row"
                     >
                       <div class="item-icons">
                         <img
@@ -199,24 +188,21 @@
                           :alt="itemId"
                         />
                       </div>
-                      <div class="build-stats">
-                        <span class="value">{{ formatPercent(build.winRate) }}</span>
-                      </div>
+                      <span>{{ formatPercent(build.winRate) }}</span>
                     </div>
                   </div>
-                </div>
+                </section>
               </div>
               <div v-else class="empty-state">
-                <p>暂无出装数据</p>
+                <p>No build data</p>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 底部信息 -->
         <div class="overlay-footer">
-          <small>数据来源: {{ dataSource }}</small>
-          <small v-if="timestamp">更新于: {{ formatTime(timestamp) }}</small>
+          <small>Source: {{ dataSource }}</small>
+          <small v-if="timestamp">Updated {{ formatTime(timestamp) }}</small>
         </div>
       </div>
 
@@ -1180,6 +1166,518 @@ defineExpose({
   .tab-btn {
     padding: 8px 12px;
     font-size: 12px;
+  }
+}
+
+/* Stitch champion reference skin */
+.augment-overlay {
+  width: min(420px, calc(100vw - 24px));
+  height: min(800px, calc(100vh - 24px));
+  max-height: none;
+  background:
+    linear-gradient(180deg, rgba(42, 54, 64, 0.96), rgba(31, 43, 53, 0.98)),
+    #15212a;
+  border: 1px solid rgba(226, 195, 132, 0.28);
+  border-radius: 8px;
+  box-shadow: 0 0 40px rgba(10, 200, 185, 0.15), 0 28px 80px rgba(0, 0, 0, 0.5);
+  font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+}
+
+.insight-titlebar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 14px;
+  background: rgba(42, 54, 64, 0.92);
+  border-bottom: 1px solid rgba(71, 228, 213, 0.28);
+  box-shadow: inset 0 0 15px rgba(10, 200, 185, 0.18);
+  -webkit-app-region: drag;
+}
+
+.insight-titlebar h1 {
+  margin: 0;
+  color: #47e4d5;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-shadow: 0 0 8px rgba(71, 228, 213, 0.36);
+}
+
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.window-control {
+  width: 24px;
+  height: 24px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #bacac6;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.window-control:hover {
+  color: #47e4d5;
+  background: rgba(71, 228, 213, 0.08);
+  border-color: rgba(71, 228, 213, 0.18);
+}
+
+.window-control.danger:hover {
+  color: #ffb4ab;
+  background: rgba(255, 180, 171, 0.1);
+  border-color: rgba(255, 180, 171, 0.24);
+}
+
+.overlay-content {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(ellipse at top, rgba(10, 200, 185, 0.07), transparent 54%),
+    rgba(42, 54, 64, 0.84);
+}
+
+.champion-hero {
+  position: relative;
+  flex: 0 0 auto;
+  height: 132px;
+  margin: 18px 18px 0;
+  overflow: hidden;
+  border: 1px solid rgba(133, 148, 145, 0.32);
+  border-radius: 8px;
+  background: #08151e;
+}
+
+.hero-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  transform: scale(1.04);
+}
+
+.hero-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, rgba(8, 21, 30, 0.96), rgba(8, 21, 30, 0.22));
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px;
+}
+
+.hero-kicker {
+  display: block;
+  margin-bottom: 2px;
+  color: #e2c384;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.champion-name {
+  margin: 0;
+  color: #47e4d5;
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 0 12px rgba(71, 228, 213, 0.5);
+}
+
+.hero-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.tier-badge,
+.winrate-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.tier-badge {
+  color: #e2c384;
+  background: rgba(31, 43, 53, 0.82);
+  border: 1px solid rgba(226, 195, 132, 0.5);
+}
+
+.winrate-badge {
+  color: #47e4d5;
+  background: rgba(10, 200, 185, 0.14);
+  border: 1px solid rgba(71, 228, 213, 0.5);
+}
+
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px 18px 0;
+}
+
+.stat-box {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(60, 74, 71, 0.42);
+  border-radius: 8px;
+  background: rgba(17, 29, 38, 0.58);
+}
+
+.stat-box span {
+  display: block;
+  margin-bottom: 4px;
+  color: #bacac6;
+  font-size: 10px;
+}
+
+.stat-box strong {
+  color: #d7e4f1;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.stat-box strong.high,
+.winrate-badge.high {
+  color: #47e4d5;
+}
+
+.stat-box strong.medium,
+.winrate-badge.medium {
+  color: #e2c384;
+}
+
+.stat-box strong.low,
+.winrate-badge.low {
+  color: #ffb4ab;
+}
+
+.tabs-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tabs-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 14px 18px 0;
+  background: transparent;
+  border-bottom: 0;
+}
+
+.tab-btn {
+  justify-content: center;
+  padding: 10px 12px;
+  border: 1px solid rgba(60, 74, 71, 0.44);
+  border-radius: 8px;
+  background: rgba(17, 29, 38, 0.6);
+  color: #bacac6;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.tab-btn.active {
+  color: #00201d;
+  background: #47e4d5;
+  border-color: rgba(71, 228, 213, 0.7);
+}
+
+.tab-icon {
+  border: 0;
+  min-width: auto;
+  padding: 0;
+  color: currentColor;
+  font-size: 10px;
+}
+
+.tab-content {
+  flex: 1;
+  min-height: 0;
+  margin-top: 0;
+  padding: 16px 18px 18px;
+  overflow-y: auto;
+}
+
+.section-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.section-title-row h3 {
+  margin: 0;
+  color: #d7e4f1;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.section-title-row span {
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(90deg, rgba(71, 228, 213, 0.72), transparent);
+}
+
+.filter-bar {
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.filter-chip {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: rgba(17, 29, 38, 0.64);
+  border-color: rgba(60, 74, 71, 0.48);
+  color: #bacac6;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.filter-chip.active {
+  background: rgba(10, 200, 185, 0.15);
+  border-color: rgba(71, 228, 213, 0.46);
+  color: #47e4d5;
+}
+
+.augments-list {
+  gap: 8px;
+}
+
+.augment-card {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 74px;
+  padding: 10px 12px;
+  border: 1px solid rgba(60, 74, 71, 0.44);
+  border-radius: 0;
+  border-left: 0;
+  background: rgba(17, 29, 38, 0.72);
+  box-shadow: inset 0 0 10px rgba(10, 200, 185, 0.08);
+}
+
+.augment-card:hover {
+  transform: none;
+  border-color: rgba(71, 228, 213, 0.38);
+  background: rgba(17, 29, 38, 0.84);
+}
+
+.augment-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(71, 228, 213, 0.38);
+  border-radius: 8px;
+  background: rgba(8, 21, 30, 0.84);
+  color: #47e4d5;
+  font-size: 18px;
+  font-weight: 900;
+  overflow: hidden;
+}
+
+.augment-icon {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: inherit;
+}
+
+.augment-name {
+  color: #d7e4f1;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.augment-main p {
+  margin: 3px 0 0;
+  color: #bacac6;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.augment-rate {
+  text-align: right;
+}
+
+.augment-rate strong {
+  display: block;
+  color: #47e4d5;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.augment-rate span {
+  display: block;
+  margin-top: 3px;
+  color: #bacac6;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.build-content {
+  gap: 14px;
+}
+
+.build-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.build-tile,
+.item-section,
+.starter-row {
+  border: 1px solid rgba(60, 74, 71, 0.44);
+  border-radius: 8px;
+  background: rgba(17, 29, 38, 0.68);
+}
+
+.build-tile {
+  min-height: 120px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.item-icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.item-icon {
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(71, 228, 213, 0.28);
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.item-icon.small {
+  width: 30px;
+  height: 30px;
+}
+
+.build-stats {
+  margin-left: 0;
+  text-align: left;
+}
+
+.build-stats span,
+.starter-row > span {
+  color: #47e4d5;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.build-stats small {
+  display: block;
+  margin-top: 2px;
+  color: #bacac6;
+  font-size: 10px;
+}
+
+.item-section {
+  padding: 12px;
+}
+
+.item-section h4 {
+  margin: 0 0 10px;
+  color: #d7e4f1;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.starter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.starter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px;
+}
+
+.empty-state {
+  padding: 30px 16px;
+  color: #bacac6;
+}
+
+.overlay-footer {
+  flex: 0 0 auto;
+  padding: 10px 18px;
+  background: rgba(17, 29, 38, 0.7);
+  border-top: 1px solid rgba(60, 74, 71, 0.44);
+  color: #859491;
+}
+
+.tab-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.tab-content::-webkit-scrollbar-track {
+  background: rgba(4, 15, 24, 0.52);
+}
+
+.tab-content::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(226, 195, 132, 0.68), rgba(71, 228, 213, 0.46));
+  border-radius: 999px;
+}
+
+@media (max-width: 430px) {
+  .augment-overlay {
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .champion-hero,
+  .stat-strip,
+  .tabs-list,
+  .tab-content,
+  .overlay-footer {
+    margin-left: 12px;
+    margin-right: 12px;
+    padding-left: 0;
+    padding-right: 0;
   }
 }
 </style>

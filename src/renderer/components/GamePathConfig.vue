@@ -112,101 +112,119 @@ onMounted(() => {
 <style scoped>
 .config-card {
     height: 100%;
-    background: var(--lol-panel);
-    border: 1px solid var(--lol-border-soft);
+    background: rgba(31, 43, 53, 0.42);
+    border: 1px solid rgba(60, 74, 71, 0.42);
     border-radius: 8px;
+    padding: 14px;
     overflow: hidden;
-    box-shadow: var(--lol-shadow);
+    color: #d7e4f1;
+    box-shadow: inset 0 0 18px rgba(10, 200, 185, 0.04);
 }
 
 .card-header {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 15px 18px;
-    background: rgba(200, 169, 106, 0.08);
-    border-bottom: 1px solid var(--lol-border-soft);
+    padding: 0 0 12px;
+    background: transparent;
+    border-bottom: 0;
 }
 
 .card-icon {
-    width: 18px;
-    height: 18px;
-    color: var(--lol-gold-2);
+    width: 16px;
+    height: 16px;
+    color: #e2c384;
 }
 
 .card-title {
     margin: 0;
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--lol-ivory);
+    color: #e2c384;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0;
+    text-transform: uppercase;
 }
 
 .card-content {
-    padding: 18px;
+    padding: 0;
 }
 
 .input-group {
     display: flex;
-    gap: 12px;
-    align-items: center;
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
 }
 
 .path-input {
-    flex: 1;
-    background: rgba(7, 10, 13, 0.55);
-    border: 1px solid var(--lol-border-soft);
-    color: var(--lol-ivory);
-    padding: 10px 14px;
+    width: 100%;
+    min-width: 0;
+    background: rgba(42, 54, 64, 0.82);
+    border: 1px solid rgba(226, 195, 132, 0.34);
+    color: #d7e4f1;
+    padding: 11px 12px;
     border-radius: 6px;
     font-size: 13px;
 }
 
 .path-input::placeholder {
-    color: var(--lol-faint);
+    color: #859491;
 }
 
 .path-input:focus {
     outline: none;
-    border-color: rgba(40, 217, 200, 0.55);
-    box-shadow: 0 0 0 3px rgba(40, 217, 200, 0.12);
+    border-color: rgba(71, 228, 213, 0.72);
+    box-shadow: 0 0 0 3px rgba(10, 200, 185, 0.12);
 }
 
 .button-group {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
 }
 
 .btn-ghost {
-    padding: 10px 16px;
-    background: rgba(244, 236, 220, 0.05);
-    border: 1px solid var(--lol-border-soft);
-    color: var(--lol-ivory);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: linear-gradient(180deg, rgba(42, 54, 64, 0.86), rgba(31, 43, 53, 0.86));
+    border: 1px solid rgba(226, 195, 132, 0.36);
+    color: #e2c384;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
+    font-weight: 900;
     transition: all 0.2s;
 }
 
 .btn-ghost:hover {
-    background: rgba(244, 236, 220, 0.09);
-    border-color: var(--lol-border);
+    color: #47e4d5;
+    border-color: rgba(71, 228, 213, 0.54);
+    box-shadow: 0 0 16px rgba(10, 200, 185, 0.14);
 }
 
 .btn-accent {
-    padding: 10px 20px;
-    background: linear-gradient(135deg, var(--lol-teal), #169a91);
-    border: 1px solid rgba(108, 241, 229, 0.32);
-    color: var(--lol-bg);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: rgba(92, 70, 19, 0.22);
+    border: 1px solid rgba(226, 195, 132, 0.52);
+    color: #e2c384;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 13px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 900;
     transition: all 0.2s;
 }
 
 .btn-accent:hover {
-    background: linear-gradient(135deg, var(--lol-teal-2), var(--lol-teal));
-    transform: translateY(-1px);
+    color: #47e4d5;
+    border-color: rgba(71, 228, 213, 0.54);
+    background: rgba(10, 200, 185, 0.08);
 }
 
 .btn-icon {
@@ -217,35 +235,27 @@ onMounted(() => {
 .path-hint {
     margin: 12px 0 0;
     padding: 8px 12px;
-    background: rgba(84, 216, 132, 0.08);
-    border: 1px solid rgba(84, 216, 132, 0.16);
+    background: rgba(4, 15, 24, 0.42);
+    border: 1px solid rgba(60, 74, 71, 0.42);
     border-radius: 6px;
     font-size: 12px;
-    color: var(--lol-muted);
+    color: #bacac6;
     display: flex;
     align-items: center;
     gap: 6px;
+    word-break: break-all;
 }
 
 .hint-icon {
     width: 14px;
     height: 14px;
-    color: var(--lol-success);
+    color: #47e4d5;
     flex: 0 0 auto;
 }
 
 @media (max-width: 640px) {
-    .input-group {
-        flex-direction: column;
-    }
-
-    .path-input {
-        width: 100%;
-    }
-
     .button-group {
-        width: 100%;
-        justify-content: flex-end;
+        grid-template-columns: 1fr;
     }
 }
 </style>

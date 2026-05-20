@@ -10,6 +10,60 @@ let mainWindow = null
 let popupWindow = null
 let floatingWindow = null
 
+const MAIN_WINDOW_SIZE = { width: 460, height: 760 }
+const POPUP_WINDOW_SIZE = { width: 420, height: 800 }
+const FLOATING_WINDOW_SIZE = { width: 900, height: 200 }
+
+function getDisplayForMainWindow() {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        const [x, y] = mainWindow.getPosition()
+        return screen.getDisplayNearestPoint({ x, y })
+    }
+
+    return screen.getPrimaryDisplay()
+}
+
+function getPopupBounds() {
+    const display = getDisplayForMainWindow()
+    const area = display.workArea || display.bounds
+    const width = Math.min(POPUP_WINDOW_SIZE.width, area.width)
+    const height = Math.min(POPUP_WINDOW_SIZE.height, area.height)
+    const rightAlignedX = area.x + area.width - width - 140
+
+    return {
+        width,
+        height,
+        x: Math.max(area.x + 20, rightAlignedX),
+        y: area.y + Math.max(20, Math.round((area.height - height) / 2)),
+    }
+}
+
+function getFloatingBounds() {
+    const display = screen.getPrimaryDisplay()
+    const area = display.workArea || display.bounds
+    const width = Math.min(FLOATING_WINDOW_SIZE.width, area.width)
+    const height = Math.min(FLOATING_WINDOW_SIZE.height, area.height)
+
+    return {
+        width,
+        height,
+        x: area.x + Math.round((area.width - width) / 2),
+        y: area.y + Math.round(area.height * 0.02),
+    }
+}
+
+export function applyPopupWindowLayout() {
+    if (popupWindow && !popupWindow.isDestroyed()) {
+        popupWindow.setBounds(getPopupBounds())
+    }
+}
+
+export function applyFloatingWindowLayout() {
+    if (floatingWindow && !floatingWindow.isDestroyed()) {
+        floatingWindow.setBounds(getFloatingBounds())
+    }
+}
+
 /**
  * 获取正确的 preload 脚本路径
  */
@@ -42,10 +96,11 @@ export const createMainWindow = async (isDev, devServerUrl) => {
     const webPreferences = getWebPreferences(isDev)
 
     mainWindow = new BrowserWindow({
-        width: 800,
-        height: 600,
+        width: MAIN_WINDOW_SIZE.width,
+        height: MAIN_WINDOW_SIZE.height,
+        frame: false,
         webPreferences,
-        title: 'aramgg_client',
+        title: 'Aetheris Hex-Core',
     })
 
     mainWindow.on('close', () => {
@@ -83,25 +138,17 @@ export const createMainWindow = async (isDev, devServerUrl) => {
  * 创建弹出窗口
  */
 export const createPopupWindow = async (isDev, devServerUrl) => {
-    const [mX, mY] = mainWindow.getPosition()
-    const curDisplay = screen.getDisplayNearestPoint({
-        x: mX,
-        y: mY,
-    })
-
     const webPreferences = getWebPreferences(isDev)
+    const bounds = getPopupBounds()
 
     popupWindow = new BrowserWindow({
         show: false,
-        frame: true,
+        frame: false,
         skipTaskbar: true,
         resizable: isDev || false,
         fullscreenable: false,
         alwaysOnTop: true, // 始终置顶，包括开发模式
-        width: 400,
-        height: 600,
-        x: curDisplay.bounds.width - 400 - 140,
-        y: curDisplay.bounds.height / 2,
+        ...bounds,
         webPreferences,
     })
 
@@ -124,17 +171,8 @@ export const createPopupWindow = async (isDev, devServerUrl) => {
  * 【重要】窗口位置在屏幕顶部(2%)，确保不与OCR识别区域(从25%开始)重叠
  */
 export const createFloatingWindow = async (isDev, devServerUrl) => {
-    // 获取主显示器信息
-    const primaryDisplay = screen.getPrimaryDisplay()
-    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize
-
     const webPreferences = getWebPreferences(isDev)
-
-    // 窗口宽度和位置
-    const windowWidth = 850
-    const windowHeight = 200
-    const windowX = Math.round((screenWidth - windowWidth) / 2)
-    const windowY = Math.round(screenHeight * 0.02) // 屏幕顶部 2% 位置，避免与OCR区域重叠
+    const bounds = getFloatingBounds()
 
     floatingWindow = new BrowserWindow({
         show: false,
@@ -145,10 +183,7 @@ export const createFloatingWindow = async (isDev, devServerUrl) => {
         fullscreenable: false,
         alwaysOnTop: true,      // 始终置顶
         focusable: false,       // 不获取焦点，避免干扰游戏
-        width: windowWidth,
-        height: windowHeight,
-        x: windowX,
-        y: windowY,
+        ...bounds,
         webPreferences,
     })
 
@@ -171,7 +206,7 @@ export const createFloatingWindow = async (isDev, devServerUrl) => {
         floatingWindow.webContents.openDevTools({ mode: 'detach' })
     }
 
-    logger.info('透明浮动窗口已创建', { x: windowX, y: windowY, width: windowWidth, height: windowHeight })
+    logger.info('透明浮动窗口已创建', bounds)
 
     return floatingWindow
 }

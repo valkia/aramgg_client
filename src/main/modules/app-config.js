@@ -3,7 +3,7 @@ import Store from 'electron-store'
 import { captureScreenshot, getLolGameStatus } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
 import { registerIpcHandlers } from './ipc-handlers.js'
-import { createMainWindow, createPopupWindow, createFloatingWindow, toggleMainWindow, getFloatingWindow } from './window-manager.js'
+import { applyFloatingWindowLayout, createMainWindow, createPopupWindow, createFloatingWindow, toggleMainWindow, getFloatingWindow } from './window-manager.js'
 import autoScreenshotService from '../auto-screenshot-service.js'
 import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
 import { checkForClientUpdate } from '../version-checker.js'
@@ -425,6 +425,7 @@ async function notifyAllWindows(channel, data) {
         const floatingWin = getFloatingWindow()
 
         if (floatingWin && !floatingWin.isDestroyed()) {
+            applyFloatingWindowLayout()
             // 显示浮动窗口
             if (!floatingWin.isVisible()) {
                 floatingWin.show()

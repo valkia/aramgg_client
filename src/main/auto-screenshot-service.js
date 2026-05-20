@@ -12,6 +12,7 @@ import { analyzeScreenshot } from './image-analyzer.js'
 import { BrowserWindow } from 'electron'
 import Store from 'electron-store'
 import logger from './modules/logger.js'
+import { applyFloatingWindowLayout } from './modules/window-manager.js'
 
 const store = new Store()
 
@@ -220,6 +221,7 @@ class AutoScreenshotService {
             })
 
             if (floatingWindow && !floatingWindow.isDestroyed()) {
+                applyFloatingWindowLayout()
                 // 显示浮动窗口
                 if (!floatingWindow.isVisible()) {
                     floatingWindow.show()

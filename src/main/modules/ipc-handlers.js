@@ -5,6 +5,8 @@ import { analyzeScreenshot } from '../image-analyzer.js'
 import autoScreenshotService from '../auto-screenshot-service.js'
 import { registerLCUIpcHandlers } from '../services/lcu/ipc-handlers.ts'
 import {
+    applyFloatingWindowLayout,
+    applyPopupWindowLayout,
     createPopupWindow,
     getFloatingWindow,
     getMainWindow,
@@ -47,6 +49,7 @@ export function registerIpcHandlers(isDev) {
             return
         }
 
+        applyPopupWindowLayout()
         popupWindow.show()
         popupWindow.webContents.send('for-popup', {
             championId: data.championId,
@@ -81,6 +84,7 @@ export function registerIpcHandlers(isDev) {
                 return { success: false, error: 'Floating window does not exist' }
             }
 
+            applyFloatingWindowLayout()
             if (!floatingWindow.isVisible()) {
                 floatingWindow.show()
                 logger.info('Floating window shown for test')

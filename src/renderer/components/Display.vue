@@ -1,87 +1,86 @@
 <template id='Display'>
     <div class="display-page">
-        <header class="page-header">
-            <div class="header-content">
-                <div class="title-block">
-                    <p class="page-kicker">ARENA ASSISTANT</p>
-                    <h1 class="page-title">LoL 助手控制台</h1>
-                    <p class="page-subtitle">配置游戏路径、拉取符文数据、监控英雄选择与海克斯推荐。</p>
+        <section class="hex-window">
+            <div class="corner-accent corner-accent-tl"></div>
+            <div class="corner-accent corner-accent-br"></div>
+
+            <header class="hex-titlebar">
+                <div class="brand-lockup">
+                    <Cpu class="brand-icon" />
+                    <h1>AETHERIS HEX-CORE</h1>
+                </div>
+                <div class="window-controls">
+                    <button class="window-control" type="button" title="Hide" @click="hideMainWindow">
+                        <Minus class="window-icon" />
+                    </button>
+                    <button class="window-control danger" type="button" title="Hide" @click="hideMainWindow">
+                        <X class="window-icon" />
+                    </button>
+                </div>
+            </header>
+
+            <main class="hex-scroll">
+                <div class="status-strip">
+                    <div class="status-row">
+                        <span>Link Status</span>
+                        <strong :class="{ muted: !currentLolPath }">
+                            {{ currentLolPath ? 'SYNCHRONIZED' : 'UNLINKED' }}
+                        </strong>
+                    </div>
+                    <div class="status-grid">
+                        <div>
+                            <span>Client</span>
+                            <strong>{{ clientVersionLabel }}</strong>
+                            <small v-if="versionHint">{{ versionHint }}</small>
+                        </div>
+                        <div>
+                            <span>Data</span>
+                            <strong>{{ dataVersionLabel }}</strong>
+                            <small v-if="versionInfo?.gamePatch">LOL {{ versionInfo.gamePatch }}</small>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="header-metrics">
-                    <div class="metric-card">
-                        <span class="metric-label">路径状态</span>
-                        <strong>{{ currentLolPath ? '已配置' : '待配置' }}</strong>
-                    </div>
-                    <div class="metric-card">
-                        <span class="metric-label">监控模式</span>
-                        <strong>实时</strong>
-                    </div>
-                    <div class="metric-card">
-                        <span class="metric-label">客户端版本</span>
-                        <strong>{{ clientVersionLabel }}</strong>
-                        <small v-if="versionHint">{{ versionHint }}</small>
-                    </div>
-                    <div class="metric-card">
-                        <span class="metric-label">数据版本</span>
-                        <strong>{{ dataVersionLabel }}</strong>
-                        <small v-if="versionInfo?.gamePatch">LOL {{ versionInfo.gamePatch }}</small>
-                    </div>
-                </div>
-            </div>
-        </header>
-
-        <main class="main-content">
-            <section class="config-section">
                 <GamePathConfig @path-changed="onPathChanged" />
-            </section>
-
-            <section class="config-section">
                 <RuneControls @opgg-data-ready="onOpggDataReady" />
-            </section>
-
-            <section class="config-section">
                 <ChampionMonitor />
-            </section>
 
-            <section class="config-section">
-                <div class="test-section">
+                <section class="diagnostic-panel">
                     <div class="section-header">
                         <p class="section-kicker">WINDOW PREVIEW</p>
-                        <h3>窗口测试</h3>
-                        <p class="section-description">测试海克斯推荐窗口的显示效果</p>
+                        <h3>Overlay Diagnostics</h3>
                     </div>
 
                     <div class="test-controls">
                         <button class="test-btn primary" @click="testFloatingWindow">
                             <Target class="icon" />
                             <span class="button-copy">
-                                <span class="text">测试浮动窗口</span>
-                                <span class="hint">游戏内透明浮窗</span>
+                                <span class="text">Floating Overlay</span>
+                                <span class="hint">Transparent in-game bar</span>
                             </span>
                         </button>
 
                         <button class="test-btn secondary" @click="testPopupWindow">
                             <ClipboardList class="icon" />
                             <span class="button-copy">
-                                <span class="text">测试详情弹窗</span>
-                                <span class="hint">完整数据展示</span>
+                                <span class="text">Champion Insight</span>
+                                <span class="hint">Detail popup preview</span>
                             </span>
                         </button>
 
                         <button class="test-btn warning" @click="testDatabaseLoad">
                             <Database class="icon" />
                             <span class="button-copy">
-                                <span class="text">测试数据库路径</span>
-                                <span class="hint">检查 augments 文件</span>
+                                <span class="text">Database Probe</span>
+                                <span class="hint">Check bundled data</span>
                             </span>
                         </button>
 
                         <button class="test-btn danger" @click="hideAllWindows">
                             <EyeOff class="icon" />
                             <span class="button-copy">
-                                <span class="text">隐藏所有窗口</span>
-                                <span class="hint">关闭测试窗口</span>
+                                <span class="text">Hide Windows</span>
+                                <span class="hint">Clear previews</span>
                             </span>
                         </button>
                     </div>
@@ -89,9 +88,14 @@
                     <div v-if="testStatus" class="test-status" :class="testStatus.type">
                         {{ testStatus.message }}
                     </div>
-                </div>
-            </section>
-        </main>
+                </section>
+            </main>
+
+            <footer class="hex-footer">
+                <p>HEX-CORE v{{ clientVersionLabel }} - BUILD 89A</p>
+                <button type="button" @click="loadVersionInfo">RECALIBRATE CORE</button>
+            </footer>
+        </section>
     </div>
 </template>
 
@@ -101,7 +105,7 @@ import GamePathConfig from './GamePathConfig.vue'
 import RuneControls from './RuneControls.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
 import { electronAPI } from '../native/electron-api.js'
-import { ClipboardList, Database, EyeOff, Target } from 'lucide-vue-next'
+import { ClipboardList, Cpu, Database, EyeOff, Minus, Target, X } from 'lucide-vue-next'
 
 const currentLolPath = ref('')
 const testStatus = ref(null)
@@ -123,14 +127,14 @@ const versionHint = computed(() => {
     }
 
     if (!versionInfo.value.isNewer) {
-        return versionInfo.value.latestVersion ? `最新 ${versionInfo.value.latestVersion}` : ''
+        return versionInfo.value.latestVersion ? 'Latest ' + versionInfo.value.latestVersion : ''
     }
 
     if (versionInfo.value.severity === 'patch') {
-        return `小版本 ${versionInfo.value.latestVersion}`
+        return 'Patch ' + versionInfo.value.latestVersion
     }
 
-    return `${versionInfo.value.statusText} ${versionInfo.value.latestVersion}`
+    return versionInfo.value.statusText + ' ' + versionInfo.value.latestVersion
 })
 
 const loadVersionInfo = async () => {
@@ -144,109 +148,98 @@ const loadVersionInfo = async () => {
     }
 }
 
-// 模拟海克斯数据（使用真实的英雄ID和海克斯ID，以便能查询到胜率）
 const mockAugmentData = {
     success: true,
     gamePhase: 'augment-select',
-    championId: 63, // 布兰德
-    championName: '布兰德',
+    championId: 63,
+    championName: 'Brand',
     augments: [
-        { id: 1205, name: '物理转魔法', rarity: 'kSilver', confidence: 0.95 },
-        { id: 1103, name: '面包和黄油', rarity: 'kGold', confidence: 0.92 },
-        { id: 1180, name: '超强大脑', rarity: 'kGold', confidence: 0.90 },
+        { id: 1205, name: 'Physical Magic', rarity: 'kSilver', confidence: 0.95 },
+        { id: 1103, name: 'Bread And Butter', rarity: 'kGold', confidence: 0.92 },
+        { id: 1180, name: 'Big Brain', rarity: 'kGold', confidence: 0.90 },
     ],
     analysisConfidence: 0.95,
     timestamp: Date.now(),
     dataSource: 'test',
 }
 
-/**
- * 处理路径变化
- */
 const onPathChanged = (path) => {
     currentLolPath.value = path
-    console.log('游戏路径已更新:', path)
+    console.log('Game path updated', path)
 }
 
-/**
- * 处理 OP.GG 数据就绪
- */
 const onOpggDataReady = (data) => {
-    console.log('OP.GG 符文数据已就绪:', data)
+    console.log('OP.GG rune data ready', data)
 }
 
-/**
- * 测试浮动窗口
- */
 const testFloatingWindow = () => {
-    testStatus.value = { type: 'info', message: '正在发送测试数据到浮动窗口...' }
+    testStatus.value = { type: 'info', message: 'Sending test data to floating overlay...' }
 
-    // 通过 broadcast 发送给主进程，主进程再转发给浮动窗口
     electronAPI.diagnostics.testShowFloating(mockAugmentData)
         .then(() => {
-            testStatus.value = { type: 'success', message: '浮动窗口测试数据已发送' }
+            testStatus.value = { type: 'success', message: 'Floating overlay test data sent' }
         })
         .catch((err) => {
-            testStatus.value = { type: 'error', message: '发送失败: ' + err.message }
+            testStatus.value = { type: 'error', message: 'Send failed: ' + err.message }
         })
 }
 
-/**
- * 测试详情弹窗
- */
 const testPopupWindow = () => {
-    testStatus.value = { type: 'info', message: '正在发送测试数据到详情弹窗...' }
+    testStatus.value = { type: 'info', message: 'Sending test data to champion insight...' }
 
     electronAPI.windows.showPopup({
         championId: 63,
-        championName: '布兰德',
+        championName: 'Brand',
         augments: mockAugmentData.augments,
         dataSource: 'test',
         timestamp: Date.now(),
     })
 
-    testStatus.value = { type: 'success', message: '详情弹窗测试数据已发送' }
+    testStatus.value = { type: 'success', message: 'Champion insight test data sent' }
 }
 
-/**
- * 测试数据库路径加载
- */
 const testDatabaseLoad = async () => {
-    testStatus.value = { type: 'info', message: '正在测试数据库加载...' }
+    testStatus.value = { type: 'info', message: 'Testing database load...' }
 
     try {
         const result = await electronAPI.diagnostics.testDatabaseLoad()
-        console.log('数据库测试结果:', result)
+        console.log('Database test result', result)
 
         if (result.success) {
             testStatus.value = {
                 type: 'success',
-                message: `数据库加载成功: ${result.dataCount} 条数据 | 路径: ${result.successPath}`,
+                message: 'Database loaded: ' + result.dataCount + ' records | Path: ' + result.successPath,
             }
         } else {
-            let errorMsg = result.error || '未知错误'
+            let errorMsg = result.error || 'Unknown error'
             if (result.tests) {
                 const failedTests = result.tests
-                    .map((t, i) => `[${i + 1}] ${t.exists ? '✓' : '✗'} ${t.path.substring(0, 60)}...`)
-                    .join('\n')
-                errorMsg += `\n\n路径检查结果:\n${failedTests}`
+                    .map((t, i) => '[' + (i + 1) + '] ' + (t.exists ? 'OK' : 'MISS') + ' ' + t.path.substring(0, 60) + '...')
+                    .join('\\n')
+                errorMsg += '\\n\\nPath check result:\\n' + failedTests
             }
             testStatus.value = { type: 'error', message: errorMsg }
         }
     } catch (err) {
-        testStatus.value = { type: 'error', message: '测试失败: ' + err.message }
-        console.error('数据库测试错误:', err)
+        testStatus.value = { type: 'error', message: 'Test failed: ' + err.message }
+        console.error('Database test error', err)
     }
 }
 
-/**
- * 隐藏所有测试窗口
- */
 const hideAllWindows = () => {
     electronAPI.windows.hidePopup()
     electronAPI.windows.hideFloating()
-    testStatus.value = { type: 'info', message: '已发送隐藏指令' }
+    testStatus.value = { type: 'info', message: 'Hide command sent' }
 }
+
+const hideMainWindow = () => {
+    try {
+        electronAPI.windows.toggleMain()
+    } catch (error) {
+        console.warn('Failed to hide main window:', error)
+    }
+}
+
 onMounted(() => {
     loadVersionInfo()
 })
@@ -255,229 +248,331 @@ onMounted(() => {
 <style scoped>
 .display-page {
     min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
     background:
-        linear-gradient(180deg, rgba(40, 217, 200, 0.06) 0%, transparent 260px),
-        radial-gradient(circle at 88% 8%, rgba(200, 169, 106, 0.12), transparent 280px),
-        var(--lol-bg);
-    color: var(--lol-ivory);
+        radial-gradient(circle at 50% 0%, rgba(10, 200, 185, 0.15), transparent 42rem),
+        #08151e;
+    color: #d7e4f1;
 }
 
-.page-header {
-    border-bottom: 1px solid var(--lol-border);
-    background: rgba(7, 10, 13, 0.72);
-    backdrop-filter: blur(18px);
-    padding: 28px 24px 24px;
-}
-
-.header-content {
-    max-width: 1220px;
-    margin: 0 auto;
+.hex-window {
+    width: min(430px, 100%);
+    height: min(740px, calc(100vh - 32px));
+    min-height: 560px;
+    position: relative;
     display: flex;
-    align-items: flex-end;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(226, 195, 132, 0.24);
+    border-radius: 12px;
+    background:
+        linear-gradient(180deg, rgba(17, 29, 38, 0.95), rgba(4, 15, 24, 0.98)),
+        #08151e;
+    box-shadow:
+        inset -10px 0 20px -10px rgba(226, 195, 132, 0.12),
+        0 28px 80px rgba(0, 0, 0, 0.5),
+        0 0 42px rgba(10, 200, 185, 0.12);
+}
+
+.hex-window::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+        linear-gradient(180deg, rgba(71, 228, 213, 0.14), transparent 36%),
+        radial-gradient(circle at 50% 0%, rgba(10, 200, 185, 0.12), transparent 44%);
+}
+
+.corner-accent {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    z-index: 3;
+    pointer-events: none;
+}
+
+.corner-accent-tl {
+    top: 0;
+    left: 0;
+    border-top: 2px solid rgba(226, 195, 132, 0.72);
+    border-left: 2px solid rgba(226, 195, 132, 0.72);
+    border-top-left-radius: 12px;
+}
+
+.corner-accent-br {
+    right: 0;
+    bottom: 0;
+    border-right: 2px solid rgba(226, 195, 132, 0.72);
+    border-bottom: 2px solid rgba(226, 195, 132, 0.72);
+    border-bottom-right-radius: 12px;
+}
+
+.hex-titlebar {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
     justify-content: space-between;
-    gap: 24px;
-}
-
-.page-kicker,
-.section-kicker {
-    margin: 0 0 8px;
-    color: var(--lol-gold-2);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0;
-    text-transform: uppercase;
-}
-
-.page-title {
-    font-size: 30px;
-    font-weight: 800;
-    color: var(--lol-ivory);
-    margin: 0 0 8px;
-}
-
-.page-subtitle {
-    font-size: 14px;
-    color: var(--lol-muted);
-    margin: 0;
-    max-width: 580px;
-}
-
-.header-metrics {
-    display: flex;
     gap: 12px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    padding: 10px 16px;
+    background: rgba(42, 54, 64, 0.84);
+    border-bottom: 1px solid rgba(71, 228, 213, 0.28);
+    box-shadow: inset 0 -1px 14px rgba(10, 200, 185, 0.12);
 }
 
-.metric-card {
-    min-width: 118px;
-    padding: 12px 14px;
-    background: rgba(17, 25, 35, 0.78);
-    border: 1px solid var(--lol-border-soft);
-    border-radius: 8px;
+.hex-titlebar::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(71, 228, 213, 0.72), transparent);
 }
 
-.metric-label {
-    display: block;
-    margin-bottom: 4px;
-    color: var(--lol-faint);
-    font-size: 11px;
+.brand-lockup,
+.window-controls,
+.status-row {
+    display: flex;
+    align-items: center;
 }
 
-.metric-card strong {
-    display: block;
-    color: var(--lol-teal-2);
-    font-size: 15px;
+.brand-lockup {
+    gap: 10px;
+    min-width: 0;
 }
 
-.metric-card small {
-    display: block;
-    margin-top: 4px;
-    color: var(--lol-muted);
-    font-size: 11px;
+.brand-icon {
+    width: 20px;
+    height: 20px;
+    color: #47e4d5;
+    filter: drop-shadow(0 0 10px rgba(71, 228, 213, 0.65));
+    flex: 0 0 auto;
 }
 
-.main-content {
-    max-width: 1220px;
-    margin: 0 auto;
-    padding: 24px;
-    display: grid;
-    grid-template-columns: repeat(12, 1fr);
-    gap: 16px;
+.brand-lockup h1 {
+    margin: 0;
+    color: #47e4d5;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.1;
+    text-shadow: 0 0 8px rgba(10, 200, 185, 0.36);
 }
 
-.config-section {
-    grid-column: span 6;
-    animation: slideUp 0.4s ease-out;
-    animation-fill-mode: both;
+.window-controls {
+    gap: 8px;
 }
 
-.config-section:nth-child(1) { animation-delay: 0.1s; }
-.config-section:nth-child(2) { animation-delay: 0.2s; }
-.config-section:nth-child(3) { animation-delay: 0.3s; }
-.config-section:nth-child(4) { animation-delay: 0.4s; }
-.config-section:nth-child(3),
-.config-section:nth-child(4) {
-    grid-column: 1 / -1;
+.window-control {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: #bacac6;
+    cursor: pointer;
 }
 
-@keyframes slideUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+.window-control:hover {
+    color: #47e4d5;
+    background: rgba(71, 228, 213, 0.08);
+    border-color: rgba(71, 228, 213, 0.18);
 }
 
-.test-section {
-    background: var(--lol-panel);
-    border: 1px solid var(--lol-border-soft);
-    border-radius: 8px;
+.window-control.danger:hover {
+    color: #ffb4ab;
+    background: rgba(255, 180, 171, 0.1);
+    border-color: rgba(255, 180, 171, 0.24);
+}
+
+.window-icon {
+    width: 16px;
+    height: 16px;
+}
+
+.hex-scroll {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+    overflow-y: auto;
     padding: 18px;
-    box-shadow: var(--lol-shadow);
+    background:
+        radial-gradient(circle at 50% 0%, rgba(10, 200, 185, 0.08), transparent 60%),
+        rgba(8, 21, 30, 0.58);
+}
+
+.status-strip,
+.diagnostic-panel {
+    border: 1px solid rgba(60, 74, 71, 0.42);
+    border-radius: 8px;
+    background: rgba(31, 43, 53, 0.42);
+}
+
+.status-strip {
+    padding: 12px;
+}
+
+.status-row {
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    background: rgba(4, 15, 24, 0.48);
+}
+
+.status-row span,
+.status-grid span {
+    color: #bacac6;
+    font-size: 12px;
+}
+
+.status-row strong,
+.status-grid strong {
+    color: #47e4d5;
+    font-size: 12px;
+    letter-spacing: 0;
+}
+
+.status-row strong::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 8px;
+    border-radius: 999px;
+    background: #47e4d5;
+    box-shadow: 0 0 10px rgba(71, 228, 213, 0.85);
+}
+
+.status-row strong.muted {
+    color: #859491;
+}
+
+.status-row strong.muted::before {
+    background: #859491;
+    box-shadow: none;
+}
+
+.status-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.status-grid div {
+    min-width: 0;
+    padding: 10px;
+    border-radius: 6px;
+    background: rgba(17, 29, 38, 0.64);
+}
+
+.status-grid span,
+.status-grid strong,
+.status-grid small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.status-grid small {
+    margin-top: 4px;
+    color: #859491;
+    font-size: 10px;
+}
+
+.diagnostic-panel {
+    padding: 14px;
+}
+
+.section-kicker {
+    margin: 0 0 6px;
+    color: #e2c384;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0;
 }
 
 .section-header {
-    margin-bottom: 14px;
+    margin-bottom: 12px;
 }
 
 .section-header h3 {
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--lol-ivory);
-    margin: 0 0 4px 0;
-}
-
-.section-description {
-    font-size: 13px;
-    color: var(--lol-muted);
     margin: 0;
+    color: #d7e4f1;
+    font-size: 16px;
+    font-weight: 800;
 }
 
 .test-controls {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
 }
 
 .test-btn {
-    flex: 1;
-    min-width: 200px;
+    width: 100%;
+    min-width: 0;
     display: flex;
-    flex-direction: row;
     align-items: center;
     gap: 12px;
-    padding: 14px 16px;
-    border: 1px solid var(--lol-border-soft);
-    border-radius: 8px;
-    font-family: inherit;
-    cursor: pointer;
-    transition: all 0.2s ease;
+    padding: 12px;
     position: relative;
     overflow: hidden;
+    border: 1px solid rgba(60, 74, 71, 0.46);
+    border-radius: 8px;
+    background: rgba(17, 29, 38, 0.78);
+    color: #d7e4f1;
     text-align: left;
-    background: rgba(17, 25, 35, 0.78);
-    color: var(--lol-ivory);
+    cursor: pointer;
 }
 
 .test-btn::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(40, 217, 200, 0.12), transparent);
-    transition: left 0.5s ease;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgba(71, 228, 213, 0.1), transparent);
+    transition: opacity 0.2s;
 }
 
 .test-btn:hover::before {
-    left: 100%;
+    opacity: 1;
 }
 
-.test-btn.primary {
-    border-color: rgba(40, 217, 200, 0.34);
+.test-btn:hover {
+    transform: translateY(-1px);
+    border-color: rgba(71, 228, 213, 0.38);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
 }
 
-.test-btn.primary:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--lol-glow);
-}
-
-.test-btn.secondary {
-    border-color: rgba(200, 169, 106, 0.36);
-}
-
-.test-btn.secondary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 26px rgba(200, 169, 106, 0.12);
-}
-
-.test-btn.warning {
-    border-color: rgba(226, 194, 122, 0.4);
-}
-
+.test-btn.secondary:hover,
 .test-btn.warning:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 26px rgba(226, 194, 122, 0.12);
-}
-
-.test-btn.danger {
-    border-color: rgba(229, 83, 75, 0.36);
+    border-color: rgba(226, 195, 132, 0.44);
 }
 
 .test-btn.danger:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 26px rgba(229, 83, 75, 0.14);
+    border-color: rgba(255, 180, 171, 0.44);
 }
 
 .test-btn .icon {
-    width: 24px;
-    height: 24px;
-    color: var(--lol-teal-2);
+    width: 22px;
+    height: 22px;
+    color: #47e4d5;
     flex: 0 0 auto;
 }
 
@@ -485,74 +580,124 @@ onMounted(() => {
     min-width: 0;
 }
 
-.test-btn .text {
+.test-btn .text,
+.test-btn .hint {
     display: block;
-    font-size: 15px;
-    font-weight: 700;
-    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.test-btn .text {
+    font-size: 14px;
+    font-weight: 800;
 }
 
 .test-btn .hint {
-    display: block;
     margin-top: 3px;
-    font-size: 12px;
-    color: var(--lol-muted);
+    color: #859491;
+    font-size: 11px;
 }
 
 .test-status {
-    margin-top: 16px;
-    padding: 12px 16px;
-    border-radius: 8px;
-    font-size: 13px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 12px;
     white-space: pre-line;
 }
 
 .test-status.info {
-    background: rgba(40, 217, 200, 0.1);
-    color: var(--lol-teal-2);
-    border: 1px solid rgba(40, 217, 200, 0.24);
+    background: rgba(71, 228, 213, 0.1);
+    color: #47e4d5;
+    border: 1px solid rgba(71, 228, 213, 0.22);
 }
 
 .test-status.success {
     background: rgba(84, 216, 132, 0.1);
-    color: var(--lol-success);
+    color: #54d884;
     border: 1px solid rgba(84, 216, 132, 0.24);
 }
 
 .test-status.error {
-    background: rgba(229, 83, 75, 0.1);
-    color: #ff9c96;
-    border: 1px solid rgba(229, 83, 75, 0.24);
+    background: rgba(255, 180, 171, 0.1);
+    color: #ffb4ab;
+    border: 1px solid rgba(255, 180, 171, 0.24);
 }
 
-@media (max-width: 860px) {
-    .header-content {
-        align-items: flex-start;
-        flex-direction: column;
+.hex-footer {
+    position: relative;
+    z-index: 2;
+    padding: 14px 18px 18px;
+    border-top: 1px solid rgba(226, 195, 132, 0.32);
+    background: rgba(42, 54, 64, 0.92);
+    text-align: center;
+}
+
+.hex-footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 34%;
+    height: 2px;
+    transform: translateX(-50%);
+    background: linear-gradient(90deg, transparent, #47e4d5, transparent);
+    opacity: 0.55;
+}
+
+.hex-footer p {
+    margin: 0 0 10px;
+    color: #bacac6;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0;
+}
+
+.hex-footer button {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid rgba(226, 195, 132, 0.52);
+    border-radius: 6px;
+    background: rgba(92, 70, 19, 0.16);
+    color: #e2c384;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0;
+}
+
+.hex-footer button:hover {
+    border-color: rgba(71, 228, 213, 0.56);
+    color: #47e4d5;
+    background: rgba(10, 200, 185, 0.08);
+}
+
+.hex-scroll::-webkit-scrollbar {
+    width: 8px;
+}
+
+.hex-scroll::-webkit-scrollbar-track {
+    background: rgba(4, 15, 24, 0.65);
+}
+
+.hex-scroll::-webkit-scrollbar-thumb {
+    border: 2px solid rgba(4, 15, 24, 0.85);
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(226, 195, 132, 0.72), rgba(71, 228, 213, 0.48));
+}
+
+@media (max-width: 460px) {
+    .display-page {
+        padding: 0;
     }
 
-    .header-metrics {
+    .hex-window {
         width: 100%;
-    }
-
-    .metric-card {
-        flex: 1;
-    }
-
-    .config-section {
-        grid-column: 1 / -1;
-    }
-}
-
-@media (max-width: 560px) {
-    .main-content,
-    .page-header {
-        padding-left: 16px;
-        padding-right: 16px;
-    }
-
-    .test-btn {
-        min-width: 100%;
+        height: 100vh;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
     }
 }
 </style>
