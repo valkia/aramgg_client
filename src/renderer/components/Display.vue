@@ -421,6 +421,10 @@ onMounted(() => {
         rgba(8, 21, 30, 0.58);
 }
 
+.hex-scroll > * {
+    flex: 0 0 auto;
+}
+
 .status-strip,
 .diagnostic-panel {
     border: 1px solid rgba(60, 74, 71, 0.42);

@@ -111,7 +111,8 @@ onMounted(() => {
 
 <style scoped>
 .config-card {
-    height: 100%;
+    height: auto;
+    flex: 0 0 auto;
     background: rgba(31, 43, 53, 0.42);
     border: 1px solid rgba(60, 74, 71, 0.42);
     border-radius: 8px;
@@ -150,10 +151,10 @@ onMounted(() => {
 }
 
 .input-group {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
 }
 
 .path-input {
@@ -178,17 +179,18 @@ onMounted(() => {
 }
 
 .button-group {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
     gap: 8px;
+    flex: 0 0 auto;
 }
 
 .btn-ghost {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 10px 12px;
+    gap: 6px;
+    min-width: 62px;
+    padding: 9px 10px;
     background: linear-gradient(180deg, rgba(42, 54, 64, 0.86), rgba(31, 43, 53, 0.86));
     border: 1px solid rgba(226, 195, 132, 0.36);
     color: #e2c384;
@@ -209,8 +211,9 @@ onMounted(() => {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 10px 12px;
+    gap: 6px;
+    min-width: 62px;
+    padding: 9px 10px;
     background: rgba(92, 70, 19, 0.22);
     border: 1px solid rgba(226, 195, 132, 0.52);
     color: #e2c384;
@@ -254,8 +257,12 @@ onMounted(() => {
 }
 
 @media (max-width: 640px) {
+    .input-group {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
     .button-group {
-        grid-template-columns: 1fr;
+        flex-direction: row;
     }
 }
 </style>

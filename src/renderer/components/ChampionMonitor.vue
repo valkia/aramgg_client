@@ -219,6 +219,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .config-card {
+    flex: 0 0 auto;
     background: rgba(31, 43, 53, 0.42);
     border: 1px solid rgba(60, 74, 71, 0.42);
     border-radius: 8px;
@@ -295,21 +296,22 @@ onBeforeUnmount(() => {
 
 .monitor-controls {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
 }
 
 .toggle-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
+    min-width: 0;
     width: 100%;
-    padding: 12px;
+    padding: 9px 8px;
     border: 1px solid transparent;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 900;
     transition: all 0.2s;
 }
@@ -344,17 +346,17 @@ onBeforeUnmount(() => {
 }
 
 .secondary-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    display: contents;
 }
 
 .action-btn-sm {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 10px;
+    gap: 6px;
+    min-width: 0;
+    width: 100%;
+    padding: 9px 8px;
     background: rgba(17, 29, 38, 0.72);
     border: 1px solid rgba(60, 74, 71, 0.46);
     color: #d7e4f1;
@@ -420,7 +422,10 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 640px) {
-    .secondary-actions,
+    .monitor-controls {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
     .champion-info {
         grid-template-columns: 1fr;
     }

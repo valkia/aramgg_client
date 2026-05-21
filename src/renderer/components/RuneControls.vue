@@ -115,7 +115,8 @@ const goToChampionStats = () => {
 
 <style scoped>
 .config-card {
-    height: 100%;
+    height: auto;
+    flex: 0 0 auto;
     background: rgba(31, 43, 53, 0.42);
     border: 1px solid rgba(60, 74, 71, 0.42);
     border-radius: 8px;
@@ -155,28 +156,29 @@ const goToChampionStats = () => {
 
 .action-buttons {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
 }
 
 .action-btn {
     display: flex;
     align-items: center;
-    gap: 8px;
-    justify-content: flex-start;
+    gap: 6px;
+    justify-content: center;
+    min-width: 0;
     width: 100%;
-    padding: 12px;
+    padding: 9px 8px;
     border: 1px solid rgba(60, 74, 71, 0.46);
     border-radius: 6px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 900;
     transition: all 0.2s;
 }
 
 .btn-icon {
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
 }
 
 .action-btn-primary {
@@ -255,7 +257,7 @@ const goToChampionStats = () => {
 
 @media (max-width: 640px) {
     .action-buttons {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .action-btn {
