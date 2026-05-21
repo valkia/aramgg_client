@@ -1,3 +1,6 @@
+import { mkdir, readFile, rename, writeFile } from 'fs/promises'
+import os from 'os'
+import path from 'path'
 import logger from './modules/logger.js'
 
 export const DATA_API_ORIGIN =
@@ -5,9 +8,13 @@ export const DATA_API_ORIGIN =
 export const DATA_API_PREFIX = '/v1/zh-CN'
 
 const CACHE_TTL_MS = 10 * 60 * 1000
+const DISK_CACHE_DIR_NAME = 'remote-data-cache'
+const DISK_CACHE_SCHEMA_VERSION = 1
 const cache = new Map()
 const pendingRequests = new Map()
+const versionedRequests = new Map()
 let electronFetch = null
+let diskCacheDirPromise = null
 
 const rarityMap = {
   0: 'kSilver',
@@ -27,10 +34,11 @@ function getApiUrl(resourcePath) {
   return new URL(path, DATA_API_ORIGIN).toString()
 }
 
-async function fetchJson(resourcePath) {
+async function fetchJson(resourcePath, options = {}) {
   const url = getApiUrl(resourcePath)
+  const force = options.force === true
   const cached = cache.get(url)
-  if (cached && Date.now() - cached.createdAt < CACHE_TTL_MS) {
+  if (!force && cached && Date.now() - cached.createdAt < CACHE_TTL_MS) {
     return cached.data
   }
 
@@ -58,6 +66,133 @@ async function fetchJson(resourcePath) {
     })
 
   pendingRequests.set(url, request)
+  return request
+}
+
+function sanitizeCacheKey(value) {
+  return String(value).replace(/[^a-zA-Z0-9._-]/g, '_')
+}
+
+async function resolveDiskCacheDir() {
+  let basePath = null
+
+  if (process.versions?.electron) {
+    try {
+      const { app } = await import('electron')
+      basePath = app.isReady() ? app.getPath('userData') : app.getPath('temp')
+    } catch (error) {
+      logger.warn('Failed to resolve Electron cache path:', error.message)
+    }
+  }
+
+  const cacheDir = path.join(basePath || path.join(os.tmpdir(), 'aramgg_client'), DISK_CACHE_DIR_NAME)
+  await mkdir(cacheDir, { recursive: true })
+  return cacheDir
+}
+
+async function getDiskCacheDir() {
+  if (!diskCacheDirPromise) {
+    diskCacheDirPromise = resolveDiskCacheDir()
+  }
+
+  return diskCacheDirPromise
+}
+
+async function readVersionedCache(cacheKey) {
+  const cacheDir = await getDiskCacheDir()
+  const filePath = path.join(cacheDir, `${sanitizeCacheKey(cacheKey)}.json`)
+
+  try {
+    const content = await readFile(filePath, 'utf8')
+    const entry = JSON.parse(content)
+
+    if (!entry || typeof entry !== 'object' || !entry.payload) {
+      return null
+    }
+
+    return entry
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      logger.warn(`Failed to read data cache ${cacheKey}:`, error.message)
+    }
+
+    return null
+  }
+}
+
+async function writeVersionedCache(cacheKey, entry) {
+  const cacheDir = await getDiskCacheDir()
+  const filePath = path.join(cacheDir, `${sanitizeCacheKey(cacheKey)}.json`)
+  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`
+
+  await writeFile(tempPath, JSON.stringify(entry), 'utf8')
+  await rename(tempPath, filePath)
+}
+
+function getPayloadDataVersion(payload, fallbackVersion = '') {
+  return payload?.meta?.dataVersion || payload?.dataVersion || fallbackVersion || ''
+}
+
+async function loadVersionedJson(resourcePath, cacheKey, label) {
+  const requestKey = `${cacheKey}:${resourcePath}`
+  const pending = versionedRequests.get(requestKey)
+  if (pending) {
+    return pending
+  }
+
+  const request = (async () => {
+    const cachedEntry = await readVersionedCache(cacheKey)
+    let latestDataVersion = ''
+
+    try {
+      const config = await loadDataApiConfig({ force: true })
+      latestDataVersion = config?.dataVersion || ''
+    } catch (error) {
+      if (cachedEntry?.payload) {
+        logger.warn(`Failed to check ${label} data version; using cached data:`, error.message)
+        return cachedEntry.payload
+      }
+
+      logger.warn(`Failed to check ${label} data version; fetching remote data directly:`, error.message)
+    }
+
+    if (
+      cachedEntry?.payload &&
+      latestDataVersion &&
+      cachedEntry.dataVersion === latestDataVersion
+    ) {
+      return cachedEntry.payload
+    }
+
+    try {
+      const payload = await fetchJson(resourcePath, { force: true })
+      const dataVersion = getPayloadDataVersion(payload, latestDataVersion)
+
+      await writeVersionedCache(cacheKey, {
+        schemaVersion: DISK_CACHE_SCHEMA_VERSION,
+        dataVersion,
+        savedAt: new Date().toISOString(),
+        resourcePath,
+        payload,
+      })
+
+      return payload
+    } catch (error) {
+      if (cachedEntry?.payload) {
+        logger.warn(
+          `Failed to refresh ${label}; using cached data version ${cachedEntry.dataVersion || 'unknown'}:`,
+          error.message
+        )
+        return cachedEntry.payload
+      }
+
+      throw error
+    }
+  })().finally(() => {
+    versionedRequests.delete(requestKey)
+  })
+
+  versionedRequests.set(requestKey, request)
   return request
 }
 
@@ -292,15 +427,22 @@ function mapPublicItem(item) {
 }
 
 async function loadPublicChampionDetail(championId) {
-  const payload = await fetchJson(`${DATA_API_PREFIX}/champions/${championId}.json`)
+  const normalizedChampionId = sanitizeCacheKey(championId)
+  const resourcePath = `${DATA_API_PREFIX}/champions/${championId}.json`
+  const payload = await loadVersionedJson(
+    resourcePath,
+    `champion-detail-${normalizedChampionId}`,
+    `champion ${championId}`
+  )
+
   return {
     meta: payload.meta || {},
     data: unwrapEnvelope(payload),
   }
 }
 
-export async function loadDataApiConfig() {
-  return fetchJson(`${DATA_API_PREFIX}/config.json`)
+export async function loadDataApiConfig(options = {}) {
+  return fetchJson(`${DATA_API_PREFIX}/config.json`, options)
 }
 
 export async function loadChampionStats(championId) {
@@ -325,7 +467,11 @@ export async function loadChampionName(championId) {
 }
 
 export async function loadAugmentBase() {
-  const payload = await fetchJson(`${DATA_API_PREFIX}/augments.json`)
+  const payload = await loadVersionedJson(
+    `${DATA_API_PREFIX}/augments.json`,
+    'augments',
+    'augment base'
+  )
   return unwrapEnvelope(payload).map(mapPublicAugmentBase)
 }
 
@@ -361,7 +507,7 @@ export async function loadChampionBuild(championId) {
 }
 
 export async function loadItems() {
-  const payload = await fetchJson(`${DATA_API_PREFIX}/items.json`)
+  const payload = await loadVersionedJson(`${DATA_API_PREFIX}/items.json`, 'items', 'items')
   return unwrapEnvelope(payload).map(mapPublicItem)
 }
 
@@ -425,4 +571,5 @@ export function filterAugmentsByRarity(augmentStats, rarity) {
 export function clearCache() {
   cache.clear()
   pendingRequests.clear()
+  versionedRequests.clear()
 }
