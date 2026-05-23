@@ -88,6 +88,7 @@ async function initAugmentDatabase() {
 
         // 建立按名称索引的数据库（用于快速查找）
         AUGMENT_DATABASE = {}
+        AUGMENT_MATCH_ENTRIES = null
         let invalidCount = 0
         for (const augment of augmentsData) {
             if (!augment.id || !augment.name) {
@@ -123,6 +124,7 @@ async function initAugmentDatabase() {
         logger.error(`   错误详情:`, error)
         // 使用空数据库作为备份，但标记为 null 以便下次重试
         AUGMENT_DATABASE = {}
+        AUGMENT_MATCH_ENTRIES = null
         return AUGMENT_DATABASE
     }
 }
@@ -131,8 +133,25 @@ let tesseractWorker = null
 let tesseractWorkerPromise = null
 let tesseractModulePromise = null
 let tesseractWorkerIdleTimer = null
+let tesseractWorkerPsm = null
 let ocrQueue = Promise.resolve()
 let loggedTesseractLangPath = null
+let AUGMENT_MATCH_ENTRIES = null
+
+const TESSERACT_WORKER_IDLE_CLEANUP_MS = 60000
+const OCR_TITLE_ACTIVITY_SAMPLE = { width: 160, height: 50 }
+const OCR_TITLE_ACTIVE_BRIGHT_RATIO = 0.012
+const OCR_TITLE_WEAK_BRIGHT_RATIO = 0.004
+const OCR_TITLE_DARK_RATIO = 0.72
+
+const MATCH_BLACKLIST = new Set([
+    // 属性描述词
+    '攻击', '防御', '生命', '法术', '魔法', '伤害', '护甲',
+    '技能', '冷却', '移速', '暴击', '吸血', '穿透',
+    // 功能描述词
+    '功能', '能力', '效果', '被动', '主动', '额外',
+    '持续', '提供', '增加', '获得', '造成',
+])
 
 const OCR_NAME_ALIASES = new Map([
     ['夺金', ['厅金']],
@@ -566,11 +585,46 @@ function clampRegion(region, imageWidth, imageHeight) {
     }
 }
 
-function createOcrRegions(width, height) {
+function createCardLayout(width, height) {
     const cardWidth = width * 0.168
     const cardGap = width * 0.0175
     const groupWidth = cardWidth * 3 + cardGap * 2
     const groupLeft = (width - groupWidth) / 2
+
+    return {
+        cardWidth,
+        cardGap,
+        groupWidth,
+        groupLeft,
+    }
+}
+
+function createIndividualTitleRegions(width, height) {
+    const { cardWidth, cardGap, groupLeft } = createCardLayout(width, height)
+
+    return [0, 1, 2].map(index => ({
+        name: `card-title-${index + 1}`,
+        left: groupLeft + index * (cardWidth + cardGap) + cardWidth * 0.08,
+        top: height * 0.37,
+        width: cardWidth * 0.84,
+        height: height * 0.07,
+        scale: 3,
+        threshold: 145,
+        invert: true,
+        psm: 'SINGLE_LINE',
+    }))
+}
+
+function createOcrRegions(width, height) {
+    const { groupWidth, groupLeft } = createCardLayout(width, height)
+    const individualTitleRegions = createIndividualTitleRegions(width, height)
+
+    const titleStack = {
+        name: 'card-title-stack',
+        type: 'title-stack',
+        regions: individualTitleRegions,
+        psm: 'SPARSE_TEXT',
+    }
 
     const titleBand = {
         name: 'card-title-band',
@@ -584,6 +638,13 @@ function createOcrRegions(width, height) {
         psm: 'SPARSE_TEXT',
     }
 
+    const individualTitleGroup = {
+        name: 'card-title-individual-group',
+        type: 'individual-title-group',
+        regions: individualTitleRegions,
+        psm: 'SINGLE_LINE',
+    }
+
     const textBand = {
         name: 'card-text-band',
         left: width * 0.18,
@@ -594,6 +655,7 @@ function createOcrRegions(width, height) {
         threshold: false,
         invert: false,
         psm: 'SPARSE_TEXT',
+        slowFallback: true,
     }
 
     const legacyBand = width >= 2400
@@ -607,6 +669,7 @@ function createOcrRegions(width, height) {
             threshold: false,
             invert: false,
             psm: 'SPARSE_TEXT',
+            slowFallback: true,
         }
         : {
             name: 'legacy-game-band',
@@ -618,21 +681,10 @@ function createOcrRegions(width, height) {
             threshold: false,
             invert: false,
             psm: 'SPARSE_TEXT',
+            slowFallback: true,
         }
 
-    const individualTitleRegions = [0, 1, 2].map(index => ({
-        name: `card-title-${index + 1}`,
-        left: groupLeft + index * (cardWidth + cardGap) + cardWidth * 0.08,
-        top: height * 0.37,
-        width: cardWidth * 0.84,
-        height: height * 0.07,
-        scale: 3,
-        threshold: 145,
-        invert: true,
-        psm: 'SINGLE_LINE',
-    }))
-
-    return [titleBand, textBand, legacyBand, ...individualTitleRegions]
+    return [titleStack, titleBand, individualTitleGroup, textBand, legacyBand]
 }
 
 async function prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight) {
@@ -666,8 +718,151 @@ async function prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight) {
 
     return {
         rect,
+        width: targetWidth,
+        height: targetHeight,
         buffer: await pipeline.png().toBuffer(),
     }
+}
+
+async function prepareStackedTitleRegion(imageBuffer, stackRegion, imageWidth, imageHeight) {
+    const preparedRows = []
+
+    for (const region of stackRegion.regions || []) {
+        preparedRows.push(await prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight))
+    }
+
+    if (preparedRows.length === 0) {
+        return {
+            rect: { left: 0, top: 0, width: 1, height: 1 },
+            width: 1,
+            height: 1,
+            buffer: await sharp({
+                create: {
+                    width: 1,
+                    height: 1,
+                    channels: 3,
+                    background: '#ffffff',
+                },
+            }).png().toBuffer(),
+        }
+    }
+
+    const rowGap = Math.max(10, Math.round(preparedRows[0].height * 0.18))
+    const width = Math.max(...preparedRows.map(row => row.width))
+    const height = preparedRows.reduce((total, row) => total + row.height, 0) + rowGap * (preparedRows.length - 1)
+    const bounds = preparedRows.reduce((acc, row) => {
+        const right = row.rect.left + row.rect.width
+        const bottom = row.rect.top + row.rect.height
+        return {
+            left: Math.min(acc.left, row.rect.left),
+            top: Math.min(acc.top, row.rect.top),
+            right: Math.max(acc.right, right),
+            bottom: Math.max(acc.bottom, bottom),
+        }
+    }, { left: Infinity, top: Infinity, right: 0, bottom: 0 })
+
+    let top = 0
+    const composites = preparedRows.map(row => {
+        const composite = {
+            input: row.buffer,
+            left: Math.max(0, Math.round((width - row.width) / 2)),
+            top,
+        }
+        top += row.height + rowGap
+        return composite
+    })
+
+    const buffer = await sharp({
+        create: {
+            width,
+            height,
+            channels: 3,
+            background: '#ffffff',
+        },
+    })
+        .composite(composites)
+        .png()
+        .toBuffer()
+
+    return {
+        rect: {
+            left: bounds.left,
+            top: bounds.top,
+            width: bounds.right - bounds.left,
+            height: bounds.bottom - bounds.top,
+        },
+        width,
+        height,
+        buffer,
+    }
+}
+
+async function readIndividualTitleGroup(imageBuffer, groupRegion, imageWidth, imageHeight) {
+    const texts = []
+
+    for (const region of groupRegion.regions || []) {
+        const { rect, buffer } = await prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight)
+        logger.debug(`OCR region ${region.name}: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
+
+        const text = await performOCR(buffer, region.psm)
+        texts.push(text || '')
+    }
+
+    return texts.join('\n')
+}
+
+async function measureTitleRegionActivity(imageBuffer, region, imageWidth, imageHeight) {
+    const rect = clampRegion(region, imageWidth, imageHeight)
+    const { data, info } = await sharp(imageBuffer)
+        .extract(rect)
+        .resize({
+            width: OCR_TITLE_ACTIVITY_SAMPLE.width,
+            height: OCR_TITLE_ACTIVITY_SAMPLE.height,
+            fit: 'fill',
+        })
+        .removeAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true })
+
+    const channels = info.channels || 3
+    const pixelCount = data.length / channels
+    let brightPixels = 0
+    let darkPixels = 0
+
+    for (let offset = 0; offset < data.length; offset += channels) {
+        const r = data[offset]
+        const g = data[offset + 1]
+        const b = data[offset + 2]
+        const max = Math.max(r, g, b)
+
+        if (r > 180 && g > 180 && b > 170) {
+            brightPixels++
+        }
+        if (max < 55) {
+            darkPixels++
+        }
+    }
+
+    return {
+        brightRatio: brightPixels / pixelCount,
+        darkRatio: darkPixels / pixelCount,
+    }
+}
+
+async function hasLikelyAugmentTitleActivity(imageBuffer, width, height) {
+    const titleRegions = createIndividualTitleRegions(width, height)
+    const samples = await Promise.all(
+        titleRegions.map(region => measureTitleRegionActivity(imageBuffer, region, width, height))
+    )
+    const strongTitleRegions = samples.filter(sample => sample.brightRatio >= OCR_TITLE_ACTIVE_BRIGHT_RATIO).length
+    const weakCardRegions = samples.filter(sample =>
+        sample.brightRatio >= OCR_TITLE_WEAK_BRIGHT_RATIO && sample.darkRatio >= OCR_TITLE_DARK_RATIO
+    ).length
+    const likely = strongTitleRegions >= 2 || weakCardRegions >= 2
+
+    logger.debug(`OCR title activity: likely=${likely}, strong=${strongTitleRegions}, weak=${weakCardRegions}, samples=${samples.map(sample => `${(sample.brightRatio * 100).toFixed(2)}%/${(sample.darkRatio * 100).toFixed(1)}%`).join(', ')}`)
+
+    return likely
 }
 
 function enqueueOcr(task) {
@@ -705,10 +900,12 @@ async function getTesseractWorker() {
                 preserve_interword_spaces: '1',
                 user_defined_dpi: '300',
             })
+            tesseractWorkerPsm = PSM.SPARSE_TEXT
 
             return worker
         })().catch(error => {
             tesseractWorkerPromise = null
+            tesseractWorkerPsm = null
             throw error
         })
     }
@@ -725,7 +922,7 @@ function scheduleTesseractWorkerIdleCleanup() {
     tesseractWorkerIdleTimer = setTimeout(() => {
         tesseractWorkerIdleTimer = null
         void resetTesseractWorker()
-    }, 5000)
+    }, TESSERACT_WORKER_IDLE_CLEANUP_MS)
 
     if (typeof tesseractWorkerIdleTimer.unref === 'function') {
         tesseractWorkerIdleTimer.unref()
@@ -741,6 +938,7 @@ async function resetTesseractWorker() {
     const worker = tesseractWorker
     tesseractWorker = null
     tesseractWorkerPromise = null
+    tesseractWorkerPsm = null
 
     if (!worker) {
         return
@@ -767,15 +965,35 @@ async function recognizeAugmentsFromImage(imageBuffer) {
 
         logger.debug(`OCR augment recognition started: ${width}x${height}`)
 
+        if (!await hasLikelyAugmentTitleActivity(imageBuffer, width, height)) {
+            logger.debug('OCR augment recognition skipped: no likely augment title card activity')
+            return []
+        }
+
         const regions = createOcrRegions(width, height)
         const recognizedTexts = []
         let bestAugments = []
 
         for (const region of regions) {
-            const { rect, buffer } = await prepareOcrRegion(imageBuffer, region, width, height)
-            logger.debug(`OCR region ${region.name}: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
+            if (region.slowFallback && bestAugments.length < 2) {
+                logger.debug(`OCR slow fallback ${region.name} skipped: bestAugments=${bestAugments.length}`)
+                continue
+            }
 
-            const text = await performOCR(buffer, region.psm)
+            let text = ''
+
+            if (region.type === 'title-stack') {
+                const { rect, width: stackWidth, height: stackHeight, buffer } = await prepareStackedTitleRegion(imageBuffer, region, width, height)
+                logger.debug(`OCR region ${region.name}: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}, stacked=${stackWidth}x${stackHeight}`)
+                text = await performOCR(buffer, region.psm)
+            } else if (region.type === 'individual-title-group') {
+                text = await readIndividualTitleGroup(imageBuffer, region, width, height)
+            } else {
+                const { rect, buffer } = await prepareOcrRegion(imageBuffer, region, width, height)
+                logger.debug(`OCR region ${region.name}: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
+                text = await performOCR(buffer, region.psm)
+            }
+
             if (!text || text.trim() === '') {
                 logger.debug(`  OCR区域 ${region.name} 未识别到文本`)
                 continue
@@ -822,11 +1040,14 @@ async function performOCR(imageBuffer, psm = 'SPARSE_TEXT') {
                 const worker = await getTesseractWorker()
                 const pagesegMode = PSM[psm] || PSM.SPARSE_TEXT
 
-                await worker.setParameters({
-                    tessedit_pageseg_mode: pagesegMode,
-                    preserve_interword_spaces: '1',
-                    user_defined_dpi: '300',
-                })
+                if (tesseractWorkerPsm !== pagesegMode) {
+                    await worker.setParameters({
+                        tessedit_pageseg_mode: pagesegMode,
+                        preserve_interword_spaces: '1',
+                        user_defined_dpi: '300',
+                    })
+                    tesseractWorkerPsm = pagesegMode
+                }
 
                 const result = await worker.recognize(imageBuffer)
                 const recognizedText = result.data.text
@@ -956,6 +1177,44 @@ function getAugmentVersionPriority(augmentData) {
     return id >= 1000 ? id + 100000 : id
 }
 
+function getAugmentMatchEntries(database) {
+    if (AUGMENT_MATCH_ENTRIES) {
+        return AUGMENT_MATCH_ENTRIES
+    }
+
+    const sortedAugments = Object.values(database).sort((a, b) => {
+        const aLen = normalizeOcrText(a.name).length
+        const bLen = normalizeOcrText(b.name).length
+        if (bLen !== aLen) {
+            return bLen - aLen
+        }
+        return getAugmentVersionPriority(b) - getAugmentVersionPriority(a)
+    })
+
+    const scannedNames = new Set()
+    AUGMENT_MATCH_ENTRIES = []
+
+    for (const augmentData of sortedAugments) {
+        const normalizedName = normalizeOcrText(augmentData.name)
+
+        if (MATCH_BLACKLIST.has(augmentData.name) || MATCH_BLACKLIST.has(normalizedName)) {
+            continue
+        }
+        if (scannedNames.has(normalizedName)) {
+            continue
+        }
+
+        scannedNames.add(normalizedName)
+        AUGMENT_MATCH_ENTRIES.push({
+            augmentData,
+            normalizedName,
+        })
+    }
+
+    logger.debug(`Augment match entries cached: ${AUGMENT_MATCH_ENTRIES.length}/${sortedAugments.length}`)
+    return AUGMENT_MATCH_ENTRIES
+}
+
 function rangesOverlap(a, b) {
     return a.start < b.end && b.start < a.end
 }
@@ -977,53 +1236,18 @@ async function matchAugmentDatabase(recognizedText) {
     logger.debug(`Matching OCR text against augment database: size=${databaseSize}`)
     logger.debug(`📝 输入原文本长度: ${recognizedText.length} 字符`)
 
-    // 黑名单：常见的描述性词汇（非海克斯名称，但容易被误匹配）
-    // ⚠️ 注意：不要添加真实的海克斯名称到黑名单！
-    const blacklist = new Set([
-        // 属性描述词
-        '攻击', '防御', '生命', '法术', '魔法', '伤害', '护甲',
-        '技能', '冷却', '移速', '暴击', '吸血', '穿透',
-        // 功能描述词
-        '功能', '能力', '效果', '被动', '主动', '额外',
-        '持续', '提供', '增加', '获得', '造成',
-    ])
-
     // 去除所有空格用于模糊匹配（OCR可能识别出"台风 帽"而不是"台风帽"）
     const normalizedText = normalizeOcrText(recognizedText)
     logger.debug(`Normalized OCR text: "${normalizedText.substring(0, 100)}..." (${normalizedText.length} chars)`)
 
-    // 将所有海克斯按名称长度降序排序；同名时优先当前数据集的高 ID，避免旧 ID 影响胜率查询。
-    const sortedAugments = Object.values(database).sort((a, b) => {
-        const aLen = normalizeOcrText(a.name).length
-        const bLen = normalizeOcrText(b.name).length
-        if (bLen !== aLen) {
-            return bLen - aLen
-        }
-        return getAugmentVersionPriority(b) - getAugmentVersionPriority(a)
-    })
-    logger.debug(`📊 海克斯按名称长度排序完成，最长名称: "${sortedAugments[0]?.name}" (${sortedAugments[0]?.name?.replace(/\s+/g, '').length} 字符)`)
+    const matchEntries = getAugmentMatchEntries(database)
+    logger.debug(`📊 海克斯匹配索引已就绪，最长名称: "${matchEntries[0]?.augmentData.name}" (${matchEntries[0]?.normalizedName.length} 字符)`)
 
     // 收集所有候选匹配，再按重叠范围筛选，避免长名称被短名称拆分。
     const candidates = []
-    const scannedNames = new Set()
-    let skippedBlacklist = 0
-    let skippedDuplicateNameScan = 0
     let matchedCount = 0
 
-    for (const augmentData of sortedAugments) {
-        const normalizedName = normalizeOcrText(augmentData.name)
-
-        // 跳过黑名单、已扫描的相同名称
-        if (blacklist.has(augmentData.name) || blacklist.has(normalizedName)) {
-            skippedBlacklist++
-            continue
-        }
-        if (scannedNames.has(normalizedName)) {
-            skippedDuplicateNameScan++
-            logger.debug(`⚠️ 跳过重复名称: "${augmentData.name}" (id: ${augmentData.id})`)
-            continue
-        }
-        scannedNames.add(normalizedName)
+    for (const { augmentData, normalizedName } of matchEntries) {
 
         // 使用模糊匹配查找
         const match = fuzzyFind(normalizedText, normalizedName)
@@ -1042,7 +1266,7 @@ async function matchAugmentDatabase(recognizedText) {
         }
     }
 
-    logger.debug(`Augment match stats: scanned=${sortedAugments.length}, blacklist=${skippedBlacklist}, duplicateNames=${skippedDuplicateNameScan}, matched=${matchedCount}`)
+    logger.debug(`Augment match stats: scanned=${matchEntries.length}, matched=${matchedCount}`)
 
     candidates.sort((a, b) => {
         if (a.match.distance !== b.match.distance) {
@@ -1263,9 +1487,14 @@ export const getConfidence = (analysisResult) => {
     return analysisResult.analysis.confidence || 0
 }
 
+export const shutdownImageAnalyzer = async () => {
+    await resetTesseractWorker()
+}
+
 export default {
     analyzeScreenshot,
     extractAugments,
     isAugmentPhase,
     getConfidence,
+    shutdownImageAnalyzer,
 }

@@ -9,7 +9,7 @@
 import fs from 'fs-extra'
 import path from 'path'
 import os from 'os'
-import { analyzeScreenshot } from '../../src/main/image-analyzer.js'
+import { analyzeScreenshot, shutdownImageAnalyzer } from '../../src/main/image-analyzer.js'
 import logger from '../../src/main/modules/logger.js'
 
 // 截图目录
@@ -243,7 +243,9 @@ async function main() {
 }
 
 // 运行测试
-main().catch(error => {
-    logger.error(colorize('❌ 测试失败:', 'red'), error)
-    process.exit(1)
-})
+main()
+    .catch(error => {
+        logger.error(colorize('❌ 测试失败:', 'red'), error)
+        process.exitCode = 1
+    })
+    .finally(() => shutdownImageAnalyzer())

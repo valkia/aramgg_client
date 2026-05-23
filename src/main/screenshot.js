@@ -3,6 +3,7 @@ import { desktopCapturer } from 'electron'
 import logger from './modules/logger.js'
 
 let lastCaptureSourceKey = null
+const CAPTURE_THUMBNAIL_SIZE = { width: 1280, height: 720 }
 
 /**
  * 查找游戏窗口
@@ -140,7 +141,7 @@ export const captureScreenshot = async (_options = {}) => {
         // 获取所有窗口和屏幕源
         const sources = await desktopCapturer.getSources({
             types: ['window', 'screen'],
-            thumbnailSize: { width: 1920, height: 1080 }
+            thumbnailSize: CAPTURE_THUMBNAIL_SIZE,
         })
 
         // 查找游戏窗口

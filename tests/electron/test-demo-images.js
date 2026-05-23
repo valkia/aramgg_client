@@ -3,7 +3,7 @@
  */
 
 import path from 'path'
-import { analyzeScreenshot } from '../../src/main/image-analyzer.js'
+import { analyzeScreenshot, shutdownImageAnalyzer } from '../../src/main/image-analyzer.js'
 import { fileURLToPath } from 'url'
 import logger from '../../src/main/modules/logger.js'
 
@@ -79,4 +79,6 @@ async function testDemoImages() {
     logger.info('测试完成')
 }
 
-testDemoImages().catch(console.error)
+testDemoImages()
+    .catch(console.error)
+    .finally(() => shutdownImageAnalyzer())

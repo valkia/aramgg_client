@@ -60,6 +60,7 @@ class AutoScreenshotService {
         this.lastPartialOcrSaveAt = 0
         this.partialOcrSaveInFlight = false
         this.partialOcrSaveCount = 0
+        this.lastDetectedAugmentAt = 0
         this.performanceMetrics = {
             captureTime: [], // 截图耗时数组
             memoryUsage: [],  // 内存使用量
@@ -92,6 +93,8 @@ class AutoScreenshotService {
         this.lastPartialOcrSaveAt = 0
         this.partialOcrSaveInFlight = false
         this.partialOcrSaveCount = 0
+        this.lastDetectedAugmentAt = 0
+        this.lastDetectedAugmentIds = []
 
         logger.info(`Auto screenshot service started with interval: ${this.interval}ms`)
 
@@ -271,13 +274,14 @@ class AutoScreenshotService {
             // 3. 置信度必须 > 90%（更严格）
             if (cardCount === 3 && isAugmentPhase && confidence > 0.9) {
                 // 检查是否与上次检测到的海克斯相同（避免重复通知）
-                const currentIds = augments.map(a => a.id).sort().join(',')
-                const lastIds = this.lastDetectedAugmentIds.sort().join(',')
+                const currentIds = augments.map(a => a.id).join(',')
+                const lastIds = this.lastDetectedAugmentIds.join(',')
 
                 if (currentIds !== lastIds) {
                     // 新的海克斯组合，更新显示
                     this.detectionCount++
                     this.lastDetectedAugmentIds = augments.map(a => a.id)
+                    this.lastDetectedAugmentAt = Date.now()
 
                     logger.info(`Augment detected: count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, augments=${getAugmentSummary(augments)}`)
                     this._notifyAugmentDetected(analysisResult)
@@ -296,12 +300,18 @@ class AutoScreenshotService {
                         augments,
                     })
                     // 如果检测不到3张卡片，可能海克斯选择已结束，清空上次记录
-                    if (cardCount === 0) {
-                        const hadVisibleAugmentOverlay = this.lastDetectedAugmentIds.length > 0
+                    const hadVisibleAugmentOverlay = this.lastDetectedAugmentIds.length > 0
+                    const shouldClearPartialSelection =
+                        cardCount > 0 &&
+                        Date.now() - this.lastDetectedAugmentAt > 1000
+
+                    if (hadVisibleAugmentOverlay && (cardCount === 0 || shouldClearPartialSelection)) {
+                        const clearReason = cardCount === 0
+                            ? 'no-augments-detected'
+                            : `partial-augments-detected-count-${cardCount}`
                         this.lastDetectedAugmentIds = []
-                        if (hadVisibleAugmentOverlay) {
-                            this._notifyAugmentCleared('no-augments-detected')
-                        }
+                        this.lastDetectedAugmentAt = 0
+                        this._notifyAugmentCleared(clearReason)
                     }
                 } else if (!isAugmentPhase) {
                     this._logAnalysisMiss('phase-validation-failed', {
@@ -696,6 +706,7 @@ class AutoScreenshotService {
         this.isCapturing = false
         this.isAnalyzing = false
         this.lastDetectedAugmentIds = []
+        this.lastDetectedAugmentAt = 0
         this.performanceMetrics = {
             captureTime: [],
             memoryUsage: [],

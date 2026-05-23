@@ -4,7 +4,7 @@
 
 import path from 'path'
 import os from 'os'
-import { analyzeScreenshot } from '../../src/main/image-analyzer.js'
+import { analyzeScreenshot, shutdownImageAnalyzer } from '../../src/main/image-analyzer.js'
 import logger from '../../src/main/modules/logger.js'
 
 // 真实海克斯截图列表（在 ~/.aramgg_client/screenshots 目录中）
@@ -90,4 +90,6 @@ async function testRealAugments() {
     }
 }
 
-testRealAugments().catch(console.error)
+testRealAugments()
+    .catch(console.error)
+    .finally(() => shutdownImageAnalyzer())
