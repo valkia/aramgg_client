@@ -182,6 +182,16 @@ const queryAugmentWinrates = async (championId) => {
             return
         }
 
+        const basePopupData = {
+            championId,
+            augments: [],
+            dataSource: 'pending',
+            timestamp: Date.now()
+        }
+
+        // 先显示窗口，再补数据。安装版首次运行或网络超时时，避免用户看到“检测到了ID但没有窗口”。
+        electronAPI.windows.showPopup(basePopupData)
+
         const result = await electronAPI.winrate.get({
             championId,
             augmentIds: null // 查询全部海克斯
@@ -199,9 +209,21 @@ const queryAugmentWinrates = async (championId) => {
             })
         } else {
             console.warn('❌ 海克斯数据查询失败:', result.error)
+            electronAPI.windows.showPopup({
+                ...basePopupData,
+                dataSource: 'unavailable',
+                error: result.error || '胜率数据加载失败'
+            })
         }
     } catch (error) {
         console.error('查询海克斯数据时出错:', error)
+        electronAPI.windows.showPopup({
+            championId,
+            augments: [],
+            dataSource: 'unavailable',
+            error: error.message || '胜率数据加载失败',
+            timestamp: Date.now()
+        })
     }
 }
 

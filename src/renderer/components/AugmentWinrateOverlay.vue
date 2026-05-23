@@ -253,6 +253,37 @@ const rarityOptions = [
   { key: 'kPrismatic', label: '棱彩' }
 ]
 
+const mapIncomingAugmentsForFallback = (augments = []) => augments.map(aug => ({
+  augmentId: aug.augmentId || aug.id,
+  id: aug.id || aug.augmentId,
+  name: aug.name || '未知海克斯',
+  rarity: aug.rarity || 'unknown',
+  winRate: aug.winRate ?? null,
+  pickRate: aug.pickRate ?? null,
+  playCount: aug.playCount ?? 0,
+  recommendScore: aug.recommendScore ?? null,
+  iconPath: aug.iconPath || aug.iconUrl || null
+}))
+
+const applyFallbackChampionData = (data) => {
+  championStats.value = {
+    championId: String(data?.championId || championId.value || ''),
+    id: data?.championId || championId.value || null,
+    tier: null,
+    winRate: null,
+    pickRate: null,
+    numGames: null
+  }
+  augmentBase.value = []
+  augmentStats.value = {}
+  buildData.value = null
+  itemsData.value = {}
+  displayAugments.value = mapIncomingAugmentsForFallback(data?.augments || [])
+  dataSource.value = data?.dataSource || 'unavailable'
+  timestamp.value = data?.timestamp || Date.now()
+  error.value = null
+}
+
 // 过滤海克斯
 const filteredAugments = computed(() => {
   if (selectedRarity.value === 'all') {
@@ -394,15 +425,7 @@ const showOverlay = async (data) => {
             displayAugments.value = sortAugmentsByDetectedOrder(winrateResult.augments, data.augments)
           } else {
             // 查询无结果，使用原始数据并补充默认值
-            displayAugments.value = data.augments.map(aug => ({
-              augmentId: aug.id,
-              name: aug.name,
-              rarity: aug.rarity,
-              winRate: aug.winRate ?? null,
-              pickRate: aug.pickRate ?? null,
-              playCount: aug.playCount ?? 0,
-              recommendScore: aug.recommendScore ?? null
-            }))
+            displayAugments.value = mapIncomingAugmentsForFallback(data.augments)
           }
         }
       } else {
@@ -413,7 +436,11 @@ const showOverlay = async (data) => {
     }
   } catch (err) {
     console.error('❌ 加载数据失败:', err)
-    error.value = err.message || '加载数据失败'
+    if (data?.championId) {
+      applyFallbackChampionData(data)
+    } else {
+      error.value = err.message || '加载数据失败'
+    }
   } finally {
     loading.value = false
   }

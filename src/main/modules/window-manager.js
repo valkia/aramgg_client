@@ -80,6 +80,10 @@ function getPreloadPath(isDev) {
     }
 }
 
+function getRendererIndexPath() {
+    return path.join(__dirname, '../dist/index.html')
+}
+
 const getWebPreferences = (isDev) => ({
     nodeIntegration: false,
     nodeIntegrationInWorker: false,
@@ -157,11 +161,15 @@ export const createPopupWindow = async (isDev, devServerUrl) => {
         popupWindow = undefined
     })
 
-    await popupWindow.loadURL(
-        isDev
-            ? `${devServerUrl}/#/augment-overlay`
-            : `file://${path.join(__dirname, '../dist/index.html')}#/augment-overlay`,
-    )
+    if (isDev) {
+        await popupWindow.loadURL(`${devServerUrl}/#/augment-overlay`)
+    } else {
+        await popupWindow.loadFile(getRendererIndexPath(), {
+            hash: '/augment-overlay',
+        })
+    }
+
+    logger.info('Popup window loaded', popupWindow.webContents.getURL())
 
     return popupWindow
 }
@@ -195,18 +203,23 @@ export const createFloatingWindow = async (isDev, devServerUrl) => {
         floatingWindow = undefined
     })
 
-    await floatingWindow.loadURL(
-        isDev
-            ? `${devServerUrl}/#/floating-overlay`
-            : `file://${path.join(__dirname, '../dist/index.html')}#/floating-overlay`,
-    )
+    if (isDev) {
+        await floatingWindow.loadURL(`${devServerUrl}/#/floating-overlay`)
+    } else {
+        await floatingWindow.loadFile(getRendererIndexPath(), {
+            hash: '/floating-overlay',
+        })
+    }
 
     // 开发模式下打开开发者工具
     if (isDev) {
         floatingWindow.webContents.openDevTools({ mode: 'detach' })
     }
 
-    logger.info('透明浮动窗口已创建', bounds)
+    logger.info('透明浮动窗口已创建', {
+        ...bounds,
+        url: floatingWindow.webContents.getURL(),
+    })
 
     return floatingWindow
 }

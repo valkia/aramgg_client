@@ -4,7 +4,7 @@ import path from 'path'
 import logger from './modules/logger.js'
 
 export const DATA_API_ORIGIN =
-  process.env.ARAMGG_DATA_API_ORIGIN || 'https://aramgg-data-api.djlinguge.workers.dev'
+  process.env.ARAMGG_DATA_API_ORIGIN || 'https://data.dtodo.cn'
 export const DATA_API_PREFIX = '/v1/zh-CN'
 
 const CACHE_TTL_MS = 10 * 60 * 1000

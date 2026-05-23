@@ -106,6 +106,18 @@ const topPickKey = computed(() => {
 
 const isTopPick = (augment, index) => getAugmentKey(augment, index) === topPickKey.value
 
+const mapDetectedAugmentsForFallback = (augments) => augments.map(aug => ({
+  augmentId: aug.id,
+  id: aug.id,
+  name: aug.name,
+  rarity: aug.rarity,
+  winRate: aug.winRate ?? null,
+  pickRate: aug.pickRate ?? null,
+  playCount: aug.playCount ?? 0,
+  recommendScore: aug.recommendScore ?? 0.5,
+  iconPath: aug.iconPath || aug.iconUrl || null
+}))
+
 /**
  * 格式化百分比
  */
@@ -221,21 +233,14 @@ const showOverlay = async (data) => {
         } else if (winrateResult.success && winrateResult.augments.length === 0) {
           // 查询成功但没有这些海克斯的数据，显示基本信息
           console.warn('⚠️ [FloatingOverlay] 没有找到这些海克斯的胜率数据，显示基本信息')
-          displayAugments.value = data.augments.map(aug => ({
-            augmentId: aug.id,
-            name: aug.name,
-            rarity: aug.rarity,
-            winRate: null,
-            pickRate: null,
-            playCount: 0,
-            recommendScore: 0.5 // 默认推荐分数
-          }))
+          displayAugments.value = mapDetectedAugmentsForFallback(data.augments)
         } else {
           throw new Error(winrateResult.error || '胜率查询失败')
         }
       } catch (err) {
         console.error('❌ [FloatingOverlay] 查询失败:', err)
-        error.value = '数据加载失败'
+        displayAugments.value = mapDetectedAugmentsForFallback(data.augments)
+        error.value = null
       } finally {
         loading.value = false
       }

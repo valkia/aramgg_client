@@ -53,9 +53,11 @@ export function registerIpcHandlers(isDev) {
         popupWindow.show()
         popupWindow.webContents.send('for-popup', {
             championId: data.championId,
+            championName: data.championName,
             position: data.position,
             augments: data.augments,
             dataSource: data.dataSource,
+            error: data.error,
             timestamp: data.timestamp,
         })
     })
