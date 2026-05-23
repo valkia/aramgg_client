@@ -128,10 +128,17 @@ async function initAugmentDatabase() {
 }
 
 let tesseractWorker = null
+let tesseractWorkerPromise = null
+let tesseractModulePromise = null
+let tesseractWorkerIdleTimer = null
+let ocrQueue = Promise.resolve()
+let loggedTesseractLangPath = null
 
 const OCR_NAME_ALIASES = new Map([
     ['夺金', ['厅金']],
 ])
+
+const OCR_PUNCTUATION_PATTERN = /[\s"'“”‘’`.,，。:：;；!！?？、|｜/\\()[\]{}<>《》【】「」『』\-_=+~·•]/g
 
 /**
  * 将调用方传入的图片输入统一成 Buffer。
@@ -174,7 +181,10 @@ function getTesseractOptions() {
 
     for (const langDir of localLangDirs) {
         if (existsSync(path.join(langDir, 'chi_sim.traineddata'))) {
-            logger.info(`📖 使用本地 Tesseract 语言模型: ${langDir}`)
+            if (loggedTesseractLangPath !== langDir) {
+                loggedTesseractLangPath = langDir
+                logger.info(`OCR language data: local chi_sim.traineddata at ${langDir}`)
+            }
             return {
                 langPath: langDir,
                 cacheMethod: 'none',
@@ -183,7 +193,10 @@ function getTesseractOptions() {
         }
     }
 
-    logger.warn('⚠️ 未找到本地 chi_sim.traineddata，Tesseract.js 将使用默认语言数据加载策略')
+    if (loggedTesseractLangPath !== 'default') {
+        loggedTesseractLangPath = 'default'
+        logger.warn('OCR language data: local chi_sim.traineddata not found; using Tesseract default loading strategy')
+    }
     return {}
 }
 
@@ -533,6 +546,213 @@ function findBounds(pixelSet, width) {
     }
 }
 
+function normalizeOcrText(value) {
+    return String(value || '')
+        .normalize('NFKC')
+        .replace(OCR_PUNCTUATION_PATTERN, '')
+}
+
+function clampRegion(region, imageWidth, imageHeight) {
+    const left = Math.max(0, Math.min(imageWidth - 1, Math.round(region.left)))
+    const top = Math.max(0, Math.min(imageHeight - 1, Math.round(region.top)))
+    const right = Math.max(left + 1, Math.min(imageWidth, Math.round(region.left + region.width)))
+    const bottom = Math.max(top + 1, Math.min(imageHeight, Math.round(region.top + region.height)))
+
+    return {
+        left,
+        top,
+        width: right - left,
+        height: bottom - top,
+    }
+}
+
+function createOcrRegions(width, height) {
+    const cardWidth = width * 0.168
+    const cardGap = width * 0.0175
+    const groupWidth = cardWidth * 3 + cardGap * 2
+    const groupLeft = (width - groupWidth) / 2
+
+    const titleBand = {
+        name: 'card-title-band',
+        left: groupLeft - width * 0.01,
+        top: height * 0.355,
+        width: groupWidth + width * 0.02,
+        height: height * 0.095,
+        scale: 2.5,
+        threshold: 145,
+        invert: true,
+        psm: 'SPARSE_TEXT',
+    }
+
+    const textBand = {
+        name: 'card-text-band',
+        left: width * 0.18,
+        top: height * 0.31,
+        width: width * 0.64,
+        height: height * 0.25,
+        scale: 1.8,
+        threshold: false,
+        invert: false,
+        psm: 'SPARSE_TEXT',
+    }
+
+    const legacyBand = width >= 2400
+        ? {
+            name: 'legacy-wide-band',
+            left: width * 0.25,
+            top: height * 0.4,
+            width: width * 0.5,
+            height: height * 0.15,
+            scale: 1.8,
+            threshold: false,
+            invert: false,
+            psm: 'SPARSE_TEXT',
+        }
+        : {
+            name: 'legacy-game-band',
+            left: width * 0.15,
+            top: height * 0.25,
+            width: width * 0.7,
+            height: height * 0.25,
+            scale: 1.6,
+            threshold: false,
+            invert: false,
+            psm: 'SPARSE_TEXT',
+        }
+
+    const individualTitleRegions = [0, 1, 2].map(index => ({
+        name: `card-title-${index + 1}`,
+        left: groupLeft + index * (cardWidth + cardGap) + cardWidth * 0.08,
+        top: height * 0.37,
+        width: cardWidth * 0.84,
+        height: height * 0.07,
+        scale: 3,
+        threshold: 145,
+        invert: true,
+        psm: 'SINGLE_LINE',
+    }))
+
+    return [titleBand, textBand, legacyBand, ...individualTitleRegions]
+}
+
+async function prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight) {
+    const rect = clampRegion(region, imageWidth, imageHeight)
+    const scale = region.scale || 1
+    const targetWidth = Math.max(1, Math.round(rect.width * scale))
+    const targetHeight = Math.max(1, Math.round(rect.height * scale))
+
+    let pipeline = sharp(imageBuffer)
+        .extract(rect)
+        .resize({
+            width: targetWidth,
+            height: targetHeight,
+            fit: 'fill',
+        })
+        .greyscale()
+        .normalize()
+        .sharpen()
+
+    if (region.threshold === false) {
+        pipeline = pipeline.linear(1.5, -48)
+    } else {
+        pipeline = pipeline
+            .linear(1.9, -120)
+            .threshold(region.threshold || 145)
+
+        if (region.invert !== false) {
+            pipeline = pipeline.negate()
+        }
+    }
+
+    return {
+        rect,
+        buffer: await pipeline.png().toBuffer(),
+    }
+}
+
+function enqueueOcr(task) {
+    const nextTask = ocrQueue.catch(() => {}).then(task)
+    ocrQueue = nextTask.catch(() => {})
+    return nextTask
+}
+
+async function getTesseractModule() {
+    if (!tesseractModulePromise) {
+        tesseractModulePromise = import('tesseract.js')
+    }
+
+    return tesseractModulePromise
+}
+
+async function getTesseractWorker() {
+    if (tesseractWorkerIdleTimer) {
+        clearTimeout(tesseractWorkerIdleTimer)
+        tesseractWorkerIdleTimer = null
+    }
+
+    if (tesseractWorker) {
+        return tesseractWorker
+    }
+
+    if (!tesseractWorkerPromise) {
+        tesseractWorkerPromise = (async () => {
+            const Tesseract = await getTesseractModule()
+            const { createWorker, PSM } = Tesseract
+            const worker = await createWorker('chi_sim', 1, getTesseractOptions())
+
+            await worker.setParameters({
+                tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+                preserve_interword_spaces: '1',
+                user_defined_dpi: '300',
+            })
+
+            return worker
+        })().catch(error => {
+            tesseractWorkerPromise = null
+            throw error
+        })
+    }
+
+    tesseractWorker = await tesseractWorkerPromise
+    return tesseractWorker
+}
+
+function scheduleTesseractWorkerIdleCleanup() {
+    if (tesseractWorkerIdleTimer) {
+        clearTimeout(tesseractWorkerIdleTimer)
+    }
+
+    tesseractWorkerIdleTimer = setTimeout(() => {
+        tesseractWorkerIdleTimer = null
+        void resetTesseractWorker()
+    }, 5000)
+
+    if (typeof tesseractWorkerIdleTimer.unref === 'function') {
+        tesseractWorkerIdleTimer.unref()
+    }
+}
+
+async function resetTesseractWorker() {
+    if (tesseractWorkerIdleTimer) {
+        clearTimeout(tesseractWorkerIdleTimer)
+        tesseractWorkerIdleTimer = null
+    }
+
+    const worker = tesseractWorker
+    tesseractWorker = null
+    tesseractWorkerPromise = null
+
+    if (!worker) {
+        return
+    }
+
+    try {
+        await worker.terminate()
+    } catch (error) {
+        logger.debug('Failed to terminate OCR worker after error:', error.message)
+    }
+}
+
 /**
  * 从图像中提取海克斯名称（OCR）
  * 识别屏幕中央区域的文本内容
@@ -545,67 +765,43 @@ async function recognizeAugmentsFromImage(imageBuffer) {
         const metadata = await sharp(imageBuffer).metadata()
         const { width, height } = metadata
 
-        logger.info(`🔍 【OCR】开始识别海克斯名称 (${width}x${height})`)
+        logger.debug(`OCR augment recognition started: ${width}x${height}`)
 
-        // 根据分辨率判断截图类型，使用不同的裁剪策略
-        let cropX, cropY, cropWidth, cropHeight
+        const regions = createOcrRegions(width, height)
+        const recognizedTexts = []
+        let bestAugments = []
 
-        // 判断是否为纯游戏画面（1920x1080）还是全屏含IDE（2560x1440）
-        const isFullScreenWithIDE = width >= 2400 // 2560x1440 或更大
-        const isPureGameScreen = width >= 1800 && width < 2400 // 1920x1080
+        for (const region of regions) {
+            const { rect, buffer } = await prepareOcrRegion(imageBuffer, region, width, height)
+            logger.debug(`OCR region ${region.name}: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
 
-        if (isFullScreenWithIDE) {
-            // 全屏含IDE截图（如 q1-q17, demo3）
-            // 海克斯卡片在屏幕右侧偏中央
-            cropX = Math.round(width * 0.25)      // 从25%开始
-            cropY = Math.round(height * 0.4)      // 从40%开始
-            cropWidth = Math.round(width * 0.5)   // 50%宽度
-            cropHeight = Math.round(height * 0.15) // 15%高度（只包含名称）
-            logger.info(`  检测到：全屏含IDE截图`)
-        } else if (isPureGameScreen) {
-            // 纯游戏画面截图（如 demo1, demo2）
-            // 海克斯卡片在屏幕正中央
-            cropX = Math.round(width * 0.15)      // 从15%开始
-            cropY = Math.round(height * 0.25)     // 从25%开始
-            cropWidth = Math.round(width * 0.7)   // 70%宽度
-            cropHeight = Math.round(height * 0.25) // 25%高度（包含名称 + 部分描述）
-            logger.info(`  检测到：纯游戏画面截图`)
-        } else {
-            // 其他分辨率，使用默认策略
-            cropX = Math.round(width * 0.2)
-            cropY = Math.round(height * 0.3)
-            cropWidth = Math.round(width * 0.6)
-            cropHeight = Math.round(height * 0.15)
-            logger.info(`  检测到：未知分辨率，使用默认裁剪`)
+            const text = await performOCR(buffer, region.psm)
+            if (!text || text.trim() === '') {
+                logger.debug(`  OCR区域 ${region.name} 未识别到文本`)
+                continue
+            }
+
+            recognizedTexts.push(text)
+
+            const currentAugments = await matchAugmentDatabase(recognizedTexts.join('\n'))
+            if (currentAugments.length > bestAugments.length) {
+                bestAugments = currentAugments
+            }
+
+            if (currentAugments.length >= 3) {
+                logger.debug(`OCR augment recognition completed from ${region.name}: 3 augments`)
+                return currentAugments.slice(0, 3)
+            }
         }
 
-        logger.info(`  裁剪区域: x=${cropX}, y=${cropY}, 宽=${cropWidth}, 高=${cropHeight}`)
-
-        // 裁剪并进行强化预处理
-        const croppedBuffer = await sharp(imageBuffer)
-            .extract({ left: cropX, top: cropY, width: cropWidth, height: cropHeight })
-            .greyscale()  // 转为灰度图（提高文字识别）
-            .normalize()  // 自动归一化对比度
-            .linear(1.5, -(128 * 0.5))  // 增强对比度：contrast * pixel - offset
-            .toBuffer()
-
-        logger.info(`  🖼️ 已准备裁剪图像用于OCR识别（${cropWidth}x${cropHeight}）`)
-
-        // 执行OCR识别
-        logger.info(`🔍 开始执行 OCR 识别...`)
-        const recognizedText = await performOCR(croppedBuffer)
-
-        if (!recognizedText || recognizedText.trim() === '') {
-            logger.warn(`⚠️ OCR 未识别到任何文本`)
+        if (recognizedTexts.length === 0) {
+            logger.debug('OCR returned no text in all augment regions')
             return []
         }
 
-        // 匹配数据库
-        logger.info(`🔍 开始匹配海克斯数据库...`)
-        const augments = await matchAugmentDatabase(recognizedText)
-        logger.info(`✅ 海克斯识别完成: 共 ${augments.length} 个`)
+        logger.debug(`OCR augment recognition completed: ${bestAugments.length} augments`)
 
-        return augments
+        return bestAugments.slice(0, 3)
     } catch (error) {
         logger.error('❌ OCR 识别失败:', error)
         return []
@@ -617,29 +813,34 @@ async function recognizeAugmentsFromImage(imageBuffer) {
  * @param {Buffer} imageBuffer - 准备好的图像（裁剪、增强对比度）
  * @returns {Promise<string>} 识别的文本
  */
-async function performOCR(imageBuffer) {
+async function performOCR(imageBuffer, psm = 'SPARSE_TEXT') {
     try {
-        // 使用动态 import（ES Module 项目）
-        const Tesseract = await import('tesseract.js')
-        const { createWorker } = Tesseract
+        return await enqueueOcr(async () => {
+            try {
+                const Tesseract = await getTesseractModule()
+                const { PSM } = Tesseract
+                const worker = await getTesseractWorker()
+                const pagesegMode = PSM[psm] || PSM.SPARSE_TEXT
 
-        // 创建工作线程，使用简体中文模型
-        const worker = await createWorker('chi_sim', 1, getTesseractOptions())
+                await worker.setParameters({
+                    tessedit_pageseg_mode: pagesegMode,
+                    preserve_interword_spaces: '1',
+                    user_defined_dpi: '300',
+                })
 
-        // 执行文本识别
-        const result = await worker.recognize(imageBuffer)
+                const result = await worker.recognize(imageBuffer)
+                const recognizedText = result.data.text
+                logger.debug(`OCR text preview: ${recognizedText.substring(0, 200)}...`)
+                logger.debug(`OCR full text: ${recognizedText}`)
 
-        // 清理资源
-        await worker.terminate()
-
-        // 提取识别的文本
-        const recognizedText = result.data.text
-        logger.info(`📖 OCR识别文本: ${recognizedText.substring(0, 200)}...`)
-        logger.debug(`📝 OCR完整文本: ${recognizedText}`)
-
-        return recognizedText
+                return recognizedText
+            } finally {
+                scheduleTesseractWorkerIdleCleanup()
+            }
+        })
     } catch (error) {
         logger.error('❌ OCR识别失败:', error)
+        await resetTesseractWorker()
         return ''
     }
 }
@@ -683,13 +884,14 @@ function fuzzyFind(text, name) {
 
     const aliases = OCR_NAME_ALIASES.get(name) || []
     for (const alias of aliases) {
-        const aliasIndex = text.indexOf(alias)
+        const normalizedAlias = normalizeOcrText(alias)
+        const aliasIndex = text.indexOf(normalizedAlias)
         if (aliasIndex !== -1) {
-            logger.info(`   OCR别名匹配成功 "${name}" <= "${alias}" @位置 ${aliasIndex}`)
+            logger.debug(`   OCR别名匹配成功 "${name}" <= "${alias}" @位置 ${aliasIndex}`)
             return {
                 index: aliasIndex,
                 distance: 0,
-                matchLen: alias.length,
+                matchLen: normalizedAlias.length,
                 alias,
             }
         }
@@ -772,7 +974,7 @@ async function matchAugmentDatabase(recognizedText) {
     // 确保数据库已初始化
     const database = await initAugmentDatabase()
     const databaseSize = Object.keys(database).length
-    logger.info(`🔍 开始匹配海克斯数据库: 数据库包含 ${databaseSize} 个海克斯`)
+    logger.debug(`Matching OCR text against augment database: size=${databaseSize}`)
     logger.debug(`📝 输入原文本长度: ${recognizedText.length} 字符`)
 
     // 黑名单：常见的描述性词汇（非海克斯名称，但容易被误匹配）
@@ -787,13 +989,13 @@ async function matchAugmentDatabase(recognizedText) {
     ])
 
     // 去除所有空格用于模糊匹配（OCR可能识别出"台风 帽"而不是"台风帽"）
-    const normalizedText = recognizedText.replace(/\s+/g, '')
-    logger.info(`📝 归一化后文本: "${normalizedText.substring(0, 100)}..." (${normalizedText.length} 字符)`)
+    const normalizedText = normalizeOcrText(recognizedText)
+    logger.debug(`Normalized OCR text: "${normalizedText.substring(0, 100)}..." (${normalizedText.length} chars)`)
 
     // 将所有海克斯按名称长度降序排序；同名时优先当前数据集的高 ID，避免旧 ID 影响胜率查询。
     const sortedAugments = Object.values(database).sort((a, b) => {
-        const aLen = a.name.replace(/\s+/g, '').length
-        const bLen = b.name.replace(/\s+/g, '').length
+        const aLen = normalizeOcrText(a.name).length
+        const bLen = normalizeOcrText(b.name).length
         if (bLen !== aLen) {
             return bLen - aLen
         }
@@ -809,7 +1011,7 @@ async function matchAugmentDatabase(recognizedText) {
     let matchedCount = 0
 
     for (const augmentData of sortedAugments) {
-        const normalizedName = augmentData.name.replace(/\s+/g, '')
+        const normalizedName = normalizeOcrText(augmentData.name)
 
         // 跳过黑名单、已扫描的相同名称
         if (blacklist.has(augmentData.name) || blacklist.has(normalizedName)) {
@@ -829,7 +1031,7 @@ async function matchAugmentDatabase(recognizedText) {
         if (match) {
             matchedCount++
             const aliasText = match.alias ? `, OCR别名: ${match.alias}` : ''
-            logger.info(`✅ 匹配成功 [#${matchedCount}]: "${augmentData.name}" (id: ${augmentData.id}, 位置: ${match.index}, 编辑距离: ${match.distance}${aliasText})`)
+            logger.debug(`Augment match [#${matchedCount}]: "${augmentData.name}" (id: ${augmentData.id}, index: ${match.index}, distance: ${match.distance}${aliasText})`)
             candidates.push({
                 augmentData,
                 match,
@@ -840,7 +1042,7 @@ async function matchAugmentDatabase(recognizedText) {
         }
     }
 
-    logger.info(`📊 匹配统计: 检查 ${sortedAugments.length} 个海克斯, 跳过黑名单(${skippedBlacklist}), 跳过重复名称(${skippedDuplicateNameScan}), 成功匹配(${matchedCount})`)
+    logger.debug(`Augment match stats: scanned=${sortedAugments.length}, blacklist=${skippedBlacklist}, duplicateNames=${skippedDuplicateNameScan}, matched=${matchedCount}`)
 
     candidates.sort((a, b) => {
         if (a.match.distance !== b.match.distance) {
@@ -886,9 +1088,9 @@ async function matchAugmentDatabase(recognizedText) {
     }
 
     if (augments.length > 0) {
-        logger.info(`✅ 匹配到 ${augments.length} 个海克斯: ${augments.map(a => `"${a.name}" (id:${a.id})`).join(', ')}`)
+        logger.debug(`Matched ${augments.length} augments: ${augments.map(a => `"${a.name}" (id:${a.id})`).join(', ')}`)
     } else {
-        logger.warn(`⚠️ 未匹配到海克斯 - 最终返回空数组 (候选池: ${candidates.length})`)
+        logger.debug(`No augment matched from OCR text (candidates=${candidates.length})`)
     }
 
     return augments
@@ -968,6 +1170,7 @@ function generateAugmentRecommendations(cardDetections) {
  */
 export const analyzeScreenshot = async (imageInput) => {
     try {
+        const startTime = performance.now()
         const { buffer: imageBuffer, sourceType, sourcePath } = resolveImageBuffer(imageInput)
 
         // 验证图片数据有效性
@@ -979,12 +1182,12 @@ export const analyzeScreenshot = async (imageInput) => {
         }
 
         const timestamp = Date.now()
-        logger.info(`🔍 开始分析截图: ${sourceType}${sourcePath ? ` (${sourcePath})` : ''}, buffer size ${(imageBuffer.length / 1024).toFixed(1)}KB`)
+        logger.debug(`Screenshot analysis started: source=${sourceType}${sourcePath ? `, path=${sourcePath}` : ''}, buffer=${(imageBuffer.length / 1024).toFixed(1)}KB`)
 
         // 【新方案】使用OCR识别海克斯名称
         const recognizedAugments = await recognizeAugmentsFromImage(imageBuffer)
 
-        logger.info(`🔍 OCR识别结果: 检测到 ${recognizedAugments.length} 个海克斯`)
+        logger.debug(`OCR augment result count: ${recognizedAugments.length}`)
 
         // 判断是否为海克斯选择界面
         const isAugmentPhase = recognizedAugments.length === 3
@@ -1009,10 +1212,11 @@ export const analyzeScreenshot = async (imageInput) => {
                 sourcePath,
                 format: 'png',
                 detectionMethod: 'ocr',
+                analysisDurationMs: parseFloat((performance.now() - startTime).toFixed(2)),
             },
         }
 
-        logger.info(`✅ 截图分析完成: 识别到 ${recognizedAugments.length} 个海克斯`)
+        logger.debug(`Screenshot analysis completed: augments=${recognizedAugments.length}, duration=${analysisResult.metadata.analysisDurationMs}ms`)
         return analysisResult
     } catch (error) {
         logger.error('❌ 截图分析失败:', error)

@@ -16,6 +16,15 @@ const LOG_LEVELS = {
 
 // 当前日志级别（可通过环境变量设置）
 const currentLevel = LOG_LEVELS[process.env.LOG_LEVEL?.toUpperCase()] ?? LOG_LEVELS.INFO
+const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000
+const FILE_WRITE_ERROR_LOG_INTERVAL_MS = 30000
+let lastFileWriteErrorAt = 0
+let lastFileWriteErrorKey = ''
+
+const toBeijingISOString = (date = new Date()) => {
+    const beijingDate = new Date(date.getTime() + BEIJING_OFFSET_MS)
+    return beijingDate.toISOString().replace('Z', '+08:00')
+}
 
 // 日志目录
 const getLogDir = () => {
@@ -26,8 +35,7 @@ const getLogDir = () => {
 
 // 获取日志文件名（按日期）
 const getLogFileName = () => {
-    const now = new Date()
-    const dateStr = now.toISOString().split('T')[0] // YYYY-MM-DD
+    const dateStr = toBeijingISOString().split('T')[0] // YYYY-MM-DD
     return `app-${dateStr}.log`
 }
 
@@ -36,25 +44,36 @@ const getLogFilePath = () => {
     return path.join(getLogDir(), getLogFileName())
 }
 
+const formatArg = (arg) => {
+    if (arg instanceof Error) {
+        return JSON.stringify({
+            name: arg.name,
+            message: arg.message,
+            stack: arg.stack,
+            code: arg.code,
+        })
+    }
+
+    if (typeof arg === 'object' && arg !== null) {
+        try {
+            return JSON.stringify(arg)
+        } catch {
+            return String(arg)
+        }
+    }
+
+    return String(arg)
+}
+
 // 格式化日志消息
 const formatLogMessage = (level, message, ...args) => {
-    const now = new Date()
-    const timestamp = now.toISOString()
+    const timestamp = toBeijingISOString()
     const levelStr = level.padEnd(5)
     
     // 处理消息和参数
     let msg = message
     if (args.length > 0) {
-        msg += ' ' + args.map(arg => {
-            if (typeof arg === 'object') {
-                try {
-                    return JSON.stringify(arg)
-                } catch {
-                    return String(arg)
-                }
-            }
-            return String(arg)
-        }).join(' ')
+        msg += ' ' + args.map(formatArg).join(' ')
     }
     
     return `[${timestamp}] [${levelStr}] ${msg}`
@@ -66,7 +85,13 @@ const writeToFile = async (logMessage) => {
         const logFile = getLogFilePath()
         await fs.appendFile(logFile, logMessage + '\n', { encoding: 'utf8' })
     } catch (error) {
-        console.error('写入日志文件失败:', error)
+        const now = Date.now()
+        const errorKey = `${error.code || error.name}:${error.message}`
+        if (errorKey !== lastFileWriteErrorKey || now - lastFileWriteErrorAt > FILE_WRITE_ERROR_LOG_INTERVAL_MS) {
+            lastFileWriteErrorAt = now
+            lastFileWriteErrorKey = errorKey
+            console.error('写入日志文件失败:', error)
+        }
     }
 }
 
@@ -101,6 +126,9 @@ export const logger = {
     
     // 获取当前日志文件路径
     getCurrentLogFile: getLogFilePath,
+
+    // 获取北京时区 ISO 时间戳
+    toBeijingISOString,
     
     // 清理旧日志文件（保留最近N天）
     cleanupOldLogs: async (keepDays = 7) => {

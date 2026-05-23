@@ -41,6 +41,14 @@ export async function init() {
     const devServerUrl = isDev
         ? process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'
         : ''
+    logger.info('App runtime context:', {
+        version: app.getVersion(),
+        packaged: app.isPackaged,
+        isDev,
+        platform: process.platform,
+        arch: process.arch,
+        logFile: logger.getCurrentLogFile(),
+    })
 
     const mainWindow = await createMainWindow(isDev, devServerUrl)
     const popupWindow = await createPopupWindow(isDev, devServerUrl)
@@ -234,7 +242,7 @@ async function initGameFlowMonitor() {
                 // 每60次轮询（即60秒）刷新一次 LCU token（确保连接保持活跃）
                 tokenRefreshCounter++
                 if (tokenRefreshCounter >= 60) {
-                    logger.info('定期刷新 LCU token...')
+                    logger.debug('定期刷新 LCU token...')
                     await lcuService.getAuthToken()
                     tokenRefreshCounter = 0
                 }

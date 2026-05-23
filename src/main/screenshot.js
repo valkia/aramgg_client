@@ -2,6 +2,8 @@ import { execFile } from 'child_process'
 import { desktopCapturer } from 'electron'
 import logger from './modules/logger.js'
 
+let lastCaptureSourceKey = null
+
 /**
  * 查找游戏窗口
  * @param {Array} sources - desktopCapturer 返回的源列表
@@ -168,16 +170,19 @@ export const captureScreenshot = async (_options = {}) => {
         const pngBuffer = screenshot.toPNG()
         const hasLolWindow = !!gameWindow
         const size = screenshot.getSize()
+        const sourceName = gameWindow?.name || captureSource.name || 'screen'
+        const sourceKey = `${captureMode}:${sourceName}:${size.width}x${size.height}`
 
-        if (gameWindow) {
-            logger.info(`找到游戏窗口: ${gameWindow.name}`)
-            logger.debug(`窗口尺寸: ${size.width}x${size.height}`)
-        } else {
-            logger.warn(`未找到游戏窗口，使用全屏截图`)
-            logger.debug(`屏幕尺寸: ${size.width}x${size.height}`)
+        if (sourceKey !== lastCaptureSourceKey) {
+            lastCaptureSourceKey = sourceKey
+            if (gameWindow) {
+                logger.info(`Screenshot source changed: game window "${gameWindow.name}" (${size.width}x${size.height})`)
+            } else {
+                logger.warn(`Screenshot source changed: LoL window not found, using ${captureMode} "${sourceName}" (${size.width}x${size.height})`)
+            }
         }
 
-        logger.info(`Screenshot captured: ${size.width}x${size.height}, buffer size: ${(pngBuffer.length / 1024).toFixed(1)}KB`)
+        logger.debug(`Screenshot captured: mode=${captureMode}, size=${size.width}x${size.height}, buffer=${(pngBuffer.length / 1024).toFixed(1)}KB`)
 
         return {
             success: true,

@@ -11,22 +11,55 @@ import { captureScreenshot } from './screenshot.js'
 import { analyzeScreenshot } from './image-analyzer.js'
 import { BrowserWindow } from 'electron'
 import Store from 'electron-store'
+import fs from 'fs-extra'
+import os from 'os'
+import path from 'path'
 import logger from './modules/logger.js'
 import { applyFloatingWindowLayout } from './modules/window-manager.js'
 
 const store = new Store()
+const AUTO_SCREENSHOT_SUMMARY_INTERVAL_MS = 10000
+const ANALYSIS_MISS_LOG_INTERVAL_MS = 10000
+const PARTIAL_OCR_SAVE_INTERVAL_MS = 10000
+const PARTIAL_OCR_MAX_FILES = 60
+
+function getPartialOcrScreenshotDir() {
+    return path.join(os.homedir(), '.aramgg_client', 'ocr-partial-screenshots')
+}
+
+function getSafeTimestampForFile() {
+    return logger.toBeijingISOString().replace(/[:.]/g, '-').replace('+08-00', '+0800')
+}
+
+function getAugmentSummary(augments = []) {
+    return augments.map(aug => `${aug.name || 'unknown'}(${aug.id || 'no-id'})`).join(', ') || 'none'
+}
 
 class AutoScreenshotService {
     constructor() {
         this.isRunning = false
         this.intervalId = null
         this.interval = 5000 // 默认5秒
+        this.minInterval = 250
         this.maxScreenshots = 50 // 保留字段但已不再使用（截图直接使用内存 Buffer）
         this.screenshotCount = 0
         this.lastScreenshotTime = null
         this.enableAnalysis = true // 是否启用自动分析
         this.analysisCount = 0 // 分析次数
         this.detectionCount = 0 // 成功检测次数
+        this.isCapturing = false
+        this.isAnalyzing = false
+        this.pendingAnalysisBuffer = null
+        this.droppedAnalysisCount = 0
+        this.lastAnalysisTime = null
+        this.lastAnalysisDuration = 0
+        this.lastSummaryLogAt = 0
+        this.lastAnalysisMissLogAt = 0
+        this.lastAnalysisMissKey = ''
+        this.analysisMissRepeatCount = 0
+        this.lastPartialOcrSaveAt = 0
+        this.partialOcrSaveInFlight = false
+        this.partialOcrSaveCount = 0
         this.performanceMetrics = {
             captureTime: [], // 截图耗时数组
             memoryUsage: [],  // 内存使用量
@@ -46,16 +79,23 @@ class AutoScreenshotService {
             return false
         }
 
-        this.interval = Math.max(intervalMs, 1000) // 最小间隔1秒
+        this.interval = Math.max(intervalMs, this.minInterval)
         this.isRunning = true
         this.screenshotCount = 0
+        this.isCapturing = false
+        this.pendingAnalysisBuffer = null
+        this.droppedAnalysisCount = 0
+        this.lastSummaryLogAt = 0
+        this.lastAnalysisMissLogAt = 0
+        this.lastAnalysisMissKey = ''
+        this.analysisMissRepeatCount = 0
+        this.lastPartialOcrSaveAt = 0
+        this.partialOcrSaveInFlight = false
+        this.partialOcrSaveCount = 0
 
         logger.info(`Auto screenshot service started with interval: ${this.interval}ms`)
 
-        // 启动定时器
-        this.intervalId = setInterval(async () => {
-            await this._captureScreenshot()
-        }, this.interval)
+        this._scheduleNextCapture(0)
 
         return true
     }
@@ -70,12 +110,34 @@ class AutoScreenshotService {
             return false
         }
 
-        clearInterval(this.intervalId)
+        clearTimeout(this.intervalId)
         this.isRunning = false
         this.intervalId = null
+        this.pendingAnalysisBuffer = null
 
-        logger.info(`Auto screenshot service stopped. Total screenshots: ${this.screenshotCount}`)
+        logger.info(`Auto screenshot service stopped. screenshots=${this.screenshotCount}, analyses=${this.analysisCount}, detections=${this.detectionCount}, replacedPendingAnalyses=${this.droppedAnalysisCount}`)
         return true
+    }
+
+    /**
+     * 安排下一次截图。使用 setTimeout 串行调度，避免截图任务堆积。
+     * @private
+     */
+    _scheduleNextCapture(delayMs = this.interval) {
+        if (!this.isRunning || this.intervalId) {
+            return
+        }
+
+        this.intervalId = setTimeout(async () => {
+            this.intervalId = null
+            const cycleStart = performance.now()
+
+            await this._captureScreenshot()
+
+            const elapsed = performance.now() - cycleStart
+            const nextDelay = Math.max(0, this.interval - elapsed)
+            this._scheduleNextCapture(nextDelay)
+        }, delayMs)
     }
 
     /**
@@ -84,7 +146,16 @@ class AutoScreenshotService {
      * @private
      */
     async _captureScreenshot() {
+        if (this.isCapturing) {
+            logger.debug('Auto screenshot capture skipped because previous capture is still running')
+            return {
+                success: false,
+                error: 'capture-in-progress',
+            }
+        }
+
         const startTime = performance.now()
+        this.isCapturing = true
 
         try {
             const result = await captureScreenshot()
@@ -99,15 +170,11 @@ class AutoScreenshotService {
                 // 记录性能数据
                 this._recordPerformance(captureTimeMs)
 
-                logger.info(
-                    `[Auto Screenshot ${this.screenshotCount}] Captured in ${captureTimeMs.toFixed(2)}ms`
-                )
+                logger.debug(`[Auto Screenshot ${this.screenshotCount}] captured in ${captureTimeMs.toFixed(2)}ms`)
+                this._logPerformanceSummary()
 
-                // 异步分析截图（不阻塞截图流程）
                 if (this.enableAnalysis) {
-                    setImmediate(async () => {
-                        await this._analyzeScreenshot(result.buffer)
-                    })
+                    this._queueAnalysis(result.buffer)
                 }
 
                 return result
@@ -121,6 +188,56 @@ class AutoScreenshotService {
                 success: false,
                 error: error.message,
             }
+        } finally {
+            this.isCapturing = false
+        }
+    }
+
+    /**
+     * OCR 只保留一个正在运行的任务；忙碌时用最新截图替换待分析截图。
+     * @private
+     */
+    _queueAnalysis(imageBuffer) {
+        if (!this.enableAnalysis || !imageBuffer) {
+            return
+        }
+
+        if (this.isAnalyzing) {
+            this.pendingAnalysisBuffer = imageBuffer
+            this.droppedAnalysisCount++
+            logger.debug('OCR analysis busy; replaced pending analysis buffer with latest screenshot')
+            return
+        }
+
+        void this._drainAnalysisQueue(imageBuffer)
+    }
+
+    /**
+     * 串行消费 OCR 队列，队列最多保留最新一帧。
+     * @private
+     */
+    async _drainAnalysisQueue(initialBuffer) {
+        this.isAnalyzing = true
+        let currentBuffer = initialBuffer
+
+        try {
+            while (currentBuffer && this.isRunning && this.enableAnalysis) {
+                const startTime = performance.now()
+                await this._analyzeScreenshot(currentBuffer)
+                this.lastAnalysisDuration = performance.now() - startTime
+                this.lastAnalysisTime = Date.now()
+
+                currentBuffer = this.pendingAnalysisBuffer
+                this.pendingAnalysisBuffer = null
+            }
+        } finally {
+            this.isAnalyzing = false
+
+            if (this.pendingAnalysisBuffer && this.isRunning && this.enableAnalysis) {
+                const latestBuffer = this.pendingAnalysisBuffer
+                this.pendingAnalysisBuffer = null
+                void this._drainAnalysisQueue(latestBuffer)
+            }
         }
     }
 
@@ -131,13 +248,22 @@ class AutoScreenshotService {
     async _analyzeScreenshot(imageBuffer) {
         try {
             this.analysisCount++
+            const analysisStart = performance.now()
             const analysisResult = await analyzeScreenshot(imageBuffer)
+            const analysisDuration = performance.now() - analysisStart
 
             if (!analysisResult.success) {
+                this._logAnalysisMiss('analysis-failed', {
+                    error: analysisResult.error || 'unknown',
+                    durationMs: analysisDuration,
+                })
                 return  // 分析失败，不继续处理
             }
 
             const { cardCount, confidence, isAugmentPhase, augments } = analysisResult.analysis
+            if (cardCount > 0 && cardCount < 3) {
+                this._savePartialOcrScreenshot(imageBuffer, analysisResult, analysisDuration)
+            }
 
             // ✅ 严格的通知条件：
             // 1. 必须检测到 3 张卡片
@@ -153,8 +279,7 @@ class AutoScreenshotService {
                     this.detectionCount++
                     this.lastDetectedAugmentIds = augments.map(a => a.id)
 
-                    logger.info(`✨ [自动分析 ${this.analysisCount}] ✅ 检测到新海克斯: ${cardCount} 个，置信度 ${(confidence * 100).toFixed(1)}%`)
-                    logger.info(`   通知 UI 显示推荐`)
+                    logger.info(`Augment detected: count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, augments=${getAugmentSummary(augments)}`)
                     this._notifyAugmentDetected(analysisResult)
                 } else {
                     // 与上次相同，跳过通知
@@ -163,7 +288,13 @@ class AutoScreenshotService {
             } else {
                 // 检测结果不满足通知条件
                 if (cardCount < 3) {
-                    logger.info(`[自动分析 ${this.analysisCount}] ⚠️ 卡片数量不足: ${cardCount} < 3`)
+                    this._logAnalysisMiss('insufficient-augments', {
+                        cardCount,
+                        confidence,
+                        isAugmentPhase,
+                        durationMs: analysisDuration,
+                        augments,
+                    })
                     // 如果检测不到3张卡片，可能海克斯选择已结束，清空上次记录
                     if (cardCount === 0) {
                         const hadVisibleAugmentOverlay = this.lastDetectedAugmentIds.length > 0
@@ -173,13 +304,110 @@ class AutoScreenshotService {
                         }
                     }
                 } else if (!isAugmentPhase) {
-                    logger.info(`[自动分析 ${this.analysisCount}] ⚠️ 验证失败：卡片间距或位置不符`)
+                    this._logAnalysisMiss('phase-validation-failed', {
+                        cardCount,
+                        confidence,
+                        isAugmentPhase,
+                        durationMs: analysisDuration,
+                        augments,
+                    })
                 } else if (confidence <= 0.9) {
-                    logger.info(`[自动分析 ${this.analysisCount}] ⚠️ 置信度过低: ${(confidence * 100).toFixed(1)}% <= 90%`)
+                    this._logAnalysisMiss('low-confidence', {
+                        cardCount,
+                        confidence,
+                        isAugmentPhase,
+                        durationMs: analysisDuration,
+                        augments,
+                    })
                 }
             }
         } catch (error) {
             logger.error('Auto screenshot analysis error:', error)
+        }
+    }
+
+    _logPerformanceSummary(force = false) {
+        const now = Date.now()
+        if (!force && now - this.lastSummaryLogAt < AUTO_SCREENSHOT_SUMMARY_INTERVAL_MS) {
+            return
+        }
+
+        this.lastSummaryLogAt = now
+        const stats = this.getPerformanceStats()
+        logger.info(`Auto screenshot summary: screenshots=${stats.screenshotCount}, analyses=${stats.analysisCount}, detections=${stats.detectionCount}, replacedPendingAnalyses=${stats.droppedAnalysisCount}, avgCapture=${stats.averageCaptureTime}ms, lastAnalysis=${stats.lastAnalysisDuration || 0}ms`)
+    }
+
+    _logAnalysisMiss(reason, details = {}) {
+        const now = Date.now()
+        const cardCount = details.cardCount ?? 'n/a'
+        const confidence = Number(details.confidence || 0)
+        const key = `${reason}:${cardCount}:${Math.round(confidence * 100)}`
+
+        if (key === this.lastAnalysisMissKey) {
+            this.analysisMissRepeatCount++
+        } else {
+            this.lastAnalysisMissKey = key
+            this.analysisMissRepeatCount = 1
+        }
+
+        if (now - this.lastAnalysisMissLogAt < ANALYSIS_MISS_LOG_INTERVAL_MS && this.analysisMissRepeatCount > 1) {
+            return
+        }
+
+        this.lastAnalysisMissLogAt = now
+        logger.info(`Augment analysis not accepted: reason=${reason}, count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${Number(details.durationMs || 0).toFixed(1)}ms, repeats=${this.analysisMissRepeatCount}, augments=${getAugmentSummary(details.augments)}`)
+    }
+
+    _savePartialOcrScreenshot(imageBuffer, analysisResult, analysisDuration) {
+        const now = Date.now()
+        if (this.partialOcrSaveInFlight || now - this.lastPartialOcrSaveAt < PARTIAL_OCR_SAVE_INTERVAL_MS) {
+            return
+        }
+
+        this.partialOcrSaveInFlight = true
+        this.lastPartialOcrSaveAt = now
+
+        const { cardCount, confidence, augments } = analysisResult.analysis
+        const filename = `partial-ocr-${getSafeTimestampForFile()}-count${cardCount}-analysis${this.analysisCount}.png`
+        const dir = getPartialOcrScreenshotDir()
+        const filePath = path.join(dir, filename)
+
+        void (async () => {
+            try {
+                await fs.ensureDir(dir)
+                await fs.writeFile(filePath, imageBuffer)
+                this.partialOcrSaveCount++
+                logger.info(`Saved partial OCR screenshot: count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, path=${filePath}, augments=${getAugmentSummary(augments)}`)
+                await this._cleanupPartialOcrScreenshots(dir)
+            } catch (error) {
+                logger.warn('Failed to save partial OCR screenshot:', error.message)
+            } finally {
+                this.partialOcrSaveInFlight = false
+            }
+        })()
+    }
+
+    async _cleanupPartialOcrScreenshots(dir) {
+        try {
+            const files = await fs.readdir(dir)
+            const screenshotFiles = []
+
+            for (const file of files) {
+                if (!file.startsWith('partial-ocr-') || !file.endsWith('.png')) {
+                    continue
+                }
+
+                const filePath = path.join(dir, file)
+                const stats = await fs.stat(filePath)
+                screenshotFiles.push({ filePath, mtimeMs: stats.mtimeMs })
+            }
+
+            screenshotFiles.sort((a, b) => b.mtimeMs - a.mtimeMs)
+            const staleFiles = screenshotFiles.slice(PARTIAL_OCR_MAX_FILES)
+
+            await Promise.all(staleFiles.map(file => fs.remove(file.filePath)))
+        } catch (error) {
+            logger.debug('Failed to clean partial OCR screenshots:', error.message)
         }
     }
 
@@ -327,6 +555,10 @@ class AutoScreenshotService {
                 screenshotCount: this.screenshotCount,
                 analysisCount: this.analysisCount,
                 detectionCount: this.detectionCount,
+                droppedAnalysisCount: this.droppedAnalysisCount,
+                partialOcrSaveCount: this.partialOcrSaveCount,
+                isCapturing: this.isCapturing,
+                isAnalyzing: this.isAnalyzing,
                 averageCaptureTime: 0,
                 maxCaptureTime: 0,
                 minCaptureTime: 0,
@@ -351,6 +583,12 @@ class AutoScreenshotService {
             screenshotCount: this.screenshotCount,
             analysisCount: this.analysisCount,
             detectionCount: this.detectionCount,
+            droppedAnalysisCount: this.droppedAnalysisCount,
+            partialOcrSaveCount: this.partialOcrSaveCount,
+            isCapturing: this.isCapturing,
+            isAnalyzing: this.isAnalyzing,
+            lastAnalysisTime: this.lastAnalysisTime,
+            lastAnalysisDuration: parseFloat(this.lastAnalysisDuration.toFixed(2)),
             detectionRate: this.analysisCount > 0 ? (this.detectionCount / this.analysisCount * 100).toFixed(1) : 0,
             interval: this.interval,
             lastScreenshotTime: this.lastScreenshotTime,
@@ -405,7 +643,7 @@ class AutoScreenshotService {
      */
     setConfig(config) {
         if (config.interval !== undefined && config.interval > 0) {
-            this.interval = config.interval
+            this.interval = Math.max(config.interval, this.minInterval)
         }
         if (config.maxScreenshots !== undefined && config.maxScreenshots > 0) {
             this.maxScreenshots = config.maxScreenshots
@@ -427,6 +665,11 @@ class AutoScreenshotService {
             screenshotCount: this.screenshotCount,
             analysisCount: this.analysisCount,
             detectionCount: this.detectionCount,
+            droppedAnalysisCount: this.droppedAnalysisCount,
+            partialOcrSaveCount: this.partialOcrSaveCount,
+            isCapturing: this.isCapturing,
+            isAnalyzing: this.isAnalyzing,
+            lastAnalysisDuration: parseFloat(this.lastAnalysisDuration.toFixed(2)),
         }
     }
 
@@ -438,7 +681,20 @@ class AutoScreenshotService {
         this.screenshotCount = 0
         this.analysisCount = 0
         this.detectionCount = 0
+        this.droppedAnalysisCount = 0
         this.lastScreenshotTime = null
+        this.lastAnalysisTime = null
+        this.lastAnalysisDuration = 0
+        this.lastSummaryLogAt = 0
+        this.lastAnalysisMissLogAt = 0
+        this.lastAnalysisMissKey = ''
+        this.analysisMissRepeatCount = 0
+        this.lastPartialOcrSaveAt = 0
+        this.partialOcrSaveInFlight = false
+        this.partialOcrSaveCount = 0
+        this.pendingAnalysisBuffer = null
+        this.isCapturing = false
+        this.isAnalyzing = false
         this.lastDetectedAugmentIds = []
         this.performanceMetrics = {
             captureTime: [],

@@ -331,6 +331,7 @@ onMounted(() => {
     background: rgba(42, 54, 64, 0.84);
     border-bottom: 1px solid rgba(71, 228, 213, 0.28);
     box-shadow: inset 0 -1px 14px rgba(10, 200, 185, 0.12);
+    -webkit-app-region: drag;
 }
 
 .hex-titlebar::after {
@@ -374,6 +375,7 @@ onMounted(() => {
 
 .window-controls {
     gap: 8px;
+    -webkit-app-region: no-drag;
 }
 
 .window-control {
@@ -387,6 +389,7 @@ onMounted(() => {
     background: transparent;
     color: #bacac6;
     cursor: pointer;
+    -webkit-app-region: no-drag;
 }
 
 .window-control:hover {
