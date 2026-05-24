@@ -64,6 +64,15 @@ await electronAPI.autoScreenshot.setConfig({
 | `analysisPausedByGameflow` | 当前是否因阶段不合适而暂停 OCR |
 | `controlOwner` | `manual` 或 `gameflow`，用于区分手动控制和阶段托管 |
 
+## 日志和调试文件
+
+安装版会优先把可变数据写到安装目录旁的 `aramgg_client-data/`，如果该目录不可写则回退到 Electron `userData`。
+
+- 日志目录：`logs/`
+- OCR 调试截图：`ocr-partial-screenshots/`
+- 远端数据缓存：`remote-data-cache/`
+- 应用配置：`config/`
+
 ## 常见问题
 
 ### 没有自动识别

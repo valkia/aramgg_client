@@ -47,3 +47,5 @@ Pull requests should include a short summary, test results, screenshots or scree
 Renderer code must not assume Node access. Use the preload bridge and IPC APIs. Keep `contextIsolation`, `sandbox`, and `webSecurity` enabled unless a change explicitly justifies otherwise.
 
 ARAM champ-select recommendation code must remain read-only. Do not connect `pickOrBan`, `benchSwap`, `action`, `acceptTrade`, or `declineTrade` to recommendation flows; keep executable LCU writes isolated to their existing feature areas such as rune pages.
+
+Mutable runtime data, including electron-store config, logs, remote-data cache, and OCR debug screenshots, must go through `src/main/modules/app-paths.js`. Do not hardcode `~/.aramgg_client` or write mutable state into packaged resources, `dist/`, `dist-electron/`, or `build/`.

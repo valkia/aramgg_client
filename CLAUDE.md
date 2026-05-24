@@ -14,6 +14,7 @@
 - `legacy/` 是旧 React 隔离区，新功能不要扩展它。
 - `dist/`、`dist-electron/`、`build/` 是生成产物，不要作为源码编辑。
 - Renderer 不能假设 Node 能力；只能通过 `window.electronAPI` 走 preload/IPC。
+- 运行时可变数据统一走 `src/main/modules/app-paths.js`：安装版优先写入安装目录旁的 `aramgg_client-data/`，不可写时回退到 Electron `userData`。
 
 ## 常用命令
 
@@ -46,6 +47,7 @@ node tests/electron/test-screenshot-analysis.js
 - 主进程 LCU 服务：`src/main/services/lcu/`
 - ARAM bench 推荐纯逻辑：`src/main/services/aram/`
 - 截图和 OCR：`src/main/auto-screenshot-service.js`、`src/main/image-analyzer.js`
+- 运行时目录和日志/缓存位置：`src/main/modules/app-paths.js`
 - Preload API：`src/preload/preload.js`
 - Renderer IPC 代理：`src/renderer/native/electron-api.js`
 - Vue UI 组件：`src/renderer/components/`

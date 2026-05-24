@@ -1,6 +1,6 @@
 # Electron / electron-vite 架构整改进度
 
-更新时间：2026-05-17
+更新时间：2026-05-24
 
 ## 目标
 
@@ -14,6 +14,7 @@
 - Electron 安全配置已收敛：renderer 不再拥有 Node 能力，preload 通过 `contextBridge` 暴露业务 API。
 - `package.json#main`、electron-vite 输出目录、electron-builder `files` 已对齐。
 - `npm run type-check`、`npm run lint`、`npm run build` 当前均通过。
+- Windows 安装包已切换为 NSIS 引导式安装，支持选择安装目录；运行时可变数据统一由 `src/main/modules/app-paths.js` 管理。
 - 除 Electron 外，当前可升级依赖已完成升级；Electron 主版本升级本阶段先忽略，后续如有安全或兼容要求再单独处理。
 
 ## 优先级
@@ -88,7 +89,28 @@
 - 每批升级都有可回退边界。
 - 应用能开发启动、生产构建、关键 Electron 功能可用。
 
+### P5：安装器和运行时数据目录
+
+- [x] Windows NSIS 安装包使用引导式安装，而不是 one-click 静默安装。
+- [x] 安装时允许用户选择安装目录。
+- [x] 日志、electron-store 配置、远端缓存、OCR 调试截图统一经 `src/main/modules/app-paths.js` 解析。
+- [x] 安装版优先写入安装目录旁的 `aramgg_client-data/`，不可写时回退到 Electron `userData`。
+
+完成标准：
+
+- `npm run pack` 能生成可选安装目录的 Windows 安装包。
+- 主进程模块不再各自硬编码日志、缓存或 store 目录。
+
 ## 当前执行记录
+
+### 2026-05-24
+
+- [x] 将主界面、海克斯浮窗、英雄详情、装备/胜率等主要可见文案收敛为简体中文。
+- [x] 主窗口创建时按主显示器工作区靠右展示。
+- [x] 新增 `src/main/modules/app-paths.js`，统一配置、日志、远端缓存和 OCR 调试截图目录。
+- [x] electron-store、logger、远端数据缓存、partial OCR 截图已接入统一运行时目录。
+- [x] 调整 electron-builder NSIS 配置：允许选择安装目录，安装器默认使用简体中文。
+- [x] 运行 `npm run lint`、`npm run type-check`、`npm run build`、`npm run pack`，均通过；安装包生成在 `build/`。
 
 ### 2026-05-16
 

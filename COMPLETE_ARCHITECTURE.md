@@ -32,8 +32,18 @@ Renderer 不直接访问 Node API。所有主进程能力都必须经由 preload
 | 数据加载 | `src/main/data-loader.js`、`src/main/data-loader.ts` | 远端数据、磁盘缓存、英雄/海克斯/装备统计 |
 | 自动截图 | `src/main/auto-screenshot-service.js` | 串行截图和 OCR 队列，受 gameflow 阶段控制 |
 | 图像分析 | `src/main/image-analyzer.js` | 海克斯 OCR 和匹配 |
+| 运行时数据目录 | `src/main/modules/app-paths.js` | 配置、日志、远端数据缓存、OCR 调试截图 |
 | Preload API | `src/preload/preload.js` | 暴露 `store`、`windows`、`screenshot`、`winrate`、`lcu` 等业务 API |
 | Renderer API 代理 | `src/renderer/native/electron-api.js` | Renderer 侧统一调用入口 |
+
+## 运行时数据目录
+
+可变运行时数据由 `src/main/modules/app-paths.js` 统一解析，避免写入打包资源或生成产物目录。
+
+- 安装版优先使用安装目录旁的 `aramgg_client-data/`，目录不可写时回退到 Electron `userData`。
+- 开发环境使用 Electron `userData`，避免污染源码目录。
+- `config/` 存放 electron-store 配置，`logs/` 存放应用日志，`remote-data-cache/` 存放远端数据缓存，`ocr-partial-screenshots/` 存放 OCR 调试截图。
+- 新增日志、缓存或用户保存文件时，先在 `app-paths.js` 增加目录函数，再由业务模块调用。
 
 ## 主数据流
 
