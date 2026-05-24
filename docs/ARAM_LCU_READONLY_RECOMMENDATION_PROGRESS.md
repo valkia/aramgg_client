@@ -1,6 +1,6 @@
 # 大乱斗 LCU 只读推荐能力进度
 
-更新时间：2026-05-24
+更新时间：2026-05-25
 
 ## 目标
 
@@ -32,6 +32,7 @@
 - 游戏流程监控：[src/renderer/service/game-flow-monitor.ts](../src/renderer/service/game-flow-monitor.ts)
 - 自动截图服务：[src/main/auto-screenshot-service.js](../src/main/auto-screenshot-service.js)
 - 海克斯浮窗：[src/renderer/components/AugmentFloatingOverlay.vue](../src/renderer/components/AugmentFloatingOverlay.vue)
+- 席位推荐浮窗：[src/renderer/components/BenchOverlayView.vue](../src/renderer/components/BenchOverlayView.vue)
 
 ## 当前判断
 
@@ -84,8 +85,9 @@
 
 ### P3：选人阶段 UI 展示
 
-- [x] 在主界面或浮窗中展示大乱斗选人阶段推荐。
+- [x] 在独立席位推荐浮窗中展示大乱斗选人阶段推荐，不占用主界面。
 - [x] 选人阶段显示当前英雄和 bench 推荐；游戏内阶段继续显示海克斯推荐。
+- [x] 展示完整候选列表，不做固定 top 5 截断。
 - [x] 不提供“自动换英雄”按钮。
 - [x] 如需要操作入口，只允许提供“刷新推荐”或“查看详情”这类只读动作。
 
@@ -131,6 +133,11 @@
 - 决定第一版使用现有 LCU 请求能力构建只读快照，WebSocket `OnJsonApiEvent` 作为后续优化。
 - 决定推荐模块与 LCU 写入接口隔离，避免未来误接入自动操作。
 - 决定截图/OCR 生命周期使用 `/lol-gameflow/v1/gameflow-phase` 的 `InProgress` 表示实际对局阶段；选人阶段统一使用 `ChampSelect`，不混用 champ-select session 内部 timer 状态。
+
+### 2026-05-25
+
+- 决定 ARAM 选人阶段推荐从主界面迁出，使用独立席位推荐弹窗承载。
+- 决定席位推荐候选列表展示全部候选英雄，避免固定展示上限隐藏可用席位。
 
 ## LCU 接口审计
 
@@ -178,6 +185,14 @@
 - [x] 验证通过：`npm run lint`。
 - [x] 验证通过：`npm run type-check`。
 - [x] 验证通过：`npm run build`。
+
+### 2026-05-25
+
+- [x] 新增 `BenchOverlayView.vue` 和 `/bench-overlay` 路由。
+- [x] 主进程新增席位推荐窗口，进入 `ChampSelect` 时显示，离开选人阶段时隐藏。
+- [x] 从主界面移除 `AramBenchRecommendation.vue`，避免选人推荐占用主界面。
+- [x] 席位推荐候选列表取消 top 5 截断，展示完整候选。
+- [x] 验证通过：`node tests/electron/test-aram-bench-recommendation.js`、`npm run lint`、`npm run type-check`、`npm run build`。
 
 ## 后续注意事项
 

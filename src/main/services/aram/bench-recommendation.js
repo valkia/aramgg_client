@@ -249,7 +249,7 @@ export function getAramBenchRecommendation(snapshot, championStatsById = {}) {
       candidates,
       confidence: recommendedChampion?.confidence || 0,
       reasons: recommendedChampion
-        ? [`当前英雄尚未稳定读取，bench 中优先关注 ${recommendedChampion.name}`]
+        ? [`当前英雄尚未稳定读取，席位中优先关注 ${recommendedChampion.name}`]
         : ['当前英雄尚未稳定读取'],
     }
   }
@@ -260,7 +260,7 @@ export function getAramBenchRecommendation(snapshot, championStatsById = {}) {
   const reasons = []
 
   if (noBenchAvailable) {
-    reasons.push('没有可用 bench 英雄，建议保留当前英雄')
+    reasons.push('没有可用席位英雄，建议保留当前英雄')
   } else if (!recommendedChampion || recommendedChampion.championId === currentChampion.championId || deltaScore < 0.015) {
     reasons.push(`${currentChampion.name} 当前评分最高或差距很小，建议保留`)
   } else {

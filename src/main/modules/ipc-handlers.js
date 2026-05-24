@@ -8,6 +8,7 @@ import {
     applyFloatingWindowLayout,
     applyPopupWindowLayout,
     createPopupWindow,
+    getBenchWindow,
     getFloatingWindow,
     getMainWindow,
     getPopupWindow,
@@ -67,6 +68,14 @@ export function registerIpcHandlers(isDev) {
         const popupWindow = getPopupWindow()
         if (popupWindow?.isVisible()) {
             popupWindow.hide()
+        }
+    })
+
+    ipcMain.on('hide-bench', async () => {
+        const benchWindow = getBenchWindow()
+        if (benchWindow && !benchWindow.isDestroyed() && benchWindow.isVisible()) {
+            benchWindow.hide()
+            logger.info('Bench recommendation window hidden')
         }
     })
 

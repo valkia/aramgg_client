@@ -811,6 +811,42 @@ async function readIndividualTitleGroup(imageBuffer, groupRegion, imageWidth, im
     return texts.join('\n')
 }
 
+async function readIndividualTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
+    const augments = []
+    const seenIds = new Set()
+
+    for (const [index, region] of (groupRegion.regions || []).entries()) {
+        const { rect, buffer } = await prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight)
+        logger.debug(`OCR ordered title region ${region.name}: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
+
+        const text = await performOCR(buffer, region.psm)
+        if (!text || text.trim() === '') {
+            logger.debug(`  OCR ordered title ${index + 1}: empty`)
+            continue
+        }
+
+        const matches = await matchAugmentDatabase(text)
+        const match = matches.find(augment => {
+            const id = String(augment.id)
+            return !seenIds.has(id)
+        })
+
+        if (!match) {
+            logger.debug(`  OCR ordered title ${index + 1}: no augment match`)
+            continue
+        }
+
+        seenIds.add(String(match.id))
+        augments.push({
+            ...match,
+            detectedSlot: index,
+        })
+        logger.debug(`  OCR ordered title ${index + 1}: ${match.name} (${match.id})`)
+    }
+
+    return augments
+}
+
 async function measureTitleRegionActivity(imageBuffer, region, imageWidth, imageHeight) {
     const rect = clampRegion(region, imageWidth, imageHeight)
     const { data, info } = await sharp(imageBuffer)
@@ -973,8 +1009,25 @@ async function recognizeAugmentsFromImage(imageBuffer) {
         const regions = createOcrRegions(width, height)
         const recognizedTexts = []
         let bestAugments = []
+        const individualTitleGroup = regions.find(region => region.type === 'individual-title-group')
+
+        if (individualTitleGroup) {
+            const orderedTitleAugments = await readIndividualTitleAugments(imageBuffer, individualTitleGroup, width, height)
+            if (orderedTitleAugments.length > bestAugments.length) {
+                bestAugments = orderedTitleAugments
+            }
+
+            if (orderedTitleAugments.length >= 3) {
+                logger.debug('OCR augment recognition completed from ordered individual titles: 3 augments')
+                return orderedTitleAugments.slice(0, 3)
+            }
+        }
 
         for (const region of regions) {
+            if (region.type === 'individual-title-group') {
+                continue
+            }
+
             if (region.slowFallback && bestAugments.length < 2) {
                 logger.debug(`OCR slow fallback ${region.name} skipped: bestAugments=${bestAugments.length}`)
                 continue

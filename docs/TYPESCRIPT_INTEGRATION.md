@@ -235,6 +235,12 @@ monitor.on('game-started', () => {
 
 ## ✨ 最佳实践
 
+### 0. 新代码优先 TypeScript
+
+- 新增源码、服务、工具、IPC 契约和测试默认使用 `.ts`。
+- Vue 单文件组件需要新增脚本逻辑时，优先使用 `<script setup lang="ts">`。
+- 只有延续既有 JavaScript 模块、第三方工具要求或迁移成本明显超过收益时，才新增 `.js`；这种例外应保持局部。
+
 ### 1. 始终运行类型检查
 ```bash
 # 提交前运行类型检查
@@ -358,4 +364,3 @@ error TS2339: Property 'xxx' does not exist on type 'InstanceType<typeof Compone
 | NPM 脚本 | ✅ type-check 命令可用 |
 
 现在可以开始使用 TypeScript 的优势进行开发了！🎉
-

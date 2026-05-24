@@ -4,6 +4,26 @@ import logger from './modules/logger.js'
 
 let lastCaptureSourceKey = null
 const CAPTURE_THUMBNAIL_SIZE = { width: 1280, height: 720 }
+const DEFAULT_CAPTURE_TIMEOUT_MS = 4000
+
+function withTimeout(promise, timeoutMs, label) {
+    if (!timeoutMs || timeoutMs <= 0) {
+        return promise
+    }
+
+    let timeoutId = null
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+            reject(new Error(`${label} timed out after ${timeoutMs}ms`))
+        }, timeoutMs)
+    })
+
+    return Promise.race([promise, timeoutPromise]).finally(() => {
+        if (timeoutId) {
+            clearTimeout(timeoutId)
+        }
+    })
+}
 
 /**
  * 查找游戏窗口
@@ -134,18 +154,28 @@ export const getLolGameStatus = async () => {
  * @param {Object} options - 截图选项
  * @returns {Promise<Object>} 截图结果
  */
-export const captureScreenshot = async (_options = {}) => {
+export const captureScreenshot = async (options = {}) => {
     try {
+        const {
+            preferScreen = false,
+            timeoutMs = DEFAULT_CAPTURE_TIMEOUT_MS,
+            thumbnailSize = CAPTURE_THUMBNAIL_SIZE,
+        } = options || {}
         const timestamp = Date.now()
+        const sourceTypes = preferScreen ? ['screen'] : ['window', 'screen']
 
         // 获取所有窗口和屏幕源
-        const sources = await desktopCapturer.getSources({
-            types: ['window', 'screen'],
-            thumbnailSize: CAPTURE_THUMBNAIL_SIZE,
-        })
+        const sources = await withTimeout(
+            desktopCapturer.getSources({
+                types: sourceTypes,
+                thumbnailSize,
+            }),
+            timeoutMs,
+            `desktopCapturer.getSources(${sourceTypes.join(',')})`
+        )
 
         // 查找游戏窗口
-        const gameWindow = findGameWindow(sources)
+        const gameWindow = preferScreen ? null : findGameWindow(sources)
 
         // 确定截图源：优先游戏窗口，否则使用全屏
         let captureSource = gameWindow
@@ -176,7 +206,9 @@ export const captureScreenshot = async (_options = {}) => {
 
         if (sourceKey !== lastCaptureSourceKey) {
             lastCaptureSourceKey = sourceKey
-            if (gameWindow) {
+            if (preferScreen) {
+                logger.info(`Screenshot source changed: screen capture "${sourceName}" (${size.width}x${size.height})`)
+            } else if (gameWindow) {
                 logger.info(`Screenshot source changed: game window "${gameWindow.name}" (${size.width}x${size.height})`)
             } else {
                 logger.warn(`Screenshot source changed: LoL window not found, using ${captureMode} "${sourceName}" (${size.width}x${size.height})`)

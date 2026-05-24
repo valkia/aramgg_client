@@ -5,7 +5,7 @@
                 <Swords class="panel-icon" />
                 <div>
                     <p class="section-kicker">ARAM</p>
-                    <h3>选人建议</h3>
+                    <h3>席位推荐</h3>
                 </div>
             </div>
             <div class="panel-actions">
@@ -63,7 +63,7 @@
                     <div class="candidate-main">
                         <div class="candidate-title">
                             <strong>{{ candidate.name }}</strong>
-                            <span>{{ candidate.isCurrent ? '当前' : 'bench' }}</span>
+                            <span>{{ candidate.isCurrent ? '当前' : '席位' }}</span>
                         </div>
                         <div class="stat-line">
                             <span>胜率 {{ formatPercent(candidate.winRate) }}</span>
@@ -114,7 +114,7 @@ const statusLabel = computed(() => {
 
     const status = recommendation.value?.status
     if (status === 'ready') return '只读建议'
-    if (status === 'no-bench') return '无 bench'
+    if (status === 'no-bench') return '无席位'
     if (status === 'no-current-champion') return '读取中'
     if (status === 'no-candidates') return '暂无英雄'
     return '等待选人'
@@ -126,7 +126,7 @@ const emptyMessage = computed(() => {
     return '等待进入选人阶段'
 })
 
-const topCandidates = computed(() => recommendation.value?.candidates?.slice(0, 5) || [])
+const topCandidates = computed(() => recommendation.value?.candidates || [])
 const recommended = computed(() => recommendation.value?.recommendedChampion || null)
 const current = computed(() => recommendation.value?.currentChampion || null)
 

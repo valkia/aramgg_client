@@ -47,10 +47,13 @@ class AutoScreenshotService {
         this.detectionCount = 0 // 成功检测次数
         this.isCapturing = false
         this.isAnalyzing = false
+        this.runId = 0
         this.pendingAnalysisBuffer = null
         this.droppedAnalysisCount = 0
         this.lastAnalysisTime = null
         this.lastAnalysisDuration = 0
+        this.captureTimeoutMs = 2500
+        this.preferScreenCapture = true
         this.lastSummaryLogAt = 0
         this.lastAnalysisMissLogAt = 0
         this.lastAnalysisMissKey = ''
@@ -82,12 +85,19 @@ class AutoScreenshotService {
         }
 
         this.interval = Math.max(intervalMs, this.minInterval)
+        this.runId++
         this.isRunning = true
         this.controlOwner = owner
         this.screenshotCount = 0
+        this.analysisCount = 0
+        this.detectionCount = 0
         this.isCapturing = false
+        this.isAnalyzing = false
         this.pendingAnalysisBuffer = null
         this.droppedAnalysisCount = 0
+        this.lastScreenshotTime = null
+        this.lastAnalysisTime = null
+        this.lastAnalysisDuration = 0
         this.lastSummaryLogAt = 0
         this.lastAnalysisMissLogAt = 0
         this.lastAnalysisMissKey = ''
@@ -97,10 +107,14 @@ class AutoScreenshotService {
         this.partialOcrSaveCount = 0
         this.lastDetectedAugmentAt = 0
         this.lastDetectedAugmentIds = []
+        this.performanceMetrics = {
+            captureTime: [],
+            memoryUsage: [],
+        }
 
         logger.info(`Auto screenshot service started with interval: ${this.interval}ms, owner=${owner}`)
 
-        this._scheduleNextCapture(0)
+        this._scheduleNextCapture(0, this.runId)
 
         return true
     }
@@ -122,9 +136,12 @@ class AutoScreenshotService {
 
         clearTimeout(this.intervalId)
         this.isRunning = false
+        this.runId++
         this.intervalId = null
         this.pendingAnalysisBuffer = null
         this.controlOwner = null
+        this.isCapturing = false
+        this.isAnalyzing = false
 
         logger.info(`Auto screenshot service stopped by ${owner}. screenshots=${this.screenshotCount}, analyses=${this.analysisCount}, detections=${this.detectionCount}, replacedPendingAnalyses=${this.droppedAnalysisCount}`)
         return true
@@ -159,20 +176,24 @@ class AutoScreenshotService {
      * 安排下一次截图。使用 setTimeout 串行调度，避免截图任务堆积。
      * @private
      */
-    _scheduleNextCapture(delayMs = this.interval) {
+    _scheduleNextCapture(delayMs = this.interval, runId = this.runId) {
         if (!this.isRunning || this.intervalId) {
             return
         }
 
         this.intervalId = setTimeout(async () => {
             this.intervalId = null
+            if (!this.isRunning || runId !== this.runId) {
+                return
+            }
+
             const cycleStart = performance.now()
 
-            await this._captureScreenshot()
+            await this._captureScreenshot(runId)
 
             const elapsed = performance.now() - cycleStart
             const nextDelay = Math.max(0, this.interval - elapsed)
-            this._scheduleNextCapture(nextDelay)
+            this._scheduleNextCapture(nextDelay, runId)
         }, delayMs)
     }
 
@@ -181,7 +202,7 @@ class AutoScreenshotService {
      * 【注意】浮窗已调整到屏幕顶部，与OCR区域不重叠，无需隐藏
      * @private
      */
-    async _captureScreenshot() {
+    async _captureScreenshot(runId = this.runId) {
         if (this.isCapturing) {
             logger.debug('Auto screenshot capture skipped because previous capture is still running')
             return {
@@ -194,7 +215,17 @@ class AutoScreenshotService {
         this.isCapturing = true
 
         try {
-            const result = await captureScreenshot()
+            const result = await captureScreenshot({
+                preferScreen: this.preferScreenCapture,
+                timeoutMs: this.captureTimeoutMs,
+            })
+
+            if (!this.isRunning || runId !== this.runId) {
+                return {
+                    success: false,
+                    error: 'capture-stopped',
+                }
+            }
 
             const endTime = performance.now()
             const captureTimeMs = endTime - startTime
@@ -225,7 +256,9 @@ class AutoScreenshotService {
                 error: error.message,
             }
         } finally {
-            this.isCapturing = false
+            if (runId === this.runId) {
+                this.isCapturing = false
+            }
         }
     }
 
@@ -234,7 +267,7 @@ class AutoScreenshotService {
      * @private
      */
     _queueAnalysis(imageBuffer) {
-        if (!this.enableAnalysis || !imageBuffer || !this.isAnalysisAllowedByGameflow()) {
+        if (!this.isRunning || !this.enableAnalysis || !imageBuffer || !this.isAnalysisAllowedByGameflow()) {
             return
         }
 
@@ -245,14 +278,14 @@ class AutoScreenshotService {
             return
         }
 
-        void this._drainAnalysisQueue(imageBuffer)
+        void this._drainAnalysisQueue(imageBuffer, this.runId)
     }
 
     /**
      * 串行消费 OCR 队列，队列最多保留最新一帧。
      * @private
      */
-    async _drainAnalysisQueue(initialBuffer) {
+    async _drainAnalysisQueue(initialBuffer, runId = this.runId) {
         this.isAnalyzing = true
         let currentBuffer = initialBuffer
 
@@ -260,11 +293,15 @@ class AutoScreenshotService {
             while (
                 currentBuffer &&
                 this.isRunning &&
+                runId === this.runId &&
                 this.enableAnalysis &&
                 this.isAnalysisAllowedByGameflow()
             ) {
                 const startTime = performance.now()
                 await this._analyzeScreenshot(currentBuffer)
+                if (!this.isRunning || runId !== this.runId) {
+                    break
+                }
                 this.lastAnalysisDuration = performance.now() - startTime
                 this.lastAnalysisTime = Date.now()
 
@@ -272,12 +309,14 @@ class AutoScreenshotService {
                 this.pendingAnalysisBuffer = null
             }
         } finally {
-            this.isAnalyzing = false
+            if (runId === this.runId) {
+                this.isAnalyzing = false
 
-            if (this.pendingAnalysisBuffer && this.isRunning && this.enableAnalysis) {
-                const latestBuffer = this.pendingAnalysisBuffer
-                this.pendingAnalysisBuffer = null
-                void this._drainAnalysisQueue(latestBuffer)
+                if (this.pendingAnalysisBuffer && this.isRunning && this.enableAnalysis) {
+                    const latestBuffer = this.pendingAnalysisBuffer
+                    this.pendingAnalysisBuffer = null
+                    void this._drainAnalysisQueue(latestBuffer, runId)
+                }
             }
         }
     }
@@ -610,6 +649,8 @@ class AutoScreenshotService {
                 controlOwner: this.controlOwner,
                 isCapturing: this.isCapturing,
                 isAnalyzing: this.isAnalyzing,
+                captureTimeoutMs: this.captureTimeoutMs,
+                preferScreenCapture: this.preferScreenCapture,
                 averageCaptureTime: 0,
                 maxCaptureTime: 0,
                 minCaptureTime: 0,
@@ -641,6 +682,8 @@ class AutoScreenshotService {
             controlOwner: this.controlOwner,
             isCapturing: this.isCapturing,
             isAnalyzing: this.isAnalyzing,
+            captureTimeoutMs: this.captureTimeoutMs,
+            preferScreenCapture: this.preferScreenCapture,
             lastAnalysisTime: this.lastAnalysisTime,
             lastAnalysisDuration: parseFloat(this.lastAnalysisDuration.toFixed(2)),
             detectionRate: this.analysisCount > 0 ? (this.detectionCount / this.analysisCount * 100).toFixed(1) : 0,
@@ -705,6 +748,12 @@ class AutoScreenshotService {
         if (config.enableAnalysis !== undefined) {
             this.enableAnalysis = config.enableAnalysis
         }
+        if (config.captureTimeoutMs !== undefined && config.captureTimeoutMs > 0) {
+            this.captureTimeoutMs = config.captureTimeoutMs
+        }
+        if (config.preferScreenCapture !== undefined) {
+            this.preferScreenCapture = config.preferScreenCapture !== false
+        }
     }
 
     /**
@@ -726,6 +775,8 @@ class AutoScreenshotService {
             controlOwner: this.controlOwner,
             isCapturing: this.isCapturing,
             isAnalyzing: this.isAnalyzing,
+            captureTimeoutMs: this.captureTimeoutMs,
+            preferScreenCapture: this.preferScreenCapture,
             lastAnalysisDuration: parseFloat(this.lastAnalysisDuration.toFixed(2)),
         }
     }
@@ -756,6 +807,7 @@ class AutoScreenshotService {
         this.isAnalyzing = false
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugmentAt = 0
+        this.runId++
         this.performanceMetrics = {
             captureTime: [],
             memoryUsage: [],

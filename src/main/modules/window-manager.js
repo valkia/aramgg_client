@@ -9,10 +9,12 @@ const __dirname = path.dirname(__filename)
 let mainWindow = null
 let popupWindow = null
 let floatingWindow = null
+let benchWindow = null
 
 const MAIN_WINDOW_SIZE = { width: 460, height: 760 }
 const POPUP_WINDOW_SIZE = { width: 420, height: 800 }
 const FLOATING_WINDOW_SIZE = { width: 900, height: 200 }
+const BENCH_WINDOW_SIZE = { width: 430, height: 660 }
 
 function getMainWindowBounds() {
     const display = screen.getPrimaryDisplay()
@@ -53,6 +55,21 @@ function getPopupBounds() {
     }
 }
 
+function getBenchBounds() {
+    const display = getDisplayForMainWindow()
+    const area = display.workArea || display.bounds
+    const width = Math.min(BENCH_WINDOW_SIZE.width, area.width)
+    const height = Math.min(BENCH_WINDOW_SIZE.height, area.height)
+    const rightAlignedX = area.x + area.width - width - 140
+
+    return {
+        width,
+        height,
+        x: Math.max(area.x + 20, rightAlignedX),
+        y: area.y + Math.max(20, Math.round((area.height - height) / 2)),
+    }
+}
+
 function getFloatingBounds() {
     const display = screen.getPrimaryDisplay()
     const area = display.workArea || display.bounds
@@ -70,6 +87,12 @@ function getFloatingBounds() {
 export function applyPopupWindowLayout() {
     if (popupWindow && !popupWindow.isDestroyed()) {
         popupWindow.setBounds(getPopupBounds())
+    }
+}
+
+export function applyBenchWindowLayout() {
+    if (benchWindow && !benchWindow.isDestroyed()) {
+        benchWindow.setBounds(getBenchBounds())
     }
 }
 
@@ -133,6 +156,10 @@ export const createMainWindow = async (isDev, devServerUrl) => {
             logger.info('Closing floating window...')
             floatingWindow.close()
         }
+        if (benchWindow && !benchWindow.isDestroyed()) {
+            logger.info('Closing bench window...')
+            benchWindow.close()
+        }
     })
 
     mainWindow.on('closed', () => {
@@ -187,6 +214,42 @@ export const createPopupWindow = async (isDev, devServerUrl) => {
     logger.info('Popup window loaded', popupWindow.webContents.getURL())
 
     return popupWindow
+}
+
+/**
+ * 创建 ARAM 选人席位推荐弹窗
+ */
+export const createBenchWindow = async (isDev, devServerUrl) => {
+    const webPreferences = getWebPreferences(isDev)
+    const bounds = getBenchBounds()
+
+    benchWindow = new BrowserWindow({
+        show: false,
+        frame: false,
+        skipTaskbar: true,
+        resizable: isDev || false,
+        fullscreenable: false,
+        alwaysOnTop: true,
+        ...bounds,
+        webPreferences,
+    })
+
+    benchWindow.on('closed', () => {
+        logger.info('Bench window closed')
+        benchWindow = undefined
+    })
+
+    if (isDev) {
+        await benchWindow.loadURL(`${devServerUrl}/#/bench-overlay`)
+    } else {
+        await benchWindow.loadFile(getRendererIndexPath(), {
+            hash: '/bench-overlay',
+        })
+    }
+
+    logger.info('Bench window loaded', benchWindow.webContents.getURL())
+
+    return benchWindow
 }
 
 /**
@@ -253,6 +316,11 @@ export const getPopupWindow = () => popupWindow
  * 获取浮动窗口实例
  */
 export const getFloatingWindow = () => floatingWindow
+
+/**
+ * 获取席位推荐窗口实例
+ */
+export const getBenchWindow = () => benchWindow
 
 /**
  * 切换主窗口可见性

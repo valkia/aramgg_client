@@ -46,13 +46,14 @@ node tests/electron/test-screenshot-analysis.js
 
 - 主进程 LCU 服务：`src/main/services/lcu/`
 - ARAM bench 推荐纯逻辑：`src/main/services/aram/`
+- ARAM 席位推荐弹窗：`src/renderer/components/BenchOverlayView.vue`、路由 `/bench-overlay`、主进程 `createBenchWindow()`
 - 截图和 OCR：`src/main/auto-screenshot-service.js`、`src/main/image-analyzer.js`
 - 运行时目录和日志/缓存位置：`src/main/modules/app-paths.js`
 - Preload API：`src/preload/preload.js`
 - Renderer IPC 代理：`src/renderer/native/electron-api.js`
 - Vue UI 组件：`src/renderer/components/`
 
-业务逻辑优先放 services，不要塞进 Vue template。新增测试脚本放 `tests/electron/test-<feature>.js`。
+业务逻辑优先放 services，不要塞进 Vue template。新增源码、服务、工具、IPC 契约和测试优先使用 TypeScript；只有延续既有 JS 模块或工具边界确实不方便时才新增 `.js`。新增测试脚本放 `tests/electron/test-<feature>.js`。
 
 ## LCU 与游戏阶段
 
@@ -61,6 +62,8 @@ node tests/electron/test-screenshot-analysis.js
 - 自动截图/OCR 只应在实际对局 `InProgress` 阶段运行；`ChampSelect`、`Lobby`、`EndOfGame` 等阶段要避免展示过期海克斯结果。
 - 只读选人快照入口是 `LCUService.getChampSelectSnapshot()` 和 IPC `lcu-get-champ-select-snapshot`。
 - ARAM bench 推荐入口是 IPC `lcu-get-aram-bench-recommendation`，结果只包含展示字段，不包含动作字段。
+- 选人阶段推荐使用独立席位推荐弹窗展示，不放回主界面；候选英雄列表应展示完整候选，不做固定 top 5 截断。
+- 海克斯识别结果应优先按左/中/右卡片区域确定顺序；自动截图服务需要保留截图超时和 runId 隔离，避免上一局残留任务影响下一局识别。
 
 ## 文档指针
 

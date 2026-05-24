@@ -44,7 +44,6 @@
                 <GamePathConfig @path-changed="onPathChanged" />
                 <RuneControls @opgg-data-ready="onOpggDataReady" />
                 <ChampionMonitor />
-                <AramBenchRecommendation />
 
                 <section class="diagnostic-panel">
                     <div class="section-header">
@@ -105,7 +104,6 @@ import { computed, onMounted, ref } from 'vue'
 import GamePathConfig from './GamePathConfig.vue'
 import RuneControls from './RuneControls.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
-import AramBenchRecommendation from './AramBenchRecommendation.vue'
 import { electronAPI } from '../native/electron-api.js'
 import { ClipboardList, Cpu, Database, EyeOff, Minus, Target, X } from 'lucide-vue-next'
 

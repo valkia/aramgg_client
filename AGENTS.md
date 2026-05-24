@@ -28,7 +28,7 @@ Use targeted test scripts in `tests/electron/` directly when debugging a feature
 
 Use Vue single-file components for renderer UI. Keep business logic in services where possible, not inside templates. Prefer existing UI primitives in `src/renderer/components/ui/` and project design tokens in `src/renderer/styles/index.css`.
 
-Use JavaScript/TypeScript ES modules. Component files use `PascalCase.vue`; services and utilities use lowercase or kebab-case names. Keep comments short and only where they clarify non-obvious behavior.
+Use JavaScript/TypeScript ES modules. Prefer TypeScript for new source files, services, utilities, IPC contracts, and tests; add `.js` only when extending an existing JavaScript module or when a dependency/tooling boundary makes TypeScript impractical. Component files use `PascalCase.vue`; services and utilities use lowercase or kebab-case names. Keep comments short and only where they clarify non-obvious behavior.
 
 ## Testing Guidelines
 
@@ -47,5 +47,7 @@ Pull requests should include a short summary, test results, screenshots or scree
 Renderer code must not assume Node access. Use the preload bridge and IPC APIs. Keep `contextIsolation`, `sandbox`, and `webSecurity` enabled unless a change explicitly justifies otherwise.
 
 ARAM champ-select recommendation code must remain read-only. Do not connect `pickOrBan`, `benchSwap`, `action`, `acceptTrade`, or `declineTrade` to recommendation flows; keep executable LCU writes isolated to their existing feature areas such as rune pages.
+
+Keep ARAM champ-select recommendations in the dedicated bench overlay window, not on the main renderer screen. The bench overlay should show all available candidates and remain a read-only recommendation surface.
 
 Mutable runtime data, including electron-store config, logs, remote-data cache, and OCR debug screenshots, must go through `src/main/modules/app-paths.js`. Do not hardcode `~/.aramgg_client` or write mutable state into packaged resources, `dist/`, `dist-electron/`, or `build/`.

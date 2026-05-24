@@ -3,7 +3,17 @@ import Store from 'electron-store'
 import { captureScreenshot, getLolGameStatus } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
 import { registerIpcHandlers } from './ipc-handlers.js'
-import { applyFloatingWindowLayout, createMainWindow, createPopupWindow, createFloatingWindow, toggleMainWindow, getFloatingWindow } from './window-manager.js'
+import {
+    applyBenchWindowLayout,
+    applyFloatingWindowLayout,
+    createBenchWindow,
+    createMainWindow,
+    createPopupWindow,
+    createFloatingWindow,
+    getBenchWindow,
+    toggleMainWindow,
+    getFloatingWindow,
+} from './window-manager.js'
 import autoScreenshotService from '../auto-screenshot-service.js'
 import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
 import { checkForClientUpdate } from '../version-checker.js'
@@ -65,10 +75,12 @@ export async function init() {
 
     const mainWindow = await createMainWindow(isDev, devServerUrl)
     const popupWindow = await createPopupWindow(isDev, devServerUrl)
+    const benchWindow = await createBenchWindow(isDev, devServerUrl)
     const floatingWindow = await createFloatingWindow(isDev, devServerUrl)
     logger.info('窗口已创建:', {
         main: !!mainWindow,
         popup: !!popupWindow,
+        bench: !!benchWindow,
         floating: !!floatingWindow
     })
 
@@ -90,7 +102,7 @@ export async function init() {
     // 注册其他应用事件
     registerAppEvents()
 
-    return { mainWindow, popupWindow, toggleMainWindow }
+    return { mainWindow, popupWindow, benchWindow, toggleMainWindow }
 }
 
 /**
@@ -168,6 +180,28 @@ function clearAugmentOverlayForPhase(phase) {
     }
 
     autoScreenshotService.clearAugmentState(`LCU phase ${phase}`)
+}
+
+function showBenchWindowForChampSelect() {
+    const benchWindow = getBenchWindow()
+    if (!benchWindow || benchWindow.isDestroyed()) {
+        logger.warn('Bench recommendation window is unavailable')
+        return
+    }
+
+    applyBenchWindowLayout()
+    if (!benchWindow.isVisible()) {
+        benchWindow.show()
+        logger.info('显示 ARAM 选人席位推荐弹窗')
+    }
+}
+
+function hideBenchWindow(reason) {
+    const benchWindow = getBenchWindow()
+    if (benchWindow && !benchWindow.isDestroyed() && benchWindow.isVisible()) {
+        benchWindow.hide()
+        logger.info(`隐藏 ARAM 选人席位推荐弹窗: ${reason}`)
+    }
 }
 
 function logLolGameStatus(status, phase) {
@@ -291,35 +325,42 @@ async function initGameFlowMonitor() {
                         case 'Lobby':
                         case 'Matchmaking':
                         case 'ReadyCheck':
+                            hideBenchWindow(`LCU phase ${phase}`)
                             stopAutoScreenshotForGame(`LCU phase ${phase}`)
                             break
                         case 'ChampSelect':
                             logger.info('进入选人阶段 - 暂停游戏内海克斯 OCR')
                             notifyAllWindows('champ-select-start', {})
+                            showBenchWindowForChampSelect()
                             stopAutoScreenshotForGame('LCU phase ChampSelect')
                             break
                         case 'GameStart':
                             logger.info('游戏开始加载')
                             notifyAllWindows('game-started', {})
+                            hideBenchWindow('LCU phase GameStart')
                             stopAutoScreenshotForGame('LCU phase GameStart')
                             break
                         case 'InProgress':
                             logger.info('游戏进行中 - 启动自动截图来检测海克斯选择')
                             notifyAllWindows('game-in-progress', {})
+                            hideBenchWindow('LCU phase InProgress')
                             await startAutoScreenshotForGame('LCU phase InProgress')
                             break
                         case 'WaitingForStats':
                             logger.info('游戏已结束')
                             notifyAllWindows('game-ended', {})
+                            hideBenchWindow('LCU phase WaitingForStats')
                             stopAutoScreenshotForGame('LCU phase WaitingForStats')
                             break
                         case 'PreEndOfGame':
                             logger.info('游戏结束统计阶段')
+                            hideBenchWindow('LCU phase PreEndOfGame')
                             stopAutoScreenshotForGame('LCU phase PreEndOfGame')
                             break
                         case 'EndOfGame':
                             logger.info('游戏完全结束')
                             notifyAllWindows('end-of-game', {})
+                            hideBenchWindow('LCU phase EndOfGame')
                             stopAutoScreenshotForGame('LCU phase EndOfGame')
                             break
                     }
@@ -328,8 +369,12 @@ async function initGameFlowMonitor() {
                 if (phase === GAMEFLOW_AUGMENT_ANALYSIS_PHASE) {
                     await startAutoScreenshotForGame('LCU phase InProgress')
                 } else if (phase === 'None') {
+                    hideBenchWindow('LCU phase None')
                     await reconcileAutoScreenshotWithLolWindow(phase)
                 } else if (phase) {
+                    if (phase !== 'ChampSelect') {
+                        hideBenchWindow(`LCU phase ${phase}`)
+                    }
                     stopAutoScreenshotForGame(`LCU phase ${phase}`)
                 }
             } catch (error) {
