@@ -14,8 +14,9 @@ import {
     toggleMainWindow,
 } from './window-manager.js'
 import logger from './logger.js'
+import { getAppDataDir, getConfigDir } from './app-paths.js'
 
-const store = new Store()
+const store = new Store({ cwd: getConfigDir() })
 
 export function registerIpcHandlers(isDev) {
     ipcMain.handle('store-get', (_event, key) => {
@@ -110,13 +111,13 @@ export function registerIpcHandlers(isDev) {
         const mainWindow = getMainWindow()
         const options = {
             type: 'question',
-            buttons: ['Exit', 'Cancel'],
+            buttons: ['退出', '取消'],
             defaultId: 1,
             cancelId: 1,
             noLink: true,
-            title: 'Exit Aetheris Hex-Core',
-            message: 'Exit Aetheris Hex-Core?',
-            detail: 'Monitoring, screenshots, and overlay updates stop after the app exits.',
+            title: '退出海克斯核心',
+            message: '确定退出海克斯核心？',
+            detail: '退出后，英雄监控、自动截图和浮窗更新都会停止。',
         }
         const result = mainWindow && !mainWindow.isDestroyed()
             ? await dialog.showMessageBox(mainWindow, options)
@@ -237,7 +238,7 @@ export function registerIpcHandlers(isDev) {
 
     ipcMain.handle('auto-screenshot-start', async (_event, config = {}) => {
         const interval = config.interval || 5000
-        const success = await autoScreenshotService.start(interval)
+        const success = await autoScreenshotService.start(interval, 'manual')
         if (success) {
             logger.info('Auto screenshot service started')
         }
@@ -248,7 +249,7 @@ export function registerIpcHandlers(isDev) {
     })
 
     ipcMain.handle('auto-screenshot-stop', async () => {
-        const success = autoScreenshotService.stop()
+        const success = autoScreenshotService.stop('manual')
         if (success) {
             logger.info('Auto screenshot service stopped')
         }
@@ -345,6 +346,7 @@ export function registerIpcHandlers(isDev) {
                 dataVersion: config.dataVersion,
                 championStats,
                 resourcesPath: process.resourcesPath,
+                appDataDir: getAppDataDir(),
                 cwd: process.cwd(),
                 isDev,
                 nodeEnv: process.env.NODE_ENV,

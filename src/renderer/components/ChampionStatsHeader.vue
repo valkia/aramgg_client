@@ -12,9 +12,9 @@
 
       <div class="info-section">
         <div class="champion-info">
-          <h2 class="champion-name">{{ stats.nameCN || `ID: ${championId}` }}</h2>
+          <h2 class="champion-name">{{ stats.nameCN || `英雄 ${championId}` }}</h2>
           <Badge :variant="getTierVariant(stats.tier)" class="tier-badge">
-            Tier {{ stats.tier }}
+            梯队 {{ stats.tier }}
           </Badge>
         </div>
 
@@ -83,8 +83,7 @@ const getTierVariant = (tier) => {
  * Format large numbers
  */
 const formatNumber = (num) => {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
+  if (num >= 10000) return (num / 10000).toFixed(1) + '万'
   return String(num)
 }
 

@@ -76,6 +76,12 @@ const getChampionIdViaIpc = async () => {
             return null
         }
 
+        const snapshotResult = await electronAPI.lcu.getChampSelectSnapshot()
+        if (snapshotResult?.success && snapshotResult.snapshot?.selfChampionId) {
+            console.log('✅ 从只读选人快照获取英雄ID:', snapshotResult.snapshot.selfChampionId)
+            return snapshotResult.snapshot.selfChampionId
+        }
+
         const result = await electronAPI.lcu.getChampionId()
 
         if (result && result.success && result.championId) {
@@ -107,7 +113,7 @@ const startChampionMonitor = async () => {
         const championId = await getChampionIdViaIpc()
         if (championId) {
             console.log('✅ 检测到已选择的英雄:', championId)
-            lastChampion.value = `ID: ${championId}`
+            lastChampion.value = `英雄ID：${championId}`
         }
     } catch (error) {
         console.warn('检查当前英雄选择失败:', error.message)
@@ -118,8 +124,8 @@ const startChampionMonitor = async () => {
         try {
             const championId = await getChampionIdViaIpc()
             if (championId) {
-                selectedChampion.value = `ID: ${championId}`
-                lastChampion.value = `ID: ${championId}`
+                selectedChampion.value = `英雄ID：${championId}`
+                lastChampion.value = `英雄ID：${championId}`
                 console.log('🎯 英雄选择更新:', championId)
 
                 // 缓存英雄ID到主进程store，供海克斯检测使用

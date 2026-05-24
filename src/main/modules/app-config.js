@@ -8,15 +8,27 @@ import autoScreenshotService from '../auto-screenshot-service.js'
 import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
 import { checkForClientUpdate } from '../version-checker.js'
 import logger from './logger.js'
+import { getAppDataDir, getConfigDir } from './app-paths.js'
 
 const __dirname = import.meta.dirname
-const store = new Store()
+const store = new Store({ cwd: getConfigDir() })
 
 // 全局游戏流程轮询定时器
 let lcuPollingTimer = null
 const AUTO_SCREENSHOT_INTERVAL_MS = 200
 const AUTO_SCREENSHOT_MAX_CAPTURES = 100
 const GAME_WINDOW_STATUS_LOG_INTERVAL_MS = 30000
+const GAMEFLOW_AUGMENT_ANALYSIS_PHASE = 'InProgress'
+const AUGMENT_CLEAR_PHASES = new Set([
+    'Lobby',
+    'Matchmaking',
+    'ReadyCheck',
+    'ChampSelect',
+    'GameStart',
+    'WaitingForStats',
+    'PreEndOfGame',
+    'EndOfGame',
+])
 let autoScreenshotManagedByGameFlow = false
 let lastGameWindowStatusKey = null
 let lastGameWindowStatusLogAt = 0
@@ -47,6 +59,7 @@ export async function init() {
         isDev,
         platform: process.platform,
         arch: process.arch,
+        appDataDir: getAppDataDir(),
         logFile: logger.getCurrentLogFile(),
     })
 
@@ -106,6 +119,10 @@ async function autoDetectLolPath() {
 }
 
 async function startAutoScreenshotForGame(reason) {
+    if (store.get('autoScreenshotGameflowControl') === false) {
+        return false
+    }
+
     if (autoScreenshotService.isRunning) {
         return false
     }
@@ -115,7 +132,7 @@ async function startAutoScreenshotForGame(reason) {
         maxScreenshots: AUTO_SCREENSHOT_MAX_CAPTURES,
     })
 
-    const success = await autoScreenshotService.start(AUTO_SCREENSHOT_INTERVAL_MS)
+    const success = await autoScreenshotService.start(AUTO_SCREENSHOT_INTERVAL_MS, 'gameflow')
     if (success) {
         autoScreenshotManagedByGameFlow = true
         logger.info(`Auto screenshot service started by game monitor: ${reason}`)
@@ -124,23 +141,33 @@ async function startAutoScreenshotForGame(reason) {
     return success
 }
 
-function stopAutoScreenshotForGame(reason, force = false) {
+function stopAutoScreenshotForGame(reason) {
     if (!autoScreenshotService.isRunning) {
         autoScreenshotManagedByGameFlow = false
         return false
     }
 
-    if (!force && !autoScreenshotManagedByGameFlow) {
+    if (!autoScreenshotManagedByGameFlow && autoScreenshotService.getConfig().controlOwner !== 'gameflow') {
         return false
     }
 
-    const success = autoScreenshotService.stop()
+    const success = autoScreenshotService.stop('gameflow')
     if (success) {
         autoScreenshotManagedByGameFlow = false
         logger.info(`Auto screenshot service stopped by game monitor: ${reason}`)
+    } else if (autoScreenshotService.getConfig().controlOwner === 'manual') {
+        autoScreenshotManagedByGameFlow = false
     }
 
     return success
+}
+
+function clearAugmentOverlayForPhase(phase) {
+    if (!AUGMENT_CLEAR_PHASES.has(phase)) {
+        return
+    }
+
+    autoScreenshotService.clearAugmentState(`LCU phase ${phase}`)
 }
 
 function logLolGameStatus(status, phase) {
@@ -248,16 +275,33 @@ async function initGameFlowMonitor() {
                 }
 
                 const phase = await lcuService.getGameflowPhase()
+                if (phase) {
+                    autoScreenshotService.setGameflowPhase(phase)
+                }
+
                 if (phase && phase !== lastPhase) {
+                    const prevPhase = lastPhase
                     lastPhase = phase
                     logger.info(`游戏阶段变化: → ${phase}`)
-                    notifyAllWindows('game-phase-changed', { phase, prevPhase: null })
+                    notifyAllWindows('game-phase-changed', { phase, prevPhase })
+                    clearAugmentOverlayForPhase(phase)
 
                     // 特定阶段处理
                     switch (phase) {
+                        case 'Lobby':
+                        case 'Matchmaking':
+                        case 'ReadyCheck':
+                            stopAutoScreenshotForGame(`LCU phase ${phase}`)
+                            break
+                        case 'ChampSelect':
+                            logger.info('进入选人阶段 - 暂停游戏内海克斯 OCR')
+                            notifyAllWindows('champ-select-start', {})
+                            stopAutoScreenshotForGame('LCU phase ChampSelect')
+                            break
                         case 'GameStart':
                             logger.info('游戏开始加载')
                             notifyAllWindows('game-started', {})
+                            stopAutoScreenshotForGame('LCU phase GameStart')
                             break
                         case 'InProgress':
                             logger.info('游戏进行中 - 启动自动截图来检测海克斯选择')
@@ -267,19 +311,26 @@ async function initGameFlowMonitor() {
                         case 'WaitingForStats':
                             logger.info('游戏已结束')
                             notifyAllWindows('game-ended', {})
-                            stopAutoScreenshotForGame('LCU phase WaitingForStats', true)
+                            stopAutoScreenshotForGame('LCU phase WaitingForStats')
+                            break
+                        case 'PreEndOfGame':
+                            logger.info('游戏结束统计阶段')
+                            stopAutoScreenshotForGame('LCU phase PreEndOfGame')
                             break
                         case 'EndOfGame':
                             logger.info('游戏完全结束')
                             notifyAllWindows('end-of-game', {})
+                            stopAutoScreenshotForGame('LCU phase EndOfGame')
                             break
                     }
                 }
 
-                if (phase === 'InProgress') {
+                if (phase === GAMEFLOW_AUGMENT_ANALYSIS_PHASE) {
                     await startAutoScreenshotForGame('LCU phase InProgress')
                 } else if (phase === 'None') {
                     await reconcileAutoScreenshotWithLolWindow(phase)
+                } else if (phase) {
+                    stopAutoScreenshotForGame(`LCU phase ${phase}`)
                 }
             } catch (error) {
                 logger.warn('游戏流程轮询出错:', error.message)
@@ -416,7 +467,7 @@ function registerAppEvents() {
 
     // 窗口全部关闭时退出应用
     app.on('window-all-closed', function () {
-        logger.info('All windows closed, quitting app...')
+        logger.info('所有窗口已关闭，正在退出应用...')
         app.quit()
     })
 

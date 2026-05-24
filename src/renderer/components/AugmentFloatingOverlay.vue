@@ -19,7 +19,7 @@
         >
           <div v-if="isTopPick(augment, index)" class="top-pick-badge">
             <span>*</span>
-            TOP PICK
+            优先推荐
           </div>
 
           <div class="augment-icon-frame">
@@ -36,16 +36,16 @@
             <h3 class="name">{{ augment.name }}</h3>
             <div class="stats-lines">
               <div class="stat-line">
-                <span>Pick Rate</span>
+                <span>选取率</span>
                 <strong>{{ formatPercent(augment.pickRate) }}</strong>
               </div>
               <div class="stat-line">
-                <span>Win Rate</span>
+                <span>胜率</span>
                 <strong>{{ formatPercent(augment.winRate) }}</strong>
               </div>
             </div>
             <span class="recommend-label" :class="getBadgeClass(augment.recommendScore)">
-              {{ getRecommendText(augment.recommendScore) }} - {{ formatScore(augment.recommendScore) }}
+              {{ getRecommendText(augment.recommendScore) }} · {{ formatScore(augment.recommendScore) }}
             </span>
           </div>
 

@@ -8,10 +8,16 @@
 import { ipcMain } from 'electron'
 import Store from 'electron-store'
 import logger from '../../modules/logger.js'
+import { getConfigDir } from '../../modules/app-paths.js'
 import { getLCUServiceInstance } from './lcu-service.ts'
-import { ChampionIdResult } from './types.ts'
+import { ChampionIdResult, ChampSelectSnapshot } from './types.ts'
+import {
+  collectAramCandidateChampionIds,
+  createEmptyAramBenchRecommendation,
+  getAramBenchRecommendation,
+} from '../aram/bench-recommendation.js'
 
-const store = new Store()
+const store = new Store({ cwd: getConfigDir() })
 
 const getLcuServiceFromStore = async () => {
   const lolPath = store.get('lolPath') as string | undefined
@@ -32,6 +38,47 @@ const getLcuServiceFromStore = async () => {
     service,
     error: null,
   }
+}
+
+const loadChampionStatsForRecommendation = async (
+  championIds: number[]
+): Promise<Record<string, any>> => {
+  if (!championIds.length) {
+    return {}
+  }
+
+  const { loadChampionStats, loadChampionName } = await import('../../data-loader.js')
+  const entries = await Promise.all(
+    championIds.map(async (championId) => {
+      try {
+        const [stats, championName] = await Promise.all([
+          loadChampionStats(championId),
+          loadChampionName(championId),
+        ])
+
+        return [
+          String(championId),
+          {
+            ...stats,
+            ...championName,
+            championId,
+          },
+        ] as const
+      } catch (error) {
+        const err = error as Error
+        logger.warn(`[LCU] Failed to load ARAM stats for champion ${championId}:`, err.message)
+        return [
+          String(championId),
+          {
+            championId,
+            nameCN: `英雄 ${championId}`,
+          },
+        ] as const
+      }
+    })
+  )
+
+  return Object.fromEntries(entries)
 }
 
 /**
@@ -63,6 +110,68 @@ export function registerLCUIpcHandlers(): void {
       success: !!session,
       session,
       error: session ? null : '无有效的选人会话',
+    }
+  })
+
+  ipcMain.handle('lcu-get-champ-select-snapshot', async () => {
+    const { service, error } = await getLcuServiceFromStore()
+    if (!service) {
+      return {
+        success: true,
+        snapshot: {
+          connected: false,
+          gameflowPhase: null,
+          isInChampSelect: false,
+          champSelectSession: null,
+          localPlayerCellId: null,
+          selfChampionId: null,
+          benchEnabled: false,
+          benchChampions: [],
+          myTeam: [],
+          actions: [],
+          timer: null,
+          status: 'unavailable',
+          reason: error || 'lcu-unavailable',
+          updatedAt: Date.now(),
+        } satisfies ChampSelectSnapshot,
+        error,
+      }
+    }
+
+    const snapshot = await service.getChampSelectSnapshot()
+    return {
+      success: true,
+      snapshot,
+      error: snapshot.status === 'ready' ? null : snapshot.reason,
+    }
+  })
+
+  ipcMain.handle('lcu-get-aram-bench-recommendation', async () => {
+    const { service, error } = await getLcuServiceFromStore()
+    if (!service) {
+      return {
+        success: true,
+        recommendation: createEmptyAramBenchRecommendation(error || 'lcu-unavailable'),
+        error,
+      }
+    }
+
+    const snapshot = await service.getChampSelectSnapshot()
+    const championIds = collectAramCandidateChampionIds(snapshot)
+    const championStatsById = await loadChampionStatsForRecommendation(championIds)
+    const recommendation = getAramBenchRecommendation(snapshot, championStatsById)
+
+    if (snapshot.selfChampionId) {
+      store.set('lastSelectedChampionId', snapshot.selfChampionId)
+    }
+
+    return {
+      success: true,
+      snapshot,
+      recommendation,
+      error: recommendation.status === 'ready' || recommendation.status === 'no-bench'
+        ? null
+        : recommendation.reason,
     }
   })
 
@@ -140,85 +249,27 @@ export function registerLCUIpcHandlers(): void {
         }
       }
 
-      // 获取选人会话
-      logger.info('[LCU] 正在获取选人会话...')
-      const sessionData = await lcuService.getCurrentSession()
+      logger.info('[LCU] 正在获取只读选人快照...')
+      const snapshot = await lcuService.getChampSelectSnapshot()
 
-      if (!sessionData) {
-        logger.warn('[LCU] 无法获取选人会话数据')
+      logger.info(
+        `[LCU] 选人快照: status=${snapshot.status}, phase=${snapshot.gameflowPhase || 'unknown'}, self=${snapshot.selfChampionId || 'none'}, bench=${snapshot.benchChampions.length}`
+      )
+
+      if (snapshot.selfChampionId) {
+        store.set('lastSelectedChampionId', snapshot.selfChampionId)
         return {
-          success: false,
-          championId: null,
-          error: '无有效的选人会话 - 请确保处于英雄选择阶段',
+          success: true,
+          championId: snapshot.selfChampionId,
         }
       }
 
-      if (sessionData.errorCode) {
-        logger.warn(`[LCU] 选人会话错误: ${sessionData.errorCode}`)
-        return {
-          success: false,
-          championId: null,
-          error: `选人会话错误: ${sessionData.errorCode}`,
-        }
-      }
-
-      // 获取当前玩家的 cellId
-      const localPlayerCellId = sessionData.localPlayerCellId
-      logger.info(`[LCU] 当前玩家 cellId: ${localPlayerCellId}`)
-      logger.debug(`[LCU] myTeam 数据: ${JSON.stringify(sessionData.myTeam || [])}`)
-      logger.debug(`[LCU] actions 数据: ${JSON.stringify(sessionData.actions || [])}`)
-
-      // 从 myTeam 中查找当前玩家选择的英雄
-      if (sessionData.myTeam && Array.isArray(sessionData.myTeam)) {
-        for (const member of sessionData.myTeam) {
-          // 必须匹配当前玩家的 cellId
-          if (
-            member.cellId === localPlayerCellId &&
-            member.championId &&
-            member.championId !== 0
-          ) {
-            logger.info(
-              `[LCU] ✅ 从 myTeam 获得英雄ID: ${member.championId} (cellId: ${localPlayerCellId})`
-            )
-            return {
-              success: true,
-              championId: member.championId,
-            }
-          }
-        }
-      }
-
-      // 如果 myTeam 中没找到，尝试从 actions 中查找
-      if (sessionData.actions && Array.isArray(sessionData.actions) && sessionData.actions.length > 0) {
-        for (const actionGroup of sessionData.actions) {
-          if (Array.isArray(actionGroup)) {
-            for (const action of actionGroup) {
-              if (
-                action.actorCellId === localPlayerCellId &&
-                action.championId &&
-                action.championId !== 0
-              ) {
-                logger.info(
-                  `[LCU] ✅ 从 actions 获得英雄ID: ${action.championId} (cellId: ${localPlayerCellId})`
-                )
-                return {
-                  success: true,
-                  championId: action.championId,
-                }
-              }
-            }
-          }
-        }
-      }
-
-      logger.warn(`[LCU] ❌ 未找到当前玩家选择的英雄 (cellId: ${localPlayerCellId})`)
-      logger.warn(`[LCU]    myTeam 长度: ${sessionData.myTeam?.length || 0}`)
-      logger.warn(`[LCU]    actions 长度: ${sessionData.actions?.length || 0}`)
+      logger.warn(`[LCU] ❌ 未找到当前玩家选择的英雄 (snapshot status: ${snapshot.status})`)
 
       return {
         success: false,
         championId: null,
-        error: '未找到英雄选择 - 请确保已选择英雄',
+        error: snapshot.reason || '未找到英雄选择 - 请确保已选择英雄',
       }
     } catch (error) {
       logger.error('[LCU] 获取英雄ID时发生错误:', error)

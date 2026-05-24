@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'fs/promises'
-import os from 'os'
 import path from 'path'
 import logger from './modules/logger.js'
+import { getAppDataDir } from './modules/app-paths.js'
 
 export const DATA_API_ORIGIN =
   process.env.ARAMGG_DATA_API_ORIGIN || 'https://data.dtodo.cn'
@@ -74,18 +74,7 @@ function sanitizeCacheKey(value) {
 }
 
 async function resolveDiskCacheDir() {
-  let basePath = null
-
-  if (process.versions?.electron) {
-    try {
-      const { app } = await import('electron')
-      basePath = app.isReady() ? app.getPath('userData') : app.getPath('temp')
-    } catch (error) {
-      logger.warn('Failed to resolve Electron cache path:', error.message)
-    }
-  }
-
-  const cacheDir = path.join(basePath || path.join(os.tmpdir(), 'aramgg_client'), DISK_CACHE_DIR_NAME)
+  const cacheDir = path.join(getAppDataDir(), DISK_CACHE_DIR_NAME)
   await mkdir(cacheDir, { recursive: true })
   return cacheDir
 }

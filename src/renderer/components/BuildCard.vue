@@ -1,8 +1,8 @@
 <template>
   <div class="build-card">
     <Alert v-if="!buildData" class="info-alert">
-      <AlertTitle>暂无Build数据</AlertTitle>
-      <AlertDescription>该英雄暂时没有Build数据。</AlertDescription>
+      <AlertTitle>暂无出装数据</AlertTitle>
+      <AlertDescription>该英雄暂时没有出装数据。</AlertDescription>
     </Alert>
 
     <template v-else>

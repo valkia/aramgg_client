@@ -51,7 +51,7 @@
               </TabsTrigger>
               <TabsTrigger value="builds" class="tab-trigger">
                 <Package class="tab-icon-svg" />
-                装备Build
+                装备出装
               </TabsTrigger>
             </TabsList>
 
@@ -110,7 +110,7 @@ const loadData = async () => {
   try {
     // Check if ipcRenderer is available
     if (!hasElectronAPI()) {
-      throw new Error('Electron API not available. Please wait for the application to fully load.')
+      throw new Error('应用接口暂不可用，请等待应用完成加载。')
     }
 
     // Call IPC to load data in main process

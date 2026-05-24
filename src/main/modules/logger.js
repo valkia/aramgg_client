@@ -1,10 +1,10 @@
 /**
  * 日志模块 - 提供文件日志记录功能
- * 日志存储位置: ~/.aramgg_client/logs/
+ * 日志存储位置: 应用数据目录/logs/
  */
 import path from 'path'
 import fs from 'fs-extra'
-import os from 'os'
+import { getLogDir as resolveLogDir } from './app-paths.js'
 
 // 日志级别
 const LOG_LEVELS = {
@@ -28,7 +28,7 @@ const toBeijingISOString = (date = new Date()) => {
 
 // 日志目录
 const getLogDir = () => {
-    const logDir = path.join(os.homedir(), '.aramgg_client', 'logs')
+    const logDir = resolveLogDir()
     fs.ensureDirSync(logDir)
     return logDir
 }

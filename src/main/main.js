@@ -1,7 +1,13 @@
 import { app, BrowserWindow } from 'electron'
-import { init } from './modules/app-config.js'
-import { createMainWindow } from './modules/window-manager.js'
-import logger from './modules/logger.js'
+import { configureAppPaths } from './modules/app-paths.js'
+
+configureAppPaths()
+
+const [{ init }, { createMainWindow }, { default: logger }] = await Promise.all([
+    import('./modules/app-config.js'),
+    import('./modules/window-manager.js'),
+    import('./modules/logger.js'),
+])
 
 // 解决提示ERR_CERT_AUTHORITY_INVALID的问题
 app.commandLine.appendSwitch('ignore-certificate-errors', 'true')
@@ -44,7 +50,7 @@ app.whenReady().then(init)
 
 // Quit when all windows are closed.
 app.on('window-all-closed', function () {
-    logger.info('All windows closed, quitting app...')
+    logger.info('所有窗口已关闭，正在退出应用...')
     app.quit()
 })
 

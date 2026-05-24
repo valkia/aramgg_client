@@ -23,9 +23,179 @@ import {
   LCUAuthConfig,
   LCUUrls,
   GameflowPhase,
+  ChampSelectAction,
+  ChampSelectBenchChampion,
   ChampSelectSession,
+  ChampSelectSnapshot,
   PerkPage,
 } from './types.ts'
+
+const createEmptyChampSelectSnapshot = (
+  params: {
+    connected: boolean
+    gameflowPhase: GameflowPhase | null
+    status: ChampSelectSnapshot['status']
+    reason: string | null
+  }
+): ChampSelectSnapshot => ({
+  connected: params.connected,
+  gameflowPhase: params.gameflowPhase,
+  isInChampSelect: params.gameflowPhase === 'ChampSelect',
+  champSelectSession: null,
+  localPlayerCellId: null,
+  selfChampionId: null,
+  benchEnabled: false,
+  benchChampions: [],
+  myTeam: [],
+  actions: [],
+  timer: null,
+  status: params.status,
+  reason: params.reason,
+  updatedAt: Date.now(),
+})
+
+const toPositiveInteger = (value: unknown): number | null => {
+  const numberValue = Number(value)
+  if (!Number.isInteger(numberValue) || numberValue <= 0) {
+    return null
+  }
+
+  return numberValue
+}
+
+const normalizeBenchChampions = (
+  benchChampions: ChampSelectSession['benchChampions']
+): ChampSelectBenchChampion[] => {
+  if (!Array.isArray(benchChampions)) {
+    return []
+  }
+
+  const seenChampionIds = new Set<number>()
+  const normalized: ChampSelectBenchChampion[] = []
+
+  for (const benchChampion of benchChampions) {
+    const championId = toPositiveInteger(benchChampion?.championId)
+    if (!championId || seenChampionIds.has(championId)) {
+      continue
+    }
+
+    seenChampionIds.add(championId)
+    normalized.push({
+      ...benchChampion,
+      championId,
+    })
+  }
+
+  return normalized
+}
+
+const getSelfChampionIdFromActions = (
+  actions: ChampSelectAction[][],
+  localPlayerCellId: number | null
+): number | null => {
+  if (localPlayerCellId == null || !Array.isArray(actions)) {
+    return null
+  }
+
+  for (const actionGroup of actions) {
+    if (!Array.isArray(actionGroup)) {
+      continue
+    }
+
+    for (const action of actionGroup) {
+      if (action.actorCellId !== localPlayerCellId) {
+        continue
+      }
+
+      const championId = toPositiveInteger(action.championId)
+      if (championId) {
+        return championId
+      }
+    }
+  }
+
+  return null
+}
+
+const getSelfChampionId = (session: ChampSelectSession): number | null => {
+  const localPlayerCellId = Number.isInteger(session.localPlayerCellId)
+    ? session.localPlayerCellId
+    : null
+
+  if (localPlayerCellId == null) {
+    return null
+  }
+
+  const localPlayer = Array.isArray(session.myTeam)
+    ? session.myTeam.find((member) => member.cellId === localPlayerCellId)
+    : null
+  const teamChampionId = toPositiveInteger(localPlayer?.championId)
+  if (teamChampionId) {
+    return teamChampionId
+  }
+
+  return getSelfChampionIdFromActions(session.actions || [], localPlayerCellId)
+}
+
+const buildChampSelectSnapshot = (
+  params: {
+    connected: boolean
+    gameflowPhase: GameflowPhase | null
+    session: ChampSelectSession | null
+  }
+): ChampSelectSnapshot => {
+  const { connected, gameflowPhase, session } = params
+
+  if (!connected && !gameflowPhase) {
+    return createEmptyChampSelectSnapshot({
+      connected,
+      gameflowPhase,
+      status: 'unavailable',
+      reason: 'lcu-unavailable',
+    })
+  }
+
+  if (gameflowPhase !== 'ChampSelect') {
+    return createEmptyChampSelectSnapshot({
+      connected,
+      gameflowPhase,
+      status: 'not-in-champ-select',
+      reason: gameflowPhase ? `phase-${gameflowPhase}` : 'gameflow-phase-unavailable',
+    })
+  }
+
+  if (!session || session.errorCode) {
+    return createEmptyChampSelectSnapshot({
+      connected,
+      gameflowPhase,
+      status: 'empty',
+      reason: session?.errorCode ? `session-error-${session.errorCode}` : 'no-champ-select-session',
+    })
+  }
+
+  const benchChampions = normalizeBenchChampions(session.benchChampions)
+  const localPlayerCellId = Number.isInteger(session.localPlayerCellId)
+    ? session.localPlayerCellId
+    : null
+  const actions = Array.isArray(session.actions) ? session.actions : []
+
+  return {
+    connected,
+    gameflowPhase,
+    isInChampSelect: true,
+    champSelectSession: session,
+    localPlayerCellId,
+    selfChampionId: getSelfChampionId(session),
+    benchEnabled: session.benchEnabled === true || benchChampions.length > 0,
+    benchChampions,
+    myTeam: Array.isArray(session.myTeam) ? session.myTeam : [],
+    actions,
+    timer: session.timer || null,
+    status: 'ready',
+    reason: null,
+    updatedAt: Date.now(),
+  }
+}
 
 /**
  * LCU 服务配置选项
@@ -50,6 +220,12 @@ export class LCUService {
   private port: string | null = null
   private auth: LCUAuthConfig | null = null
   private urls: LCUUrls | null = null
+  private champSelectSnapshot: ChampSelectSnapshot = createEmptyChampSelectSnapshot({
+    connected: false,
+    gameflowPhase: null,
+    status: 'unavailable',
+    reason: 'not-initialized',
+  })
 
   // 缓存相关
   private lastTokenFetchTime: number = 0
@@ -202,6 +378,30 @@ export class LCUService {
       }
       return null
     }
+  }
+
+  /**
+   * 获取标准化后的只读选人快照。
+   * 该入口只读取 gameflow 和 champ-select session，不执行任何选人写入操作。
+   */
+  async getChampSelectSnapshot(): Promise<ChampSelectSnapshot> {
+    const gameflowPhase = await this.getGameflowPhase()
+    const session = gameflowPhase === 'ChampSelect' ? await this.getCurrentSession() : null
+
+    this.champSelectSnapshot = buildChampSelectSnapshot({
+      connected: this.active,
+      gameflowPhase,
+      session,
+    })
+
+    return this.champSelectSnapshot
+  }
+
+  /**
+   * 获取最近一次选人快照缓存。不会访问 LCU。
+   */
+  getCachedChampSelectSnapshot(): ChampSelectSnapshot {
+    return this.champSelectSnapshot
   }
 
   /**

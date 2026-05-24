@@ -50,6 +50,9 @@ export const electronAPI = {
     getChampionId: (...args) => requireElectronAPI().lcu.getChampionId(...args),
     getStatus: (...args) => requireElectronAPI().lcu.getStatus(...args),
     getCurrentSession: (...args) => requireElectronAPI().lcu.getCurrentSession(...args),
+    getChampSelectSnapshot: (...args) => requireElectronAPI().lcu.getChampSelectSnapshot(...args),
+    getAramBenchRecommendation: (...args) =>
+      requireElectronAPI().lcu.getAramBenchRecommendation(...args),
     getPerkList: (...args) => requireElectronAPI().lcu.getPerkList(...args),
     applyPerk: (...args) => requireElectronAPI().lcu.applyPerk(...args),
     getGameflowPhase: (...args) => requireElectronAPI().lcu.getGameflowPhase(...args),

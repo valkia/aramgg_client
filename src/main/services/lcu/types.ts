@@ -30,6 +30,13 @@ export interface LCUUrls {
   gameflowSession: string
 }
 
+/** 只读选人快照状态 */
+export type ChampSelectSnapshotStatus =
+  | 'unavailable'
+  | 'not-in-champ-select'
+  | 'empty'
+  | 'ready'
+
 /** 游戏流程阶段 */
 export type GameflowPhase =
   | 'None'
@@ -48,9 +55,11 @@ export type GameflowPhase =
 export interface TeamMember {
   cellId: number
   championId: number
-  summonerId: number
-  spell1Id: number
-  spell2Id: number
+  summonerId?: number
+  spell1Id?: number
+  spell2Id?: number
+  championPickIntent?: number
+  [key: string]: unknown
 }
 
 /** 选人会话中的操作信息 */
@@ -59,6 +68,24 @@ export interface ChampSelectAction {
   championId: number
   type: string
   completed: boolean
+  id?: number
+  [key: string]: unknown
+}
+
+/** 大乱斗 bench 英雄信息 */
+export interface ChampSelectBenchChampion {
+  championId: number
+  isPriority?: boolean
+  [key: string]: unknown
+}
+
+/** 选人计时器信息 */
+export interface ChampSelectTimer {
+  adjustedTimeLeftInPhase?: number
+  internalNowInEpochMs?: number
+  phase?: string
+  totalTimeInPhase?: number
+  [key: string]: unknown
 }
 
 /** 选人会话数据 */
@@ -67,7 +94,29 @@ export interface ChampSelectSession {
   myTeam: TeamMember[]
   theirTeam: TeamMember[]
   actions: ChampSelectAction[][]
+  benchEnabled?: boolean
+  benchChampions?: ChampSelectBenchChampion[]
+  timer?: ChampSelectTimer
   errorCode?: string
+  [key: string]: unknown
+}
+
+/** 标准化后的只读选人快照 */
+export interface ChampSelectSnapshot {
+  connected: boolean
+  gameflowPhase: GameflowPhase | null
+  isInChampSelect: boolean
+  champSelectSession: ChampSelectSession | null
+  localPlayerCellId: number | null
+  selfChampionId: number | null
+  benchEnabled: boolean
+  benchChampions: ChampSelectBenchChampion[]
+  myTeam: TeamMember[]
+  actions: ChampSelectAction[][]
+  timer: ChampSelectTimer | null
+  status: ChampSelectSnapshotStatus
+  reason: string | null
+  updatedAt: number
 }
 
 /** 符文页数据 */

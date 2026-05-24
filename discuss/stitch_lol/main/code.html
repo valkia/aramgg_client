@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aetheris Hex-Core Settings</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600&amp;family=Sora:wght@600;700;800&amp;family=JetBrains+Mono:wght@700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed-dim": "#8ecefb",
+                        "on-primary-fixed": "#00201d",
+                        "primary-container": "#0ac8b9",
+                        "on-tertiary": "#00344d",
+                        "secondary-fixed-dim": "#e2c384",
+                        "surface-container-low": "#111d26",
+                        "surface": "#08151e",
+                        "inverse-surface": "#d7e4f1",
+                        "on-error": "#690005",
+                        "error": "#ffb4ab",
+                        "on-tertiary-fixed": "#001e2f",
+                        "on-primary-fixed-variant": "#005049",
+                        "on-error-container": "#ffdad6",
+                        "on-secondary-fixed": "#261a00",
+                        "primary-fixed-dim": "#3bdccd",
+                        "surface-tint": "#3bdccd",
+                        "surface-container-high": "#1f2b35",
+                        "on-secondary": "#402d00",
+                        "on-tertiary-container": "#004a6c",
+                        "on-tertiary-fixed-variant": "#004c6e",
+                        "surface-bright": "#2f3a45",
+                        "surface-container": "#15212a",
+                        "tertiary-fixed": "#c9e6ff",
+                        "surface-container-highest": "#2a3640",
+                        "tertiary": "#9cd5ff",
+                        "primary": "#47e4d5",
+                        "outline-variant": "#3c4a47",
+                        "inverse-on-surface": "#26323c",
+                        "on-secondary-fixed-variant": "#594311",
+                        "inverse-primary": "#006a62",
+                        "error-container": "#93000a",
+                        "secondary-fixed": "#ffdfa0",
+                        "secondary": "#e2c384",
+                        "on-surface": "#d7e4f1",
+                        "tertiary-container": "#7abae7",
+                        "secondary-container": "#5c4613",
+                        "on-secondary-container": "#d3b478",
+                        "on-primary-container": "#004e48",
+                        "background": "#08151e",
+                        "surface-container-lowest": "#040f18",
+                        "primary-fixed": "#61f9e9",
+                        "surface-dim": "#08151e",
+                        "on-background": "#d7e4f1",
+                        "outline": "#859491",
+                        "surface-variant": "#2a3640",
+                        "on-primary": "#003732",
+                        "on-surface-variant": "#bacac6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-desktop": "48px",
+                        "margin-mobile": "16px",
+                        "panel-padding": "20px",
+                        "gutter": "24px",
+                        "unit": "4px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Hanken Grotesk"],
+                        "headline-lg": ["Sora"],
+                        "body-md": ["Hanken Grotesk"],
+                        "headline-md": ["Sora"],
+                        "headline-xl": ["Sora"],
+                        "label-caps": ["JetBrains Mono"],
+                        "headline-lg-mobile": ["Sora"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "1.2", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "headline-xl": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                        "label-caps": ["12px", {"lineHeight": "1.4", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                        "headline-lg-mobile": ["28px", {"lineHeight": "1.2", "fontWeight": "700"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .hex-bg {
+            background-color: #08151e;
+            background-image: radial-gradient(circle at 50% 0%, rgba(10, 200, 185, 0.15), transparent 60%);
+        }
+        .panel-border {
+            position: relative;
+        }
+        .panel-border::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            border-radius: inherit;
+            padding: 1px;
+            background: linear-gradient(180deg, rgba(226, 195, 132, 0.4) 0%, rgba(10, 200, 185, 0.2) 100%);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            pointer-events: none;
+        }
+        .corner-accent-tl {
+            position: absolute; top: 0; left: 0; width: 16px; height: 16px;
+            border-top: 2px solid #e2c384; border-left: 2px solid #e2c384;
+            border-top-left-radius: 0.5rem; pointer-events: none;
+        }
+        .corner-accent-br {
+            position: absolute; bottom: 0; right: 0; width: 16px; height: 16px;
+            border-bottom: 2px solid #e2c384; border-right: 2px solid #e2c384;
+            border-bottom-right-radius: 0.5rem; pointer-events: none;
+        }
+        .pulse-glow {
+            animation: pulse-blue 2s infinite alternate;
+        }
+        @keyframes pulse-blue {
+            0% { filter: drop-shadow(0 0 5px rgba(10, 200, 185, 0.4)); }
+            100% { filter: drop-shadow(0 0 15px rgba(10, 200, 185, 0.8)); }
+        }
+        .custom-toggle:checked + div {
+            background-color: #0ac8b9;
+        }
+        .custom-toggle:checked + div > div {
+            transform: translateX(100%);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface h-screen w-full flex items-center justify-center p-4">
+<!-- Main Window Container -->
+<div class="relative w-full max-w-[400px] h-[700px] bg-surface-container-low/90 backdrop-blur-xl rounded-xl shadow-[inset_-10px_0_20px_-10px_rgba(226,195,132,0.1),0_0_40px_rgba(10,200,185,0.1)] panel-border flex flex-col overflow-hidden border border-secondary/20">
+<!-- Ornate Corners -->
+<div class="corner-accent-tl z-10"></div>
+<div class="corner-accent-br z-10"></div>
+<!-- TopAppBar (from JSON) -->
+<header class="flex justify-between items-center w-full px-panel-padding py-4 bg-surface-container-highest/80 backdrop-blur-md border-b border-primary/30 shadow-[inset_0_-1px_10px_rgba(10,200,185,0.1)] relative z-10 flex-shrink-0">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary pulse-glow" data-icon="settings_input_component" style="font-variation-settings: 'FILL' 1;">settings_input_component</span>
+<h1 class="font-headline-md text-headline-md font-bold text-primary drop-shadow-[0_0_10px_rgba(10,200,185,0.4)] tracking-tight">AETHERIS HEX-CORE</h1>
+</div>
+<div class="flex items-center gap-2 text-on-surface-variant">
+<button class="hover:text-primary-container transition-colors duration-300 hover:scale-95 ease-in-out">
+<span class="material-symbols-outlined" data-icon="minimize">minimize</span>
+</button>
+<button class="hover:text-error transition-colors duration-300 hover:scale-95 ease-in-out">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+</div>
+<!-- Tech-line separator -->
+<div class="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
+</header>
+<!-- Content Area -->
+<main class="flex-1 overflow-y-auto p-panel-padding flex flex-col gap-gutter hex-bg custom-scrollbar relative z-0">
+<!-- SideNavBar Content Adapted as Panels -->
+<!-- Section 1: Client Settings -->
+<section class="bg-surface-container-high/40 rounded-lg p-4 border border-outline-variant/30 relative group">
+<div class="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-lg"></div>
+<h2 class="font-label-caps text-label-caps text-secondary mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]" data-icon="precision_manufacturing">precision_manufacturing</span>
+                    ARCANE ENGINE LINK
+                </h2>
+<div class="flex flex-col gap-3">
+<label class="font-body-md text-[14px] text-on-surface-variant">League Client Path</label>
+<div class="flex gap-2">
+<div class="flex-1 relative">
+<input class="w-full bg-surface-container-highest text-on-surface font-body-md text-body-md py-2 px-3 rounded border-b border-secondary/50 focus:outline-none focus:border-primary focus:shadow-[0_2px_10px_rgba(10,200,185,0.2)] transition-all" readonly="" type="text" value="C:\Riot Games\League of Legends"/>
+</div>
+<button class="bg-gradient-to-b from-surface-container-highest to-surface-container-high border border-secondary/30 text-secondary hover:text-primary hover:border-primary px-4 py-2 rounded font-label-caps text-label-caps transition-all duration-300 hover:shadow-[0_0_15px_rgba(10,200,185,0.3)]">
+                            LOCATE
+                        </button>
+</div>
+<div class="flex justify-between items-center mt-2 bg-surface-container-lowest/50 p-2 rounded border border-outline-variant/20">
+<span class="font-body-md text-[14px] text-on-surface-variant">Link Status</span>
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_#0ac8b9] animate-pulse"></div>
+<span class="font-label-caps text-[10px] text-primary">SYNCHRONIZED</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 2: General Options -->
+<section class="bg-surface-container-high/40 rounded-lg p-4 border border-outline-variant/30 relative group">
+<h2 class="font-label-caps text-label-caps text-secondary mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]" data-icon="auto_awesome">auto_awesome</span>
+                    AUGMENT PARAMETERS
+                </h2>
+<div class="flex flex-col gap-4">
+<!-- Toggle 1 -->
+<label class="flex items-center justify-between cursor-pointer group/toggle">
+<span class="font-body-md text-body-md text-on-surface group-hover/toggle:text-primary transition-colors">Auto-inject optimal augments</span>
+<div class="relative">
+<input checked="" class="sr-only custom-toggle" type="checkbox"/>
+<div class="block bg-surface-container-highest w-10 h-6 rounded-full border border-secondary/30 transition-colors duration-300">
+<div class="dot absolute left-1 top-1 bg-secondary w-4 h-4 rounded-full transition-transform duration-300 shadow-[0_0_5px_rgba(226,195,132,0.5)]"></div>
+</div>
+</div>
+</label>
+<!-- Tech-line divider -->
+<div class="w-full h-px bg-outline-variant/20"></div>
+<!-- Toggle 2 -->
+<label class="flex items-center justify-between cursor-pointer group/toggle">
+<span class="font-body-md text-body-md text-on-surface group-hover/toggle:text-primary transition-colors">Project tactical overlay</span>
+<div class="relative">
+<input checked="" class="sr-only custom-toggle" type="checkbox"/>
+<div class="block bg-surface-container-highest w-10 h-6 rounded-full border border-secondary/30 transition-colors duration-300">
+<div class="dot absolute left-1 top-1 bg-secondary w-4 h-4 rounded-full transition-transform duration-300 shadow-[0_0_5px_rgba(226,195,132,0.5)]"></div>
+</div>
+</div>
+</label>
+<!-- Tech-line divider -->
+<div class="w-full h-px bg-outline-variant/20"></div>
+<!-- Toggle 3 -->
+<label class="flex items-center justify-between cursor-pointer group/toggle">
+<span class="font-body-md text-body-md text-on-surface group-hover/toggle:text-primary transition-colors">Initialize with system start</span>
+<div class="relative">
+<input class="sr-only custom-toggle" type="checkbox"/>
+<div class="block bg-surface-container-highest w-10 h-6 rounded-full border border-secondary/30 transition-colors duration-300">
+<div class="dot absolute left-1 top-1 bg-on-surface-variant w-4 h-4 rounded-full transition-transform duration-300"></div>
+</div>
+</div>
+</label>
+</div>
+</section>
+</main>
+<!-- Footer / About -->
+<footer class="bg-surface-container-highest/95 backdrop-blur-lg border-t border-secondary/30 p-4 flex-shrink-0 z-10 flex flex-col items-center justify-center relative">
+<div class="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent opacity-50"></div>
+<p class="font-label-caps text-[10px] text-on-surface-variant tracking-widest text-center">HEX-CORE v1.0.4 - BUILD 89A</p>
+<p class="font-body-md text-[12px] text-outline mt-1 text-center">Engineered by Piltover Customs</p>
+<button class="mt-3 w-full bg-secondary-container/20 border border-secondary/50 text-secondary hover:bg-primary-container/20 hover:text-primary hover:border-primary py-2 rounded font-label-caps text-label-caps transition-all duration-300 hover:shadow-[0_0_15px_rgba(10,200,185,0.2)]">
+                RECALIBRATE CORE
+            </button>
+</footer>
+</div>
+</body></html>

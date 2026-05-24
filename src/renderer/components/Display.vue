@@ -7,13 +7,13 @@
             <header class="hex-titlebar">
                 <div class="brand-lockup">
                     <Cpu class="brand-icon" />
-                    <h1>AETHERIS HEX-CORE</h1>
+                    <h1>海克斯核心</h1>
                 </div>
                 <div class="window-controls">
-                    <button class="window-control" type="button" title="Hide" @click="hideMainWindow">
+                    <button class="window-control" type="button" title="隐藏" @click="hideMainWindow">
                         <Minus class="window-icon" />
                     </button>
-                    <button class="window-control danger" type="button" title="Exit" @click="confirmQuitApp">
+                    <button class="window-control danger" type="button" title="退出" @click="confirmQuitApp">
                         <X class="window-icon" />
                     </button>
                 </div>
@@ -22,19 +22,19 @@
             <main class="hex-scroll">
                 <div class="status-strip">
                     <div class="status-row">
-                        <span>Link Status</span>
+                        <span>连接状态</span>
                         <strong :class="{ muted: !currentLolPath }">
-                            {{ currentLolPath ? 'SYNCHRONIZED' : 'UNLINKED' }}
+                            {{ currentLolPath ? '已同步' : '未连接' }}
                         </strong>
                     </div>
                     <div class="status-grid">
                         <div>
-                            <span>Client</span>
+                            <span>客户端</span>
                             <strong>{{ clientVersionLabel }}</strong>
                             <small v-if="versionHint">{{ versionHint }}</small>
                         </div>
                         <div>
-                            <span>Data</span>
+                            <span>数据</span>
                             <strong>{{ dataVersionLabel }}</strong>
                             <small v-if="versionInfo?.gamePatch">LOL {{ versionInfo.gamePatch }}</small>
                         </div>
@@ -44,43 +44,44 @@
                 <GamePathConfig @path-changed="onPathChanged" />
                 <RuneControls @opgg-data-ready="onOpggDataReady" />
                 <ChampionMonitor />
+                <AramBenchRecommendation />
 
                 <section class="diagnostic-panel">
                     <div class="section-header">
-                        <p class="section-kicker">WINDOW PREVIEW</p>
-                        <h3>Overlay Diagnostics</h3>
+                        <p class="section-kicker">窗口预览</p>
+                        <h3>浮窗诊断</h3>
                     </div>
 
                     <div class="test-controls">
                         <button class="test-btn primary" @click="testFloatingWindow">
                             <Target class="icon" />
                             <span class="button-copy">
-                                <span class="text">Floating Overlay</span>
-                                <span class="hint">Transparent in-game bar</span>
+                                <span class="text">游戏浮条</span>
+                                <span class="hint">透明置顶推荐栏</span>
                             </span>
                         </button>
 
                         <button class="test-btn secondary" @click="testPopupWindow">
                             <ClipboardList class="icon" />
                             <span class="button-copy">
-                                <span class="text">Champion Insight</span>
-                                <span class="hint">Detail popup preview</span>
+                                <span class="text">英雄洞察</span>
+                                <span class="hint">详情弹窗预览</span>
                             </span>
                         </button>
 
                         <button class="test-btn warning" @click="testDatabaseLoad">
                             <Database class="icon" />
                             <span class="button-copy">
-                                <span class="text">Database Probe</span>
-                                <span class="hint">Check bundled data</span>
+                                <span class="text">数据探测</span>
+                                <span class="hint">检查数据加载</span>
                             </span>
                         </button>
 
                         <button class="test-btn danger" @click="hideAllWindows">
                             <EyeOff class="icon" />
                             <span class="button-copy">
-                                <span class="text">Hide Windows</span>
-                                <span class="hint">Clear previews</span>
+                                <span class="text">隐藏窗口</span>
+                                <span class="hint">关闭预览浮窗</span>
                             </span>
                         </button>
                     </div>
@@ -92,8 +93,8 @@
             </main>
 
             <footer class="hex-footer">
-                <p>HEX-CORE v{{ clientVersionLabel }} - BUILD 89A</p>
-                <button type="button" @click="loadVersionInfo">RECALIBRATE CORE</button>
+                <p>海克斯核心 v{{ clientVersionLabel }} - 构建 89A</p>
+                <button type="button" @click="loadVersionInfo">刷新状态</button>
             </footer>
         </section>
     </div>
@@ -104,6 +105,7 @@ import { computed, onMounted, ref } from 'vue'
 import GamePathConfig from './GamePathConfig.vue'
 import RuneControls from './RuneControls.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
+import AramBenchRecommendation from './AramBenchRecommendation.vue'
 import { electronAPI } from '../native/electron-api.js'
 import { ClipboardList, Cpu, Database, EyeOff, Minus, Target, X } from 'lucide-vue-next'
 
@@ -127,11 +129,11 @@ const versionHint = computed(() => {
     }
 
     if (!versionInfo.value.isNewer) {
-        return versionInfo.value.latestVersion ? 'Latest ' + versionInfo.value.latestVersion : ''
+        return versionInfo.value.latestVersion ? '最新 ' + versionInfo.value.latestVersion : ''
     }
 
     if (versionInfo.value.severity === 'patch') {
-        return 'Patch ' + versionInfo.value.latestVersion
+        return '补丁 ' + versionInfo.value.latestVersion
     }
 
     return versionInfo.value.statusText + ' ' + versionInfo.value.latestVersion
@@ -152,15 +154,15 @@ const mockAugmentData = {
     success: true,
     gamePhase: 'augment-select',
     championId: 63,
-    championName: 'Brand',
+    championName: '布兰德',
     augments: [
-        { id: 1205, name: 'Physical Magic', rarity: 'kSilver', confidence: 0.95 },
-        { id: 1103, name: 'Bread And Butter', rarity: 'kGold', confidence: 0.92 },
-        { id: 1180, name: 'Big Brain', rarity: 'kGold', confidence: 0.90 },
+        { id: 1205, name: '物理魔法', rarity: 'kSilver', confidence: 0.95 },
+        { id: 1103, name: '主食', rarity: 'kGold', confidence: 0.92 },
+        { id: 1180, name: '大脑袋', rarity: 'kGold', confidence: 0.90 },
     ],
     analysisConfidence: 0.95,
     timestamp: Date.now(),
-    dataSource: 'test',
+    dataSource: '测试',
 }
 
 const onPathChanged = (path) => {
@@ -173,33 +175,33 @@ const onOpggDataReady = (data) => {
 }
 
 const testFloatingWindow = () => {
-    testStatus.value = { type: 'info', message: 'Sending test data to floating overlay...' }
+    testStatus.value = { type: 'info', message: '正在发送浮条测试数据...' }
 
     electronAPI.diagnostics.testShowFloating(mockAugmentData)
         .then(() => {
-            testStatus.value = { type: 'success', message: 'Floating overlay test data sent' }
+            testStatus.value = { type: 'success', message: '浮条测试数据已发送' }
         })
         .catch((err) => {
-            testStatus.value = { type: 'error', message: 'Send failed: ' + err.message }
+            testStatus.value = { type: 'error', message: '发送失败：' + err.message }
         })
 }
 
 const testPopupWindow = () => {
-    testStatus.value = { type: 'info', message: 'Sending test data to champion insight...' }
+    testStatus.value = { type: 'info', message: '正在发送英雄洞察测试数据...' }
 
     electronAPI.windows.showPopup({
         championId: 63,
-        championName: 'Brand',
+        championName: '布兰德',
         augments: mockAugmentData.augments,
-        dataSource: 'test',
+        dataSource: '测试',
         timestamp: Date.now(),
     })
 
-    testStatus.value = { type: 'success', message: 'Champion insight test data sent' }
+    testStatus.value = { type: 'success', message: '英雄洞察测试数据已发送' }
 }
 
 const testDatabaseLoad = async () => {
-    testStatus.value = { type: 'info', message: 'Testing database load...' }
+    testStatus.value = { type: 'info', message: '正在测试数据加载...' }
 
     try {
         const result = await electronAPI.diagnostics.testDatabaseLoad()
@@ -208,20 +210,20 @@ const testDatabaseLoad = async () => {
         if (result.success) {
             testStatus.value = {
                 type: 'success',
-                message: 'Database loaded: ' + result.dataCount + ' records | Path: ' + result.successPath,
+                message: '数据加载成功：' + result.dataCount + ' 条记录 | 路径：' + result.successPath,
             }
         } else {
-            let errorMsg = result.error || 'Unknown error'
+            let errorMsg = result.error || '未知错误'
             if (result.tests) {
                 const failedTests = result.tests
                     .map((t, i) => '[' + (i + 1) + '] ' + (t.exists ? 'OK' : 'MISS') + ' ' + t.path.substring(0, 60) + '...')
                     .join('\\n')
-                errorMsg += '\\n\\nPath check result:\\n' + failedTests
+                errorMsg += '\\n\\n路径检查结果：\\n' + failedTests
             }
             testStatus.value = { type: 'error', message: errorMsg }
         }
     } catch (err) {
-        testStatus.value = { type: 'error', message: 'Test failed: ' + err.message }
+        testStatus.value = { type: 'error', message: '测试失败：' + err.message }
         console.error('Database test error', err)
     }
 }
@@ -229,7 +231,7 @@ const testDatabaseLoad = async () => {
 const hideAllWindows = () => {
     electronAPI.windows.hidePopup()
     electronAPI.windows.hideFloating()
-    testStatus.value = { type: 'info', message: 'Hide command sent' }
+    testStatus.value = { type: 'info', message: '隐藏命令已发送' }
 }
 
 const hideMainWindow = () => {

@@ -14,6 +14,21 @@ const MAIN_WINDOW_SIZE = { width: 460, height: 760 }
 const POPUP_WINDOW_SIZE = { width: 420, height: 800 }
 const FLOATING_WINDOW_SIZE = { width: 900, height: 200 }
 
+function getMainWindowBounds() {
+    const display = screen.getPrimaryDisplay()
+    const area = display.workArea || display.bounds
+    const width = Math.min(MAIN_WINDOW_SIZE.width, area.width)
+    const height = Math.min(MAIN_WINDOW_SIZE.height, area.height)
+    const rightAlignedX = area.x + area.width - width - 20
+
+    return {
+        width,
+        height,
+        x: Math.max(area.x + 20, rightAlignedX),
+        y: area.y + Math.max(20, Math.round((area.height - height) / 2)),
+    }
+}
+
 function getDisplayForMainWindow() {
     if (mainWindow && !mainWindow.isDestroyed()) {
         const [x, y] = mainWindow.getPosition()
@@ -98,13 +113,13 @@ const getWebPreferences = (isDev) => ({
  */
 export const createMainWindow = async (isDev, devServerUrl) => {
     const webPreferences = getWebPreferences(isDev)
+    const bounds = getMainWindowBounds()
 
     mainWindow = new BrowserWindow({
-        width: MAIN_WINDOW_SIZE.width,
-        height: MAIN_WINDOW_SIZE.height,
+        ...bounds,
         frame: false,
         webPreferences,
-        title: 'Aetheris Hex-Core',
+        title: '海克斯核心',
     })
 
     mainWindow.on('close', () => {

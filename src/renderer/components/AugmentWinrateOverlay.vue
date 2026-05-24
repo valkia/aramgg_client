@@ -2,10 +2,10 @@
   <transition name="overlay-fade">
     <div v-if="visible" class="augment-overlay">
       <header class="insight-titlebar">
-        <h1>Champion Insight</h1>
+        <h1>英雄洞察</h1>
         <div class="window-controls">
-          <button class="window-control" type="button" aria-label="Minimize" @click="closeOverlay">-</button>
-          <button class="window-control danger" type="button" aria-label="Close" @click="closeOverlay">x</button>
+          <button class="window-control" type="button" aria-label="最小化" @click="closeOverlay">-</button>
+          <button class="window-control danger" type="button" aria-label="关闭" @click="closeOverlay">x</button>
         </div>
       </header>
 
@@ -32,13 +32,13 @@
           <div class="hero-shade"></div>
           <div class="hero-content">
             <div>
-              <span class="hero-kicker">Champion Profile</span>
-              <h2 class="champion-name">{{ championName || `Champion ${championId}` }}</h2>
+              <span class="hero-kicker">英雄档案</span>
+              <h2 class="champion-name">{{ championName || `英雄 ${championId}` }}</h2>
             </div>
             <div class="hero-badges">
-              <span class="tier-badge">Tier {{ championStats?.tier || '-' }}</span>
+              <span class="tier-badge">梯队 {{ championStats?.tier || '-' }}</span>
               <span class="winrate-badge" :class="getWinRateClass(championStats?.winRate)">
-                {{ formatPercent(championStats?.winRate) }} WR
+                胜率 {{ formatPercent(championStats?.winRate) }}
               </span>
             </div>
           </div>
@@ -46,17 +46,17 @@
 
         <section class="stat-strip">
           <div class="stat-box">
-            <span>Win Rate</span>
+            <span>胜率</span>
             <strong :class="getWinRateClass(championStats?.winRate)">
               {{ formatPercent(championStats?.winRate) }}
             </strong>
           </div>
           <div class="stat-box">
-            <span>Pick Rate</span>
+            <span>选取率</span>
             <strong>{{ formatPercent(championStats?.pickRate) }}</strong>
           </div>
           <div class="stat-box">
-            <span>Games</span>
+            <span>场次</span>
             <strong>{{ formatNumber(championStats?.numGames) }}</strong>
           </div>
         </section>
@@ -81,7 +81,7 @@
             <!-- 海克斯 Tab -->
             <div v-if="activeTab === 'augments'" class="tab-panel">
               <div class="section-title-row">
-                <h3>Core Augments</h3>
+                <h3>核心海克斯</h3>
                 <span></span>
               </div>
 
@@ -119,19 +119,19 @@
                   </div>
                   <div class="augment-rate">
                     <strong>{{ formatPercent(augment.winRate) }}</strong>
-                    <span>WIN RATE</span>
+                    <span>胜率</span>
                   </div>
                 </div>
               </div>
               <div v-else class="empty-state">
-                <p>No augment data</p>
+                <p>暂无海克斯数据</p>
               </div>
             </div>
 
             <!-- 出装 Tab -->
             <div v-if="activeTab === 'builds'" class="tab-panel">
               <div class="section-title-row">
-                <h3>Build Path</h3>
+                <h3>出装路线</h3>
                 <span></span>
               </div>
 
@@ -153,13 +153,13 @@
                     </div>
                     <div class="build-stats">
                       <span>{{ formatPercent(build.winRate) }}</span>
-                      <small>{{ build.games.toLocaleString() }} games</small>
+                      <small>{{ formatNumber(build.games) }} 场</small>
                     </div>
                   </div>
                 </div>
 
                 <section v-if="situationalItems.length > 0" class="item-section">
-                  <h4>Situational Items</h4>
+                  <h4>备选装备</h4>
                   <div class="situational-grid">
                     <img
                       v-for="(item, idx) in situationalItems"
@@ -172,7 +172,7 @@
                 </section>
 
                 <section v-if="startingItems.length > 0" class="item-section">
-                  <h4>Starter Sets</h4>
+                  <h4>出门装</h4>
                   <div class="starter-list">
                     <div
                       v-for="(build, idx) in startingItems.slice(0, 3)"
@@ -194,15 +194,15 @@
                 </section>
               </div>
               <div v-else class="empty-state">
-                <p>No build data</p>
+                <p>暂无出装数据</p>
               </div>
             </div>
           </div>
         </div>
 
         <div class="overlay-footer">
-          <small>Source: {{ dataSource }}</small>
-          <small v-if="timestamp">Updated {{ formatTime(timestamp) }}</small>
+          <small>来源：{{ formatDataSource(dataSource) }}</small>
+          <small v-if="timestamp">更新于 {{ formatTime(timestamp) }}</small>
         </div>
       </div>
 
@@ -241,8 +241,8 @@ const unsubscribeEvents = []
 
 // Tabs 配置
 const tabs = [
-  { key: 'augments', label: '海克斯', icon: 'HX' },
-  { key: 'builds', label: '出装', icon: 'BD' }
+  { key: 'augments', label: '海克斯', icon: '海' },
+  { key: 'builds', label: '出装', icon: '装' }
 ]
 
 // 稀有度选项
@@ -279,7 +279,7 @@ const applyFallbackChampionData = (data) => {
   buildData.value = null
   itemsData.value = {}
   displayAugments.value = mapIncomingAugmentsForFallback(data?.augments || [])
-  dataSource.value = data?.dataSource || 'unavailable'
+  dataSource.value = data?.dataSource || '不可用'
   timestamp.value = data?.timestamp || Date.now()
   error.value = null
 }
@@ -498,9 +498,23 @@ const getWinRateClass = (winRate) => {
  */
 const formatNumber = (num) => {
   if (!num) return '--'
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
+  if (num >= 10000) return (num / 10000).toFixed(1) + '万'
   return String(num)
+}
+
+const formatDataSource = (source) => {
+  const labels = {
+    local: '本地',
+    remote: '远程数据',
+    pending: '加载中',
+    unavailable: '不可用',
+    test: '测试',
+    'auto-analysis': '自动识别',
+    'local-analysis': '本地识别',
+    fallback: '备用数据',
+  }
+
+  return labels[source] || source || '未知'
 }
 
 /**

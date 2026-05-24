@@ -12,20 +12,16 @@ import { analyzeScreenshot } from './image-analyzer.js'
 import { BrowserWindow } from 'electron'
 import Store from 'electron-store'
 import fs from 'fs-extra'
-import os from 'os'
 import path from 'path'
 import logger from './modules/logger.js'
 import { applyFloatingWindowLayout } from './modules/window-manager.js'
+import { getConfigDir, getPartialOcrScreenshotDir } from './modules/app-paths.js'
 
-const store = new Store()
+const store = new Store({ cwd: getConfigDir() })
 const AUTO_SCREENSHOT_SUMMARY_INTERVAL_MS = 10000
 const ANALYSIS_MISS_LOG_INTERVAL_MS = 10000
 const PARTIAL_OCR_SAVE_INTERVAL_MS = 10000
 const PARTIAL_OCR_MAX_FILES = 60
-
-function getPartialOcrScreenshotDir() {
-    return path.join(os.homedir(), '.aramgg_client', 'ocr-partial-screenshots')
-}
 
 function getSafeTimestampForFile() {
     return logger.toBeijingISOString().replace(/[:.]/g, '-').replace('+08-00', '+0800')
@@ -45,6 +41,8 @@ class AutoScreenshotService {
         this.screenshotCount = 0
         this.lastScreenshotTime = null
         this.enableAnalysis = true // 是否启用自动分析
+        this.gameflowPhase = null
+        this.controlOwner = null
         this.analysisCount = 0 // 分析次数
         this.detectionCount = 0 // 成功检测次数
         this.isCapturing = false
@@ -74,14 +72,18 @@ class AutoScreenshotService {
      * @param {number} intervalMs - 截图间隔（毫秒）
      * @returns {boolean} 是否成功启动
      */
-    async start(intervalMs = 5000) {
+    async start(intervalMs = 5000, owner = 'manual') {
         if (this.isRunning) {
+            if (owner === 'manual') {
+                this.controlOwner = 'manual'
+            }
             logger.info('Auto screenshot already running')
             return false
         }
 
         this.interval = Math.max(intervalMs, this.minInterval)
         this.isRunning = true
+        this.controlOwner = owner
         this.screenshotCount = 0
         this.isCapturing = false
         this.pendingAnalysisBuffer = null
@@ -96,7 +98,7 @@ class AutoScreenshotService {
         this.lastDetectedAugmentAt = 0
         this.lastDetectedAugmentIds = []
 
-        logger.info(`Auto screenshot service started with interval: ${this.interval}ms`)
+        logger.info(`Auto screenshot service started with interval: ${this.interval}ms, owner=${owner}`)
 
         this._scheduleNextCapture(0)
 
@@ -107,9 +109,14 @@ class AutoScreenshotService {
      * 停止定时截图
      * @returns {boolean} 是否成功停止
      */
-    stop() {
+    stop(owner = 'manual') {
         if (!this.isRunning) {
             logger.info('Auto screenshot not running')
+            return false
+        }
+
+        if (owner === 'gameflow' && this.controlOwner === 'manual') {
+            logger.info('Auto screenshot is manually controlled; gameflow stop ignored')
             return false
         }
 
@@ -117,9 +124,35 @@ class AutoScreenshotService {
         this.isRunning = false
         this.intervalId = null
         this.pendingAnalysisBuffer = null
+        this.controlOwner = null
 
-        logger.info(`Auto screenshot service stopped. screenshots=${this.screenshotCount}, analyses=${this.analysisCount}, detections=${this.detectionCount}, replacedPendingAnalyses=${this.droppedAnalysisCount}`)
+        logger.info(`Auto screenshot service stopped by ${owner}. screenshots=${this.screenshotCount}, analyses=${this.analysisCount}, detections=${this.detectionCount}, replacedPendingAnalyses=${this.droppedAnalysisCount}`)
         return true
+    }
+
+    /**
+     * 同步 LCU gameflow 阶段。实际对局的 InProgress 允许 OCR；None 保留游戏窗口兜底。
+     */
+    setGameflowPhase(phase) {
+        this.gameflowPhase = phase || null
+
+        if (phase && phase !== 'InProgress' && phase !== 'None') {
+            this.pendingAnalysisBuffer = null
+            if (this.lastDetectedAugmentIds.length > 0) {
+                this.clearAugmentState(`gameflow-${phase}`)
+            }
+        }
+    }
+
+    isAnalysisAllowedByGameflow() {
+        return !this.gameflowPhase || this.gameflowPhase === 'InProgress' || this.gameflowPhase === 'None'
+    }
+
+    clearAugmentState(reason = 'gameflow-cleared') {
+        this.lastDetectedAugmentIds = []
+        this.lastDetectedAugmentAt = 0
+        this.pendingAnalysisBuffer = null
+        this._notifyAugmentCleared(reason)
     }
 
     /**
@@ -201,7 +234,7 @@ class AutoScreenshotService {
      * @private
      */
     _queueAnalysis(imageBuffer) {
-        if (!this.enableAnalysis || !imageBuffer) {
+        if (!this.enableAnalysis || !imageBuffer || !this.isAnalysisAllowedByGameflow()) {
             return
         }
 
@@ -224,7 +257,12 @@ class AutoScreenshotService {
         let currentBuffer = initialBuffer
 
         try {
-            while (currentBuffer && this.isRunning && this.enableAnalysis) {
+            while (
+                currentBuffer &&
+                this.isRunning &&
+                this.enableAnalysis &&
+                this.isAnalysisAllowedByGameflow()
+            ) {
                 const startTime = performance.now()
                 await this._analyzeScreenshot(currentBuffer)
                 this.lastAnalysisDuration = performance.now() - startTime
@@ -567,6 +605,9 @@ class AutoScreenshotService {
                 detectionCount: this.detectionCount,
                 droppedAnalysisCount: this.droppedAnalysisCount,
                 partialOcrSaveCount: this.partialOcrSaveCount,
+                gameflowPhase: this.gameflowPhase,
+                analysisPausedByGameflow: !this.isAnalysisAllowedByGameflow(),
+                controlOwner: this.controlOwner,
                 isCapturing: this.isCapturing,
                 isAnalyzing: this.isAnalyzing,
                 averageCaptureTime: 0,
@@ -595,6 +636,9 @@ class AutoScreenshotService {
             detectionCount: this.detectionCount,
             droppedAnalysisCount: this.droppedAnalysisCount,
             partialOcrSaveCount: this.partialOcrSaveCount,
+            gameflowPhase: this.gameflowPhase,
+            analysisPausedByGameflow: !this.isAnalysisAllowedByGameflow(),
+            controlOwner: this.controlOwner,
             isCapturing: this.isCapturing,
             isAnalyzing: this.isAnalyzing,
             lastAnalysisTime: this.lastAnalysisTime,
@@ -677,6 +721,9 @@ class AutoScreenshotService {
             detectionCount: this.detectionCount,
             droppedAnalysisCount: this.droppedAnalysisCount,
             partialOcrSaveCount: this.partialOcrSaveCount,
+            gameflowPhase: this.gameflowPhase,
+            analysisPausedByGameflow: !this.isAnalysisAllowedByGameflow(),
+            controlOwner: this.controlOwner,
             isCapturing: this.isCapturing,
             isAnalyzing: this.isAnalyzing,
             lastAnalysisDuration: parseFloat(this.lastAnalysisDuration.toFixed(2)),
@@ -703,6 +750,8 @@ class AutoScreenshotService {
         this.partialOcrSaveInFlight = false
         this.partialOcrSaveCount = 0
         this.pendingAnalysisBuffer = null
+        this.gameflowPhase = null
+        this.controlOwner = null
         this.isCapturing = false
         this.isAnalyzing = false
         this.lastDetectedAugmentIds = []

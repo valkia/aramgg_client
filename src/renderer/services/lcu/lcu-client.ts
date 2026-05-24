@@ -8,6 +8,7 @@
 import type {
   GameflowPhase,
   ChampSelectSession,
+  ChampSelectSnapshot,
   PerkPage,
 } from './types.ts'
 import { electronAPI } from '../../native/electron-api.js'
@@ -61,6 +62,22 @@ export default class LCUService {
   getCurrentSession = async (): Promise<ChampSelectSession | null> => {
     const result = await electronAPI.lcu.getCurrentSession()
     return result.success ? result.session : null
+  }
+
+  /**
+   * 获取标准化后的只读选人快照
+   */
+  getChampSelectSnapshot = async (): Promise<ChampSelectSnapshot | null> => {
+    const result = await electronAPI.lcu.getChampSelectSnapshot()
+    return result.success ? result.snapshot : null
+  }
+
+  /**
+   * 获取大乱斗 bench 只读推荐
+   */
+  getAramBenchRecommendation = async (): Promise<any> => {
+    const result = await electronAPI.lcu.getAramBenchRecommendation()
+    return result.success ? result.recommendation : null
   }
 
   /**

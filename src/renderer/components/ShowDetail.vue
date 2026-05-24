@@ -7,13 +7,13 @@
                         <ChevronLeft class="nav-icon" />
                         返回控制台
                     </router-link>
-                    <span class="detail-kicker">CHAMPION INTEL</span>
+                    <span class="detail-kicker">英雄情报</span>
                 </div>
 
                 <div class="hero-layout">
                     <div class="hero-mark">
                         <span>{{ championInitial }}</span>
-                        <small>ID {{ championId || '--' }}</small>
+                        <small>英雄ID {{ championId || '--' }}</small>
                     </div>
 
                     <div class="title-copy">
@@ -60,7 +60,7 @@
             <section class="loadout-panel">
                 <div class="panel-header">
                     <div>
-                        <p class="detail-kicker">RUNE LOADOUTS</p>
+                        <p class="detail-kicker">符文方案</p>
                         <h2>推荐符文方案</h2>
                     </div>
                     <div class="panel-meta">
@@ -84,7 +84,7 @@
                                 v-if="perk.selectedPerkIds?.[0]"
                                 class="perk-img"
                                 :src="'/runes/' + perk.selectedPerkIds[0] + '.png'"
-                                alt="rune"
+                                alt="符文"
                             >
                             <span v-else>--</span>
                         </div>

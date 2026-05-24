@@ -36,6 +36,18 @@
     "win": {
       "icon": "public/icon.ico",
       "artifactName": "aramgg_client Setup ${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "language": "2052",
+      "installerLanguages": [
+        "zh_CN"
+      ],
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "aramgg_client"
     }
   },
   "dependencies": {

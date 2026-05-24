@@ -26,7 +26,7 @@
               <SelectItem value="winRate">胜率降序</SelectItem>
               <SelectItem value="pickRate">选取率降序</SelectItem>
               <SelectItem value="games">场次降序</SelectItem>
-              <SelectItem value="tier">Tier升序</SelectItem>
+              <SelectItem value="tier">梯队升序</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -37,11 +37,11 @@
     <Table class="augments-table">
       <TableHeader>
         <TableRow>
-          <TableHead class="w-16">ID</TableHead>
+          <TableHead class="w-16">编号</TableHead>
           <TableHead class="w-16">图标</TableHead>
           <TableHead class="min-w-[150px]">名称</TableHead>
           <TableHead class="w-20 text-center">稀有度</TableHead>
-          <TableHead class="w-16 text-center">Tier</TableHead>
+          <TableHead class="w-16 text-center">梯队</TableHead>
           <TableHead class="w-20 text-center">胜率</TableHead>
           <TableHead class="w-20 text-center">选取率</TableHead>
           <TableHead class="w-20 text-center">场次</TableHead>
