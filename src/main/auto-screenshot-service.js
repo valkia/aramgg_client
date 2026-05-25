@@ -22,6 +22,10 @@ const AUTO_SCREENSHOT_SUMMARY_INTERVAL_MS = 10000
 const ANALYSIS_MISS_LOG_INTERVAL_MS = 10000
 const PARTIAL_OCR_SAVE_INTERVAL_MS = 10000
 const PARTIAL_OCR_MAX_FILES = 60
+const VISIBLE_AUGMENT_NO_MATCH_GRACE_MS = 2500
+const VISIBLE_AUGMENT_PARTIAL_GRACE_MS = 7000
+const VISIBLE_AUGMENT_NO_MATCH_MISSES_BEFORE_CLEAR = 2
+const VISIBLE_AUGMENT_PARTIAL_MISSES_BEFORE_CLEAR = 4
 
 function getSafeTimestampForFile() {
     return logger.toBeijingISOString().replace(/[:.]/g, '-').replace('+08-00', '+0800')
@@ -62,6 +66,7 @@ class AutoScreenshotService {
         this.partialOcrSaveInFlight = false
         this.partialOcrSaveCount = 0
         this.lastDetectedAugmentAt = 0
+        this.visibleAugmentMissCount = 0
         this.performanceMetrics = {
             captureTime: [], // 截图耗时数组
             memoryUsage: [],  // 内存使用量
@@ -106,6 +111,7 @@ class AutoScreenshotService {
         this.partialOcrSaveInFlight = false
         this.partialOcrSaveCount = 0
         this.lastDetectedAugmentAt = 0
+        this.visibleAugmentMissCount = 0
         this.lastDetectedAugmentIds = []
         this.performanceMetrics = {
             captureTime: [],
@@ -168,6 +174,7 @@ class AutoScreenshotService {
     clearAugmentState(reason = 'gameflow-cleared') {
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugmentAt = 0
+        this.visibleAugmentMissCount = 0
         this.pendingAnalysisBuffer = null
         this._notifyAugmentCleared(reason)
     }
@@ -359,11 +366,14 @@ class AutoScreenshotService {
                     this.detectionCount++
                     this.lastDetectedAugmentIds = augments.map(a => a.id)
                     this.lastDetectedAugmentAt = Date.now()
+                    this.visibleAugmentMissCount = 0
 
                     logger.info(`Augment detected: count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, augments=${getAugmentSummary(augments)}`)
                     this._notifyAugmentDetected(analysisResult)
                 } else {
                     // 与上次相同，跳过通知
+                    this.lastDetectedAugmentAt = Date.now()
+                    this.visibleAugmentMissCount = 0
                     logger.debug(`[自动分析 ${this.analysisCount}] 海克斯未变化，跳过通知`)
                 }
             } else {
@@ -376,18 +386,21 @@ class AutoScreenshotService {
                         durationMs: analysisDuration,
                         augments,
                     })
-                    // 如果检测不到3张卡片，可能海克斯选择已结束，清空上次记录
+                    // 切换/刷新海克斯时会有短暂动画帧，OCR 可能只读到 0-2 张。
+                    // 保留上一轮已显示结果，只有连续 miss 超过宽限才清空。
                     const hadVisibleAugmentOverlay = this.lastDetectedAugmentIds.length > 0
-                    const shouldClearPartialSelection =
-                        cardCount > 0 &&
-                        Date.now() - this.lastDetectedAugmentAt > 1000
+                    const shouldClearVisibleAugments = this._shouldClearVisibleAugmentsAfterMiss({
+                        cardCount,
+                        augments,
+                    })
 
-                    if (hadVisibleAugmentOverlay && (cardCount === 0 || shouldClearPartialSelection)) {
+                    if (hadVisibleAugmentOverlay && shouldClearVisibleAugments) {
                         const clearReason = cardCount === 0
                             ? 'no-augments-detected'
                             : `partial-augments-detected-count-${cardCount}`
                         this.lastDetectedAugmentIds = []
                         this.lastDetectedAugmentAt = 0
+                        this.visibleAugmentMissCount = 0
                         this._notifyAugmentCleared(clearReason)
                     }
                 } else if (!isAugmentPhase) {
@@ -422,6 +435,38 @@ class AutoScreenshotService {
         this.lastSummaryLogAt = now
         const stats = this.getPerformanceStats()
         logger.info(`Auto screenshot summary: screenshots=${stats.screenshotCount}, analyses=${stats.analysisCount}, detections=${stats.detectionCount}, replacedPendingAnalyses=${stats.droppedAnalysisCount}, avgCapture=${stats.averageCaptureTime}ms, lastAnalysis=${stats.lastAnalysisDuration || 0}ms`)
+    }
+
+    _shouldClearVisibleAugmentsAfterMiss({ cardCount, augments = [] }) {
+        if (this.lastDetectedAugmentIds.length === 0) {
+            this.visibleAugmentMissCount = 0
+            return false
+        }
+
+        this.visibleAugmentMissCount++
+
+        const elapsedSinceLastDetection = Date.now() - this.lastDetectedAugmentAt
+        const detectedIds = new Set(augments.map(augment => augment.id).filter(Boolean))
+        const hasPreviousId = this.lastDetectedAugmentIds.some(id => detectedIds.has(id))
+
+        if (cardCount > 0 && hasPreviousId) {
+            logger.debug(`Retaining augment overlay during partial OCR frame: count=${cardCount}, misses=${this.visibleAugmentMissCount}, elapsed=${elapsedSinceLastDetection}ms`)
+            return false
+        }
+
+        const graceMs = cardCount === 0
+            ? VISIBLE_AUGMENT_NO_MATCH_GRACE_MS
+            : VISIBLE_AUGMENT_PARTIAL_GRACE_MS
+        const missThreshold = cardCount === 0
+            ? VISIBLE_AUGMENT_NO_MATCH_MISSES_BEFORE_CLEAR
+            : VISIBLE_AUGMENT_PARTIAL_MISSES_BEFORE_CLEAR
+
+        if (elapsedSinceLastDetection < graceMs || this.visibleAugmentMissCount < missThreshold) {
+            logger.debug(`Retaining augment overlay after transient OCR miss: count=${cardCount}, misses=${this.visibleAugmentMissCount}/${missThreshold}, elapsed=${elapsedSinceLastDetection}/${graceMs}ms`)
+            return false
+        }
+
+        return true
     }
 
     _logAnalysisMiss(reason, details = {}) {
@@ -807,6 +852,7 @@ class AutoScreenshotService {
         this.isAnalyzing = false
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugmentAt = 0
+        this.visibleAugmentMissCount = 0
         this.runId++
         this.performanceMetrics = {
             captureTime: [],
