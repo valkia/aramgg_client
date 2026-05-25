@@ -137,12 +137,16 @@ let tesseractWorkerPsm = null
 let ocrQueue = Promise.resolve()
 let loggedTesseractLangPath = null
 let AUGMENT_MATCH_ENTRIES = null
+let LAST_AUGMENT_OCR_CACHE = null
 
 const TESSERACT_WORKER_IDLE_CLEANUP_MS = 60000
 const OCR_TITLE_ACTIVITY_SAMPLE = { width: 160, height: 50 }
 const OCR_TITLE_ACTIVE_BRIGHT_RATIO = 0.012
 const OCR_TITLE_WEAK_BRIGHT_RATIO = 0.004
 const OCR_TITLE_DARK_RATIO = 0.72
+const OCR_RESULT_CACHE_MAX_AGE_MS = 30000
+const OCR_TITLE_FINGERPRINT_SIZE = { width: 32, height: 10 }
+const OCR_TITLE_FINGERPRINT_MAX_DIFF_RATIO = 0.08
 
 const MATCH_BLACKLIST = new Set([
     // 属性描述词
@@ -155,6 +159,7 @@ const MATCH_BLACKLIST = new Set([
 
 const OCR_NAME_ALIASES = new Map([
     ['夺金', ['厅金']],
+    ['神射法师', ['枝师']],
 ])
 
 const OCR_PUNCTUATION_PATTERN = /[\s"'“”‘’`.,，。:：;；!！?？、|｜/\\()[\]{}<>《》【】「」『』\-_=+~·•]/g
@@ -797,20 +802,6 @@ async function prepareStackedTitleRegion(imageBuffer, stackRegion, imageWidth, i
     }
 }
 
-async function readIndividualTitleGroup(imageBuffer, groupRegion, imageWidth, imageHeight) {
-    const texts = []
-
-    for (const region of groupRegion.regions || []) {
-        const { rect, buffer } = await prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight)
-        logger.debug(`OCR region ${region.name}: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
-
-        const text = await performOCR(buffer, region.psm)
-        texts.push(text || '')
-    }
-
-    return texts.join('\n')
-}
-
 async function readIndividualTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
     const augments = []
     const seenIds = new Set()
@@ -899,6 +890,86 @@ async function hasLikelyAugmentTitleActivity(imageBuffer, width, height) {
     logger.debug(`OCR title activity: likely=${likely}, strong=${strongTitleRegions}, weak=${weakCardRegions}, samples=${samples.map(sample => `${(sample.brightRatio * 100).toFixed(2)}%/${(sample.darkRatio * 100).toFixed(1)}%`).join(', ')}`)
 
     return likely
+}
+
+async function createTitleRegionFingerprint(imageBuffer, width, height) {
+    const titleRegions = createIndividualTitleRegions(width, height)
+    const regionFingerprints = await Promise.all(titleRegions.map(async (region) => {
+        const rect = clampRegion(region, width, height)
+        const data = await sharp(imageBuffer)
+            .extract(rect)
+            .resize({
+                width: OCR_TITLE_FINGERPRINT_SIZE.width,
+                height: OCR_TITLE_FINGERPRINT_SIZE.height,
+                fit: 'fill',
+            })
+            .greyscale()
+            .normalize()
+            .raw()
+            .toBuffer()
+        const mean = data.reduce((sum, value) => sum + value, 0) / data.length
+        let bits = ''
+
+        for (const value of data) {
+            bits += value >= mean ? '1' : '0'
+        }
+
+        return bits
+    }))
+
+    return regionFingerprints.join('|')
+}
+
+function fingerprintDistance(a, b) {
+    if (!a || !b || a.length !== b.length) {
+        return Infinity
+    }
+
+    let distance = 0
+    for (let index = 0; index < a.length; index += 1) {
+        if (a[index] !== b[index]) {
+            distance += 1
+        }
+    }
+
+    return distance
+}
+
+function getCachedAugmentsForFingerprint(fingerprint) {
+    if (!LAST_AUGMENT_OCR_CACHE || !fingerprint) {
+        return null
+    }
+
+    const cacheAgeMs = Date.now() - LAST_AUGMENT_OCR_CACHE.updatedAt
+    if (cacheAgeMs > OCR_RESULT_CACHE_MAX_AGE_MS) {
+        return null
+    }
+
+    const distance = fingerprintDistance(fingerprint, LAST_AUGMENT_OCR_CACHE.fingerprint)
+    const maxDistance = Math.round(fingerprint.length * OCR_TITLE_FINGERPRINT_MAX_DIFF_RATIO)
+    if (distance > maxDistance) {
+        return null
+    }
+
+    logger.debug(`OCR augment recognition reused cached title result: distance=${distance}/${maxDistance}, age=${cacheAgeMs}ms`)
+    LAST_AUGMENT_OCR_CACHE.updatedAt = Date.now()
+    return LAST_AUGMENT_OCR_CACHE.augments.map(augment => ({ ...augment }))
+}
+
+function cacheAugmentsForFingerprint(fingerprint, augments) {
+    if (!fingerprint || !Array.isArray(augments) || augments.length < 3) {
+        return
+    }
+
+    LAST_AUGMENT_OCR_CACHE = {
+        fingerprint,
+        augments: augments.slice(0, 3).map(augment => ({ ...augment })),
+        updatedAt: Date.now(),
+    }
+}
+
+function clearAugmentOcrCache() {
+    LAST_AUGMENT_OCR_CACHE = null
 }
 
 function enqueueOcr(task) {
@@ -1003,13 +1074,59 @@ async function recognizeAugmentsFromImage(imageBuffer) {
 
         if (!await hasLikelyAugmentTitleActivity(imageBuffer, width, height)) {
             logger.debug('OCR augment recognition skipped: no likely augment title card activity')
+            clearAugmentOcrCache()
             return []
+        }
+
+        const titleFingerprint = await createTitleRegionFingerprint(imageBuffer, width, height)
+        const cachedAugments = getCachedAugmentsForFingerprint(titleFingerprint)
+        if (cachedAugments) {
+            return cachedAugments
         }
 
         const regions = createOcrRegions(width, height)
         const recognizedTexts = []
         let bestAugments = []
+        let slowFallbackCount = 0
+        const titleStackRegion = regions.find(region => region.type === 'title-stack')
+        const titleBandRegion = regions.find(region => region.name === 'card-title-band')
         const individualTitleGroup = regions.find(region => region.type === 'individual-title-group')
+
+        const readRegionAugments = async (region) => {
+            let text = ''
+
+            if (region.type === 'title-stack') {
+                const { rect, width: stackWidth, height: stackHeight, buffer } = await prepareStackedTitleRegion(imageBuffer, region, width, height)
+                logger.debug(`OCR region ${region.name}: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}, stacked=${stackWidth}x${stackHeight}`)
+                text = await performOCR(buffer, region.psm)
+            } else {
+                const { rect, buffer } = await prepareOcrRegion(imageBuffer, region, width, height)
+                logger.debug(`OCR region ${region.name}: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
+                text = await performOCR(buffer, region.psm)
+            }
+
+            if (!text || text.trim() === '') {
+                logger.debug(`  OCR区域 ${region.name} 未识别到文本`)
+                return []
+            }
+
+            recognizedTexts.push(text)
+            return matchAugmentDatabase(recognizedTexts.join('\n'))
+        }
+
+        for (const region of [titleStackRegion, titleBandRegion].filter(Boolean)) {
+            const currentAugments = await readRegionAugments(region)
+            if (currentAugments.length > bestAugments.length) {
+                bestAugments = currentAugments
+            }
+
+            if (currentAugments.length >= 3) {
+                logger.debug(`OCR augment recognition completed from ${region.name}: 3 augments`)
+                const result = currentAugments.slice(0, 3)
+                cacheAugmentsForFingerprint(titleFingerprint, result)
+                return result
+            }
+        }
 
         if (individualTitleGroup) {
             const orderedTitleAugments = await readIndividualTitleAugments(imageBuffer, individualTitleGroup, width, height)
@@ -1019,12 +1136,18 @@ async function recognizeAugmentsFromImage(imageBuffer) {
 
             if (orderedTitleAugments.length >= 3) {
                 logger.debug('OCR augment recognition completed from ordered individual titles: 3 augments')
-                return orderedTitleAugments.slice(0, 3)
+                const result = orderedTitleAugments.slice(0, 3)
+                cacheAugmentsForFingerprint(titleFingerprint, result)
+                return result
             }
         }
 
         for (const region of regions) {
-            if (region.type === 'individual-title-group') {
+            if (
+                region === titleStackRegion ||
+                region === titleBandRegion ||
+                region.type === 'individual-title-group'
+            ) {
                 continue
             }
 
@@ -1033,35 +1156,25 @@ async function recognizeAugmentsFromImage(imageBuffer) {
                 continue
             }
 
-            let text = ''
-
-            if (region.type === 'title-stack') {
-                const { rect, width: stackWidth, height: stackHeight, buffer } = await prepareStackedTitleRegion(imageBuffer, region, width, height)
-                logger.debug(`OCR region ${region.name}: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}, stacked=${stackWidth}x${stackHeight}`)
-                text = await performOCR(buffer, region.psm)
-            } else if (region.type === 'individual-title-group') {
-                text = await readIndividualTitleGroup(imageBuffer, region, width, height)
-            } else {
-                const { rect, buffer } = await prepareOcrRegion(imageBuffer, region, width, height)
-                logger.debug(`OCR region ${region.name}: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
-                text = await performOCR(buffer, region.psm)
-            }
-
-            if (!text || text.trim() === '') {
-                logger.debug(`  OCR区域 ${region.name} 未识别到文本`)
+            if (region.slowFallback && slowFallbackCount >= 1) {
+                logger.debug(`OCR slow fallback ${region.name} skipped: earlier slow fallback already ran`)
                 continue
             }
 
-            recognizedTexts.push(text)
+            if (region.slowFallback) {
+                slowFallbackCount += 1
+            }
 
-            const currentAugments = await matchAugmentDatabase(recognizedTexts.join('\n'))
+            const currentAugments = await readRegionAugments(region)
             if (currentAugments.length > bestAugments.length) {
                 bestAugments = currentAugments
             }
 
             if (currentAugments.length >= 3) {
                 logger.debug(`OCR augment recognition completed from ${region.name}: 3 augments`)
-                return currentAugments.slice(0, 3)
+                const result = currentAugments.slice(0, 3)
+                cacheAugmentsForFingerprint(titleFingerprint, result)
+                return result
             }
         }
 
@@ -1072,7 +1185,9 @@ async function recognizeAugmentsFromImage(imageBuffer) {
 
         logger.debug(`OCR augment recognition completed: ${bestAugments.length} augments`)
 
-        return bestAugments.slice(0, 3)
+        const result = bestAugments.slice(0, 3)
+        cacheAugmentsForFingerprint(titleFingerprint, result)
+        return result
     } catch (error) {
         logger.error('❌ OCR 识别失败:', error)
         return []
