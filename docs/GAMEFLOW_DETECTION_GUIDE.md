@@ -2,13 +2,19 @@
 
 ## 阶段来源
 
-游戏阶段来自 LCU 只读接口：
+游戏阶段优先来自 LCU WAMP WebSocket 事件：
+
+```text
+OnJsonApiEvent /lol-gameflow/v1/gameflow-phase
+```
+
+WebSocket 断开、长时间无事件或 LCU token 变化时，主进程会回退到低频只读接口轮询：
 
 ```text
 GET /lol-gameflow/v1/gameflow-phase
 ```
 
-本项目通过 `LCUService.getGameflowPhase()` 和 IPC `lcu-get-gameflow-phase` 读取该值。
+本项目通过 `LCUService.subscribeGameflowPhase()` 订阅事件，通过 `LCUService.getGameflowPhase()` 和 IPC `lcu-get-gameflow-phase` 保留查询能力。
 
 ## 阶段含义
 
@@ -29,8 +35,9 @@ GET /lol-gameflow/v1/gameflow-phase
 
 ## 当前实现位置
 
-- 主进程轮询：`src/main/modules/app-config.js`
+- 主进程 gameflow 监控：`src/main/modules/app-config.js`
 - LCU 服务：`src/main/services/lcu/lcu-service.ts`
+- LCU WAMP WebSocket：`src/main/services/lcu/lcu-wamp-socket.ts`
 - LCU IPC：`src/main/services/lcu/ipc-handlers.ts`
 - 自动截图服务：`src/main/auto-screenshot-service.js`
 - 席位推荐窗口：`src/main/modules/window-manager.js` 的 `createBenchWindow()` 和 renderer 路由 `/bench-overlay`
@@ -55,7 +62,7 @@ console.log(snapshotResult.snapshot)
 1. 启动 League Client。
 2. 在应用中配置或自动检测游戏路径。
 3. 进入大厅、选人、加载、实际对局、结算阶段。
-4. 查看日志中是否出现 `game-phase-changed` 和对应阶段。
+4. 查看日志中是否出现 `LCU OnJsonApiEvent WebSocket 已订阅 gameflow phase`、`游戏阶段变化(websocket)` 或兜底 `游戏阶段变化(poll)`。
 5. 在 `ChampSelect` 确认 ARAM 席位推荐弹窗显示并更新完整候选列表。
 6. 在实际对局 `InProgress` 确认自动截图和海克斯 OCR 允许运行。
 7. 离开实际对局后确认过期海克斯浮窗被清空。

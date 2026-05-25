@@ -113,7 +113,7 @@ await electronAPI.autoScreenshot.setConfig({
 
 - 自动截图服务：`src/main/auto-screenshot-service.js`
 - 图像分析：`src/main/image-analyzer.js`
-- 主进程 gameflow 轮询：`src/main/modules/app-config.js`
+- 主进程 gameflow 监控：`src/main/modules/app-config.js`
 - 游戏内浮窗：`src/renderer/components/AugmentFloatingOverlay.vue`
 - ARAM 席位推荐弹窗：`src/renderer/components/BenchOverlayView.vue`
 - ARAM 选人建议组件：`src/renderer/components/AramBenchRecommendation.vue`

@@ -1,6 +1,6 @@
 # Electron / electron-vite 架构整改进度
 
-更新时间：2026-05-24
+更新时间：2026-05-25
 
 ## 目标
 
@@ -14,7 +14,7 @@
 - Electron 安全配置已收敛：renderer 不再拥有 Node 能力，preload 通过 `contextBridge` 暴露业务 API。
 - `package.json#main`、electron-vite 输出目录、electron-builder `files` 已对齐。
 - `npm run type-check`、`npm run lint`、`npm run build` 当前均通过。
-- Windows 安装包已切换为 NSIS 引导式安装，支持选择安装目录；运行时可变数据统一由 `src/main/modules/app-paths.js` 管理。
+- Windows 安装包已切换为 NSIS 引导式安装，支持选择安装目录并归一化到应用子目录；运行时可变数据统一由 `src/main/modules/app-paths.js` 管理。
 - 除 Electron 外，当前可升级依赖已完成升级；Electron 主版本升级本阶段先忽略，后续如有安全或兼容要求再单独处理。
 
 ## 优先级
@@ -93,6 +93,7 @@
 
 - [x] Windows NSIS 安装包使用引导式安装，而不是 one-click 静默安装。
 - [x] 安装时允许用户选择安装目录。
+- [x] 安装器将用户选择的父目录归一化为 `...\aramgg_client` 应用子目录。
 - [x] 日志、electron-store 配置、远端缓存、OCR 调试截图统一经 `src/main/modules/app-paths.js` 解析。
 - [x] 安装版优先写入安装目录旁的 `aramgg_client-data/`，不可写时回退到 Electron `userData`。
 
@@ -102,6 +103,11 @@
 - 主进程模块不再各自硬编码日志、缓存或 store 目录。
 
 ## 当前执行记录
+
+### 2026-05-25
+
+- [x] 新增 `installer/installer.nsh` 并在 `package.json#build.nsis.include` 接入，安装器初始化和目录页后会确保安装路径落到 `aramgg_client` 子目录。
+- [x] README 移除安装目录待办，并记录当前安装器行为。
 
 ### 2026-05-24
 

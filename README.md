@@ -2,7 +2,7 @@
 
 英雄联盟 ARAM 辅助工具，基于 Electron + Vue 3 + electron-vite。当前能力集中在：
 
-- 读取 LCU 选人和游戏流程状态。
+- 通过 LCU 只读接口和 `OnJsonApiEvent` WebSocket 读取选人、游戏流程状态。
 - 在 ARAM 选人阶段通过独立席位推荐浮窗展示当前英雄与席位英雄的只读推荐。
 - 在实际对局 `InProgress` 阶段自动截图并按卡片位置识别海克斯强化。
 - 展示英雄、海克斯、装备等胜率和推荐信息。
@@ -62,7 +62,7 @@ node tests/electron/test-screenshot-analysis.js
 
 - 界面文案默认使用简体中文；后续新增 UI 文案也应优先补齐简体中文。
 - 主窗口默认按主显示器工作区靠右展示，详情弹窗、席位推荐弹窗和游戏内浮窗仍由主进程统一布局。
-- Windows 安装包使用 NSIS 引导式安装，可在安装时选择安装目录。
+- Windows 安装包使用 NSIS 引导式安装，可在安装时选择安装目录；安装器会把用户选择的父目录归一化到 `...\aramgg_client` 应用子目录。
 - 运行时可变数据统一通过 `src/main/modules/app-paths.js` 管理：安装版优先写入安装目录旁的 `aramgg_client-data/`，不可写时回退到 Electron `userData`。
 - 子目录约定：`config/` 存储 electron-store 配置，`logs/` 存储应用日志，`remote-data-cache/` 存储远端数据缓存，`ocr-partial-screenshots/` 存储 OCR 调试截图。
 

@@ -18,6 +18,7 @@ import https from 'https'
 import axios from 'axios'
 import logger from '../../modules/logger.js'
 import { getLcuToken } from './token-loader.ts'
+import { LcuJsonApiEvent, LcuWampSocket } from './lcu-wamp-socket.ts'
 import {
   LCUAuthResult,
   LCUAuthConfig,
@@ -207,6 +208,18 @@ export interface LCUServiceOptions {
   tokenCacheDuration?: number
   /** 连接失败后的冷却时长（毫秒），默认 10000 */
   failCooldown?: number
+}
+
+export interface GameflowPhaseSubscription {
+  close: () => void
+  isConnected: () => boolean
+}
+
+export interface GameflowPhaseSubscriptionOptions {
+  forceRefresh?: boolean
+  onOpen?: () => void
+  onClose?: (reason: string) => void
+  onError?: (error: Error) => void
 }
 
 /**
@@ -603,6 +616,42 @@ export class LCUService {
     if (timerId) {
       clearInterval(timerId)
       logger.info('⏹️ 停止游戏阶段轮询')
+    }
+  }
+
+  /**
+   * 订阅 LCU WAMP OnJsonApiEvent 中的 gameflow phase 变化。
+   * 该订阅只读取事件，不调用任何会改变游戏或选人状态的接口。
+   */
+  async subscribeGameflowPhase(
+    callback: (
+      phase: GameflowPhase,
+      event: LcuJsonApiEvent<GameflowPhase>
+    ) => void | Promise<void>,
+    options: GameflowPhaseSubscriptionOptions = {}
+  ): Promise<GameflowPhaseSubscription | null> {
+    await this.getAuthToken(options.forceRefresh ?? false)
+
+    if (!this.active || !this.token || !this.port) {
+      return null
+    }
+
+    const socket = new LcuWampSocket({
+      token: this.token,
+      port: this.port,
+      onGameflowPhase: async (phase, event) => {
+        await callback(phase as GameflowPhase, event as LcuJsonApiEvent<GameflowPhase>)
+      },
+      onOpen: options.onOpen,
+      onClose: options.onClose,
+      onError: options.onError,
+    })
+
+    socket.connect()
+
+    return {
+      close: () => socket.close(),
+      isConnected: () => socket.isConnected(),
     }
   }
 

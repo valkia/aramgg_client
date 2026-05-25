@@ -37,7 +37,8 @@
 ## 当前判断
 
 - 项目已有 LCU 读取能力，不需要重建 LCU 底座。
-- 当前 LCU 使用偏请求式/轮询式，适合先增量扩展，不适合一次性迁移到 Akari 式完整 shard 架构。
+- 当前 LCU 仍保持轻量服务结构，不做 Akari 式完整 shard 迁移。
+- gameflow 阶段已改为优先使用 LCU WebSocket `OnJsonApiEvent`，保留低频轮询作为断线和长时间无事件时的兜底。
 - 最值得借鉴的是“主进程维护选人状态快照，再由业务层消费”的思路。
 - 第一阶段应先做只读状态缓存和推荐计算，避免 UI 与 LCU 原始 session 直接耦合。
 
@@ -100,6 +101,8 @@
 ### P4：游戏流程驱动截图服务
 
 - [x] 基于 LCU phase 控制自动截图服务的启动、暂停或清空状态。
+- [x] 优先通过 LCU WebSocket `OnJsonApiEvent` 订阅 gameflow phase，降低持续轮询压力。
+- [x] WebSocket 断开、token 变化或事件长时间静默时，保留只读轮询兜底。
 - [x] `InProgress` 时允许海克斯 OCR 分析。
 - [x] `ChampSelect`、`Lobby`、`EndOfGame` 等阶段清空或暂停游戏内海克斯浮窗。
 - [x] 保留手动配置开关，避免用户无法掌控截图行为。
@@ -138,6 +141,7 @@
 
 - 决定 ARAM 选人阶段推荐从主界面迁出，使用独立席位推荐弹窗承载。
 - 决定席位推荐候选列表展示全部候选英雄，避免固定展示上限隐藏可用席位。
+- 决定 gameflow 阶段从 1 秒固定轮询改为 `OnJsonApiEvent` WebSocket 优先、5 秒轮询兜底，减少 LCU 请求并改善连续对局的阶段恢复。
 
 ## LCU 接口审计
 
@@ -193,9 +197,11 @@
 - [x] 从主界面移除 `AramBenchRecommendation.vue`，避免选人推荐占用主界面。
 - [x] 席位推荐候选列表取消 top 5 截断，展示完整候选。
 - [x] 验证通过：`node tests/electron/test-aram-bench-recommendation.js`、`npm run lint`、`npm run type-check`、`npm run build`。
+- [x] 新增 `src/main/services/lcu/lcu-wamp-socket.ts`，通过 WAMP `OnJsonApiEvent` 监听 `/lol-gameflow/v1/gameflow-phase`。
+- [x] 主进程 gameflow 监控改为 WebSocket 优先、5 秒轮询兜底，并在 LCU token/端口变化时自动重连。
 
 ## 后续注意事项
 
 - LeagueAkari 为 GPL-3.0，后续实现只参考思路，不复制实现代码。
 - 自动选英雄相关代码即使存在参考价值，也不进入本项目功能范围。
-- 如果后续加入 WebSocket 订阅，应优先用于减少轮询和提高状态实时性，而不是扩大自动化操作能力。
+- WebSocket 订阅只用于减少轮询和提高状态实时性，不扩大自动化操作能力。

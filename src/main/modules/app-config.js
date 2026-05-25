@@ -23,12 +23,20 @@ import { getAppDataDir, getConfigDir } from './app-paths.js'
 const __dirname = import.meta.dirname
 const store = new Store({ cwd: getConfigDir() })
 
-// 全局游戏流程轮询定时器
+// 全局游戏流程监控状态
 let lcuPollingTimer = null
+let lcuGameflowSubscription = null
+let lcuGameflowReconnectTimer = null
+let lcuGameflowMonitorStopping = false
 const AUTO_SCREENSHOT_INTERVAL_MS = 200
 const AUTO_SCREENSHOT_MAX_CAPTURES = 100
 const GAME_WINDOW_STATUS_LOG_INTERVAL_MS = 30000
 const GAMEFLOW_AUGMENT_ANALYSIS_PHASE = 'InProgress'
+const GAMEFLOW_POLL_FALLBACK_INTERVAL_MS = 5000
+const GAMEFLOW_TOKEN_REFRESH_INTERVAL_MS = 60000
+const GAMEFLOW_WS_STALE_MS = 15000
+const GAMEFLOW_WS_RECONNECT_BASE_MS = 2000
+const GAMEFLOW_WS_RECONNECT_MAX_MS = 30000
 const AUGMENT_CLEAR_PHASES = new Set([
     'Lobby',
     'Matchmaking',
@@ -240,6 +248,19 @@ async function reconcileAutoScreenshotWithLolWindow(phase) {
     stopAutoScreenshotForGame('LoL game process/window not found')
 }
 
+function stopGameflowWebSocket(reason) {
+    if (lcuGameflowReconnectTimer) {
+        clearTimeout(lcuGameflowReconnectTimer)
+        lcuGameflowReconnectTimer = null
+    }
+
+    if (lcuGameflowSubscription) {
+        lcuGameflowSubscription.close()
+        lcuGameflowSubscription = null
+        logger.info(`LCU gameflow WebSocket subscription stopped: ${reason}`)
+    }
+}
+
 /**
  * 简化的游戏流程监控 - 直接在主进程中实现
  * 避免与其他服务的兼容性问题
@@ -250,6 +271,8 @@ async function initGameFlowMonitor() {
             logger.info('Game flow monitor already running')
             return
         }
+
+        lcuGameflowMonitorStopping = false
 
         // 获取游戏目录（从 store 中读取）
         let lolPath = store.get('lolPath')
@@ -276,7 +299,8 @@ async function initGameFlowMonitor() {
         logger.info('初始化 LCU 服务...')
         const lcuService = getLCUServiceInstance(lolPath)
         logger.info('获取 LCU Token...')
-        await lcuService.getAuthToken()
+        let currentAuth = await lcuService.getAuthToken()
+        let lastAuthUrl = currentAuth?.url || lcuService.getUrl()
 
         if (!lcuService.isActive()) {
             logger.error('LCU 连接失败！')
@@ -285,104 +309,208 @@ async function initGameFlowMonitor() {
             logger.warn('   2. LeagueClientUx.log 文件不存在 - 请重启游戏客户端')
             logger.warn('   3. 游戏目录配置错误 - 请在应用设置中检查')
             logger.info('调试步骤:')
-            logger.info('   1. 运行: node electron/lcu-debug.js "你的游戏目录"')
+            logger.info('   1. 运行: node src/main/lcu-debug.js "你的游戏目录"')
             logger.info('   2. 检查输出中是否找到了 LeagueClientUx.log')
             logger.info('   3. 检查日志中是否包含 LCU URL')
-            return
+            logger.info('将继续低频重试 LCU 连接')
+        } else {
+            logger.info('LCU Token 获取成功')
         }
 
-        logger.info('LCU Token 获取成功')
-
-        // 启动游戏流程轮询
-        logger.info('启动游戏阶段轮询...')
         let lastPhase = null
-        let tokenRefreshCounter = 0
+        let lastTokenRefreshAt = Date.now()
+        let websocketConnected = false
+        let websocketLastEventAt = 0
+        let websocketReconnectAttempts = 0
+        let websocketConnecting = false
+
+        const handleGameflowPhase = async (phase, source) => {
+            if (!phase) {
+                return
+            }
+
+            autoScreenshotService.setGameflowPhase(phase)
+
+            if (phase && phase !== lastPhase) {
+                const prevPhase = lastPhase
+                lastPhase = phase
+                logger.info(`游戏阶段变化(${source}): ${prevPhase || 'unknown'} → ${phase}`)
+                notifyAllWindows('game-phase-changed', { phase, prevPhase })
+                clearAugmentOverlayForPhase(phase)
+
+                // 特定阶段处理
+                switch (phase) {
+                    case 'Lobby':
+                    case 'Matchmaking':
+                    case 'ReadyCheck':
+                        hideBenchWindow(`LCU phase ${phase}`)
+                        stopAutoScreenshotForGame(`LCU phase ${phase}`)
+                        break
+                    case 'ChampSelect':
+                        logger.info('进入选人阶段 - 暂停游戏内海克斯 OCR')
+                        notifyAllWindows('champ-select-start', {})
+                        showBenchWindowForChampSelect()
+                        stopAutoScreenshotForGame('LCU phase ChampSelect')
+                        break
+                    case 'GameStart':
+                        logger.info('游戏开始加载')
+                        notifyAllWindows('game-started', {})
+                        hideBenchWindow('LCU phase GameStart')
+                        stopAutoScreenshotForGame('LCU phase GameStart')
+                        break
+                    case 'InProgress':
+                        logger.info('游戏进行中 - 启动自动截图来检测海克斯选择')
+                        notifyAllWindows('game-in-progress', {})
+                        hideBenchWindow('LCU phase InProgress')
+                        await startAutoScreenshotForGame('LCU phase InProgress')
+                        break
+                    case 'WaitingForStats':
+                        logger.info('游戏已结束')
+                        notifyAllWindows('game-ended', {})
+                        hideBenchWindow('LCU phase WaitingForStats')
+                        stopAutoScreenshotForGame('LCU phase WaitingForStats')
+                        break
+                    case 'PreEndOfGame':
+                        logger.info('游戏结束统计阶段')
+                        hideBenchWindow('LCU phase PreEndOfGame')
+                        stopAutoScreenshotForGame('LCU phase PreEndOfGame')
+                        break
+                    case 'EndOfGame':
+                        logger.info('游戏完全结束')
+                        notifyAllWindows('end-of-game', {})
+                        hideBenchWindow('LCU phase EndOfGame')
+                        stopAutoScreenshotForGame('LCU phase EndOfGame')
+                        break
+                }
+            }
+
+            if (phase === GAMEFLOW_AUGMENT_ANALYSIS_PHASE) {
+                await startAutoScreenshotForGame('LCU phase InProgress')
+            } else if (phase === 'None') {
+                hideBenchWindow('LCU phase None')
+                await reconcileAutoScreenshotWithLolWindow(phase)
+            } else if (phase) {
+                if (phase !== 'ChampSelect') {
+                    hideBenchWindow(`LCU phase ${phase}`)
+                }
+                stopAutoScreenshotForGame(`LCU phase ${phase}`)
+            }
+        }
+
+        const scheduleWebSocketReconnect = (reason) => {
+            if (lcuGameflowMonitorStopping || lcuGameflowReconnectTimer) {
+                return
+            }
+
+            const delay = Math.min(
+                GAMEFLOW_WS_RECONNECT_BASE_MS * 2 ** websocketReconnectAttempts,
+                GAMEFLOW_WS_RECONNECT_MAX_MS
+            )
+            websocketReconnectAttempts += 1
+            logger.info(`LCU gameflow WebSocket 将在 ${delay}ms 后重连: ${reason}`)
+
+            lcuGameflowReconnectTimer = setTimeout(() => {
+                lcuGameflowReconnectTimer = null
+                void connectGameflowWebSocket(true)
+            }, delay)
+        }
+
+        const connectGameflowWebSocket = async (forceRefresh = false) => {
+            if (lcuGameflowMonitorStopping || websocketConnecting) {
+                return
+            }
+
+            if (lcuGameflowSubscription?.isConnected()) {
+                return
+            }
+
+            websocketConnecting = true
+            try {
+                const subscription = await lcuService.subscribeGameflowPhase(
+                    async (phase) => {
+                        websocketLastEventAt = Date.now()
+                        await handleGameflowPhase(phase, 'websocket')
+                    },
+                    {
+                        forceRefresh,
+                        onOpen: () => {
+                            websocketConnected = true
+                            websocketLastEventAt = Date.now()
+                            websocketReconnectAttempts = 0
+                            logger.info('LCU OnJsonApiEvent WebSocket 已订阅 gameflow phase')
+                        },
+                        onClose: (reason) => {
+                            websocketConnected = false
+                            lcuGameflowSubscription = null
+                            if (!lcuGameflowMonitorStopping) {
+                                logger.warn(`LCU OnJsonApiEvent WebSocket 已关闭: ${reason}`)
+                                scheduleWebSocketReconnect(reason)
+                            }
+                        },
+                        onError: (error) => {
+                            logger.warn('LCU OnJsonApiEvent WebSocket 错误:', error.message)
+                        },
+                    }
+                )
+
+                if (!subscription) {
+                    websocketConnected = false
+                    scheduleWebSocketReconnect('lcu-auth-unavailable')
+                    return
+                }
+
+                lcuGameflowSubscription = subscription
+            } catch (error) {
+                websocketConnected = false
+                logger.warn('LCU OnJsonApiEvent WebSocket 初始化失败:', error.message)
+                scheduleWebSocketReconnect('connect-error')
+            } finally {
+                websocketConnecting = false
+            }
+        }
+
+        const initialPhase = await lcuService.getGameflowPhase()
+        await handleGameflowPhase(initialPhase, 'initial')
+        void connectGameflowWebSocket()
 
         lcuPollingTimer = setInterval(async () => {
             try {
-                // 每60次轮询（即60秒）刷新一次 LCU token（确保连接保持活跃）
-                tokenRefreshCounter++
-                if (tokenRefreshCounter >= 60) {
+                const now = Date.now()
+
+                if (now - lastTokenRefreshAt >= GAMEFLOW_TOKEN_REFRESH_INTERVAL_MS || !lcuService.isActive()) {
                     logger.debug('定期刷新 LCU token...')
-                    await lcuService.getAuthToken()
-                    tokenRefreshCounter = 0
-                }
+                    currentAuth = await lcuService.getAuthToken(!lcuService.isActive())
+                    lastTokenRefreshAt = now
 
-                const phase = await lcuService.getGameflowPhase()
-                if (phase) {
-                    autoScreenshotService.setGameflowPhase(phase)
-                }
-
-                if (phase && phase !== lastPhase) {
-                    const prevPhase = lastPhase
-                    lastPhase = phase
-                    logger.info(`游戏阶段变化: → ${phase}`)
-                    notifyAllWindows('game-phase-changed', { phase, prevPhase })
-                    clearAugmentOverlayForPhase(phase)
-
-                    // 特定阶段处理
-                    switch (phase) {
-                        case 'Lobby':
-                        case 'Matchmaking':
-                        case 'ReadyCheck':
-                            hideBenchWindow(`LCU phase ${phase}`)
-                            stopAutoScreenshotForGame(`LCU phase ${phase}`)
-                            break
-                        case 'ChampSelect':
-                            logger.info('进入选人阶段 - 暂停游戏内海克斯 OCR')
-                            notifyAllWindows('champ-select-start', {})
-                            showBenchWindowForChampSelect()
-                            stopAutoScreenshotForGame('LCU phase ChampSelect')
-                            break
-                        case 'GameStart':
-                            logger.info('游戏开始加载')
-                            notifyAllWindows('game-started', {})
-                            hideBenchWindow('LCU phase GameStart')
-                            stopAutoScreenshotForGame('LCU phase GameStart')
-                            break
-                        case 'InProgress':
-                            logger.info('游戏进行中 - 启动自动截图来检测海克斯选择')
-                            notifyAllWindows('game-in-progress', {})
-                            hideBenchWindow('LCU phase InProgress')
-                            await startAutoScreenshotForGame('LCU phase InProgress')
-                            break
-                        case 'WaitingForStats':
-                            logger.info('游戏已结束')
-                            notifyAllWindows('game-ended', {})
-                            hideBenchWindow('LCU phase WaitingForStats')
-                            stopAutoScreenshotForGame('LCU phase WaitingForStats')
-                            break
-                        case 'PreEndOfGame':
-                            logger.info('游戏结束统计阶段')
-                            hideBenchWindow('LCU phase PreEndOfGame')
-                            stopAutoScreenshotForGame('LCU phase PreEndOfGame')
-                            break
-                        case 'EndOfGame':
-                            logger.info('游戏完全结束')
-                            notifyAllWindows('end-of-game', {})
-                            hideBenchWindow('LCU phase EndOfGame')
-                            stopAutoScreenshotForGame('LCU phase EndOfGame')
-                            break
+                    if (currentAuth && currentAuth.url !== lastAuthUrl) {
+                        lastAuthUrl = currentAuth.url
+                        websocketConnected = false
+                        stopGameflowWebSocket('LCU auth endpoint changed')
+                        scheduleWebSocketReconnect('LCU auth endpoint changed')
                     }
                 }
 
-                if (phase === GAMEFLOW_AUGMENT_ANALYSIS_PHASE) {
-                    await startAutoScreenshotForGame('LCU phase InProgress')
-                } else if (phase === 'None') {
-                    hideBenchWindow('LCU phase None')
-                    await reconcileAutoScreenshotWithLolWindow(phase)
-                } else if (phase) {
-                    if (phase !== 'ChampSelect') {
-                        hideBenchWindow(`LCU phase ${phase}`)
+                const websocketFresh =
+                    websocketConnected &&
+                    lcuGameflowSubscription?.isConnected() &&
+                    now - websocketLastEventAt <= GAMEFLOW_WS_STALE_MS
+
+                if (!websocketFresh) {
+                    const phase = await lcuService.getGameflowPhase()
+                    await handleGameflowPhase(phase, 'poll')
+
+                    if (!lcuGameflowSubscription && !lcuGameflowReconnectTimer) {
+                        scheduleWebSocketReconnect('fallback-poll')
                     }
-                    stopAutoScreenshotForGame(`LCU phase ${phase}`)
                 }
             } catch (error) {
                 logger.warn('游戏流程轮询出错:', error.message)
             }
-        }, 1000)
+        }, GAMEFLOW_POLL_FALLBACK_INTERVAL_MS)
 
-        logger.info('游戏流程监控已启动 (每1秒检查一次，每60秒刷新一次token)')
+        logger.info(
+            `游戏流程监控已启动 (OnJsonApiEvent WebSocket + ${GAMEFLOW_POLL_FALLBACK_INTERVAL_MS / 1000}s 轮询兜底，每 ${GAMEFLOW_TOKEN_REFRESH_INTERVAL_MS / 1000}s 刷新 token)`
+        )
     } catch (error) {
         logger.error('初始化游戏流程监控失败:', error)
     }
@@ -487,9 +615,13 @@ function registerAppEvents() {
     app.on('will-quit', async () => {
         logger.info('App will quit, cleaning up...')
 
+        lcuGameflowMonitorStopping = true
+        stopGameflowWebSocket('app will quit')
+
         // 停止游戏流程轮询
         if (lcuPollingTimer) {
             clearInterval(lcuPollingTimer)
+            lcuPollingTimer = null
             logger.info('游戏流程轮询已停止')
         }
 
