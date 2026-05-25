@@ -51,3 +51,5 @@ ARAM champ-select recommendation code must remain read-only. Do not connect `pic
 Keep ARAM champ-select recommendations in the dedicated bench overlay window, not on the main renderer screen. The bench overlay should show all available candidates and remain a read-only recommendation surface.
 
 Mutable runtime data, including electron-store config, logs, remote-data cache, and OCR debug screenshots, must go through `src/main/modules/app-paths.js`. Do not hardcode `~/.aramgg_client` or write mutable state into packaged resources, `dist/`, `dist-electron/`, or `build/`.
+
+Augment OCR changes should preserve left/center/right title-region ordering, transient-miss retention during reroll animations, and the title-region fast path/cache before adding broader slow OCR fallbacks.

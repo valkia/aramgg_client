@@ -72,6 +72,8 @@ LCU gameflow InProgress
 
 `InProgress` 指 `/lol-gameflow/v1/gameflow-phase` 的实际对局阶段。`ChampSelect`、`Lobby`、`EndOfGame` 等阶段会暂停或清空游戏内海克斯浮窗状态，避免展示过期结果。
 
+自动截图服务串行消费 OCR 队列，忙碌时只保留最新待分析截图。海克斯切换动画造成 0-2 张短暂识别结果时，会在宽限期内保留上一轮完整浮窗；图像分析先使用标题区域活动检测、标题指纹缓存和左/中/右标题快速路径，只有必要时才运行较慢 fallback。
+
 ## IPC 速查
 
 ### Renderer 调主进程
