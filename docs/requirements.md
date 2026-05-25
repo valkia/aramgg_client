@@ -1,5 +1,7 @@
 # LOL Tips Client 需求规格文档
 
+维护状态：本文保留产品需求和识别算法背景，部分 UI 与流程描述早于 2026-05-25 的席位推荐独立浮窗、electron-vite 目录迁移和自动截图策略调整。实现细节以 `README.md`、`COMPLETE_ARCHITECTURE.md`、`docs/GAMEFLOW_DETECTION_GUIDE.md`、`docs/USER_GUIDE_AUTO_AUGMENT.md` 和源码为准。
+
 ## 1. 概述
 
 ### 1.1 产品定位

@@ -15,7 +15,7 @@
 - `src/preload/`：sandbox preload，通过 `window.electronAPI` 暴露最小业务 API。
 - `src/renderer/`：Vue 渲染进程，页面、组件、服务和样式。
 - `tests/electron/`：Electron/Node 侧测试脚本。
-- `docs/`：功能设计、排障和阶段进度文档。
+- `docs/`：当前功能指南、排障、架构进度和归档文档。
 - `legacy/`：旧 React 代码隔离区，新功能不要扩展这里。
 
 `dist/`、`dist-electron/`、`build/` 是构建产物，不应提交。
@@ -53,8 +53,10 @@ node tests/electron/test-screenshot-analysis.js
 - [LCU 排障指南](./docs/LCU_TROUBLESHOOTING.md)
 - [自动海克斯检测使用指南](./docs/USER_GUIDE_AUTO_AUGMENT.md)
 - [Electron / electron-vite 架构整改进度](./docs/ELECTRON_VITE_MIGRATION_PROGRESS.md)
+- [TypeScript 开发约定](./docs/TYPESCRIPT_INTEGRATION.md)
+- [需求规格](./docs/requirements.md)
 
-较早的实现总结类文档保留历史上下文，可能仍出现迁移前的 `electron/` 路径；当前实现以本节列出的文档和源码为准。
+较早的实现总结、计划和完成报告已归档到 [docs/archive/2026-01-legacy](./docs/archive/2026-01-legacy/)，仅保留历史上下文；当前实现以本节列出的文档和源码为准。
 
 ## 界面、安装与运行时数据
 
