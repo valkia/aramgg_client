@@ -16,6 +16,7 @@ const nodeBuiltinsPlugin = () => ({
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
+    envPrefix: ['VITE_', 'ARAMGG_'],
     build: {
       target: 'node24',
       lib: {

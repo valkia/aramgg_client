@@ -20,7 +20,7 @@ type VersionedCacheEntry = {
 export const DATA_API_ORIGIN =
   process.env.ARAMGG_DATA_API_ORIGIN || 'https://data.dtodo.cn'
 export const DATA_API_PREFIX = '/api/v1/zh-CN'
-export const DATA_API_KEY = process.env.ARAMGG_DATA_API_KEY || ''
+export const DATA_API_KEY: string = import.meta.env.ARAMGG_DATA_API_KEY || ''
 
 if (!DATA_API_KEY) {
   logger.warn('[data-loader] ARAMGG_DATA_API_KEY is not set. Add it to .env.local — see .env.local.example.')
