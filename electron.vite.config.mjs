@@ -17,7 +17,7 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      target: 'node18',
+      target: 'node24',
       lib: {
         entry: 'src/main/main.js',
         formats: ['es']
@@ -39,7 +39,7 @@ export default defineConfig({
   preload: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      target: 'node18',
+      target: 'node24',
       lib: {
         entry: 'src/preload/preload.js',
         formats: ['cjs']
