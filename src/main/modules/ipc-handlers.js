@@ -206,34 +206,20 @@ export function registerIpcHandlers(isDev) {
     })
 
     ipcMain.handle('load-champion-data', async (_event, championId) => {
-        const {
-            loadChampionStats,
-            loadAugmentBase,
-            loadChampionAugments,
-            loadChampionBuild,
-            loadItems,
-            loadChampionName,
-        } = await import('../data-loader.js')
+        const { getChampionDetailData } = await import('../data-loader.js')
 
         try {
-            const [stats, augments, augmentStats, build, items, championName] = await Promise.all([
-                loadChampionStats(championId),
-                loadAugmentBase(),
-                loadChampionAugments(championId),
-                loadChampionBuild(championId),
-                loadItems(),
-                loadChampionName(championId),
-            ])
+            const detail = await getChampionDetailData(championId)
 
             return {
                 success: true,
                 data: {
-                    stats,
-                    augments,
-                    augmentStats,
-                    build,
-                    items,
-                    championName,
+                    stats: detail.stats,
+                    augments: detail.augmentBase,
+                    augmentStats: detail.augments,
+                    build: detail.build,
+                    items: detail.items,
+                    championName: detail.championName,
                 },
             }
         } catch (error) {

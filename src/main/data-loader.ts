@@ -19,16 +19,22 @@ type VersionedCacheEntry = {
 
 export const DATA_API_ORIGIN =
   process.env.ARAMGG_DATA_API_ORIGIN || 'https://data.dtodo.cn'
-export const DATA_API_PREFIX = '/v1/zh-CN'
+export const DATA_API_PREFIX = '/api/v1/zh-CN'
+export const DATA_API_KEY = process.env.ARAMGG_DATA_API_KEY || ''
 
-const CACHE_TTL_MS = 10 * 60 * 1000
+if (!DATA_API_KEY) {
+  logger.warn('[data-loader] ARAMGG_DATA_API_KEY is not set. Add it to .env.local — see .env.local.example.')
+}
+
+const CACHE_TTL_MS = 12 * 60 * 60 * 1000
+const FULL_DATA_CACHE_KEY = 'full-data-bundle'
 const DISK_CACHE_DIR_NAME = 'remote-data-cache'
-const DISK_CACHE_SCHEMA_VERSION = 1
+const DISK_CACHE_SCHEMA_VERSION = 2
 const cache = new Map<string, { data: any; createdAt: number }>()
 const pendingRequests = new Map<string, Promise<any>>()
-const versionedRequests = new Map<string, Promise<any>>()
 let electronFetch: any = null
 let diskCacheDirPromise: Promise<string> | null = null
+let fullDataPromise: Promise<any> | null = null
 
 const rarityMap: Record<string, string> = {
   0: 'kSilver',
@@ -44,8 +50,21 @@ function getApiUrl(resourcePath: string): string {
     return resourcePath
   }
 
-  const path = resourcePath.startsWith('/') ? resourcePath : `${DATA_API_PREFIX}/${resourcePath}`
-  return new URL(path, DATA_API_ORIGIN).toString()
+  const p = resourcePath.startsWith('/') ? resourcePath : `${DATA_API_PREFIX}/${resourcePath}`
+  return new URL(p, DATA_API_ORIGIN).toString()
+}
+
+async function getTransportFetch(): Promise<any> {
+  if (process.versions?.electron) {
+    if (!electronFetch) {
+      const { net } = await import('electron')
+      electronFetch = net.fetch.bind(net)
+    }
+
+    return electronFetch
+  }
+
+  return fetch
 }
 
 async function fetchJson(resourcePath: string, options: FetchJsonOptions = {}): Promise<any> {
@@ -65,6 +84,7 @@ async function fetchJson(resourcePath: string, options: FetchJsonOptions = {}): 
   const request = transportFetch(url, {
     headers: {
       accept: 'application/json',
+      Authorization: `Bearer ${DATA_API_KEY}`,
     },
   })
     .then(async (response: any) => {
@@ -133,92 +153,96 @@ async function writeVersionedCache(cacheKey: string, entry: VersionedCacheEntry)
   await rename(tempPath, filePath)
 }
 
+function unwrapEnvelope(payload: any): any {
+  return payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload
+}
+
 function getPayloadDataVersion(payload: any, fallbackVersion = ''): string {
   return payload?.meta?.dataVersion || payload?.dataVersion || fallbackVersion || ''
 }
 
-async function loadVersionedJson(
-  resourcePath: string,
-  cacheKey: string,
-  label: string
-): Promise<any> {
-  const requestKey = `${cacheKey}:${resourcePath}`
-  const pending = versionedRequests.get(requestKey)
-  if (pending) {
-    return pending
+async function loadDataApiConfig(options: FetchJsonOptions = {}): Promise<any> {
+  return fetchJson(`${DATA_API_PREFIX}/config.json`, options)
+}
+
+async function fetchFullDataBundle(): Promise<any> {
+  const url = getApiUrl(`${DATA_API_PREFIX}/full.json`)
+
+  const memCached = cache.get(url)
+  if (memCached && Date.now() - memCached.createdAt < CACHE_TTL_MS) {
+    return memCached.data
   }
 
-  const request = (async () => {
-    const cachedEntry = await readVersionedCache(cacheKey)
-    let latestDataVersion = ''
+  let latestDataVersion = ''
+  const cachedEntry = await readVersionedCache(FULL_DATA_CACHE_KEY)
 
-    try {
-      const config = await loadDataApiConfig({ force: true })
-      latestDataVersion = config?.dataVersion || ''
-    } catch (error: any) {
-      if (cachedEntry?.payload) {
-        logger.warn(`Failed to check ${label} data version; using cached data:`, error.message)
-        return cachedEntry.payload
-      }
-
-      logger.warn(`Failed to check ${label} data version; fetching remote data directly:`, error.message)
-    }
-
-    if (
-      cachedEntry?.payload &&
-      latestDataVersion &&
-      cachedEntry.dataVersion === latestDataVersion
-    ) {
+  try {
+    const config = await loadDataApiConfig({ force: true })
+    latestDataVersion = config?.dataVersion || ''
+  } catch (error: any) {
+    if (cachedEntry?.payload) {
+      logger.warn('Failed to check data version; using cached full.json:', error.message)
+      cache.set(url, { data: cachedEntry.payload, createdAt: Date.now() })
       return cachedEntry.payload
     }
 
-    try {
-      const payload = await fetchJson(resourcePath, { force: true })
-      const dataVersion = getPayloadDataVersion(payload, latestDataVersion)
-
-      await writeVersionedCache(cacheKey, {
-        schemaVersion: DISK_CACHE_SCHEMA_VERSION,
-        dataVersion,
-        savedAt: new Date().toISOString(),
-        resourcePath,
-        payload,
-      })
-
-      return payload
-    } catch (error: any) {
-      if (cachedEntry?.payload) {
-        logger.warn(
-          `Failed to refresh ${label}; using cached data version ${cachedEntry.dataVersion || 'unknown'}:`,
-          error.message
-        )
-        return cachedEntry.payload
-      }
-
-      throw error
-    }
-  })().finally(() => {
-    versionedRequests.delete(requestKey)
-  })
-
-  versionedRequests.set(requestKey, request)
-  return request
-}
-
-async function getTransportFetch(): Promise<any> {
-  if (process.versions?.electron) {
-    if (!electronFetch) {
-      const { net } = await import('electron')
-      electronFetch = net.fetch.bind(net)
-    }
-
-    return electronFetch
+    logger.warn('Failed to check data version; fetching full.json directly:', error.message)
   }
 
-  return fetch
+  if (
+    cachedEntry?.payload &&
+    latestDataVersion &&
+    cachedEntry.dataVersion === latestDataVersion
+  ) {
+    cache.set(url, { data: cachedEntry.payload, createdAt: Date.now() })
+    return cachedEntry.payload
+  }
+
+  try {
+    const payload = await fetchJson(`${DATA_API_PREFIX}/full.json`, { force: true })
+    const dataVersion = getPayloadDataVersion(payload, latestDataVersion)
+
+    await writeVersionedCache(FULL_DATA_CACHE_KEY, {
+      schemaVersion: DISK_CACHE_SCHEMA_VERSION,
+      dataVersion,
+      savedAt: new Date().toISOString(),
+      resourcePath: `${DATA_API_PREFIX}/full.json`,
+      payload,
+    })
+
+    return payload
+  } catch (error: any) {
+    if (cachedEntry?.payload) {
+      logger.warn(
+        `Failed to refresh full.json; using cached data version ${cachedEntry.dataVersion || 'unknown'}:`,
+        error.message
+      )
+      cache.set(url, { data: cachedEntry.payload, createdAt: Date.now() })
+      return cachedEntry.payload
+    }
+
+    throw error
+  }
 }
 
-function unwrapEnvelope(payload: any): any {
-  return payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload
+async function getFullData(): Promise<any> {
+  if (!fullDataPromise) {
+    fullDataPromise = fetchFullDataBundle().finally(() => {
+      fullDataPromise = null
+    })
+  }
+
+  return fullDataPromise
+}
+
+function extractSection(fullData: any, key: string): any {
+  const data = unwrapEnvelope(fullData)
+  return data?.[key] ?? fullData?.[key] ?? null
+}
+
+function findChampionInList(champions: any[], championId: string | number): any {
+  const id = Number(championId)
+  return champions.find((c: any) => Number(c.id) === id) || null
 }
 
 function toNumber(value: any, fallback = 0): number {
@@ -426,40 +450,58 @@ function mapPublicItem(item: any): any {
   }
 }
 
-async function loadPublicChampionDetail(championId: string | number): Promise<any> {
-  const normalizedChampionId = sanitizeCacheKey(championId)
-  const resourcePath = `${DATA_API_PREFIX}/champions/${championId}.json`
-  const payload = await loadVersionedJson(
-    resourcePath,
-    `champion-detail-${normalizedChampionId}`,
-    `champion ${championId}`
-  )
-
-  return {
-    meta: payload.meta || {},
-    data: unwrapEnvelope(payload),
-  }
-}
-
-export async function loadDataApiConfig(options: FetchJsonOptions = {}): Promise<any> {
-  return fetchJson(`${DATA_API_PREFIX}/config.json`, options)
-}
+export { loadDataApiConfig }
 
 export async function loadChampionStats(championId: string | number): Promise<any> {
-  const { meta, data } = await loadPublicChampionDetail(championId)
-  const stats = mapPublicChampionStats(data.champion, meta)
+  const fullData = await getFullData()
+  const meta = fullData?.meta || {}
 
-  if (!stats.championId) {
-    throw new Error(`Champion stats not found for ID: ${championId}`)
+  const championDetails = extractSection(fullData, 'championDetails')
+  if (championDetails) {
+    const detail = championDetails[String(championId)] || championDetails[Number(championId)]
+    if (detail?.champion) {
+      const stats = mapPublicChampionStats(detail.champion, meta)
+      if (stats.championId) {
+        return stats
+      }
+    }
   }
 
-  return stats
+  const champions = extractSection(fullData, 'champions')
+  if (Array.isArray(champions)) {
+    const champion = findChampionInList(champions, championId)
+    if (champion) {
+      const stats = mapPublicChampionStats(champion, meta)
+      if (stats.championId) {
+        return stats
+      }
+    }
+  }
+
+  throw new Error(`Champion stats not found for ID: ${championId}`)
 }
 
 export async function loadChampionName(championId: string | number): Promise<any> {
   try {
-    const { data } = await loadPublicChampionDetail(championId)
-    return mapPublicChampionName(data.champion)
+    const fullData = await getFullData()
+
+    const championDetails = extractSection(fullData, 'championDetails')
+    if (championDetails) {
+      const detail = championDetails[String(championId)] || championDetails[Number(championId)]
+      if (detail?.champion) {
+        return mapPublicChampionName(detail.champion)
+      }
+    }
+
+    const champions = extractSection(fullData, 'champions')
+    if (Array.isArray(champions)) {
+      const champion = findChampionInList(champions, championId)
+      if (champion) {
+        return mapPublicChampionName(champion)
+      }
+    }
+
+    return { nameCN: `英雄 ${championId}`, nameEN: '', title: '', roles: [], iconUrl: null }
   } catch (error: any) {
     logger.warn(`Failed to load champion name for ${championId}:`, error.message)
     return { nameCN: `英雄 ${championId}`, nameEN: '', title: '', roles: [], iconUrl: null }
@@ -467,12 +509,13 @@ export async function loadChampionName(championId: string | number): Promise<any
 }
 
 export async function loadAugmentBase(): Promise<any[]> {
-  const payload = await loadVersionedJson(
-    `${DATA_API_PREFIX}/augments.json`,
-    'augments',
-    'augment base'
-  )
-  return unwrapEnvelope(payload).map(mapPublicAugmentBase)
+  const fullData = await getFullData()
+  const augments = extractSection(fullData, 'augments')
+  if (Array.isArray(augments)) {
+    return augments.map(mapPublicAugmentBase)
+  }
+
+  return []
 }
 
 export async function loadAugmentDetail(): Promise<Record<string, any>> {
@@ -485,11 +528,20 @@ export async function loadAugmentDetail(): Promise<Record<string, any>> {
 
 export async function loadChampionAugments(championId: string | number): Promise<Record<string, any>> {
   try {
-    const { data } = await loadPublicChampionDetail(championId)
-    return (data.augments || []).reduce((result: Record<string, any>, augment: any) => {
-      result[String(augment.id)] = mapPublicAugmentStats(augment)
-      return result
-    }, {})
+    const fullData = await getFullData()
+    const championDetails = extractSection(fullData, 'championDetails')
+
+    if (championDetails) {
+      const detail = championDetails[String(championId)] || championDetails[Number(championId)]
+      if (detail?.augments) {
+        return (detail.augments as any[]).reduce((result: Record<string, any>, augment: any) => {
+          result[String(augment.id)] = mapPublicAugmentStats(augment)
+          return result
+        }, {})
+      }
+    }
+
+    return {}
   } catch (error: any) {
     logger.warn(`Failed to load augments for champion ${championId}:`, error.message)
     return {}
@@ -498,8 +550,17 @@ export async function loadChampionAugments(championId: string | number): Promise
 
 export async function loadChampionBuild(championId: string | number): Promise<any> {
   try {
-    const { data } = await loadPublicChampionDetail(championId)
-    return mapPublicBuild(data.build, championId)
+    const fullData = await getFullData()
+    const championDetails = extractSection(fullData, 'championDetails')
+
+    if (championDetails) {
+      const detail = championDetails[String(championId)] || championDetails[Number(championId)]
+      if (detail?.build) {
+        return mapPublicBuild(detail.build, championId)
+      }
+    }
+
+    return null
   } catch (error: any) {
     logger.warn(`Failed to load build for champion ${championId}:`, error.message)
     return null
@@ -507,8 +568,13 @@ export async function loadChampionBuild(championId: string | number): Promise<an
 }
 
 export async function loadItems(): Promise<any[]> {
-  const payload = await loadVersionedJson(`${DATA_API_PREFIX}/items.json`, 'items', 'items')
-  return unwrapEnvelope(payload).map(mapPublicItem)
+  const fullData = await getFullData()
+  const items = extractSection(fullData, 'items')
+  if (Array.isArray(items)) {
+    return items.map(mapPublicItem)
+  }
+
+  return []
 }
 
 export async function getChampionDetailData(championId: string | number): Promise<any> {
@@ -556,9 +622,18 @@ export async function getAugmentWinrate(
 }
 
 export async function getChampionAugmentStats(championId: string | number): Promise<any[]> {
-  const { data } = await loadPublicChampionDetail(championId)
+  const fullData = await getFullData()
+  const championDetails = extractSection(fullData, 'championDetails')
 
-  return (data.augments || [])
+  let augments: any[] = []
+  if (championDetails) {
+    const detail = championDetails[String(championId)] || championDetails[Number(championId)]
+    if (detail?.augments) {
+      augments = detail.augments
+    }
+  }
+
+  return augments
     .map(mapPublicAugmentRecommendation)
     .sort((a: any, b: any) => b.recommendScore - a.recommendScore)
 }
@@ -574,5 +649,5 @@ export function filterAugmentsByRarity(augmentStats: any[], rarity: string | nul
 export function clearCache(): void {
   cache.clear()
   pendingRequests.clear()
-  versionedRequests.clear()
+  fullDataPromise = null
 }
