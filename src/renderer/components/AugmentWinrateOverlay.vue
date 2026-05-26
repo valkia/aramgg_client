@@ -1212,8 +1212,8 @@ defineExpose({
 
 /* Stitch champion reference skin */
 .augment-overlay {
-  width: min(420px, calc(100vw - 24px));
-  height: min(800px, calc(100vh - 24px));
+  width: min(360px, calc(100vw - 24px));
+  height: min(640px, calc(100vh - 48px));
   max-height: none;
   background:
     linear-gradient(180deg, rgba(42, 54, 64, 0.96), rgba(31, 43, 53, 0.98)),

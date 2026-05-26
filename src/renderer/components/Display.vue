@@ -93,7 +93,6 @@
 
             <footer class="hex-footer">
                 <p>海克斯核心 v{{ clientVersionLabel }} - 构建 89A</p>
-                <button type="button" @click="loadVersionInfo">刷新状态</button>
             </footer>
         </section>
     </div>
@@ -267,9 +266,9 @@ onMounted(() => {
 }
 
 .hex-window {
-    width: min(430px, 100%);
-    height: min(740px, calc(100vh - 32px));
-    min-height: 560px;
+    width: min(380px, 100%);
+    height: min(620px, calc(100vh - 32px));
+    min-height: 480px;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -662,30 +661,11 @@ onMounted(() => {
 }
 
 .hex-footer p {
-    margin: 0 0 10px;
+    margin: 0;
     color: #bacac6;
     font-size: 10px;
     font-weight: 900;
     letter-spacing: 0;
-}
-
-.hex-footer button {
-    width: 100%;
-    padding: 10px 14px;
-    border: 1px solid rgba(226, 195, 132, 0.52);
-    border-radius: 6px;
-    background: rgba(92, 70, 19, 0.16);
-    color: #e2c384;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 900;
-    letter-spacing: 0;
-}
-
-.hex-footer button:hover {
-    border-color: rgba(71, 228, 213, 0.56);
-    color: #47e4d5;
-    background: rgba(10, 200, 185, 0.08);
 }
 
 .hex-scroll::-webkit-scrollbar {

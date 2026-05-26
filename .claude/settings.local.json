@@ -44,7 +44,12 @@
       "Bash(sort:*)",
       "Bash(npx electron:*)",
       "Bash(ConvertFrom-Json)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(npm view *)",
+      "Bash(npm ls *)",
+      "Bash(python3 -c \"import sys,json; vs=json.load\\(sys.stdin\\); [print\\(v\\) for v in vs if v.startswith\\('39.'\\) or v.startswith\\('40.'\\) or v.startswith\\('41.'\\) or v.startswith\\('42.'\\)]\")",
+      "WebFetch(domain:www.electronjs.org)",
+      "Bash(ELECTRON_MIRROR=\"https://npmmirror.com/mirrors/electron/\" npx electron --version)"
     ]
   }
 }

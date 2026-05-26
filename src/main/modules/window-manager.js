@@ -11,10 +11,10 @@ let popupWindow = null
 let floatingWindow = null
 let benchWindow = null
 
-const MAIN_WINDOW_SIZE = { width: 460, height: 760 }
-const POPUP_WINDOW_SIZE = { width: 420, height: 800 }
-const FLOATING_WINDOW_SIZE = { width: 900, height: 200 }
-const BENCH_WINDOW_SIZE = { width: 430, height: 660 }
+const MAIN_WINDOW_SIZE = { width: 380, height: 620 }
+const POPUP_WINDOW_SIZE = { width: 360, height: 640 }
+const FLOATING_WINDOW_SIZE = { width: 760, height: 170 }
+const BENCH_WINDOW_SIZE = { width: 360, height: 540 }
 
 function getMainWindowBounds() {
     const display = screen.getPrimaryDisplay()

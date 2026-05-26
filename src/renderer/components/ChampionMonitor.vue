@@ -18,25 +18,6 @@
                     <Play v-else class="btn-icon" />
                     {{ isMonitoring ? '停止监控' : '启动监控' }}
                 </Button>
-
-                <div class="secondary-actions">
-                    <Button
-                    @click="startChampionMonitor"
-                    class="action-btn-sm"
-                    :disabled="isMonitoring"
-                >
-                        <Power class="btn-icon" />
-                        手动启动
-                    </Button>
-                    <Button
-                        @click="stopChampionMonitor"
-                    class="action-btn-sm action-btn-danger"
-                    :disabled="!isMonitoring"
-                >
-                        <OctagonX class="btn-icon" />
-                        强制停止
-                    </Button>
-                </div>
             </div>
 
             <!-- 状态信息 -->
@@ -58,7 +39,7 @@
 import { ref, onBeforeUnmount, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
-import { OctagonX, Play, Power, Radar, Square } from 'lucide-vue-next'
+import { Play, Radar, Square } from 'lucide-vue-next'
 
 const isMonitoring = ref(false)
 const selectedChampion = ref('')
@@ -323,8 +304,7 @@ onBeforeUnmount(() => {
 }
 
 .monitor-controls {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
     gap: 8px;
 }
 
@@ -373,48 +353,6 @@ onBeforeUnmount(() => {
     box-shadow: 0 10px 24px rgba(255, 180, 171, 0.12);
 }
 
-.secondary-actions {
-    display: contents;
-}
-
-.action-btn-sm {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    min-width: 0;
-    width: 100%;
-    padding: 9px 8px;
-    background: rgba(17, 29, 38, 0.72);
-    border: 1px solid rgba(60, 74, 71, 0.46);
-    color: #d7e4f1;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 800;
-    transition: all 0.2s;
-}
-
-.action-btn-sm:hover:not(:disabled) {
-    background: rgba(42, 54, 64, 0.7);
-    border-color: rgba(71, 228, 213, 0.38);
-}
-
-.action-btn-sm:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.action-btn-danger {
-    border-color: rgba(255, 180, 171, 0.32);
-    color: #ffb4ab;
-}
-
-.action-btn-danger:hover:not(:disabled) {
-    background: rgba(255, 180, 171, 0.12);
-    border-color: rgba(255, 180, 171, 0.46);
-}
-
 .champion-info {
     margin-top: 12px;
     display: grid;
@@ -450,10 +388,6 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 640px) {
-    .monitor-controls {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
     .champion-info {
         grid-template-columns: 1fr;
     }

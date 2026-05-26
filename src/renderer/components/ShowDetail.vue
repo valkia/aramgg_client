@@ -255,7 +255,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .detail-page {
     min-height: 100vh;
-    padding: 28px;
+    padding: 20px;
     color: var(--lol-ivory);
     background:
         linear-gradient(180deg, rgba(40, 217, 200, 0.05), transparent 260px),
@@ -264,7 +264,7 @@ onBeforeUnmount(() => {
 }
 
 .detail-shell {
-    max-width: 1180px;
+    max-width: 980px;
     margin: 0 auto;
 }
 
@@ -291,8 +291,8 @@ onBeforeUnmount(() => {
 }
 
 .hero-overview {
-    padding: 22px;
-    margin-bottom: 18px;
+    padding: 16px;
+    margin-bottom: 14px;
 }
 
 .header-nav,
@@ -356,8 +356,8 @@ onBeforeUnmount(() => {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    min-height: 174px;
-    padding: 18px;
+    min-height: 140px;
+    padding: 14px;
     background:
         radial-gradient(circle at 50% 0%, rgba(40, 217, 200, 0.18), transparent 72%),
         rgba(7, 10, 13, 0.42);
@@ -384,9 +384,9 @@ onBeforeUnmount(() => {
 }
 
 .title-copy h1 {
-    margin: 8px 0 8px;
+    margin: 6px 0 6px;
     color: var(--lol-ivory);
-    font-size: 34px;
+    font-size: 28px;
     font-weight: 900;
     line-height: 1.16;
 }
@@ -402,9 +402,9 @@ onBeforeUnmount(() => {
 .intel-strip {
     display: grid;
     grid-template-columns: repeat(3, minmax(96px, 1fr));
-    gap: 10px;
+    gap: 8px;
     max-width: 520px;
-    margin-top: 22px;
+    margin-top: 16px;
 }
 
 .intel-item {
@@ -480,21 +480,21 @@ onBeforeUnmount(() => {
 }
 
 .loadout-panel {
-    padding: 20px;
+    padding: 16px;
 }
 
 .panel-header {
     position: relative;
     z-index: 1;
     justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 16px;
+    gap: 12px;
+    margin-bottom: 12px;
 }
 
 .panel-header h2 {
     margin: 4px 0 0;
     color: var(--lol-ivory);
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 900;
 }
 
@@ -516,16 +516,16 @@ onBeforeUnmount(() => {
     z-index: 1;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
 
 .loadout-row {
     display: grid;
     grid-template-columns: 42px 48px minmax(0, 1fr) 210px 96px;
-    gap: 14px;
+    gap: 12px;
     align-items: center;
-    min-height: 76px;
-    padding: 12px 14px;
+    min-height: 64px;
+    padding: 10px 12px;
     background: linear-gradient(90deg, rgba(17, 25, 35, 0.72), rgba(7, 10, 13, 0.42));
     border: 1px solid var(--lol-border-soft);
     border-radius: 8px;
@@ -631,12 +631,12 @@ onBeforeUnmount(() => {
 .apply-btn {
     justify-content: center;
     gap: 6px;
-    height: 36px;
+    height: 30px;
     color: var(--lol-bg);
     background: linear-gradient(135deg, var(--lol-teal-2), var(--lol-teal));
     border: 1px solid rgba(108, 241, 229, 0.36);
-    border-radius: 7px;
-    font-size: 13px;
+    border-radius: 6px;
+    font-size: 12px;
     font-weight: 900;
     cursor: pointer;
 }
@@ -677,7 +677,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 640px) {
     .detail-page {
-        padding: 16px;
+        padding: 12px;
     }
 
     .hero-layout,
@@ -687,7 +687,7 @@ onBeforeUnmount(() => {
     }
 
     .hero-mark {
-        min-height: 112px;
+        min-height: 100px;
     }
 
     .panel-header {
