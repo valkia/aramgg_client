@@ -285,7 +285,7 @@ async function initGameFlowMonitor() {
         let lolPath = store.get('lolPath')
 
         logger.info('============ 初始化游戏流程监控 ============')
-        logger.info('读取配置的游戏目录:', lolPath)
+        logger.debug('读取配置的游戏目录:', lolPath ? '<configured>' : null)
 
         // 如果没有配置，尝试自动检测
         if (!lolPath) {
@@ -303,9 +303,9 @@ async function initGameFlowMonitor() {
         }
 
         // 初始化 LCU 服务（使用统一的 LCU 服务）
-        logger.info('初始化 LCU 服务...')
+        logger.debug('初始化 LCU 服务...')
         const lcuService = getLCUServiceInstance(lolPath)
-        logger.info('获取 LCU Token...')
+        logger.debug('获取 LCU Token...')
         let currentAuth = await lcuService.getAuthToken()
         let lastAuthUrl = currentAuth?.url || lcuService.getUrl()
 
@@ -321,7 +321,7 @@ async function initGameFlowMonitor() {
             logger.info('   3. 检查日志中是否包含 LCU URL')
             logger.info('将继续低频重试 LCU 连接')
         } else {
-            logger.info('LCU Token 获取成功')
+            logger.debug('LCU Token 获取成功')
         }
 
         let lastPhase = null
@@ -414,7 +414,7 @@ async function initGameFlowMonitor() {
                 GAMEFLOW_WS_RECONNECT_MAX_MS
             )
             websocketReconnectAttempts += 1
-            logger.info(`LCU gameflow WebSocket 将在 ${delay}ms 后重连: ${reason}`)
+            logger.debug(`LCU gameflow WebSocket 将在 ${delay}ms 后重连: ${reason}`)
 
             lcuGameflowReconnectTimer = setTimeout(() => {
                 lcuGameflowReconnectTimer = null
@@ -450,12 +450,12 @@ async function initGameFlowMonitor() {
                             websocketConnected = false
                             lcuGameflowSubscription = null
                             if (!lcuGameflowMonitorStopping) {
-                                logger.warn(`LCU OnJsonApiEvent WebSocket 已关闭: ${reason}`)
+                                logger.debug(`LCU OnJsonApiEvent WebSocket 已关闭: ${reason}`)
                                 scheduleWebSocketReconnect(reason)
                             }
                         },
                         onError: (error) => {
-                            logger.warn('LCU OnJsonApiEvent WebSocket 错误:', error.message)
+                            logger.debug('LCU OnJsonApiEvent WebSocket 错误:', error.message)
                         },
                     }
                 )
@@ -469,7 +469,7 @@ async function initGameFlowMonitor() {
                 lcuGameflowSubscription = subscription
             } catch (error) {
                 websocketConnected = false
-                logger.warn('LCU OnJsonApiEvent WebSocket 初始化失败:', error.message)
+                logger.debug('LCU OnJsonApiEvent WebSocket 初始化失败:', error.message)
                 scheduleWebSocketReconnect('connect-error')
             } finally {
                 websocketConnecting = false

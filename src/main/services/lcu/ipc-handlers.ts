@@ -164,7 +164,7 @@ export function registerLCUIpcHandlers(): void {
 
   ipcMain.handle('lcu-get-aram-bench-recommendation', async () => {
     const startedAt = Date.now()
-    logger.info('[LCU] ARAM bench recommendation requested')
+    logger.debug('[LCU] ARAM bench recommendation requested')
 
     const { service, error } = await getLcuServiceFromStore()
     if (!service) {
@@ -189,11 +189,17 @@ export function registerLCUIpcHandlers(): void {
         store.set('lastSelectedChampionId', snapshot.selfChampionId)
       }
 
-      logger.info('[LCU] ARAM bench recommendation completed', {
+      const summary = {
         status: recommendation.status,
         candidateCount: recommendation.candidates?.length || 0,
         durationMs: Date.now() - startedAt,
-      })
+      }
+
+      if (recommendation.status === 'inactive') {
+        logger.debug('[LCU] ARAM bench recommendation completed', summary)
+      } else {
+        logger.info('[LCU] ARAM bench recommendation completed', summary)
+      }
 
       return {
         success: true,
@@ -271,16 +277,19 @@ export function registerLCUIpcHandlers(): void {
         }
       }
 
-      logger.info(`[LCU] 游戏路径: ${lolPath}`)
+      logger.debug('[LCU] game path configured')
 
       // 获取 LCU 服务实例
       const lcuService = getLCUServiceInstance(lolPath)
 
       // 首次调用或需要刷新时获取 token
       if (!lcuService.isActive()) {
-        logger.info('[LCU] LCU 服务未激活，尝试获取认证令牌...')
+        logger.debug('[LCU] service inactive, refreshing auth token')
         const authResult = await lcuService.getAuthToken()
-        logger.info(`[LCU] 认证结果: ${JSON.stringify(authResult)}`)
+        logger.debug('[LCU] auth refresh result', {
+          active: lcuService.isActive(),
+          port: authResult?.port || null,
+        })
 
         if (!lcuService.isActive()) {
           logger.warn('[LCU] LCU 服务激活失败')
@@ -292,10 +301,10 @@ export function registerLCUIpcHandlers(): void {
         }
       }
 
-      logger.info('[LCU] 正在获取只读选人快照...')
+      logger.debug('[LCU] reading readonly champ-select snapshot')
       const snapshot = await lcuService.getChampSelectSnapshot()
 
-      logger.info(
+      logger.debug(
         `[LCU] 选人快照: status=${snapshot.status}, phase=${snapshot.gameflowPhase || 'unknown'}, self=${snapshot.selfChampionId || 'none'}, bench=${snapshot.benchChampions.length}`
       )
 
@@ -307,7 +316,11 @@ export function registerLCUIpcHandlers(): void {
         }
       }
 
-      logger.warn(`[LCU] ❌ 未找到当前玩家选择的英雄 (snapshot status: ${snapshot.status})`)
+      if (snapshot.status === 'not-in-champ-select') {
+        logger.debug(`[LCU] current player champion not found (snapshot status: ${snapshot.status})`)
+      } else {
+        logger.warn(`[LCU] current player champion not found (snapshot status: ${snapshot.status})`)
+      }
 
       return {
         success: false,

@@ -325,7 +325,7 @@ export class LCUService {
       this.lastTokenFetchTime = now
       this.lastFailTime = 0 // 清除失败时间
 
-      logger.info(`LCU 连接成功 (端口: ${port})`)
+      logger.debug(`LCU connected (port: ${port})`)
       return { token, port, url }
     } catch (error) {
       const err = error as Error
@@ -387,7 +387,7 @@ export class LCUService {
       if (err.code === 'ECONNREFUSED') {
         this.active = false
         this.lastFailTime = Date.now()
-        logger.warn('LCU 连接丢失')
+        logger.debug('LCU connection lost')
       }
       return null
     }
@@ -430,7 +430,7 @@ export class LCUService {
         ...this.auth,
         httpsAgent: this.httpsAgent,
       })
-      logger.info('当前符文页:', res.data)
+      logger.debug('Current rune page:', res.data)
       return res.data
     } catch (error) {
       return null
@@ -542,13 +542,13 @@ export class LCUService {
         return null
       }
 
-      logger.info('🎮 当前游戏阶段:', res.data)
+      logger.debug('Current gameflow phase:', res.data)
       return res.data
     } catch (error) {
       const err = error as any
       // 连接失败时尝试重新认证
       if (err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT') {
-        logger.warn('LCU 连接丢失，尝试重新连接...')
+        logger.debug('LCU connection lost, trying to reconnect')
         this.active = false
         await this.getAuthToken()
       } else {
@@ -573,7 +573,7 @@ export class LCUService {
         httpsAgent: this.httpsAgent,
         validateStatus: (status) => status < 500,
       })
-      logger.info('📋 游戏会话信息:', res.data)
+      logger.debug('Gameflow session:', res.data)
       return res.data
     } catch (error) {
       const err = error as Error

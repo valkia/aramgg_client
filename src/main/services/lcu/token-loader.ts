@@ -26,7 +26,7 @@ export async function getLcuToken(dirPath: string | null | undefined): Promise<T
 
     // 规范化路径（处理混合的正斜杠和反斜杠）
     const normalizedPath = dirPath.replace(/\//g, '\\')
-    logger.info('[getLcuToken] 规范化后的路径:', normalizedPath)
+    logger.debug('[getLcuToken] normalized path:', normalizedPath)
 
     const dir = path.join(normalizedPath, 'LeagueClient')
 
@@ -37,7 +37,7 @@ export async function getLcuToken(dirPath: string | null | undefined): Promise<T
     }
 
     // 读取目录中的所有文件
-    logger.info(`[getLcuToken] 读取目录: ${dir}`)
+    logger.debug(`[getLcuToken] reading LeagueClient dir: ${dir}`)
     const files = fs.readdirSync(dir)
 
     // 查找 LeagueClientUx.log 文件（不包含 -tracing 后缀）
@@ -52,15 +52,15 @@ export async function getLcuToken(dirPath: string | null | undefined): Promise<T
 
     if (!latest) {
       logger.error(`[getLcuToken] ❌ 未找到 LeagueClientUx.log 文件`)
-      logger.info(`[getLcuToken] 可用文件:`, files.slice(0, 5))
+      logger.debug(`[getLcuToken] available files:`, files.slice(0, 5))
       return [null, null, null]
     }
 
     // 读取日志文件内容
-    logger.info(`[getLcuToken] 读取文件: ${latest}`)
+    logger.debug(`[getLcuToken] reading log file: ${latest}`)
     const filePath = path.join(dir, latest)
     const content = fs.readFileSync(filePath, 'utf8')
-    logger.info(`[getLcuToken] 文件大小: ${content.length} bytes`)
+    logger.debug(`[getLcuToken] log file size: ${content.length} bytes`)
 
     // 查找 LCU 连接信息
     // 标准格式: https://riot:TOKEN@127.0.0.1:PORT/
@@ -71,15 +71,13 @@ export async function getLcuToken(dirPath: string | null | undefined): Promise<T
       const port = urlMatch[2]
       const urlWithAuth = `https://riot:${token}@127.0.0.1:${port}`
 
-      logger.info(`[getLcuToken] ✅ 成功提取:`)
-      logger.info(`  Token: ${token.substring(0, 10)}...`)
-      logger.info(`  Port: ${port}`)
+      logger.debug('[getLcuToken] token extracted', { port, logFile: latest })
 
       return [token, port, urlWithAuth]
     }
 
     // 尝试备用格式（兼容旧版本）
-    logger.info(`[getLcuToken] 标准格式未匹配，尝试备用模式...`)
+    logger.debug('[getLcuToken] standard pattern not matched, trying fallback pattern')
     const altMatch = content.match(/https(.*)\/index\.html/)
 
     if (altMatch) {
@@ -92,9 +90,7 @@ export async function getLcuToken(dirPath: string | null | undefined): Promise<T
         const port = portMatch[1]
         const urlWithAuth = `https${url}`
 
-        logger.info(`[getLcuToken] ✅ 成功提取（备用模式）:`)
-        logger.info(`  Token: ${token.substring(0, 10)}...`)
-        logger.info(`  Port: ${port}`)
+        logger.debug('[getLcuToken] token extracted with fallback pattern', { port, logFile: latest })
 
         return [token, port, urlWithAuth]
       }
@@ -105,7 +101,7 @@ export async function getLcuToken(dirPath: string | null | undefined): Promise<T
   } catch (err) {
     const error = err as Error
     logger.error(`[getLcuToken] ❌ 错误:`, error.message)
-    logger.error(`  Stack:`, error.stack)
+    logger.debug('  Stack:', error.stack)
     return [null, null, null]
   }
 }
