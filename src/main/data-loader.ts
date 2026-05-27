@@ -8,6 +8,7 @@ declare const fetch: any
 type FetchJsonOptions = {
   force?: boolean
   ttlMs?: number
+  timeoutMs?: number
 }
 
 type ClientConfig = {
@@ -43,6 +44,7 @@ export const DATA_API_CONFIG_PATH = `${DATA_API_PREFIX}/config`
 
 const CONFIG_TTL_MS = 5 * 60 * 1000
 const DATA_TTL_MS = 12 * 60 * 60 * 1000
+const DATA_FETCH_TIMEOUT_MS = 10 * 1000
 const DATA_CACHE_DIR_NAME = 'data'
 const CURRENT_DATA_FILE = 'current.json'
 const DATA_CACHE_SCHEMA_VERSION = 3
@@ -99,10 +101,17 @@ async function fetchJson(resourcePath: string, options: FetchJsonOptions = {}): 
   }
 
   const transportFetch = await getTransportFetch()
+  const timeoutMs = options.timeoutMs ?? DATA_FETCH_TIMEOUT_MS
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null
+  const timeout = controller
+    ? setTimeout(() => controller.abort(), timeoutMs)
+    : null
+
   const request = transportFetch(url, {
     headers: {
       accept: 'application/json',
     },
+    signal: controller?.signal,
   })
     .then(async (response: any) => {
       if (!response.ok) {
@@ -113,7 +122,17 @@ async function fetchJson(resourcePath: string, options: FetchJsonOptions = {}): 
       cache.set(url, { data, createdAt: Date.now() })
       return data
     })
+    .catch((error: any) => {
+      if (error?.name === 'AbortError') {
+        throw new Error(`Remote data request timed out after ${timeoutMs}ms: ${url}`)
+      }
+
+      throw error
+    })
     .finally(() => {
+      if (timeout) {
+        clearTimeout(timeout)
+      }
       pendingRequests.delete(url)
     })
 

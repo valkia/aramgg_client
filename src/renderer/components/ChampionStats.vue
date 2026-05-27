@@ -102,6 +102,33 @@ const augmentStats = ref({})
 const buildData = ref(null)
 const itemsData = ref({})
 const activeTab = ref('augments')
+const DETAIL_LOAD_TIMEOUT_MS = 15 * 1000
+
+const logDetailInfo = (message, details = {}) => {
+  console.info(`[ChampionStats] ${message}`, details)
+
+  try {
+    electronAPI.diagnostics?.logRendererInfo?.({
+      type: 'champion-detail',
+      source: 'ChampionStats',
+      message,
+      details,
+      timestamp: Date.now(),
+      url: window.location.href
+    })
+  } catch (err) {
+    console.warn('Failed to send champion detail diagnostic log:', err)
+  }
+}
+
+const withTimeout = (promise, timeoutMs, message) => {
+  let timeoutId
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs)
+  })
+
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId))
+}
 
 /**
  * Load all champion data via IPC
@@ -109,6 +136,8 @@ const activeTab = ref('augments')
 const loadData = async () => {
   loading.value = true
   error.value = null
+  const startedAt = Date.now()
+  logDetailInfo('load requested', { championId: championId.value })
 
   try {
     // Check if ipcRenderer is available
@@ -117,7 +146,11 @@ const loadData = async () => {
     }
 
     // Call IPC to load data in main process
-    const result = await electronAPI.winrate.loadChampionData(championId.value)
+    const result = await withTimeout(
+      electronAPI.winrate.loadChampionData(championId.value),
+      DETAIL_LOAD_TIMEOUT_MS,
+      `英雄详情加载超过 ${DETAIL_LOAD_TIMEOUT_MS / 1000} 秒，请稍后重试。`
+    )
 
     if (result.success) {
       const { stats, augments, augmentStats: augmentStatsData, build, items } = result.data
@@ -126,12 +159,28 @@ const loadData = async () => {
       augmentStats.value = augmentStatsData
       buildData.value = build
       itemsData.value = items
+      logDetailInfo('load completed', {
+        championId: championId.value,
+        durationMs: Date.now() - startedAt,
+        augmentCount: augmentStatsData ? Object.keys(augmentStatsData).length : 0,
+        hasBuild: !!build
+      })
     } else {
       error.value = `数据加载失败: ${result.error}`
+      logDetailInfo('load failed', {
+        championId: championId.value,
+        durationMs: Date.now() - startedAt,
+        error: result.error
+      })
       console.error('Failed to load champion data:', result.error)
     }
   } catch (err) {
     error.value = `数据加载失败: ${err.message}`
+    logDetailInfo('load errored', {
+      championId: championId.value,
+      durationMs: Date.now() - startedAt,
+      error: err.message
+    })
     console.error('Failed to load champion data:', err)
   } finally {
     loading.value = false
