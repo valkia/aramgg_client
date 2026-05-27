@@ -15,26 +15,26 @@
           v-for="(augment, index) in previewAugments"
           :key="getAugmentKey(augment, index)"
           class="augment-item"
-          :class="[`rarity-${augment.rarity}`, { 'top-pick': isTopPick(augment, index) }]"
+          :class="[`rarity-${augment.rarity || 'unknown'}`, { 'top-pick': !augment.missing && isTopPick(augment, index), 'empty-slot': augment.missing }]"
         >
-          <div v-if="isTopPick(augment, index)" class="top-pick-badge">
+          <div v-if="!augment.missing && isTopPick(augment, index)" class="top-pick-badge">
             <span>*</span>
             优先推荐
           </div>
 
           <div class="augment-icon-frame">
             <img
-              v-if="augment.iconPath"
+              v-if="!augment.missing && augment.iconPath"
               :src="getAugmentIconUrl(augment.iconPath)"
               :alt="augment.name"
               class="augment-icon"
             />
-            <span v-else>{{ String(index + 1).padStart(2, '0') }}</span>
+            <span v-else-if="!augment.missing">{{ String(index + 1).padStart(2, '0') }}</span>
           </div>
 
           <div class="content">
-            <h3 class="name">{{ augment.name }}</h3>
-            <div class="stats-lines">
+            <h3 class="name">{{ augment.missing ? '' : augment.name }}</h3>
+            <div v-if="!augment.missing" class="stats-lines">
               <div class="stat-line">
                 <span>选取率</span>
                 <strong>{{ formatPercent(augment.pickRate) }}</strong>
@@ -44,12 +44,12 @@
                 <strong>{{ formatPercent(augment.winRate) }}</strong>
               </div>
             </div>
-            <span class="recommend-label" :class="getBadgeClass(augment.recommendScore)">
+            <span v-if="!augment.missing" class="recommend-label" :class="getBadgeClass(augment.recommendScore)">
               {{ getRecommendText(augment.recommendScore) }} · {{ formatScore(augment.recommendScore) }}
             </span>
           </div>
 
-          <div class="score-track">
+          <div v-if="!augment.missing" class="score-track">
             <div class="score-fill" :style="{ width: getScoreWidth(augment.recommendScore) }"></div>
           </div>
         </div>
@@ -79,9 +79,17 @@ let overlayRequestId = 0
 
 const previewAugments = computed(() => displayAugments.value.slice(0, 3))
 
-const getAugmentKey = (augment, index) => augment.augmentId || augment.id || augment.name || index
+const getAugmentKey = (augment, index) => {
+  if (augment?.missing) {
+    return `missing-${augment.detectedSlot ?? index}`
+  }
+
+  return augment.augmentId || augment.id || augment.name || index
+}
 
 const getAugmentScore = (augment) => {
+  if (augment?.missing) return -1
+
   const score = Number(augment?.recommendScore)
   if (!Number.isNaN(score)) return score
   const winRate = Number(augment?.winRate)
@@ -110,14 +118,46 @@ const isTopPick = (augment, index) => getAugmentKey(augment, index) === topPickK
 const mapDetectedAugmentsForFallback = (augments) => augments.map(aug => ({
   augmentId: aug.id,
   id: aug.id,
-  name: aug.name,
+  name: aug.missing ? '' : aug.name,
   rarity: aug.rarity,
   winRate: aug.winRate ?? null,
   pickRate: aug.pickRate ?? null,
   playCount: aug.playCount ?? 0,
-  recommendScore: aug.recommendScore ?? 0.5,
-  iconPath: aug.iconPath || aug.iconUrl || null
+  recommendScore: aug.missing ? null : (aug.recommendScore ?? 0.5),
+  iconPath: aug.iconPath || aug.iconUrl || null,
+  detectedSlot: aug.detectedSlot,
+  missing: aug.missing === true
 }))
+
+const mergeWinrateWithDetectedSlots = (winrateAugments = [], detectedAugments = []) => {
+  const fallbackSlots = sortAugmentsByDetectedOrder(mapDetectedAugmentsForFallback(detectedAugments), detectedAugments)
+  const winrateById = new Map(
+    winrateAugments
+      .map(augment => [String(augment.augmentId || augment.id), augment])
+      .filter(([id]) => id && id !== 'undefined' && id !== 'null')
+  )
+
+  return fallbackSlots.map(augment => {
+    if (augment.missing) {
+      return augment
+    }
+
+    const id = augment.augmentId || augment.id
+    const winrate = winrateById.get(String(id))
+    if (!winrate) {
+      return augment
+    }
+
+    return {
+      ...augment,
+      ...winrate,
+      id: winrate.id || winrate.augmentId || id,
+      augmentId: winrate.augmentId || winrate.id || id,
+      detectedSlot: augment.detectedSlot,
+      missing: false
+    }
+  })
+}
 
 /**
  * 格式化百分比
@@ -208,7 +248,7 @@ const showOverlay = async (data) => {
       loading.value = false
       console.log('✅ [FloatingOverlay] 直接显示完整数据')
     } else {
-      const fallbackAugments = sortAugmentsByDetectedOrder(mapDetectedAugmentsForFallback(data.augments), data.augments)
+      const fallbackAugments = mergeWinrateWithDetectedSlots([], data.augments)
       displayAugments.value = fallbackAugments
       loading.value = false
       console.log('🔍 [FloatingOverlay] 先显示识别结果，后台查询胜率数据...')
@@ -280,7 +320,7 @@ const showOverlay = async (data) => {
 
         if (winrateResult.success && winrateResult.augments.length > 0) {
           // 找到了胜率数据，按游戏内从左到右的识别顺序展示。
-          displayAugments.value = sortAugmentsByDetectedOrder(winrateResult.augments, data.augments)
+          displayAugments.value = mergeWinrateWithDetectedSlots(winrateResult.augments, data.augments)
           console.log('✅ [FloatingOverlay] 胜率数据查询成功:', winrateResult.augments)
           logFloatingInfo('winrate query applied', {
             championId: championId.value,
@@ -793,6 +833,17 @@ onBeforeUnmount(() => {
 .augment-item:hover {
   transform: none;
   border-color: rgba(71, 228, 213, 0.46);
+}
+
+.augment-item.empty-slot {
+  opacity: 0.56;
+  border-style: dashed;
+}
+
+.augment-item.empty-slot .augment-icon-frame {
+  border-color: rgba(244, 236, 220, 0.16);
+  background: rgba(244, 236, 220, 0.03);
+  box-shadow: none;
 }
 
 .augment-item.top-pick {

@@ -1,5 +1,21 @@
 const getAugmentId = (augment) => augment?.augmentId ?? augment?.id
 
+const getOrderIndex = (augment, fallbackIndex, order) => {
+  if (Number.isInteger(augment?.detectedSlot)) {
+    return augment.detectedSlot
+  }
+
+  const id = getAugmentId(augment)
+  if (id != null) {
+    const detectedIndex = order.get(String(id))
+    if (detectedIndex != null) {
+      return detectedIndex
+    }
+  }
+
+  return fallbackIndex
+}
+
 export function sortAugmentsByDetectedOrder(augments = [], detectedAugments = []) {
   const order = new Map()
 
@@ -17,19 +33,8 @@ export function sortAugmentsByDetectedOrder(augments = [], detectedAugments = []
   return augments
     .map((augment, index) => ({ augment, index }))
     .sort((a, b) => {
-      const aOrder = order.get(String(getAugmentId(a.augment)))
-      const bOrder = order.get(String(getAugmentId(b.augment)))
-
-      if (aOrder == null && bOrder == null) {
-        return a.index - b.index
-      }
-      if (aOrder == null) {
-        return 1
-      }
-      if (bOrder == null) {
-        return -1
-      }
-
+      const aOrder = getOrderIndex(a.augment, a.index, order)
+      const bOrder = getOrderIndex(b.augment, b.index, order)
       return aOrder - bOrder
     })
     .map(({ augment }) => augment)

@@ -32,11 +32,34 @@ function getSafeTimestampForFile() {
 }
 
 function getAugmentSummary(augments = []) {
-    return augments.map(aug => `${aug.name || 'unknown'}(${aug.id || 'no-id'})`).join(', ') || 'none'
+    return augments.map((aug, index) => {
+        if (aug?.missing) {
+            return `empty-slot-${aug.detectedSlot ?? index}`
+        }
+
+        return `${aug?.name || 'unknown'}(${aug?.id || 'no-id'})`
+    }).join(', ') || 'none'
 }
 
 function getAugmentIds(augments = []) {
-    return augments.slice(0, 3).map(augment => String(augment.id)).filter(Boolean)
+    return augments.slice(0, 3).map(augment => {
+        if (augment?.id == null) {
+            return null
+        }
+
+        return String(augment.id)
+    }).filter(Boolean)
+}
+
+function createEmptyAugmentSlot(slot) {
+    return {
+        id: null,
+        name: '',
+        rarity: 'unknown',
+        confidence: null,
+        detectedSlot: slot,
+        missing: true,
+    }
 }
 
 class AutoScreenshotService {
@@ -545,18 +568,19 @@ class AutoScreenshotService {
     }
 
     _mergePartialAugments(augments = []) {
-        if (augments.length === 0 || augments.length >= 3 || this.lastDetectedAugments.length !== 3) {
+        if (augments.length === 0 || augments.length >= 3) {
             return null
         }
 
         const partialIds = new Set(getAugmentIds(augments))
-        const hasNewId = [...partialIds].some(id => !this.lastDetectedAugmentIds.includes(id))
+        const hasNewId = this.lastDetectedAugmentIds.length === 0 ||
+            [...partialIds].some(id => !this.lastDetectedAugmentIds.includes(id))
         if (!hasNewId) {
             return null
         }
 
         if (augments.some(augment => Number.isInteger(augment.detectedSlot))) {
-            const merged = [...this.lastDetectedAugments]
+            const merged = [0, 1, 2].map(createEmptyAugmentSlot)
             for (const augment of augments) {
                 if (Number.isInteger(augment.detectedSlot) && augment.detectedSlot >= 0 && augment.detectedSlot < 3) {
                     merged[augment.detectedSlot] = augment
@@ -565,10 +589,7 @@ class AutoScreenshotService {
             return merged.slice(0, 3)
         }
 
-        return [
-            ...augments,
-            ...this.lastDetectedAugments.filter(augment => !partialIds.has(String(augment.id))),
-        ].slice(0, 3)
+        return null
     }
 
     _logFirstDetectionLatency(kind, analysisDuration) {
@@ -680,11 +701,13 @@ class AutoScreenshotService {
                 success: true,
                 gamePhase: 'augment-select',
                 championId: championId || null, // 添加英雄ID
-                augments: analysisResult.analysis.augments.slice(0, 3).map(aug => ({
-                    id: aug.id,
-                    name: aug.name,
-                    rarity: aug.rarity,
-                    confidence: aug.confidence,
+                augments: analysisResult.analysis.augments.slice(0, 3).map((aug, index) => ({
+                    id: aug.id ?? null,
+                    name: aug.name || '',
+                    rarity: aug.rarity || 'unknown',
+                    confidence: aug.confidence ?? null,
+                    detectedSlot: Number.isInteger(aug.detectedSlot) ? aug.detectedSlot : index,
+                    missing: aug.missing === true,
                 })),
                 analysisConfidence: analysisResult.analysis.confidence,
                 partialUpdate: analysisResult.analysis.partialUpdate === true,
