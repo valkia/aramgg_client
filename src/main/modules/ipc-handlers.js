@@ -569,15 +569,33 @@ export function registerIpcHandlers(isDev) {
     })
 
     ipcMain.handle('log-renderer-error', async (_event, errorData) => {
-        const { message, stack, source, line, column, url, type, timestamp, userAgent } = errorData
+        const {
+            message,
+            stack,
+            source,
+            line,
+            column,
+            url,
+            type,
+            timestamp,
+            userAgent,
+            errorName,
+            componentName,
+            info,
+            route,
+        } = errorData || {}
 
         logger.error('Renderer error reported:', {
             type: type || 'error',
+            errorName: errorName || 'Error',
             message: message || 'Unknown error',
             stack: stack || 'No stack trace',
             source: source || 'unknown',
+            componentName: componentName || null,
+            info: info || null,
             location: `${line}:${column}`,
             url: url || 'unknown',
+            route: route || null,
             timestamp: timestamp || Date.now(),
             userAgent: userAgent || 'unknown',
         })
