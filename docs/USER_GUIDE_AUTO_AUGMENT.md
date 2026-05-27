@@ -48,10 +48,10 @@
 进入 OCR 后优先走标题区快速路径：
 
 1. 如果标题区域指纹与上一轮完整 3 卡结果足够接近，且缓存未超过 30 秒，直接复用上一轮结果。
-2. 未命中缓存时，优先识别标题堆叠区域、标题横带和左/中/右单卡标题区域。
-3. 只有已经识别到至少 2 张卡片时，才最多运行 1 个较慢的宽区域 fallback。
+2. 未命中缓存时，只识别左/中/右单卡标题区域，并按卡位写入结果。
+3. 如果某个卡位没有读到标题，该位置保持为空槽，不用宽区域 OCR fallback 补齐。
 
-这套顺序用于降低 Tesseract 调用次数，同时保持左、中、右卡片顺序稳定。
+这套顺序用于降低 Tesseract 调用次数，同时保持左、中、右卡片顺序稳定。只有完整 3 卡结果会进入标题指纹缓存，部分识别结果只用于展示已读到的卡位。
 
 ## 配置和状态
 
@@ -87,6 +87,8 @@ await electronAPI.autoScreenshot.setConfig({
 - 远端数据缓存：`remote-data-cache/`
 - 应用配置：`config/`
 
+排查海克斯浮窗速度时，重点看胜率查询日志中的 `rendererToMainDelayMs`、`mainDurationMs` 和 `mainToRendererDelayMs`。`mainDurationMs` 是主进程查询数据的耗时；如果 `rendererToMainDelayMs` 明显偏高，通常说明浮层窗口刚显示后的 renderer/IPC 调度被延迟。海克斯详情弹窗、席位推荐弹窗和游戏内浮窗已关闭 Electron `backgroundThrottling`，用于减少隐藏窗口刚显示时的 IPC 延迟。
+
 ## 常见问题
 
 ### 没有自动识别
@@ -119,7 +121,7 @@ await electronAPI.autoScreenshot.setConfig({
 
 ### 为什么浮窗自动消失
 
-阶段切换到 `ChampSelect`、`Lobby`、`EndOfGame` 等非实际对局阶段，或 OCR 不再检测到完整海克斯卡片时，会清空旧结果。
+阶段切换到 `ChampSelect`、`Lobby`、`EndOfGame` 等非实际对局阶段，或 OCR 长时间检测不到海克斯卡片时，会清空旧结果。短暂只读到部分卡位时，浮窗会保留三卡位布局，未读到的位置显示为空槽。
 
 ## 相关文件
 

@@ -25,7 +25,7 @@ Renderer 不直接访问 Node API。所有主进程能力都必须经由 preload
 
 | 能力 | 关键位置 | 说明 |
 |------|----------|------|
-| 窗口管理 | `src/main/modules/window-manager.js` | 主窗口、详情弹窗、游戏内浮窗 |
+| 窗口管理 | `src/main/modules/window-manager.js` | 主窗口、海克斯详情弹窗、席位推荐弹窗、游戏内浮窗 |
 | IPC 注册 | `src/main/modules/ipc-handlers.js`、`src/main/services/lcu/ipc-handlers.ts` | Store、截图、数据、LCU 等业务通道 |
 | LCU 服务 | `src/main/services/lcu/` | LCU token、gameflow、champ-select、符文页 |
 | ARAM bench 推荐 | `src/main/services/aram/bench-recommendation.js` | 纯逻辑，只输入快照和英雄统计 |
@@ -72,7 +72,9 @@ LCU gameflow InProgress
 
 `InProgress` 指 `/lol-gameflow/v1/gameflow-phase` 的实际对局阶段。`ChampSelect`、`Lobby`、`EndOfGame` 等阶段会暂停或清空游戏内海克斯浮窗状态，避免展示过期结果。
 
-自动截图服务串行消费 OCR 队列，忙碌时只保留最新待分析截图。海克斯切换动画造成 0-2 张短暂识别结果时，会在宽限期内保留上一轮完整浮窗；图像分析先使用标题区域活动检测、标题指纹缓存和左/中/右标题快速路径，只有必要时才运行较慢 fallback。
+自动截图服务串行消费 OCR 队列，忙碌时只保留最新待分析截图。海克斯切换动画造成 0-2 张短暂识别结果时，会在宽限期内保留上一轮完整浮窗；图像分析先使用标题区域活动检测、标题指纹缓存和左/中/右标题快速路径。游戏内海克斯固定为左/中/右三卡位，未读到的卡位保留为空槽，不再用宽区域 OCR fallback 补齐，避免 fallback 文本区域改变游戏内顺序。
+
+海克斯详情弹窗、席位推荐弹窗和游戏内浮窗是隐藏后按事件显示的 overlay 窗口，创建时关闭 `backgroundThrottling`，避免刚显示时 renderer IPC 被 Chromium 后台节流延迟。
 
 ## IPC 速查
 
@@ -85,7 +87,7 @@ LCU gameflow InProgress
 | `electronAPI.lcu.getChampSelectSnapshot()` | `lcu-get-champ-select-snapshot` | 标准化只读选人快照 |
 | `electronAPI.lcu.getAramBenchRecommendation()` | `lcu-get-aram-bench-recommendation` | ARAM bench 展示建议 |
 | `electronAPI.lcu.getGameflowPhase()` | `lcu-get-gameflow-phase` | 当前 gameflow 阶段 |
-| `electronAPI.winrate.get(...)` | `get-winrate` | 查询海克斯胜率 |
+| `electronAPI.winrate.get(...)` | `get-winrate` | 查询海克斯胜率；可携带 `requestStartedAt` 记录 renderer/main 分段耗时 |
 | `electronAPI.winrate.loadChampionData(...)` | `load-champion-data` | 加载英雄详情数据 |
 | `electronAPI.autoScreenshot.*` | `auto-screenshot-*` | 手动控制截图服务 |
 

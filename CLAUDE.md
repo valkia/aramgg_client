@@ -64,7 +64,7 @@ node tests/electron/test-screenshot-analysis.js
 - ARAM bench 推荐入口是 IPC `lcu-get-aram-bench-recommendation`，结果只包含展示字段，不包含动作字段。
 - 选人阶段推荐使用独立席位推荐弹窗展示，不放回主界面；候选英雄列表应展示完整候选，不做固定 top 5 截断。
 - 海克斯识别结果应优先按左/中/右卡片区域确定顺序；自动截图服务需要保留截图超时和 runId 隔离，避免上一局残留任务影响下一局识别。
-- 海克斯 OCR 修改应保留切换动画期间的短暂 miss 宽限、标题区域快速路径和标题指纹缓存，避免重新引入多轮慢 fallback。
+- 海克斯 OCR 修改应保留切换动画期间的短暂 miss 宽限、标题区域快速路径和标题指纹缓存；不要用宽区域 OCR fallback 补齐缺失卡位，读不到的位置保持空槽。
 
 ## 文档指针
 
@@ -74,3 +74,4 @@ node tests/electron/test-screenshot-analysis.js
 - LCU 排障：`docs/LCU_TROUBLESHOOTING.md`
 - 游戏阶段：`docs/GAMEFLOW_DETECTION_GUIDE.md`
 - 自动海克斯：`docs/USER_GUIDE_AUTO_AUGMENT.md`
+- 客户端数据 API：`docs/client-api-strategy.md`
