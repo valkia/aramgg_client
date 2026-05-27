@@ -39,11 +39,6 @@ function getAugmentIds(augments = []) {
     return augments.slice(0, 3).map(augment => String(augment.id)).filter(Boolean)
 }
 
-function getAugmentSetKey(augments = []) {
-    const ids = getAugmentIds(augments)
-    return ids.length === 3 ? ids.slice().sort().join('|') : ''
-}
-
 class AutoScreenshotService {
     constructor() {
         this.isRunning = false
@@ -86,7 +81,6 @@ class AutoScreenshotService {
         // 上一次检测到的海克斯ID列表（用于判断是否需要更新显示）
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugments = []
-        this.lastDetectedAugmentSetKey = ''
     }
 
     /**
@@ -128,7 +122,6 @@ class AutoScreenshotService {
         this.visibleAugmentMissCount = 0
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugments = []
-        this.lastDetectedAugmentSetKey = ''
         this.startedAt = Date.now()
         this.firstCaptureLogged = false
         this.firstDetectionLogged = false
@@ -197,7 +190,6 @@ class AutoScreenshotService {
         const ageMs = this.lastDetectedAugmentAt ? Date.now() - this.lastDetectedAugmentAt : null
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugments = []
-        this.lastDetectedAugmentSetKey = ''
         this.lastDetectedAugmentAt = 0
         this.visibleAugmentMissCount = 0
         this.pendingAnalysisBuffer = null
@@ -405,26 +397,13 @@ class AutoScreenshotService {
                 // 检查是否与上次检测到的海克斯相同（避免重复通知）
                 const currentIds = getAugmentIds(normalizedAugments)
                 const currentIdList = currentIds.join(',')
-                const currentSetKey = getAugmentSetKey(normalizedAugments)
                 const lastIds = this.lastDetectedAugmentIds.join(',')
 
                 if (currentIdList !== lastIds) {
-                    if (currentSetKey && currentSetKey === this.lastDetectedAugmentSetKey) {
-                        this.lastDetectedAugmentAt = Date.now()
-                        this.visibleAugmentMissCount = 0
-                        logger.info('Augment reorder jitter ignored', {
-                            previousIds: this.lastDetectedAugmentIds,
-                            detectedIds: currentIds,
-                            durationMs: Number(analysisDuration.toFixed(1)),
-                        })
-                        return
-                    }
-
                     // 新的海克斯组合，更新显示
                     this.detectionCount++
                     this.lastDetectedAugmentIds = currentIds
                     this.lastDetectedAugments = normalizedAugments
-                    this.lastDetectedAugmentSetKey = currentSetKey
                     this.lastDetectedAugmentAt = Date.now()
                     this.visibleAugmentMissCount = 0
 
@@ -461,7 +440,6 @@ class AutoScreenshotService {
                         this.detectionCount++
                         this.lastDetectedAugments = mergedAugments
                         this.lastDetectedAugmentIds = getAugmentIds(mergedAugments)
-                        this.lastDetectedAugmentSetKey = getAugmentSetKey(mergedAugments)
                         this.lastDetectedAugmentAt = Date.now()
                         this.visibleAugmentMissCount = 0
                         logger.info(`Augment partial update accepted: count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, augments=${getAugmentSummary(mergedAugments)}`)
@@ -496,7 +474,6 @@ class AutoScreenshotService {
                         })
                         this.lastDetectedAugmentIds = []
                         this.lastDetectedAugments = []
-                        this.lastDetectedAugmentSetKey = ''
                         this.lastDetectedAugmentAt = 0
                         this.visibleAugmentMissCount = 0
                         this._notifyAugmentCleared(clearReason)

@@ -968,6 +968,76 @@ function cacheAugmentsForFingerprint(fingerprint, augments) {
     }
 }
 
+function orderAugmentsByDetectedSlot(augments = []) {
+    return augments
+        .slice()
+        .sort((a, b) => {
+            const slotA = Number.isInteger(a?.detectedSlot) ? a.detectedSlot : 99
+            const slotB = Number.isInteger(b?.detectedSlot) ? b.detectedSlot : 99
+            return slotA - slotB
+        })
+        .slice(0, 3)
+}
+
+function hasCompleteDetectedSlots(augments = []) {
+    const slots = new Set()
+
+    for (const augment of augments.slice(0, 3)) {
+        if (Number.isInteger(augment?.detectedSlot) && augment.detectedSlot >= 0 && augment.detectedSlot < 3) {
+            slots.add(augment.detectedSlot)
+        }
+    }
+
+    return slots.size === 3
+}
+
+function getDetectedSlots(augments = []) {
+    return augments
+        .filter(augment => Number.isInteger(augment?.detectedSlot))
+        .map(augment => augment.detectedSlot)
+}
+
+function mergeOrderedTitleAugments(orderedAugments = [], fallbackAugments = []) {
+    if (!Array.isArray(orderedAugments) || orderedAugments.length === 0 || !Array.isArray(fallbackAugments) || fallbackAugments.length < 3) {
+        return null
+    }
+
+    const merged = [null, null, null]
+    const usedIds = new Set()
+
+    for (const augment of orderedAugments) {
+        const slot = Number.isInteger(augment?.detectedSlot) ? augment.detectedSlot : -1
+        if (slot < 0 || slot >= 3 || augment?.id == null || merged[slot]) {
+            continue
+        }
+
+        merged[slot] = augment
+        usedIds.add(String(augment.id))
+    }
+
+    if (usedIds.size === 0) {
+        return null
+    }
+
+    const fallbackPool = fallbackAugments.filter(augment => augment?.id != null && !usedIds.has(String(augment.id)))
+
+    for (let index = 0; index < merged.length; index += 1) {
+        if (merged[index]) {
+            continue
+        }
+
+        const nextAugment = fallbackPool.shift()
+        if (!nextAugment) {
+            return null
+        }
+
+        merged[index] = nextAugment
+        usedIds.add(String(nextAugment.id))
+    }
+
+    return merged
+}
+
 function clearAugmentOcrCache() {
     LAST_AUGMENT_OCR_CACHE = null
 }
@@ -1110,6 +1180,7 @@ async function recognizeAugmentsFromImage(imageBuffer) {
         const titleStackRegion = regions.find(region => region.type === 'title-stack')
         const titleBandRegion = regions.find(region => region.name === 'card-title-band')
         const individualTitleGroup = regions.find(region => region.type === 'individual-title-group')
+        let orderedTitleAugments = []
 
         const readRegionAugments = async (region) => {
             let text = ''
@@ -1133,6 +1204,20 @@ async function recognizeAugmentsFromImage(imageBuffer) {
             return matchAugmentDatabase(recognizedTexts.join('\n'))
         }
 
+        if (individualTitleGroup) {
+            orderedTitleAugments = await readIndividualTitleAugments(imageBuffer, individualTitleGroup, width, height)
+            if (orderedTitleAugments.length > 0) {
+                bestAugments = orderAugmentsByDetectedSlot(orderedTitleAugments)
+            }
+
+            if (hasCompleteDetectedSlots(orderedTitleAugments)) {
+                logger.debug('OCR augment recognition completed from ordered individual titles: 3 augments')
+                const result = orderAugmentsByDetectedSlot(orderedTitleAugments)
+                cacheAugmentsForFingerprint(titleFingerprint, result)
+                return result
+            }
+        }
+
         for (const region of [titleStackRegion, titleBandRegion].filter(Boolean)) {
             const currentAugments = await readRegionAugments(region)
             if (currentAugments.length > bestAugments.length) {
@@ -1140,23 +1225,18 @@ async function recognizeAugmentsFromImage(imageBuffer) {
             }
 
             if (currentAugments.length >= 3) {
-                logger.debug(`OCR augment recognition completed from ${region.name}: 3 augments`)
-                const result = currentAugments.slice(0, 3)
-                cacheAugmentsForFingerprint(titleFingerprint, result)
-                return result
-            }
-        }
-
-        if (individualTitleGroup) {
-            const orderedTitleAugments = await readIndividualTitleAugments(imageBuffer, individualTitleGroup, width, height)
-            if (orderedTitleAugments.length > bestAugments.length) {
-                bestAugments = orderedTitleAugments
-            }
-
-            if (orderedTitleAugments.length >= 3) {
-                logger.debug('OCR augment recognition completed from ordered individual titles: 3 augments')
-                const result = orderedTitleAugments.slice(0, 3)
-                cacheAugmentsForFingerprint(titleFingerprint, result)
+                const mergedResult = mergeOrderedTitleAugments(orderedTitleAugments, currentAugments)
+                const result = mergedResult || currentAugments.slice(0, 3)
+                logger.info('OCR broad title fallback used for augment recognition', {
+                    region: region.name,
+                    orderedTitleCount: orderedTitleAugments.length,
+                    orderedSlots: getDetectedSlots(orderedTitleAugments),
+                    mergedWithOrderedSlots: !!mergedResult,
+                    augmentIds: result.map(augment => augment.id),
+                })
+                if (mergedResult) {
+                    cacheAugmentsForFingerprint(titleFingerprint, result)
+                }
                 return result
             }
         }
@@ -1191,21 +1271,28 @@ async function recognizeAugmentsFromImage(imageBuffer) {
 
             if (currentAugments.length >= 3) {
                 logger.debug(`OCR augment recognition completed from ${region.name}: 3 augments`)
-                const result = currentAugments.slice(0, 3)
-                cacheAugmentsForFingerprint(titleFingerprint, result)
+                const mergedResult = mergeOrderedTitleAugments(orderedTitleAugments, currentAugments)
+                const result = mergedResult || currentAugments.slice(0, 3)
+                if (mergedResult || hasCompleteDetectedSlots(result)) {
+                    cacheAugmentsForFingerprint(titleFingerprint, result)
+                }
                 return result
             }
         }
 
-        if (recognizedTexts.length === 0) {
+        if (recognizedTexts.length === 0 && bestAugments.length === 0) {
             logger.debug('OCR returned no text in all augment regions')
             return []
         }
 
         logger.debug(`OCR augment recognition completed: ${bestAugments.length} augments`)
 
-        const result = bestAugments.slice(0, 3)
-        cacheAugmentsForFingerprint(titleFingerprint, result)
+        const result = hasCompleteDetectedSlots(bestAugments)
+            ? orderAugmentsByDetectedSlot(bestAugments)
+            : bestAugments.slice(0, 3)
+        if (hasCompleteDetectedSlots(result)) {
+            cacheAugmentsForFingerprint(titleFingerprint, result)
+        }
         return result
     } catch (error) {
         logger.error('❌ OCR 识别失败:', error)
