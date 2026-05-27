@@ -622,7 +622,8 @@ onBeforeUnmount(() => {
 
 @media (max-width: 760px) {
   .augments-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
   }
 }
 
@@ -883,7 +884,64 @@ onBeforeUnmount(() => {
   }
 
   .augments-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .augment-item {
+    min-height: calc(100vh - 32px);
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 10px;
+    padding: 10px 10px 14px;
+  }
+
+  .top-pick-badge {
+    top: 6px;
+    right: 6px;
+    min-height: 20px;
+    padding: 0 8px;
+    font-size: 10px;
+  }
+
+  .augment-icon-frame {
+    width: 48px;
+    height: 48px;
+  }
+
+  .content {
+    gap: 5px;
+  }
+
+  .name {
+    font-size: 18px;
+  }
+
+  .stats-lines {
+    gap: 4px;
+  }
+
+  .stat-line {
+    gap: 6px;
+    padding-bottom: 3px;
+  }
+
+  .stat-line span {
+    font-size: 10px;
+  }
+
+  .stat-line strong {
+    font-size: 12px;
+  }
+
+  .recommend-label {
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+
+  .score-track {
+    left: 10px;
+    right: 10px;
+    bottom: 7px;
   }
 
   .augment-item.top-pick,
