@@ -991,53 +991,6 @@ function hasCompleteDetectedSlots(augments = []) {
     return slots.size === 3
 }
 
-function getDetectedSlots(augments = []) {
-    return augments
-        .filter(augment => Number.isInteger(augment?.detectedSlot))
-        .map(augment => augment.detectedSlot)
-}
-
-function mergeOrderedTitleAugments(orderedAugments = [], fallbackAugments = []) {
-    if (!Array.isArray(orderedAugments) || orderedAugments.length === 0 || !Array.isArray(fallbackAugments) || fallbackAugments.length < 3) {
-        return null
-    }
-
-    const merged = [null, null, null]
-    const usedIds = new Set()
-
-    for (const augment of orderedAugments) {
-        const slot = Number.isInteger(augment?.detectedSlot) ? augment.detectedSlot : -1
-        if (slot < 0 || slot >= 3 || augment?.id == null || merged[slot]) {
-            continue
-        }
-
-        merged[slot] = augment
-        usedIds.add(String(augment.id))
-    }
-
-    if (usedIds.size === 0) {
-        return null
-    }
-
-    const fallbackPool = fallbackAugments.filter(augment => augment?.id != null && !usedIds.has(String(augment.id)))
-
-    for (let index = 0; index < merged.length; index += 1) {
-        if (merged[index]) {
-            continue
-        }
-
-        const nextAugment = fallbackPool.shift()
-        if (!nextAugment) {
-            return null
-        }
-
-        merged[index] = nextAugment
-        usedIds.add(String(nextAugment.id))
-    }
-
-    return merged
-}
-
 function clearAugmentOcrCache() {
     LAST_AUGMENT_OCR_CACHE = null
 }
@@ -1173,126 +1126,34 @@ async function recognizeAugmentsFromImage(imageBuffer) {
             return cachedAugments
         }
 
-        const regions = createOcrRegions(width, height)
-        const recognizedTexts = []
-        let bestAugments = []
-        let slowFallbackCount = 0
-        const titleStackRegion = regions.find(region => region.type === 'title-stack')
-        const titleBandRegion = regions.find(region => region.name === 'card-title-band')
-        const individualTitleGroup = regions.find(region => region.type === 'individual-title-group')
-        let orderedTitleAugments = []
-
-        const readRegionAugments = async (region) => {
-            let text = ''
-
-            if (region.type === 'title-stack') {
-                const { rect, width: stackWidth, height: stackHeight, buffer } = await prepareStackedTitleRegion(imageBuffer, region, width, height)
-                logger.debug(`OCR region ${region.name}: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}, stacked=${stackWidth}x${stackHeight}`)
-                text = await performOCR(buffer, region.psm)
-            } else {
-                const { rect, buffer } = await prepareOcrRegion(imageBuffer, region, width, height)
-                logger.debug(`OCR region ${region.name}: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
-                text = await performOCR(buffer, region.psm)
-            }
-
-            if (!text || text.trim() === '') {
-                logger.debug(`  OCR区域 ${region.name} 未识别到文本`)
-                return []
-            }
-
-            recognizedTexts.push(text)
-            return matchAugmentDatabase(recognizedTexts.join('\n'))
+        const individualTitleGroup = {
+            name: 'card-title-individual-group',
+            type: 'individual-title-group',
+            regions: createIndividualTitleRegions(width, height),
+            psm: 'SINGLE_LINE',
         }
+        const orderedTitleAugments = await readIndividualTitleAugments(imageBuffer, individualTitleGroup, width, height)
+        const result = orderAugmentsByDetectedSlot(orderedTitleAugments)
 
-        if (individualTitleGroup) {
-            orderedTitleAugments = await readIndividualTitleAugments(imageBuffer, individualTitleGroup, width, height)
-            if (orderedTitleAugments.length > 0) {
-                bestAugments = orderAugmentsByDetectedSlot(orderedTitleAugments)
-            }
-
-            if (hasCompleteDetectedSlots(orderedTitleAugments)) {
-                logger.debug('OCR augment recognition completed from ordered individual titles: 3 augments')
-                const result = orderAugmentsByDetectedSlot(orderedTitleAugments)
-                cacheAugmentsForFingerprint(titleFingerprint, result)
-                return result
-            }
-        }
-
-        for (const region of [titleStackRegion, titleBandRegion].filter(Boolean)) {
-            const currentAugments = await readRegionAugments(region)
-            if (currentAugments.length > bestAugments.length) {
-                bestAugments = currentAugments
-            }
-
-            if (currentAugments.length >= 3) {
-                const mergedResult = mergeOrderedTitleAugments(orderedTitleAugments, currentAugments)
-                const result = mergedResult || currentAugments.slice(0, 3)
-                logger.info('OCR broad title fallback used for augment recognition', {
-                    region: region.name,
-                    orderedTitleCount: orderedTitleAugments.length,
-                    orderedSlots: getDetectedSlots(orderedTitleAugments),
-                    mergedWithOrderedSlots: !!mergedResult,
-                    augmentIds: result.map(augment => augment.id),
-                })
-                if (mergedResult) {
-                    cacheAugmentsForFingerprint(titleFingerprint, result)
-                }
-                return result
-            }
-        }
-
-        for (const region of regions) {
-            if (
-                region === titleStackRegion ||
-                region === titleBandRegion ||
-                region.type === 'individual-title-group'
-            ) {
-                continue
-            }
-
-            if (region.slowFallback && bestAugments.length < 2) {
-                logger.debug(`OCR slow fallback ${region.name} skipped: bestAugments=${bestAugments.length}`)
-                continue
-            }
-
-            if (region.slowFallback && slowFallbackCount >= 1) {
-                logger.debug(`OCR slow fallback ${region.name} skipped: earlier slow fallback already ran`)
-                continue
-            }
-
-            if (region.slowFallback) {
-                slowFallbackCount += 1
-            }
-
-            const currentAugments = await readRegionAugments(region)
-            if (currentAugments.length > bestAugments.length) {
-                bestAugments = currentAugments
-            }
-
-            if (currentAugments.length >= 3) {
-                logger.debug(`OCR augment recognition completed from ${region.name}: 3 augments`)
-                const mergedResult = mergeOrderedTitleAugments(orderedTitleAugments, currentAugments)
-                const result = mergedResult || currentAugments.slice(0, 3)
-                if (mergedResult || hasCompleteDetectedSlots(result)) {
-                    cacheAugmentsForFingerprint(titleFingerprint, result)
-                }
-                return result
-            }
-        }
-
-        if (recognizedTexts.length === 0 && bestAugments.length === 0) {
-            logger.debug('OCR returned no text in all augment regions')
+        if (result.length === 0) {
+            logger.debug('OCR returned no text in ordered augment title slots')
             return []
         }
 
-        logger.debug(`OCR augment recognition completed: ${bestAugments.length} augments`)
-
-        const result = hasCompleteDetectedSlots(bestAugments)
-            ? orderAugmentsByDetectedSlot(bestAugments)
-            : bestAugments.slice(0, 3)
         if (hasCompleteDetectedSlots(result)) {
+            logger.debug('OCR augment recognition completed from ordered individual titles: 3 augments')
             cacheAugmentsForFingerprint(titleFingerprint, result)
+        } else {
+            const detectedSlots = result
+                .filter(augment => Number.isInteger(augment?.detectedSlot))
+                .map(augment => augment.detectedSlot)
+            logger.info('OCR augment recognition partial from ordered title slots', {
+                detectedSlots,
+                missingSlots: [0, 1, 2].filter(slot => !detectedSlots.includes(slot)),
+                augmentIds: result.map(augment => augment.id),
+            })
         }
+
         return result
     } catch (error) {
         logger.error('❌ OCR 识别失败:', error)
