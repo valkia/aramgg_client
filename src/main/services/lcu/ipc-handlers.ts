@@ -18,6 +18,22 @@ import {
 } from '../aram/bench-recommendation.js'
 
 const store = new Store({ cwd: getConfigDir() })
+const LCU_READ_TIMEOUT_MS = 8 * 1000
+
+const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> => {
+  let timeout: NodeJS.Timeout | null = null
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(new Error(message)), timeoutMs)
+  })
+
+  try {
+    return await Promise.race([promise, timeoutPromise])
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout)
+    }
+  }
+}
 
 const getLcuServiceFromStore = async () => {
   const lolPath = store.get('lolPath') as string | undefined
@@ -147,6 +163,9 @@ export function registerLCUIpcHandlers(): void {
   })
 
   ipcMain.handle('lcu-get-aram-bench-recommendation', async () => {
+    const startedAt = Date.now()
+    logger.info('[LCU] ARAM bench recommendation requested')
+
     const { service, error } = await getLcuServiceFromStore()
     if (!service) {
       return {
@@ -156,22 +175,46 @@ export function registerLCUIpcHandlers(): void {
       }
     }
 
-    const snapshot = await service.getChampSelectSnapshot()
-    const championIds = collectAramCandidateChampionIds(snapshot)
-    const championStatsById = await loadChampionStatsForRecommendation(championIds)
-    const recommendation = getAramBenchRecommendation(snapshot, championStatsById)
+    try {
+      const snapshot = await withTimeout(
+        service.getChampSelectSnapshot(),
+        LCU_READ_TIMEOUT_MS,
+        `LCU 选人快照读取超过 ${LCU_READ_TIMEOUT_MS / 1000} 秒`
+      )
+      const championIds = collectAramCandidateChampionIds(snapshot)
+      const championStatsById = await loadChampionStatsForRecommendation(championIds)
+      const recommendation = getAramBenchRecommendation(snapshot, championStatsById)
 
-    if (snapshot.selfChampionId) {
-      store.set('lastSelectedChampionId', snapshot.selfChampionId)
-    }
+      if (snapshot.selfChampionId) {
+        store.set('lastSelectedChampionId', snapshot.selfChampionId)
+      }
 
-    return {
-      success: true,
-      snapshot,
-      recommendation,
-      error: recommendation.status === 'ready' || recommendation.status === 'no-bench'
-        ? null
-        : recommendation.reason,
+      logger.info('[LCU] ARAM bench recommendation completed', {
+        status: recommendation.status,
+        candidateCount: recommendation.candidates?.length || 0,
+        durationMs: Date.now() - startedAt,
+      })
+
+      return {
+        success: true,
+        snapshot,
+        recommendation,
+        error: recommendation.status === 'ready' || recommendation.status === 'no-bench'
+          ? null
+          : recommendation.reason,
+      }
+    } catch (error) {
+      const err = error as Error
+      logger.warn('[LCU] ARAM bench recommendation failed:', {
+        error: err.message,
+        durationMs: Date.now() - startedAt,
+      })
+
+      return {
+        success: true,
+        recommendation: createEmptyAramBenchRecommendation(err.message),
+        error: err.message,
+      }
     }
   })
 

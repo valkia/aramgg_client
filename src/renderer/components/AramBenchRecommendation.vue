@@ -21,14 +21,14 @@
             <span>读取中</span>
         </div>
 
-        <div v-else-if="!isChampSelect" class="empty-state">
-            <CircleDashed class="empty-icon" />
-            <span>{{ emptyMessage }}</span>
-        </div>
-
         <div v-else-if="error" class="empty-state error-state">
             <CircleAlert class="empty-icon" />
             <span>{{ error }}</span>
+        </div>
+
+        <div v-else-if="!isChampSelect" class="empty-state">
+            <CircleDashed class="empty-icon" />
+            <span>{{ emptyMessage }}</span>
         </div>
 
         <div v-else class="recommendation-body">
@@ -97,7 +97,9 @@ const loading = ref(false)
 const error = ref('')
 const refreshTimer = ref(null)
 const previewMode = ref(false)
+const requestInFlight = ref(false)
 const unsubscribeEvents = []
+const BENCH_REFRESH_TIMEOUT_MS = 8 * 1000
 
 const isChampSelect = computed(() => recommendation.value?.gameflowPhase === 'ChampSelect')
 
@@ -116,7 +118,7 @@ const statusLabel = computed(() => {
     const status = recommendation.value?.status
     if (status === 'ready') return '只读建议'
     if (status === 'no-bench') return '无席位'
-    if (status === 'no-current-champion') return '读取中'
+    if (status === 'no-current-champion') return '未选英雄'
     if (status === 'no-candidates') return '暂无英雄'
     return '等待选人'
 })
@@ -140,6 +142,15 @@ const recommendedActionLabel = computed(() => {
 
 const headlineReason = computed(() => recommendation.value?.reasons?.[0] || '暂无推荐')
 
+const withTimeout = (promise, timeoutMs, message) => {
+    let timeoutId
+    const timeout = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs)
+    })
+
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId))
+}
+
 const refresh = async (showLoading = true) => {
     if (!hasElectronAPI()) {
         error.value = 'Electron API 不可用'
@@ -154,13 +165,22 @@ const refresh = async (showLoading = true) => {
         previewMode.value = false
     }
 
+    if (requestInFlight.value) {
+        return
+    }
+
+    requestInFlight.value = true
     if (showLoading) {
         loading.value = true
     }
     error.value = ''
 
     try {
-        const result = await electronAPI.lcu.getAramBenchRecommendation()
+        const result = await withTimeout(
+            electronAPI.lcu.getAramBenchRecommendation(),
+            BENCH_REFRESH_TIMEOUT_MS,
+            `席位数据读取超过 ${BENCH_REFRESH_TIMEOUT_MS / 1000} 秒`
+        )
         if (previewMode.value) {
             return
         }
@@ -177,6 +197,7 @@ const refresh = async (showLoading = true) => {
 
         error.value = err?.message || '推荐读取失败'
     } finally {
+        requestInFlight.value = false
         loading.value = false
     }
 }
