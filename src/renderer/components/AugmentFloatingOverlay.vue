@@ -897,10 +897,19 @@ onBeforeUnmount(() => {
 
   .top-pick-badge {
     top: 6px;
-    right: 6px;
+    left: 6px;
+    right: auto;
+    transform: none;
+    min-width: 20px;
     min-height: 20px;
-    padding: 0 8px;
-    font-size: 10px;
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .top-pick-badge span {
+    font-size: 11px;
   }
 
   .augment-icon-frame {
