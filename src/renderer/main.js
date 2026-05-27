@@ -6,7 +6,6 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 
 import Display from './components/Display.vue'
 import ShowDetail from './components/ShowDetail.vue'
-import ChampionStats from './components/ChampionStats.vue'
 import PopupAugmentView from './components/PopupAugmentView.vue'
 import FloatingView from './components/FloatingView.vue'
 import BenchOverlayView from './components/BenchOverlayView.vue'
@@ -141,7 +140,6 @@ const router = createRouter({
     { path: '/augment-overlay', name: 'AugmentOverlay', component: PopupAugmentView },
     { path: '/floating-overlay', name: 'FloatingOverlay', component: FloatingView },
     { path: '/bench-overlay', name: 'BenchOverlay', component: BenchOverlayView },
-    { path: '/champion-stats/:id', name: 'ChampionStats', component: ChampionStats },
   ],
 })
 

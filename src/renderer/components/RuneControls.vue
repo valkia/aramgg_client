@@ -14,10 +14,6 @@
                     <Wrench class="btn-icon" />
                     测试
                 </Button>
-                <Button @click="goToChampionStats" class="action-btn action-btn-accent">
-                    <BarChart3 class="btn-icon" />
-                    英雄统计
-                </Button>
             </div>
 
             <!-- 状态显示 -->
@@ -36,14 +32,12 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { getLolVer } from "../service/data-source/lol-qq"
 import OpGG from "../service/data-source/op-gg"
 import configCache from '../service/config-cache'
-import { BarChart3, DownloadCloud, Sparkles, Wrench } from 'lucide-vue-next'
+import { DownloadCloud, Sparkles, Wrench } from 'lucide-vue-next'
 
-const router = useRouter()
 const isLoading = ref(false)
 const progress = ref(0)
 const statusMessage = ref('')
@@ -103,14 +97,6 @@ const time = () => {
     }, 1000)
 }
 
-/**
- * 跳转到英雄统计页面
- */
-const goToChampionStats = () => {
-    // 可以使用默认的英雄ID，或者让用户选择
-    const defaultChampionId = '1' // 默认英雄ID
-    router.push(`/champion-stats/${defaultChampionId}`)
-}
 </script>
 
 <style scoped>
