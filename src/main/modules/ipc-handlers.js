@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain } from 'electron'
 import Store from 'electron-store'
 import { captureScreenshot } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
@@ -23,9 +23,44 @@ const store = new Store({ cwd: getConfigDir() })
 
 const TEST_AUGMENT_COUNT = 3
 const TEST_BENCH_CHAMPION_COUNT = 5
+let quitRequested = false
 
 function getElapsedMs(startedAt) {
     return Date.now() - startedAt
+}
+
+function requestAppQuit(reason) {
+    if (quitRequested) {
+        return
+    }
+
+    quitRequested = true
+    logger.info('[app] quit requested', { reason })
+
+    try {
+        globalShortcut.unregisterAll()
+    } catch (error) {
+        logger.warn('[app] failed to unregister shortcuts before quit:', error.message)
+    }
+
+    try {
+        autoScreenshotService.stop(`app quit: ${reason}`)
+    } catch (error) {
+        logger.warn('[app] failed to stop auto screenshot before quit:', error.message)
+    }
+
+    const forceExitTimer = setTimeout(() => {
+        logger.warn('[app] force exiting after quit timeout')
+        for (const window of BrowserWindow.getAllWindows()) {
+            if (!window.isDestroyed()) {
+                window.destroy()
+            }
+        }
+        app.exit(0)
+    }, 1500)
+
+    forceExitTimer.unref?.()
+    app.quit()
 }
 
 function sampleItems(items, count) {
@@ -392,7 +427,7 @@ export function registerIpcHandlers(isDev) {
             : await dialog.showMessageBox(options)
 
         if (result.response === 0) {
-            app.quit()
+            requestAppQuit('user confirmed quit')
             return { success: true, quit: true }
         }
 

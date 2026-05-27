@@ -36,6 +36,7 @@ import { Button } from '@/components/ui/button'
 import { getLolVer } from "../service/data-source/lol-qq"
 import OpGG from "../service/data-source/op-gg"
 import configCache from '../service/config-cache'
+import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
 import { DownloadCloud, Sparkles, Wrench } from 'lucide-vue-next'
 
 const isLoading = ref(false)
@@ -52,7 +53,12 @@ const getOpggPerks = async () => {
     statusMessage.value = '正在获取游戏路径...'
 
     try {
-        const currentLolPath = configCache.getLolPath() || "E:\\wegame\\英雄联盟(26)"
+        let storedLolPath = ''
+        if (hasElectronAPI()) {
+            storedLolPath = await electronAPI.store.get('lolPath') || ''
+        }
+
+        const currentLolPath = storedLolPath || configCache.getLolPath() || "E:\\wegame\\英雄联盟(26)"
         statusMessage.value = '正在获取游戏版本...'
 
         const lolVer = await getLolVer()

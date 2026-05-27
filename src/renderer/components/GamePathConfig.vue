@@ -95,17 +95,39 @@ const selectLolDirectory = async () => {
 /**
  * 加载缓存的游戏路径
  */
-const loadLolPath = () => {
+const loadLolPath = async () => {
+    let stored = ''
+
+    if (hasElectronAPI()) {
+        try {
+            stored = await electronAPI.store.get('lolPath') || ''
+        } catch (error) {
+            console.warn('⚠️ 读取主进程游戏路径失败:', error)
+        }
+    }
+
     const cached = configCache.getLolPath()
-    if (cached) {
-        lolPath.value = cached
-        emit('path-changed', cached)
+    const path = stored || cached
+
+    if (path) {
+        lolPath.value = path
+        emit('path-changed', path)
+    }
+
+    if (stored && stored !== cached) {
+        configCache.saveLolPath(stored)
+    } else if (cached && !stored && hasElectronAPI()) {
+        try {
+            await electronAPI.store.set('lolPath', cached)
+        } catch (error) {
+            console.warn('⚠️ 同步游戏路径到主进程失败:', error)
+        }
     }
 }
 
 // 组件挂载时加载缓存路径
 onMounted(() => {
-    loadLolPath()
+    void loadLolPath()
 })
 </script>
 
