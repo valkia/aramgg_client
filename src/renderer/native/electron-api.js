@@ -60,6 +60,12 @@ export const electronAPI = {
   },
   diagnostics: {
     testShowFloating: (...args) => requireElectronAPI().diagnostics.testShowFloating(...args),
+    testShowRandomFloating: (...args) =>
+      requireElectronAPI().diagnostics.testShowRandomFloating(...args),
+    testShowRandomPopup: (...args) =>
+      requireElectronAPI().diagnostics.testShowRandomPopup(...args),
+    testShowBenchRecommendation: (...args) =>
+      requireElectronAPI().diagnostics.testShowBenchRecommendation(...args),
     logRendererError: (...args) => requireElectronAPI().diagnostics.logRendererError(...args),
     testDatabaseLoad: (...args) => requireElectronAPI().diagnostics.testDatabaseLoad(...args),
   },

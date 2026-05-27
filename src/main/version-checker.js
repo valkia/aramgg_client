@@ -80,13 +80,15 @@ function getSeverityText(severity) {
 export async function getVersionInfo() {
   const config = await loadDataApiConfig()
   const currentVersion = app.getVersion()
-  const latestVersion = config?.electron?.latestVersion || ''
+  const clientConfig = config?.client || config?.electron || {}
+  const latestVersion = clientConfig.latestVersion || ''
   const comparison = compareVersion(currentVersion, latestVersion)
 
   return {
     currentVersion,
     latestVersion,
-    downloadUrl: config?.electron?.downloadUrl || '',
+    downloadUrl: clientConfig.downloadUrl || '',
+    minimumVersion: clientConfig.minimumVersion || '',
     dataVersion: config?.dataVersion || '',
     gamePatch: config?.gamePatch || '',
     apiRelease: config?.apiRelease ?? null,

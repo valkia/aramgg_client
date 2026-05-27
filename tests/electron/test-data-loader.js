@@ -3,14 +3,16 @@
  * 用于验证数据文件路径是否正确
  */
 
-import { app } from 'electron'
+import electron from 'electron'
 import { loadChampionStats, loadAugmentBase, getChampionAugmentStats } from '../../src/main/data-loader.ts'
 
 console.log('=== 测试数据加载器 ===')
-console.log('App path:', app.getAppPath())
+const { app } = typeof electron === 'object' ? electron : {}
+console.log('App path:', app?.getAppPath?.() || process.cwd())
 
-// 等待 app ready
-app.whenReady().then(async () => {
+const ready = app?.whenReady ? app.whenReady() : Promise.resolve()
+
+ready.then(async () => {
   try {
     console.log('\n1. 测试加载英雄统计数据...')
     const championStats = await loadChampionStats(63) // Brand
@@ -38,4 +40,4 @@ app.whenReady().then(async () => {
 setTimeout(() => {
   console.error('\n⚠️ 测试超时')
   process.exit(1)
-}, 10000)
+}, 60000)

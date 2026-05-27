@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly ARAMGG_DATA_API_KEY: string
+  readonly ARAMGG_DATA_API_ORIGIN: string
 }
 
 interface ImportMeta {

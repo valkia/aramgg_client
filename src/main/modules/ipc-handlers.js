@@ -6,7 +6,9 @@ import autoScreenshotService from '../auto-screenshot-service.js'
 import { registerLCUIpcHandlers } from '../services/lcu/ipc-handlers.ts'
 import {
     applyFloatingWindowLayout,
+    applyBenchWindowLayout,
     applyPopupWindowLayout,
+    createBenchWindow,
     createPopupWindow,
     getBenchWindow,
     getFloatingWindow,
@@ -18,6 +20,92 @@ import logger from './logger.js'
 import { getAppDataDir, getConfigDir } from './app-paths.js'
 
 const store = new Store({ cwd: getConfigDir() })
+
+const TEST_AUGMENT_COUNT = 3
+const TEST_BENCH_CHAMPION_COUNT = 5
+
+function sampleItems(items, count) {
+    const pool = [...items]
+    const selected = []
+
+    while (pool.length > 0 && selected.length < count) {
+        const index = Math.floor(Math.random() * pool.length)
+        selected.push(pool.splice(index, 1)[0])
+    }
+
+    return selected
+}
+
+function getChampionDisplayName(champion) {
+    return champion?.nameCN || champion?.nameEN || champion?.alias || `英雄 ${champion?.championId || ''}`
+}
+
+async function buildRandomAugmentPreviewData() {
+    const { loadChampionRoster, getChampionAugmentStats } = await import('../data-loader.js')
+    const champions = await loadChampionRoster()
+
+    if (!champions.length) {
+        throw new Error('没有可用英雄数据')
+    }
+
+    const shuffledChampions = sampleItems(champions, Math.min(champions.length, 12))
+    for (const champion of shuffledChampions) {
+        const augmentStats = await getChampionAugmentStats(champion.championId)
+        if (!augmentStats.length) {
+            continue
+        }
+
+        const augments = sampleItems(augmentStats, TEST_AUGMENT_COUNT).map((augment) => ({
+            ...augment,
+            id: augment.id || augment.augmentId,
+            augmentId: augment.augmentId || augment.id,
+            confidence: 0.88 + Math.random() * 0.1,
+        }))
+
+        return {
+            success: true,
+            gamePhase: 'augment-select',
+            championId: Number(champion.championId),
+            championName: getChampionDisplayName(champion),
+            augments,
+            analysisConfidence: 0.9 + Math.random() * 0.08,
+            timestamp: Date.now(),
+            dataSource: 'test',
+        }
+    }
+
+    throw new Error('没有可用英雄海克斯数据')
+}
+
+async function buildRandomBenchRecommendation() {
+    const { loadChampionRoster } = await import('../data-loader.js')
+    const { getAramBenchRecommendation } = await import('../services/aram/bench-recommendation.js')
+    const champions = await loadChampionRoster()
+
+    if (champions.length < 2) {
+        throw new Error('没有足够的英雄数据用于席位推荐')
+    }
+
+    const selectedChampions = sampleItems(champions, Math.min(TEST_BENCH_CHAMPION_COUNT, champions.length))
+    const [currentChampion, ...benchChampions] = selectedChampions
+    const championStatsById = selectedChampions.reduce((result, champion) => {
+        result[champion.championId] = champion
+        return result
+    }, {})
+
+    return getAramBenchRecommendation(
+        {
+            status: 'ready',
+            gameflowPhase: 'ChampSelect',
+            selfChampionId: Number(currentChampion.championId),
+            benchEnabled: benchChampions.length > 0,
+            benchChampions: benchChampions.map((champion) => ({
+                championId: Number(champion.championId),
+            })),
+        },
+        championStatsById
+    )
+}
 
 export function registerIpcHandlers(isDev) {
     ipcMain.handle('store-get', (_event, key) => {
@@ -108,6 +196,103 @@ export function registerIpcHandlers(isDev) {
             return { success: true }
         } catch (error) {
             logger.error('Failed to test floating window:', error)
+            return { success: false, error: error.message }
+        }
+    })
+
+    ipcMain.handle('test-show-random-floating', async () => {
+        try {
+            const data = await buildRandomAugmentPreviewData()
+            const floatingWindow = getFloatingWindow()
+
+            if (!floatingWindow || floatingWindow.isDestroyed()) {
+                logger.error('Floating window does not exist')
+                return { success: false, error: 'Floating window does not exist' }
+            }
+
+            applyFloatingWindowLayout()
+            if (!floatingWindow.isVisible()) {
+                floatingWindow.show()
+                logger.info('Floating window shown for random test')
+            }
+
+            floatingWindow.webContents.send('augment-detected', data)
+            logger.info('Random test data sent to floating window', {
+                championId: data.championId,
+                augmentIds: data.augments.map((augment) => augment.id),
+            })
+
+            return { success: true, data }
+        } catch (error) {
+            logger.error('Failed to show random floating test:', error)
+            return { success: false, error: error.message }
+        }
+    })
+
+    ipcMain.handle('test-show-random-popup', async () => {
+        try {
+            const data = await buildRandomAugmentPreviewData()
+
+            if (!getPopupWindow()) {
+                const devServerUrl = isDev ? 'http://localhost:5173' : ''
+                await createPopupWindow(isDev, devServerUrl)
+            }
+
+            const popupWindow = getPopupWindow()
+            if (!popupWindow || popupWindow.isDestroyed()) {
+                return { success: false, error: 'Popup window does not exist' }
+            }
+
+            applyPopupWindowLayout()
+            popupWindow.show()
+            popupWindow.webContents.send('for-popup', {
+                championId: data.championId,
+                championName: data.championName,
+                augments: data.augments,
+                dataSource: data.dataSource,
+                timestamp: data.timestamp,
+            })
+
+            logger.info('Random test data sent to popup window', {
+                championId: data.championId,
+                augmentIds: data.augments.map((augment) => augment.id),
+            })
+
+            return { success: true, data }
+        } catch (error) {
+            logger.error('Failed to show random popup test:', error)
+            return { success: false, error: error.message }
+        }
+    })
+
+    ipcMain.handle('test-show-bench-recommendation', async () => {
+        try {
+            const recommendation = await buildRandomBenchRecommendation()
+
+            if (!getBenchWindow()) {
+                const devServerUrl = isDev ? 'http://localhost:5173' : ''
+                await createBenchWindow(isDev, devServerUrl)
+            }
+
+            const benchWindow = getBenchWindow()
+            if (!benchWindow || benchWindow.isDestroyed()) {
+                return { success: false, error: 'Bench window does not exist' }
+            }
+
+            applyBenchWindowLayout()
+            if (!benchWindow.isVisible()) {
+                benchWindow.show()
+            }
+
+            benchWindow.webContents.send('bench-recommendation-preview', recommendation)
+            logger.info('Random bench recommendation sent to bench window', {
+                recommendedChampionId: recommendation?.recommendedChampion?.championId,
+                candidateCount: recommendation?.candidates?.length || 0,
+            })
+
+            return { success: true, recommendation }
+        } catch (error) {
+            logger.error('Failed to show random bench recommendation:', error)
             return { success: false, error: error.message }
         }
     })

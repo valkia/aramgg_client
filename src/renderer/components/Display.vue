@@ -56,7 +56,7 @@
                             <Target class="icon" />
                             <span class="button-copy">
                                 <span class="text">游戏浮条</span>
-                                <span class="hint">透明置顶推荐栏</span>
+                                <span class="hint">随机英雄与海克斯</span>
                             </span>
                         </button>
 
@@ -64,7 +64,15 @@
                             <ClipboardList class="icon" />
                             <span class="button-copy">
                                 <span class="text">英雄洞察</span>
-                                <span class="hint">详情弹窗预览</span>
+                                <span class="hint">随机英雄详情</span>
+                            </span>
+                        </button>
+
+                        <button class="test-btn secondary" @click="testBenchWindow">
+                            <Swords class="icon" />
+                            <span class="button-copy">
+                                <span class="text">席位推荐</span>
+                                <span class="hint">随机选人席位</span>
                             </span>
                         </button>
 
@@ -104,7 +112,7 @@ import GamePathConfig from './GamePathConfig.vue'
 import RuneControls from './RuneControls.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
 import { electronAPI } from '../native/electron-api.js'
-import { ClipboardList, Cpu, Database, EyeOff, Minus, Target, X } from 'lucide-vue-next'
+import { ClipboardList, Cpu, Database, EyeOff, Minus, Swords, Target, X } from 'lucide-vue-next'
 
 const currentLolPath = ref('')
 const testStatus = ref(null)
@@ -147,21 +155,6 @@ const loadVersionInfo = async () => {
     }
 }
 
-const mockAugmentData = {
-    success: true,
-    gamePhase: 'augment-select',
-    championId: 63,
-    championName: '布兰德',
-    augments: [
-        { id: 1205, name: '物理魔法', rarity: 'kSilver', confidence: 0.95 },
-        { id: 1103, name: '主食', rarity: 'kGold', confidence: 0.92 },
-        { id: 1180, name: '大脑袋', rarity: 'kGold', confidence: 0.90 },
-    ],
-    analysisConfidence: 0.95,
-    timestamp: Date.now(),
-    dataSource: '测试',
-}
-
 const onPathChanged = (path) => {
     currentLolPath.value = path
     console.log('Game path updated', path)
@@ -171,30 +164,71 @@ const onOpggDataReady = (data) => {
     console.log('OP.GG rune data ready', data)
 }
 
-const testFloatingWindow = () => {
-    testStatus.value = { type: 'info', message: '正在发送浮条测试数据...' }
+const formatRandomPreviewMessage = (prefix, result) => {
+    const data = result?.data
+    if (!data) {
+        return prefix
+    }
 
-    electronAPI.diagnostics.testShowFloating(mockAugmentData)
-        .then(() => {
-            testStatus.value = { type: 'success', message: '浮条测试数据已发送' }
-        })
-        .catch((err) => {
-            testStatus.value = { type: 'error', message: '发送失败：' + err.message }
-        })
+    const augmentNames = (data.augments || [])
+        .map((augment) => augment.name || augment.id)
+        .filter(Boolean)
+        .join('、')
+
+    return `${prefix}：${data.championName || '随机英雄'}${augmentNames ? ' | ' + augmentNames : ''}`
 }
 
-const testPopupWindow = () => {
-    testStatus.value = { type: 'info', message: '正在发送英雄洞察测试数据...' }
+const testFloatingWindow = async () => {
+    testStatus.value = { type: 'info', message: '正在抽取真实数据并打开浮条...' }
 
-    electronAPI.windows.showPopup({
-        championId: 63,
-        championName: '布兰德',
-        augments: mockAugmentData.augments,
-        dataSource: '测试',
-        timestamp: Date.now(),
-    })
+    try {
+        const result = await electronAPI.diagnostics.testShowRandomFloating()
+        if (!result.success) {
+            throw new Error(result.error || '发送失败')
+        }
+        testStatus.value = {
+            type: 'success',
+            message: formatRandomPreviewMessage('浮条测试数据已发送', result),
+        }
+    } catch (err) {
+        testStatus.value = { type: 'error', message: '发送失败：' + err.message }
+    }
+}
 
-    testStatus.value = { type: 'success', message: '英雄洞察测试数据已发送' }
+const testPopupWindow = async () => {
+    testStatus.value = { type: 'info', message: '正在抽取真实数据并打开英雄洞察...' }
+
+    try {
+        const result = await electronAPI.diagnostics.testShowRandomPopup()
+        if (!result.success) {
+            throw new Error(result.error || '发送失败')
+        }
+        testStatus.value = {
+            type: 'success',
+            message: formatRandomPreviewMessage('英雄洞察测试数据已发送', result),
+        }
+    } catch (err) {
+        testStatus.value = { type: 'error', message: '发送失败：' + err.message }
+    }
+}
+
+const testBenchWindow = async () => {
+    testStatus.value = { type: 'info', message: '正在抽取真实英雄并打开席位推荐...' }
+
+    try {
+        const result = await electronAPI.diagnostics.testShowBenchRecommendation()
+        if (!result.success) {
+            throw new Error(result.error || '发送失败')
+        }
+
+        const name = result.recommendation?.recommendedChampion?.name || '随机英雄'
+        testStatus.value = {
+            type: 'success',
+            message: '席位推荐测试数据已发送：建议关注 ' + name,
+        }
+    } catch (err) {
+        testStatus.value = { type: 'error', message: '发送失败：' + err.message }
+    }
 }
 
 const testDatabaseLoad = async () => {
@@ -228,6 +262,7 @@ const testDatabaseLoad = async () => {
 const hideAllWindows = () => {
     electronAPI.windows.hidePopup()
     electronAPI.windows.hideFloating()
+    electronAPI.windows.hideBench()
     testStatus.value = { type: 'info', message: '隐藏命令已发送' }
 }
 

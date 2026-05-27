@@ -96,6 +96,7 @@ const recommendation = ref(null)
 const loading = ref(false)
 const error = ref('')
 const refreshTimer = ref(null)
+const previewMode = ref(false)
 const unsubscribeEvents = []
 
 const isChampSelect = computed(() => recommendation.value?.gameflowPhase === 'ChampSelect')
@@ -145,6 +146,14 @@ const refresh = async (showLoading = true) => {
         return
     }
 
+    if (previewMode.value && !showLoading) {
+        return
+    }
+
+    if (previewMode.value && showLoading) {
+        previewMode.value = false
+    }
+
     if (showLoading) {
         loading.value = true
     }
@@ -152,12 +161,20 @@ const refresh = async (showLoading = true) => {
 
     try {
         const result = await electronAPI.lcu.getAramBenchRecommendation()
+        if (previewMode.value) {
+            return
+        }
+
         if (result?.success && result.recommendation) {
             recommendation.value = result.recommendation
         } else {
             error.value = result?.error || '推荐读取失败'
         }
     } catch (err) {
+        if (previewMode.value) {
+            return
+        }
+
         error.value = err?.message || '推荐读取失败'
     } finally {
         loading.value = false
@@ -190,12 +207,21 @@ const formatDelta = (value) => {
 }
 
 onMounted(() => {
-    refresh()
-    refreshTimer.value = setInterval(() => refresh(false), 3000)
-
     if (hasElectronAPI()) {
+        unsubscribeEvents.push(electronAPI.events.on('bench-recommendation-preview', (data) => {
+            if (data) {
+                previewMode.value = true
+                recommendation.value = data
+                error.value = ''
+                loading.value = false
+            }
+        }))
+
         unsubscribeEvents.push(electronAPI.events.on('game-phase-changed', () => refresh(false)))
     }
+
+    refresh()
+    refreshTimer.value = setInterval(() => refresh(false), 3000)
 })
 
 onBeforeUnmount(() => {

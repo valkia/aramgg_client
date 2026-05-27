@@ -10,6 +10,7 @@ const validEvents = new Set([
     'champ-select-start',
     'game-started',
     'game-in-progress',
+    'bench-recommendation-preview',
     'augment-detection-started',
     'augment-detected',
     'augment-cleared',
@@ -85,6 +86,9 @@ const electronAPI = {
     },
     diagnostics: {
         testShowFloating: (data) => ipcRenderer.invoke('test-show-floating', data),
+        testShowRandomFloating: () => ipcRenderer.invoke('test-show-random-floating'),
+        testShowRandomPopup: () => ipcRenderer.invoke('test-show-random-popup'),
+        testShowBenchRecommendation: () => ipcRenderer.invoke('test-show-bench-recommendation'),
         logRendererError: (errorData) => ipcRenderer.invoke('log-renderer-error', errorData),
         testDatabaseLoad: () => ipcRenderer.invoke('test-database-load'),
     },
