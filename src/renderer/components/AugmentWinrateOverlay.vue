@@ -82,7 +82,7 @@
             <div v-if="activeTab === 'augments'" class="tab-panel">
               <div class="section-title-row">
                 <h3>核心海克斯</h3>
-                <span></span>
+                <span>{{ filteredAugments.length }} 项</span>
               </div>
 
               <div class="filter-bar">
@@ -197,6 +197,10 @@
                 <p>暂无出装数据</p>
               </div>
             </div>
+
+            <div v-if="activeTab === 'bench'" class="tab-panel">
+              <AramBenchRecommendation />
+            </div>
           </div>
         </div>
 
@@ -219,6 +223,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { getChampionIconUrl, getAugmentIconUrl, getItemIconUrl } from '../service/cdn'
 import { electronAPI } from '../native/electron-api.js'
 import { sortAugmentsByDetectedOrder } from '../service/augment-order.js'
+import AramBenchRecommendation from './AramBenchRecommendation.vue'
 
 const visible = ref(false)
 const loading = ref(false)
@@ -259,7 +264,8 @@ const logOverlayInfo = (message, details = {}) => {
 // Tabs 配置
 const tabs = [
   { key: 'augments', label: '海克斯', icon: '海' },
-  { key: 'builds', label: '出装', icon: '装' }
+  { key: 'builds', label: '出装', icon: '装' },
+  { key: 'bench', label: '席位', icon: '席' }
 ]
 
 // 稀有度选项
@@ -281,6 +287,35 @@ const mapIncomingAugmentsForFallback = (augments = []) => augments.map(aug => ({
   recommendScore: aug.recommendScore ?? null,
   iconPath: aug.iconPath || aug.iconUrl || null
 }))
+
+const mapChampionAugmentRows = (augments = [], statsById = {}) => {
+  return augments
+    .map(augment => {
+      const augmentId = augment.id || augment.augmentId
+      const stats = statsById[String(augmentId)]
+      if (!augmentId || !stats) {
+        return null
+      }
+
+      const winRate = Number(stats.win_rate) || 0
+      const pickRate = Number(stats.pick_rate) || 0
+      const games = Number(stats.num_games) || 0
+
+      return {
+        ...augment,
+        id: augmentId,
+        augmentId,
+        winRate,
+        pickRate,
+        playCount: games,
+        winCount: Number(stats.num_win_games) || 0,
+        recommendScore: winRate * 0.6 + pickRate * 0.2 + Math.min(games / 1000, 1) * 0.2,
+        iconPath: augment.iconPath || augment.iconUrl || null
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.recommendScore - a.recommendScore)
+}
 
 const applyFallbackChampionData = (data) => {
   championStats.value = {
@@ -443,8 +478,10 @@ const showOverlay = async (data) => {
         hasBuild: !!build,
       })
 
-      // 处理海克斯数据
-      if (data.augments && data.augments.length > 0) {
+      const championAugmentRows = mapChampionAugmentRows(augments, augStats)
+      if (championAugmentRows.length > 0) {
+        displayAugments.value = championAugmentRows
+      } else if (data.augments && data.augments.length > 0) {
         const hasWinrateData = data.augments.some(aug => 'winRate' in aug)
 
         if (hasWinrateData) {
