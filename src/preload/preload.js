@@ -90,7 +90,7 @@ const electronAPI = {
         testShowRandomPopup: () => ipcRenderer.invoke('test-show-random-popup'),
         testShowBenchRecommendation: () => ipcRenderer.invoke('test-show-bench-recommendation'),
         logRendererError: (errorData) => ipcRenderer.invoke('log-renderer-error', errorData),
-        logRendererInfo: (data) => ipcRenderer.invoke('log-renderer-info', data),
+        logRendererInfo: (data) => ipcRenderer.send('log-renderer-info', data),
         testDatabaseLoad: () => ipcRenderer.invoke('test-database-load'),
     },
     shell: {

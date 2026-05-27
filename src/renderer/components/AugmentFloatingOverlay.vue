@@ -297,15 +297,25 @@ const showOverlay = async (data) => {
         })
         const winrateResult = await electronAPI.winrate.get({
           championId: championId.value,
-          augmentIds: augmentIds
+          augmentIds,
+          requestStartedAt: winrateStartedAt,
+          requestSource: 'augment-floating',
         })
-        const winrateDurationMs = Date.now() - winrateStartedAt
+        const winrateCompletedAt = Date.now()
+        const winrateDurationMs = winrateCompletedAt - winrateStartedAt
+        const winrateTiming = winrateResult?.timing || {}
+        const mainToRendererDelayMs = Number.isFinite(winrateTiming.mainCompletedAt)
+          ? winrateCompletedAt - winrateTiming.mainCompletedAt
+          : null
 
         if (requestId !== overlayRequestId) {
           logFloatingInfo('winrate result ignored for stale request', {
             championId: championId.value,
             augmentIds,
             durationMs: winrateDurationMs,
+            rendererToMainDelayMs: winrateTiming.rendererToMainDelayMs ?? null,
+            mainDurationMs: winrateTiming.mainDurationMs ?? null,
+            mainToRendererDelayMs,
           })
           return
         }
@@ -316,6 +326,9 @@ const showOverlay = async (data) => {
           success: winrateResult.success,
           resultCount: winrateResult.augments?.length || 0,
           durationMs: winrateDurationMs,
+          rendererToMainDelayMs: winrateTiming.rendererToMainDelayMs ?? null,
+          mainDurationMs: winrateTiming.mainDurationMs ?? null,
+          mainToRendererDelayMs,
         })
 
         if (winrateResult.success && winrateResult.augments.length > 0) {

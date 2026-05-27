@@ -122,13 +122,14 @@ function getRendererIndexPath() {
     return path.join(__dirname, '../dist/index.html')
 }
 
-const getWebPreferences = (isDev) => ({
+const getWebPreferences = (isDev, overrides = {}) => ({
     nodeIntegration: false,
     nodeIntegrationInWorker: false,
     webSecurity: true,
     contextIsolation: true,
     sandbox: true,
     preload: getPreloadPath(isDev),
+    ...overrides,
 })
 
 /**
@@ -257,7 +258,9 @@ export const createBenchWindow = async (isDev, devServerUrl) => {
  * 【重要】窗口位置在屏幕顶部(2%)，确保不与OCR识别区域(从25%开始)重叠
  */
 export const createFloatingWindow = async (isDev, devServerUrl) => {
-    const webPreferences = getWebPreferences(isDev)
+    const webPreferences = getWebPreferences(isDev, {
+        backgroundThrottling: false,
+    })
     const bounds = getFloatingBounds()
 
     floatingWindow = new BrowserWindow({

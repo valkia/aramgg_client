@@ -463,12 +463,24 @@ export function registerIpcHandlers(isDev) {
         return analyzeScreenshot(imagePath)
     })
 
-    ipcMain.handle('get-winrate', async (_event, data) => {
-        const { championId, augmentIds } = data
+    ipcMain.handle('get-winrate', async (_event, data = {}) => {
+        const { championId, augmentIds, requestStartedAt, requestSource } = data
         const startedAt = Date.now()
+        const rendererRequestStartedAt = Number(requestStartedAt)
+        const hasRendererRequestStartedAt = Number.isFinite(rendererRequestStartedAt)
+        const buildTiming = (completedAt = Date.now()) => ({
+            rendererRequestStartedAt: hasRendererRequestStartedAt ? rendererRequestStartedAt : null,
+            mainStartedAt: startedAt,
+            mainCompletedAt: completedAt,
+            mainDurationMs: completedAt - startedAt,
+            rendererToMainDelayMs: hasRendererRequestStartedAt ? startedAt - rendererRequestStartedAt : null,
+        })
+
         logger.info('[winrate] query requested', {
             championId,
             augmentIds: Array.isArray(augmentIds) ? augmentIds : [],
+            source: requestSource || null,
+            rendererToMainDelayMs: hasRendererRequestStartedAt ? startedAt - rendererRequestStartedAt : null,
         })
 
         try {
@@ -486,25 +498,32 @@ export function registerIpcHandlers(isDev) {
                 augmentStats.sort((a, b) => augmentOrder.get(a.augmentId) - augmentOrder.get(b.augmentId))
             }
 
+            const completedAt = Date.now()
             return {
                 success: true,
                 championId,
                 augments: augmentStats,
-                timestamp: Date.now(),
+                timestamp: completedAt,
                 dataSource: 'remote',
+                timing: buildTiming(completedAt),
             }
         } catch (error) {
             logger.error('Winrate query error:', error)
+            const completedAt = Date.now()
             return {
                 success: false,
                 championId,
                 augments: [],
                 error: error.message,
+                timing: buildTiming(completedAt),
             }
         } finally {
+            const timing = buildTiming()
             logger.info('[winrate] query completed', {
                 championId,
-                durationMs: getElapsedMs(startedAt),
+                source: requestSource || null,
+                durationMs: timing.mainDurationMs,
+                rendererToMainDelayMs: timing.rendererToMainDelayMs,
             })
         }
     })
@@ -653,7 +672,7 @@ export function registerIpcHandlers(isDev) {
         return { success: true }
     })
 
-    ipcMain.handle('log-renderer-info', async (_event, data = {}) => {
+    ipcMain.on('log-renderer-info', (_event, data = {}) => {
         logger.info('Renderer info reported:', {
             type: data.type || 'renderer-info',
             message: data.message || '',
@@ -662,8 +681,6 @@ export function registerIpcHandlers(isDev) {
             timestamp: data.timestamp || Date.now(),
             details: data.details || {},
         })
-
-        return { success: true }
     })
 
     registerLCUIpcHandlers()

@@ -496,13 +496,23 @@ const showOverlay = async (data) => {
           })
           const winrateResult = await electronAPI.winrate.get({
             championId: championId.value,
-            augmentIds: augmentIds
+            augmentIds,
+            requestStartedAt: winrateStartedAt,
+            requestSource: 'augment-insight',
           })
+          const winrateCompletedAt = Date.now()
+          const winrateTiming = winrateResult?.timing || {}
+          const mainToRendererDelayMs = Number.isFinite(winrateTiming.mainCompletedAt)
+            ? winrateCompletedAt - winrateTiming.mainCompletedAt
+            : null
           logOverlayInfo('winrate query completed', {
             championId: championId.value,
             success: winrateResult.success,
             resultCount: winrateResult.augments?.length || 0,
-            durationMs: Date.now() - winrateStartedAt,
+            durationMs: winrateCompletedAt - winrateStartedAt,
+            rendererToMainDelayMs: winrateTiming.rendererToMainDelayMs ?? null,
+            mainDurationMs: winrateTiming.mainDurationMs ?? null,
+            mainToRendererDelayMs,
           })
 
           if (winrateResult.success && winrateResult.augments.length > 0) {
