@@ -8,7 +8,7 @@
  */
 
 import { captureScreenshot } from './screenshot.js'
-import { analyzeScreenshot } from './image-analyzer.js'
+import { analyzeScreenshot, warmupImageAnalyzer } from './image-analyzer.js'
 import { BrowserWindow } from 'electron'
 import Store from 'electron-store'
 import fs from 'fs-extra'
@@ -33,6 +33,15 @@ function getSafeTimestampForFile() {
 
 function getAugmentSummary(augments = []) {
     return augments.map(aug => `${aug.name || 'unknown'}(${aug.id || 'no-id'})`).join(', ') || 'none'
+}
+
+function getAugmentIds(augments = []) {
+    return augments.slice(0, 3).map(augment => String(augment.id)).filter(Boolean)
+}
+
+function getAugmentSetKey(augments = []) {
+    const ids = getAugmentIds(augments)
+    return ids.length === 3 ? ids.slice().sort().join('|') : ''
 }
 
 class AutoScreenshotService {
@@ -77,6 +86,7 @@ class AutoScreenshotService {
         // 上一次检测到的海克斯ID列表（用于判断是否需要更新显示）
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugments = []
+        this.lastDetectedAugmentSetKey = ''
     }
 
     /**
@@ -118,6 +128,7 @@ class AutoScreenshotService {
         this.visibleAugmentMissCount = 0
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugments = []
+        this.lastDetectedAugmentSetKey = ''
         this.startedAt = Date.now()
         this.firstCaptureLogged = false
         this.firstDetectionLogged = false
@@ -127,6 +138,7 @@ class AutoScreenshotService {
         }
 
         logger.info(`Auto screenshot service started with interval: ${this.interval}ms, owner=${owner}`)
+        void warmupImageAnalyzer()
 
         this._scheduleNextCapture(0, this.runId)
 
@@ -185,6 +197,7 @@ class AutoScreenshotService {
         const ageMs = this.lastDetectedAugmentAt ? Date.now() - this.lastDetectedAugmentAt : null
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugments = []
+        this.lastDetectedAugmentSetKey = ''
         this.lastDetectedAugmentAt = 0
         this.visibleAugmentMissCount = 0
         this.pendingAnalysisBuffer = null
@@ -388,21 +401,42 @@ class AutoScreenshotService {
             // 2. 必须通过间距验证（isAugmentPhase = true）
             // 3. 置信度必须 > 90%（更严格）
             if (cardCount === 3 && isAugmentPhase && confidence > 0.9) {
+                const normalizedAugments = augments.slice(0, 3)
                 // 检查是否与上次检测到的海克斯相同（避免重复通知）
-                const currentIds = augments.map(a => a.id).join(',')
+                const currentIds = getAugmentIds(normalizedAugments)
+                const currentIdList = currentIds.join(',')
+                const currentSetKey = getAugmentSetKey(normalizedAugments)
                 const lastIds = this.lastDetectedAugmentIds.join(',')
 
-                if (currentIds !== lastIds) {
+                if (currentIdList !== lastIds) {
+                    if (currentSetKey && currentSetKey === this.lastDetectedAugmentSetKey) {
+                        this.lastDetectedAugmentAt = Date.now()
+                        this.visibleAugmentMissCount = 0
+                        logger.info('Augment reorder jitter ignored', {
+                            previousIds: this.lastDetectedAugmentIds,
+                            detectedIds: currentIds,
+                            durationMs: Number(analysisDuration.toFixed(1)),
+                        })
+                        return
+                    }
+
                     // 新的海克斯组合，更新显示
                     this.detectionCount++
-                    this.lastDetectedAugmentIds = augments.map(a => a.id)
-                    this.lastDetectedAugments = augments.slice(0, 3)
+                    this.lastDetectedAugmentIds = currentIds
+                    this.lastDetectedAugments = normalizedAugments
+                    this.lastDetectedAugmentSetKey = currentSetKey
                     this.lastDetectedAugmentAt = Date.now()
                     this.visibleAugmentMissCount = 0
 
-                    logger.info(`Augment detected: count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, augments=${getAugmentSummary(augments)}`)
+                    logger.info(`Augment detected: count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, augments=${getAugmentSummary(normalizedAugments)}`)
                     this._logFirstDetectionLatency('full', analysisDuration)
-                    this._notifyAugmentDetected(analysisResult)
+                    this._notifyAugmentDetected({
+                        ...analysisResult,
+                        analysis: {
+                            ...analysisResult.analysis,
+                            augments: normalizedAugments,
+                        },
+                    })
                 } else {
                     // 与上次相同，跳过通知
                     this.lastDetectedAugmentAt = Date.now()
@@ -426,7 +460,8 @@ class AutoScreenshotService {
                     if (mergedAugments) {
                         this.detectionCount++
                         this.lastDetectedAugments = mergedAugments
-                        this.lastDetectedAugmentIds = mergedAugments.map(augment => augment.id)
+                        this.lastDetectedAugmentIds = getAugmentIds(mergedAugments)
+                        this.lastDetectedAugmentSetKey = getAugmentSetKey(mergedAugments)
                         this.lastDetectedAugmentAt = Date.now()
                         this.visibleAugmentMissCount = 0
                         logger.info(`Augment partial update accepted: count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, augments=${getAugmentSummary(mergedAugments)}`)
@@ -461,6 +496,7 @@ class AutoScreenshotService {
                         })
                         this.lastDetectedAugmentIds = []
                         this.lastDetectedAugments = []
+                        this.lastDetectedAugmentSetKey = ''
                         this.lastDetectedAugmentAt = 0
                         this.visibleAugmentMissCount = 0
                         this._notifyAugmentCleared(clearReason)
@@ -508,7 +544,7 @@ class AutoScreenshotService {
         this.visibleAugmentMissCount++
 
         const elapsedSinceLastDetection = Date.now() - this.lastDetectedAugmentAt
-        const detectedIds = new Set(augments.map(augment => augment.id).filter(Boolean))
+        const detectedIds = new Set(getAugmentIds(augments))
         const hasPreviousId = this.lastDetectedAugmentIds.some(id => detectedIds.has(id))
 
         if (cardCount > 0 && hasPreviousId) {
@@ -536,7 +572,7 @@ class AutoScreenshotService {
             return null
         }
 
-        const partialIds = new Set(augments.map(augment => augment.id).filter(Boolean))
+        const partialIds = new Set(getAugmentIds(augments))
         const hasNewId = [...partialIds].some(id => !this.lastDetectedAugmentIds.includes(id))
         if (!hasNewId) {
             return null
@@ -554,7 +590,7 @@ class AutoScreenshotService {
 
         return [
             ...augments,
-            ...this.lastDetectedAugments.filter(augment => !partialIds.has(augment.id)),
+            ...this.lastDetectedAugments.filter(augment => !partialIds.has(String(augment.id))),
         ].slice(0, 3)
     }
 

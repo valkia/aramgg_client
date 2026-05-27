@@ -50,6 +50,7 @@ const CURRENT_DATA_FILE = 'current.json'
 const DATA_CACHE_SCHEMA_VERSION = 3
 const cache = new Map<string, { data: any; createdAt: number }>()
 const pendingRequests = new Map<string, Promise<any>>()
+const pendingDataFileRequests = new Map<string, Promise<any>>()
 const detailCache = new Map<string, any>()
 let electronFetch: any = null
 let dataRootDirPromise: Promise<string> | null = null
@@ -287,7 +288,7 @@ async function fetchVersionedDataFile(
   const force = options.force === true
   const cached = cache.get(cacheKey)
   if (!force && cached && Date.now() - cached.createdAt < DATA_TTL_MS) {
-    logger.info('[data-loader] memory cache hit', {
+    logger.debug('[data-loader] memory cache hit', {
       dataVersion,
       path: normalizedPath,
       durationMs: getElapsedMs(startedAt),
@@ -295,54 +296,67 @@ async function fetchVersionedDataFile(
     return cached.data
   }
 
-  if (!force) {
-    const diskPayload = await readDataFileFromDisk(dataVersion, normalizedPath)
-    if (diskPayload != null) {
-      cache.set(cacheKey, { data: diskPayload, createdAt: Date.now() })
-      logger.info('[data-loader] disk cache hit', {
+  const pendingKey = `${cacheKey}:${force ? 'force' : 'normal'}`
+  const pending = pendingDataFileRequests.get(pendingKey)
+  if (pending) {
+    return pending
+  }
+
+  const request = (async () => {
+    if (!force) {
+      const diskPayload = await readDataFileFromDisk(dataVersion, normalizedPath)
+      if (diskPayload != null) {
+        cache.set(cacheKey, { data: diskPayload, createdAt: Date.now() })
+        logger.debug('[data-loader] disk cache hit', {
+          dataVersion,
+          path: normalizedPath,
+          durationMs: getElapsedMs(startedAt),
+        })
+        return diskPayload
+      }
+    }
+
+    try {
+      const resolvedResourcePath = resolveVersionResourcePath(dataVersion, resourcePath || normalizedPath)
+      logger.info('[data-loader] remote fetch start', {
+        dataVersion,
+        path: normalizedPath,
+        resourcePath: resolvedResourcePath,
+        force,
+      })
+      const payload = await fetchJson(
+        resolvedResourcePath,
+        { force, ttlMs: options.ttlMs }
+      )
+      await writeDataFileToDisk(dataVersion, normalizedPath, payload)
+      cache.set(cacheKey, { data: payload, createdAt: Date.now() })
+      logger.info('[data-loader] remote fetch completed', {
         dataVersion,
         path: normalizedPath,
         durationMs: getElapsedMs(startedAt),
       })
-      return diskPayload
-    }
-  }
+      return payload
+    } catch (error: any) {
+      const diskPayload = await readDataFileFromDisk(dataVersion, normalizedPath)
+      if (diskPayload != null) {
+        logger.warn(`Failed to refresh ${normalizedPath}; using cached data:`, error.message)
+        cache.set(cacheKey, { data: diskPayload, createdAt: Date.now() })
+        logger.debug('[data-loader] disk fallback hit', {
+          dataVersion,
+          path: normalizedPath,
+          durationMs: getElapsedMs(startedAt),
+        })
+        return diskPayload
+      }
 
-  try {
-    const resolvedResourcePath = resolveVersionResourcePath(dataVersion, resourcePath || normalizedPath)
-    logger.info('[data-loader] remote fetch start', {
-      dataVersion,
-      path: normalizedPath,
-      resourcePath: resolvedResourcePath,
-      force,
-    })
-    const payload = await fetchJson(
-      resolvedResourcePath,
-      { force, ttlMs: options.ttlMs }
-    )
-    await writeDataFileToDisk(dataVersion, normalizedPath, payload)
-    cache.set(cacheKey, { data: payload, createdAt: Date.now() })
-    logger.info('[data-loader] remote fetch completed', {
-      dataVersion,
-      path: normalizedPath,
-      durationMs: getElapsedMs(startedAt),
-    })
-    return payload
-  } catch (error: any) {
-    const diskPayload = await readDataFileFromDisk(dataVersion, normalizedPath)
-    if (diskPayload != null) {
-      logger.warn(`Failed to refresh ${normalizedPath}; using cached data:`, error.message)
-      cache.set(cacheKey, { data: diskPayload, createdAt: Date.now() })
-      logger.info('[data-loader] disk fallback hit', {
-        dataVersion,
-        path: normalizedPath,
-        durationMs: getElapsedMs(startedAt),
-      })
-      return diskPayload
+      throw error
     }
+  })().finally(() => {
+    pendingDataFileRequests.delete(pendingKey)
+  })
 
-    throw error
-  }
+  pendingDataFileRequests.set(pendingKey, request)
+  return request
 }
 
 export async function loadDataApiConfig(options: FetchJsonOptions = {}): Promise<ClientConfig> {
@@ -422,7 +436,7 @@ async function resolveActiveDataSet(): Promise<ActiveDataSet> {
     }
 
     if (cachedDataSet && cachedDataSet.dataVersion === remoteDataVersion) {
-      logger.info('[data-loader] active data version resolved from cache', {
+      logger.debug('[data-loader] active data version resolved from cache', {
         dataVersion: remoteDataVersion,
         durationMs: getElapsedMs(startedAt),
       })
@@ -530,7 +544,7 @@ async function loadChampionDetailPayload(championId: string | number): Promise<a
   const dataSet = await getActiveDataSet()
   const cacheKey = `${dataSet.dataVersion}:champion:${championId}`
   if (detailCache.has(cacheKey)) {
-    logger.info('[data-loader] champion detail memory cache hit', {
+    logger.debug('[data-loader] champion detail memory cache hit', {
       dataVersion: dataSet.dataVersion,
       championId,
     })
@@ -551,7 +565,7 @@ async function loadChampionDetailPayload(championId: string | number): Promise<a
       Object.entries(cachedShardChampions).forEach(([id, championDetail]) => {
         detailCache.set(`${dataSet.dataVersion}:champion:${id}`, championDetail)
       })
-      logger.info('[data-loader] champion detail loaded from cached shard', {
+      logger.debug('[data-loader] champion detail loaded from cached shard', {
         dataVersion: dataSet.dataVersion,
         championId,
         shardPath,
@@ -562,7 +576,7 @@ async function loadChampionDetailPayload(championId: string | number): Promise<a
 
   try {
     const fallbackPath = `champions/${championId}.json`
-    logger.info('[data-loader] champion detail single fetch start', {
+    logger.debug('[data-loader] champion detail single fetch start', {
       dataVersion: dataSet.dataVersion,
       championId,
       path: fallbackPath,
@@ -574,7 +588,7 @@ async function loadChampionDetailPayload(championId: string | number): Promise<a
     )
     const detail = unwrapEnvelope(payload)
     detailCache.set(cacheKey, detail)
-    logger.info('[data-loader] champion detail single fetch completed', {
+    logger.debug('[data-loader] champion detail single fetch completed', {
       dataVersion: dataSet.dataVersion,
       championId,
     })
@@ -1071,6 +1085,7 @@ export function filterAugmentsByRarity(augmentStats: any[], rarity: string | nul
 export function clearCache(): void {
   cache.clear()
   pendingRequests.clear()
+  pendingDataFileRequests.clear()
   detailCache.clear()
   activeDataSetPromise = null
 }

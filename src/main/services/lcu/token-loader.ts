@@ -96,7 +96,7 @@ export async function getLcuToken(dirPath: string | null | undefined): Promise<T
       }
     }
 
-    logger.error(`[getLcuToken] ❌ 未找到有效的 URL 模式`)
+    logger.debug('[getLcuToken] no valid LCU URL pattern found')
     return [null, null, null]
   } catch (err) {
     const error = err as Error

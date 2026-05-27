@@ -314,7 +314,7 @@ export class LCUService {
       const [token, port] = await getLcuToken(this.lolPath)
 
       if (!token || !port) {
-        logger.warn('无法获取 LCU Token，游戏客户端可能未运行')
+        logger.debug('Unable to get LCU token; game client may not be running')
         this.setVars(null, null, null)
         this.lastFailTime = now
         return null

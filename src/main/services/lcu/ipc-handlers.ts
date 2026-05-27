@@ -292,7 +292,7 @@ export function registerLCUIpcHandlers(): void {
         })
 
         if (!lcuService.isActive()) {
-          logger.warn('[LCU] LCU 服务激活失败')
+          logger.debug('[LCU] service activation failed')
           return {
             success: false,
             championId: null,
@@ -316,11 +316,7 @@ export function registerLCUIpcHandlers(): void {
         }
       }
 
-      if (snapshot.status === 'not-in-champ-select') {
-        logger.debug(`[LCU] current player champion not found (snapshot status: ${snapshot.status})`)
-      } else {
-        logger.warn(`[LCU] current player champion not found (snapshot status: ${snapshot.status})`)
-      }
+      logger.debug(`[LCU] current player champion not found (snapshot status: ${snapshot.status})`)
 
       return {
         success: false,

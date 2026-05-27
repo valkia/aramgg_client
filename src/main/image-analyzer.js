@@ -1058,6 +1058,25 @@ async function resetTesseractWorker() {
     }
 }
 
+export const warmupImageAnalyzer = async () => {
+    const startedAt = performance.now()
+
+    try {
+        await Promise.all([
+            initAugmentDatabase(),
+            getTesseractWorker(),
+        ])
+        scheduleTesseractWorkerIdleCleanup()
+        logger.info('Image analyzer warmup completed', {
+            durationMs: Number((performance.now() - startedAt).toFixed(1)),
+        })
+        return true
+    } catch (error) {
+        logger.warn('Image analyzer warmup failed:', error.message)
+        return false
+    }
+}
+
 /**
  * 从图像中提取海克斯名称（OCR）
  * 识别屏幕中央区域的文本内容
@@ -1664,5 +1683,6 @@ export default {
     extractAugments,
     isAugmentPhase,
     getConfidence,
+    warmupImageAnalyzer,
     shutdownImageAnalyzer,
 }

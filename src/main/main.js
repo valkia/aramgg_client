@@ -1,13 +1,15 @@
-import { app, BrowserWindow } from 'electron'
+import { app } from 'electron'
 import { configureAppPaths } from './modules/app-paths.js'
 
 configureAppPaths()
 
-const [{ init }, { createMainWindow }, { default: logger }] = await Promise.all([
+const [{ init }, windowManager, { default: logger }] = await Promise.all([
     import('./modules/app-config.js'),
     import('./modules/window-manager.js'),
     import('./modules/logger.js'),
 ])
+
+const { getMainWindow } = windowManager
 
 // 解决提示ERR_CERT_AUTHORITY_INVALID的问题
 app.commandLine.appendSwitch('ignore-certificate-errors', 'true')
@@ -35,6 +37,26 @@ function setupMainProcessErrorHandling() {
         console.warn('Process Warning:', warning)
     })
 
+    app.on('before-quit', () => {
+        logger.info('[app] before-quit')
+    })
+
+    app.on('render-process-gone', (_event, webContents, details) => {
+        logger.error('[app] renderer process gone:', {
+            reason: details.reason,
+            exitCode: details.exitCode,
+            url: webContents.getURL(),
+        })
+    })
+
+    app.on('child-process-gone', (_event, details) => {
+        logger.error('[app] child process gone:', details)
+    })
+
+    app.on('gpu-process-crashed', (_event, killed) => {
+        logger.error('[app] gpu process crashed:', { killed })
+    })
+
     // 记录应用启动
     logger.info('应用启动 - 主进程错误监听已设置')
 }
@@ -42,21 +64,30 @@ function setupMainProcessErrorHandling() {
 // 设置主进程错误处理
 setupMainProcessErrorHandling()
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
 
-app.whenReady().then(init)
-
-// Quit when all windows are closed.
-app.on('window-all-closed', function () {
-    logger.info('所有窗口已关闭，正在退出应用...')
+if (!gotSingleInstanceLock) {
+    logger.info('[app] another instance is already running; exiting second instance')
     app.quit()
-})
+} else {
+    app.on('second-instance', (_event, commandLine, workingDirectory) => {
+        logger.info('[app] second instance detected', {
+            commandLine,
+            workingDirectory,
+        })
 
-// When the app is activated (macOS)
-app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) {
-        createMainWindow(process.env.NODE_ENV === 'development', 'http://localhost:5173')
-    }
-})
+        const mainWindow = getMainWindow()
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            if (mainWindow.isMinimized()) {
+                mainWindow.restore()
+            }
+            if (!mainWindow.isVisible()) {
+                mainWindow.show()
+            }
+            mainWindow.focus()
+        }
+    })
+
+    // Some APIs can only be used after Electron is ready.
+    app.whenReady().then(init)
+}
