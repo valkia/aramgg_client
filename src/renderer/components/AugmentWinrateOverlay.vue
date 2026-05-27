@@ -239,6 +239,23 @@ const itemsData = ref({})
 const displayAugments = ref([])
 const unsubscribeEvents = []
 
+const logOverlayInfo = (message, details = {}) => {
+  console.info(`[AugmentWinrateOverlay] ${message}`, details)
+
+  try {
+    electronAPI.diagnostics.logRendererInfo({
+      type: 'augment-overlay',
+      source: 'AugmentWinrateOverlay',
+      message,
+      details,
+      timestamp: Date.now(),
+      url: window.location.href,
+    })
+  } catch (err) {
+    console.warn('Failed to send overlay diagnostic log:', err)
+  }
+}
+
 // Tabs 配置
 const tabs = [
   { key: 'augments', label: '海克斯', icon: '海' },
@@ -298,28 +315,14 @@ const normalizeItemIds = (itemIds) => {
     return itemIds.map(id => String(id).trim()).filter(Boolean)
   }
 
-  if (typeof itemIds === 'string') {
-    return itemIds.split(',').map(id => id.trim()).filter(Boolean)
-  }
-
   return []
 }
 
 const coreItems = computed(() => {
   if (!buildData.value || !buildData.value.coreItems) {
-    // 兼容旧数据：从 recommended 中提取
-    if (!buildData.value || !buildData.value.recommended) return []
-    return buildData.value.recommended.map(rec => {
-      const itemIds = normalizeItemIds(rec.itemIds)
-      return {
-        items: itemIds,
-        games: parseInt(rec.games) || 0,
-        wins: parseInt(rec.wins) || 0,
-        pickRate: parseFloat(rec.pick_rate) || 0,
-        winRate: (parseInt(rec.wins) / parseInt(rec.games)) || 0
-      }
-    }).filter(item => item.items.length >= 3).sort((a, b) => b.games - a.games)
+    return []
   }
+
   return buildData.value.coreItems.map(rec => {
     const itemIds = normalizeItemIds(rec.itemIds)
     return {
@@ -344,18 +347,9 @@ const situationalItems = computed(() => {
 // 出门装
 const startingItems = computed(() => {
   if (!buildData.value || !buildData.value.startingItems) {
-    // 兼容旧数据
-    if (!buildData.value || !buildData.value.recommended) return []
-    return buildData.value.recommended.map(rec => {
-      const itemIds = normalizeItemIds(rec.itemIds)
-      return {
-        items: itemIds,
-        games: parseInt(rec.games) || 0,
-        wins: parseInt(rec.wins) || 0,
-        winRate: (parseInt(rec.wins) / parseInt(rec.games)) || 0
-      }
-    }).filter(item => item.items.length <= 2).sort((a, b) => b.games - a.games)
+    return []
   }
+
   return buildData.value.startingItems.map(rec => ({
     items: normalizeItemIds(rec.itemIds),
     games: parseInt(rec.games) || 0,
@@ -369,11 +363,31 @@ const startingItems = computed(() => {
  * 显示浮窗
  */
 const showOverlay = async (data) => {
-  console.log('🔧 showOverlay 被调用，数据:', data)
+  const startedAt = Date.now()
+  logOverlayInfo('showOverlay called', {
+    pending: data?.pending === true,
+    championId: data?.championId || null,
+    augmentCount: Array.isArray(data?.augments) ? data.augments.length : 0,
+    dataSource: data?.dataSource || null,
+  })
 
   visible.value = true
   loading.value = true
   error.value = null
+  championStats.value = null
+  displayAugments.value = []
+
+  if (data?.pending) {
+    championId.value = null
+    championName.value = ''
+    dataSource.value = data.dataSource || 'pending'
+    timestamp.value = data.timestamp || Date.now()
+    logOverlayInfo('pending state displayed', {
+      message: data.message || '',
+      durationMs: Date.now() - startedAt,
+    })
+    return
+  }
 
   try {
     if (!data || !data.championId) {
@@ -389,7 +403,10 @@ const showOverlay = async (data) => {
     selectedRarity.value = 'all'
 
     // 加载完整英雄数据
-    console.log('🔍 正在加载英雄数据...')
+    logOverlayInfo('loadChampionData requested', {
+      championId: championId.value,
+    })
+    const championLoadStartedAt = Date.now()
     const result = await electronAPI.winrate.loadChampionData(championId.value)
 
     if (result.success) {
@@ -405,7 +422,12 @@ const showOverlay = async (data) => {
         championName.value = nameData.nameCN || nameData.nameEN || `英雄 ${championId.value}`
       }
 
-      console.log('✅ 英雄数据加载成功')
+      logOverlayInfo('loadChampionData completed', {
+        championId: championId.value,
+        durationMs: Date.now() - championLoadStartedAt,
+        augmentCount: augStats ? Object.keys(augStats).length : 0,
+        hasBuild: !!build,
+      })
 
       // 处理海克斯数据
       if (data.augments && data.augments.length > 0) {
@@ -416,9 +438,20 @@ const showOverlay = async (data) => {
         } else {
           // 查询胜率数据
           const augmentIds = data.augments.map(aug => aug.id).filter(id => id != null)
+          const winrateStartedAt = Date.now()
+          logOverlayInfo('winrate query requested', {
+            championId: championId.value,
+            augmentIds,
+          })
           const winrateResult = await electronAPI.winrate.get({
             championId: championId.value,
             augmentIds: augmentIds
+          })
+          logOverlayInfo('winrate query completed', {
+            championId: championId.value,
+            success: winrateResult.success,
+            resultCount: winrateResult.augments?.length || 0,
+            durationMs: Date.now() - winrateStartedAt,
           })
 
           if (winrateResult.success && winrateResult.augments.length > 0) {
@@ -435,7 +468,11 @@ const showOverlay = async (data) => {
       throw new Error(result.error || '数据加载失败')
     }
   } catch (err) {
-    console.error('❌ 加载数据失败:', err)
+    logOverlayInfo('showOverlay failed', {
+      championId: data?.championId || null,
+      error: err?.message || String(err),
+      durationMs: Date.now() - startedAt,
+    })
     if (data?.championId) {
       applyFallbackChampionData(data)
     } else {
@@ -445,13 +482,19 @@ const showOverlay = async (data) => {
     loading.value = false
   }
 
-  console.log('🔧 showOverlay 完成')
+  logOverlayInfo('showOverlay completed', {
+    championId: championId.value,
+    durationMs: Date.now() - startedAt,
+  })
 }
 
 /**
  * 关闭浮窗
  */
 const closeOverlay = () => {
+  logOverlayInfo('overlay closed', {
+    championId: championId.value,
+  })
   visible.value = false
   championStats.value = null
   augmentBase.value = []
@@ -537,17 +580,24 @@ const handleImageError = (e) => {
  * 监听来自主进程的数据
  */
 onMounted(() => {
-  console.log('🔧 AugmentWinrateOverlay 组件已挂载')
+  logOverlayInfo('component mounted')
 
   unsubscribeEvents.push(electronAPI.events.on('for-popup', (data) => {
-    console.log('📊 收到 for-popup 事件:', data)
+    logOverlayInfo('for-popup received', {
+      pending: data?.pending === true,
+      championId: data?.championId || null,
+      augmentCount: Array.isArray(data?.augments) ? data.augments.length : 0,
+    })
     if (data) {
       showOverlay(data)
     }
   }))
 
   unsubscribeEvents.push(electronAPI.events.on('augment-detected', (data) => {
-    console.log('📊 收到 augment-detected 事件:', data)
+    logOverlayInfo('augment-detected received', {
+      championId: data?.championId || null,
+      augmentCount: Array.isArray(data?.augments) ? data.augments.length : 0,
+    })
     if (data) {
       showOverlay(data)
     }

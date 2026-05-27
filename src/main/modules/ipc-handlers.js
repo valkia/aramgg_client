@@ -24,6 +24,10 @@ const store = new Store({ cwd: getConfigDir() })
 const TEST_AUGMENT_COUNT = 3
 const TEST_BENCH_CHAMPION_COUNT = 5
 
+function getElapsedMs(startedAt) {
+    return Date.now() - startedAt
+}
+
 function sampleItems(items, count) {
     const pool = [...items]
     const selected = []
@@ -40,9 +44,15 @@ function getChampionDisplayName(champion) {
     return champion?.nameCN || champion?.nameEN || champion?.alias || `英雄 ${champion?.championId || ''}`
 }
 
-async function buildRandomAugmentPreviewData() {
+async function buildRandomAugmentPreviewData(context = 'random-augment-preview') {
+    const startedAt = Date.now()
     const { loadChampionRoster, getChampionAugmentStats } = await import('../data-loader.js')
+    logger.info(`[diagnostics] ${context}: loading champion roster`)
     const champions = await loadChampionRoster()
+    logger.info(`[diagnostics] ${context}: champion roster loaded`, {
+        count: champions.length,
+        durationMs: getElapsedMs(startedAt),
+    })
 
     if (!champions.length) {
         throw new Error('没有可用英雄数据')
@@ -50,7 +60,13 @@ async function buildRandomAugmentPreviewData() {
 
     const shuffledChampions = sampleItems(champions, Math.min(champions.length, 12))
     for (const champion of shuffledChampions) {
+        const championStartedAt = Date.now()
         const augmentStats = await getChampionAugmentStats(champion.championId)
+        logger.info(`[diagnostics] ${context}: champion augments loaded`, {
+            championId: champion.championId,
+            augmentCount: augmentStats.length,
+            durationMs: getElapsedMs(championStartedAt),
+        })
         if (!augmentStats.length) {
             continue
         }
@@ -62,7 +78,7 @@ async function buildRandomAugmentPreviewData() {
             confidence: 0.88 + Math.random() * 0.1,
         }))
 
-        return {
+        const payload = {
             success: true,
             gamePhase: 'augment-select',
             championId: Number(champion.championId),
@@ -72,6 +88,12 @@ async function buildRandomAugmentPreviewData() {
             timestamp: Date.now(),
             dataSource: 'test',
         }
+        logger.info(`[diagnostics] ${context}: random preview data ready`, {
+            championId: payload.championId,
+            augmentIds: payload.augments.map((augment) => augment.id),
+            durationMs: getElapsedMs(startedAt),
+        })
+        return payload
     }
 
     throw new Error('没有可用英雄海克斯数据')
@@ -129,13 +151,24 @@ export function registerIpcHandlers(isDev) {
     })
 
     ipcMain.on('show-popup', async (_ev, data) => {
+        const startedAt = Date.now()
+        logger.info('[popup] show-popup requested', {
+            championId: data?.championId || null,
+            augmentCount: Array.isArray(data?.augments) ? data.augments.length : 0,
+            dataSource: data?.dataSource || null,
+        })
+
         if (!getPopupWindow()) {
             const devServerUrl = isDev ? 'http://localhost:5173' : ''
             await createPopupWindow(isDev, devServerUrl)
+            logger.info('[popup] window created for show-popup', {
+                durationMs: getElapsedMs(startedAt),
+            })
         }
 
         const popupWindow = getPopupWindow()
         if (!popupWindow) {
+            logger.warn('[popup] show-popup aborted: window unavailable')
             return
         }
 
@@ -149,6 +182,10 @@ export function registerIpcHandlers(isDev) {
             dataSource: data.dataSource,
             error: data.error,
             timestamp: data.timestamp,
+        })
+        logger.info('[popup] for-popup event sent', {
+            championId: data?.championId || null,
+            durationMs: getElapsedMs(startedAt),
         })
     })
 
@@ -201,8 +238,10 @@ export function registerIpcHandlers(isDev) {
     })
 
     ipcMain.handle('test-show-random-floating', async () => {
+        const startedAt = Date.now()
         try {
-            const data = await buildRandomAugmentPreviewData()
+            logger.info('[diagnostics] random floating test requested')
+            const data = await buildRandomAugmentPreviewData('random-floating-test')
             const floatingWindow = getFloatingWindow()
 
             if (!floatingWindow || floatingWindow.isDestroyed()) {
@@ -220,6 +259,7 @@ export function registerIpcHandlers(isDev) {
             logger.info('Random test data sent to floating window', {
                 championId: data.championId,
                 augmentIds: data.augments.map((augment) => augment.id),
+                durationMs: getElapsedMs(startedAt),
             })
 
             return { success: true, data }
@@ -230,12 +270,16 @@ export function registerIpcHandlers(isDev) {
     })
 
     ipcMain.handle('test-show-random-popup', async () => {
+        const startedAt = Date.now()
         try {
-            const data = await buildRandomAugmentPreviewData()
+            logger.info('[diagnostics] random popup test requested')
 
             if (!getPopupWindow()) {
                 const devServerUrl = isDev ? 'http://localhost:5173' : ''
                 await createPopupWindow(isDev, devServerUrl)
+                logger.info('[diagnostics] random popup window created', {
+                    durationMs: getElapsedMs(startedAt),
+                })
             }
 
             const popupWindow = getPopupWindow()
@@ -245,6 +289,17 @@ export function registerIpcHandlers(isDev) {
 
             applyPopupWindowLayout()
             popupWindow.show()
+            popupWindow.webContents.send('for-popup', {
+                pending: true,
+                dataSource: 'pending',
+                timestamp: Date.now(),
+                message: '正在抽取真实英雄数据...',
+            })
+            logger.info('[diagnostics] random popup loading state shown', {
+                durationMs: getElapsedMs(startedAt),
+            })
+
+            const data = await buildRandomAugmentPreviewData('random-popup-test')
             popupWindow.webContents.send('for-popup', {
                 championId: data.championId,
                 championName: data.championName,
@@ -256,6 +311,7 @@ export function registerIpcHandlers(isDev) {
             logger.info('Random test data sent to popup window', {
                 championId: data.championId,
                 augmentIds: data.augments.map((augment) => augment.id),
+                durationMs: getElapsedMs(startedAt),
             })
 
             return { success: true, data }
@@ -266,7 +322,9 @@ export function registerIpcHandlers(isDev) {
     })
 
     ipcMain.handle('test-show-bench-recommendation', async () => {
+        const startedAt = Date.now()
         try {
+            logger.info('[diagnostics] random bench recommendation requested')
             const recommendation = await buildRandomBenchRecommendation()
 
             if (!getBenchWindow()) {
@@ -288,6 +346,7 @@ export function registerIpcHandlers(isDev) {
             logger.info('Random bench recommendation sent to bench window', {
                 recommendedChampionId: recommendation?.recommendedChampion?.championId,
                 candidateCount: recommendation?.candidates?.length || 0,
+                durationMs: getElapsedMs(startedAt),
             })
 
             return { success: true, recommendation }
@@ -356,6 +415,11 @@ export function registerIpcHandlers(isDev) {
 
     ipcMain.handle('get-winrate', async (_event, data) => {
         const { championId, augmentIds } = data
+        const startedAt = Date.now()
+        logger.info('[winrate] query requested', {
+            championId,
+            augmentIds: Array.isArray(augmentIds) ? augmentIds : [],
+        })
 
         try {
             const { getChampionAugmentStats } = await import('../data-loader.js')
@@ -387,14 +451,27 @@ export function registerIpcHandlers(isDev) {
                 augments: [],
                 error: error.message,
             }
+        } finally {
+            logger.info('[winrate] query completed', {
+                championId,
+                durationMs: getElapsedMs(startedAt),
+            })
         }
     })
 
     ipcMain.handle('load-champion-data', async (_event, championId) => {
         const { getChampionDetailData } = await import('../data-loader.js')
+        const startedAt = Date.now()
+        logger.info('[champion-data] load requested', { championId })
 
         try {
             const detail = await getChampionDetailData(championId)
+            logger.info('[champion-data] load completed', {
+                championId,
+                hasBuild: !!detail.build,
+                augmentCount: detail.augments ? Object.keys(detail.augments).length : 0,
+                durationMs: getElapsedMs(startedAt),
+            })
 
             return {
                 success: true,
@@ -402,6 +479,7 @@ export function registerIpcHandlers(isDev) {
                     stats: detail.stats,
                     augments: detail.augmentBase,
                     augmentStats: detail.augments,
+                    augmentTrios: detail.augmentTrios,
                     build: detail.build,
                     items: detail.items,
                     championName: detail.championName,
@@ -413,6 +491,11 @@ export function registerIpcHandlers(isDev) {
                 success: false,
                 error: error.message,
             }
+        } finally {
+            logger.info('[champion-data] load finished', {
+                championId,
+                durationMs: getElapsedMs(startedAt),
+            })
         }
     })
 
@@ -497,6 +580,19 @@ export function registerIpcHandlers(isDev) {
             url: url || 'unknown',
             timestamp: timestamp || Date.now(),
             userAgent: userAgent || 'unknown',
+        })
+
+        return { success: true }
+    })
+
+    ipcMain.handle('log-renderer-info', async (_event, data = {}) => {
+        logger.info('Renderer info reported:', {
+            type: data.type || 'renderer-info',
+            message: data.message || '',
+            source: data.source || 'renderer',
+            url: data.url || 'unknown',
+            timestamp: data.timestamp || Date.now(),
+            details: data.details || {},
         })
 
         return { success: true }

@@ -67,6 +67,7 @@ export const electronAPI = {
     testShowBenchRecommendation: (...args) =>
       requireElectronAPI().diagnostics.testShowBenchRecommendation(...args),
     logRendererError: (...args) => requireElectronAPI().diagnostics.logRendererError(...args),
+    logRendererInfo: (...args) => requireElectronAPI().diagnostics.logRendererInfo(...args),
     testDatabaseLoad: (...args) => requireElectronAPI().diagnostics.testDatabaseLoad(...args),
   },
   events: {
