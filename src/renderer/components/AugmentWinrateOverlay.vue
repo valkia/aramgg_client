@@ -389,6 +389,20 @@ const showOverlay = async (data) => {
     return
   }
 
+  if (data?.error) {
+    championId.value = null
+    championName.value = ''
+    dataSource.value = data.dataSource || 'error'
+    timestamp.value = data.timestamp || Date.now()
+    error.value = data.error
+    loading.value = false
+    logOverlayInfo('error state displayed', {
+      error: data.error,
+      durationMs: Date.now() - startedAt,
+    })
+    return
+  }
+
   try {
     if (!data || !data.championId) {
       throw new Error('缺少英雄ID')

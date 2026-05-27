@@ -44,6 +44,20 @@ function getChampionDisplayName(champion) {
     return champion?.nameCN || champion?.nameEN || champion?.alias || `英雄 ${champion?.championId || ''}`
 }
 
+function sendPopupError(message) {
+    const popupWindow = getPopupWindow()
+    if (!popupWindow || popupWindow.isDestroyed()) {
+        return
+    }
+
+    popupWindow.webContents.send('for-popup', {
+        success: false,
+        error: message || '数据加载失败',
+        dataSource: 'error',
+        timestamp: Date.now(),
+    })
+}
+
 async function buildRandomAugmentPreviewData(context = 'random-augment-preview') {
     const startedAt = Date.now()
     const { loadChampionRoster, getChampionAugmentStats } = await import('../data-loader.js')
@@ -317,6 +331,7 @@ export function registerIpcHandlers(isDev) {
             return { success: true, data }
         } catch (error) {
             logger.error('Failed to show random popup test:', error)
+            sendPopupError(error.message)
             return { success: false, error: error.message }
         }
     })
