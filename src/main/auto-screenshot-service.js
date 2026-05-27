@@ -22,10 +22,10 @@ const AUTO_SCREENSHOT_SUMMARY_INTERVAL_MS = 10000
 const ANALYSIS_MISS_LOG_INTERVAL_MS = 10000
 const PARTIAL_OCR_SAVE_INTERVAL_MS = 10000
 const PARTIAL_OCR_MAX_FILES = 60
-const VISIBLE_AUGMENT_NO_MATCH_GRACE_MS = 2500
-const VISIBLE_AUGMENT_PARTIAL_GRACE_MS = 7000
-const VISIBLE_AUGMENT_NO_MATCH_MISSES_BEFORE_CLEAR = 2
-const VISIBLE_AUGMENT_PARTIAL_MISSES_BEFORE_CLEAR = 4
+const VISIBLE_AUGMENT_NO_MATCH_GRACE_MS = 900
+const VISIBLE_AUGMENT_PARTIAL_GRACE_MS = 2500
+const VISIBLE_AUGMENT_NO_MATCH_MISSES_BEFORE_CLEAR = 1
+const VISIBLE_AUGMENT_PARTIAL_MISSES_BEFORE_CLEAR = 3
 
 function getSafeTimestampForFile() {
     return logger.toBeijingISOString().replace(/[:.]/g, '-').replace('+08-00', '+0800')
@@ -73,6 +73,7 @@ class AutoScreenshotService {
         }
         // 上一次检测到的海克斯ID列表（用于判断是否需要更新显示）
         this.lastDetectedAugmentIds = []
+        this.lastDetectedAugments = []
     }
 
     /**
@@ -113,6 +114,7 @@ class AutoScreenshotService {
         this.lastDetectedAugmentAt = 0
         this.visibleAugmentMissCount = 0
         this.lastDetectedAugmentIds = []
+        this.lastDetectedAugments = []
         this.performanceMetrics = {
             captureTime: [],
             memoryUsage: [],
@@ -173,6 +175,7 @@ class AutoScreenshotService {
 
     clearAugmentState(reason = 'gameflow-cleared') {
         this.lastDetectedAugmentIds = []
+        this.lastDetectedAugments = []
         this.lastDetectedAugmentAt = 0
         this.visibleAugmentMissCount = 0
         this.pendingAnalysisBuffer = null
@@ -365,6 +368,7 @@ class AutoScreenshotService {
                     // 新的海克斯组合，更新显示
                     this.detectionCount++
                     this.lastDetectedAugmentIds = augments.map(a => a.id)
+                    this.lastDetectedAugments = augments.slice(0, 3)
                     this.lastDetectedAugmentAt = Date.now()
                     this.visibleAugmentMissCount = 0
 
@@ -389,6 +393,26 @@ class AutoScreenshotService {
                     // 切换/刷新海克斯时会有短暂动画帧，OCR 可能只读到 0-2 张。
                     // 保留上一轮已显示结果，只有连续 miss 超过宽限才清空。
                     const hadVisibleAugmentOverlay = this.lastDetectedAugmentIds.length > 0
+                    const mergedAugments = this._mergePartialAugments(augments)
+                    if (mergedAugments) {
+                        this.detectionCount++
+                        this.lastDetectedAugments = mergedAugments
+                        this.lastDetectedAugmentIds = mergedAugments.map(augment => augment.id)
+                        this.lastDetectedAugmentAt = Date.now()
+                        this.visibleAugmentMissCount = 0
+                        logger.info(`Augment partial update accepted: count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, augments=${getAugmentSummary(mergedAugments)}`)
+                        this._notifyAugmentDetected({
+                            ...analysisResult,
+                            analysis: {
+                                ...analysisResult.analysis,
+                                augments: mergedAugments,
+                                cardCount: mergedAugments.length,
+                                partialUpdate: true,
+                            },
+                        })
+                        return
+                    }
+
                     const shouldClearVisibleAugments = this._shouldClearVisibleAugmentsAfterMiss({
                         cardCount,
                         augments,
@@ -399,6 +423,7 @@ class AutoScreenshotService {
                             ? 'no-augments-detected'
                             : `partial-augments-detected-count-${cardCount}`
                         this.lastDetectedAugmentIds = []
+                        this.lastDetectedAugments = []
                         this.lastDetectedAugmentAt = 0
                         this.visibleAugmentMissCount = 0
                         this._notifyAugmentCleared(clearReason)
@@ -467,6 +492,33 @@ class AutoScreenshotService {
         }
 
         return true
+    }
+
+    _mergePartialAugments(augments = []) {
+        if (augments.length === 0 || augments.length >= 3 || this.lastDetectedAugments.length !== 3) {
+            return null
+        }
+
+        const partialIds = new Set(augments.map(augment => augment.id).filter(Boolean))
+        const hasNewId = [...partialIds].some(id => !this.lastDetectedAugmentIds.includes(id))
+        if (!hasNewId) {
+            return null
+        }
+
+        if (augments.some(augment => Number.isInteger(augment.detectedSlot))) {
+            const merged = [...this.lastDetectedAugments]
+            for (const augment of augments) {
+                if (Number.isInteger(augment.detectedSlot) && augment.detectedSlot >= 0 && augment.detectedSlot < 3) {
+                    merged[augment.detectedSlot] = augment
+                }
+            }
+            return merged.slice(0, 3)
+        }
+
+        return [
+            ...augments,
+            ...this.lastDetectedAugments.filter(augment => !partialIds.has(augment.id)),
+        ].slice(0, 3)
     }
 
     _logAnalysisMiss(reason, details = {}) {
@@ -570,6 +622,7 @@ class AutoScreenshotService {
                     confidence: aug.confidence,
                 })),
                 analysisConfidence: analysisResult.analysis.confidence,
+                partialUpdate: analysisResult.analysis.partialUpdate === true,
                 timestamp: analysisResult.timestamp,
                 dataSource: 'auto-analysis',
             }
@@ -851,6 +904,7 @@ class AutoScreenshotService {
         this.isCapturing = false
         this.isAnalyzing = false
         this.lastDetectedAugmentIds = []
+        this.lastDetectedAugments = []
         this.lastDetectedAugmentAt = 0
         this.visibleAugmentMissCount = 0
         this.runId++

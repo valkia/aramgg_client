@@ -75,6 +75,7 @@ const error = ref(null)
 const displayAugments = ref([])
 const championId = ref(null)
 const unsubscribeEvents = []
+let overlayRequestId = 0
 
 const previewAugments = computed(() => displayAugments.value.slice(0, 3))
 
@@ -163,15 +164,37 @@ const getBadgeClass = (score) => {
   return 'cold'
 }
 
+const logFloatingInfo = (message, details = {}) => {
+  try {
+    electronAPI.diagnostics.logRendererInfo({
+      type: 'augment-floating',
+      source: 'AugmentFloatingOverlay',
+      message,
+      url: window.location.href,
+      details,
+      timestamp: Date.now(),
+    })
+  } catch {
+    // Best-effort diagnostics only.
+  }
+}
+
 /**
  * 显示浮窗
  */
 const showOverlay = async (data) => {
   console.log('🔧 [FloatingOverlay] showOverlay 被调用:', data)
+  const requestId = ++overlayRequestId
 
   visible.value = true
   loading.value = false
   error.value = null
+  logFloatingInfo('showOverlay received', {
+    championId: data?.championId || null,
+    augmentCount: Array.isArray(data?.augments) ? data.augments.length : 0,
+    dataSource: data?.dataSource || null,
+    partialUpdate: data?.partialUpdate === true,
+  })
 
   if (data && data.augments && data.augments.length > 0) {
     championId.value = data.championId
@@ -182,11 +205,17 @@ const showOverlay = async (data) => {
 
     if (hasWinrateData) {
       displayAugments.value = sortAugmentsByDetectedOrder(data.augments, data.augments)
+      loading.value = false
       console.log('✅ [FloatingOverlay] 直接显示完整数据')
     } else {
-      // 需要查询胜率数据
-      console.log('🔍 [FloatingOverlay] 正在查询胜率数据...')
-      loading.value = true
+      const fallbackAugments = sortAugmentsByDetectedOrder(mapDetectedAugmentsForFallback(data.augments), data.augments)
+      displayAugments.value = fallbackAugments
+      loading.value = false
+      console.log('🔍 [FloatingOverlay] 先显示识别结果，后台查询胜率数据...')
+      logFloatingInfo('fallback displayed before winrate query', {
+        championId: championId.value || null,
+        augmentIds: fallbackAugments.map(augment => augment.id),
+      })
 
       try {
         // 获取当前英雄ID
@@ -226,27 +255,46 @@ const showOverlay = async (data) => {
           augmentIds: augmentIds
         })
 
+        if (requestId !== overlayRequestId) {
+          logFloatingInfo('winrate result ignored for stale request', {
+            championId: championId.value,
+            augmentIds,
+          })
+          return
+        }
+
         if (winrateResult.success && winrateResult.augments.length > 0) {
           // 找到了胜率数据，按游戏内从左到右的识别顺序展示。
           displayAugments.value = sortAugmentsByDetectedOrder(winrateResult.augments, data.augments)
           console.log('✅ [FloatingOverlay] 胜率数据查询成功:', winrateResult.augments)
+          logFloatingInfo('winrate query applied', {
+            championId: championId.value,
+            augmentIds,
+            resultCount: winrateResult.augments.length,
+          })
         } else if (winrateResult.success && winrateResult.augments.length === 0) {
           // 查询成功但没有这些海克斯的数据，显示基本信息
           console.warn('⚠️ [FloatingOverlay] 没有找到这些海克斯的胜率数据，显示基本信息')
-          displayAugments.value = mapDetectedAugmentsForFallback(data.augments)
         } else {
           throw new Error(winrateResult.error || '胜率查询失败')
         }
       } catch (err) {
         console.error('❌ [FloatingOverlay] 查询失败:', err)
-        displayAugments.value = mapDetectedAugmentsForFallback(data.augments)
+        logFloatingInfo('winrate query failed; keeping fallback', {
+          championId: championId.value || null,
+          error: err?.message || String(err),
+        })
         error.value = null
       } finally {
-        loading.value = false
+        if (requestId === overlayRequestId) {
+          loading.value = false
+        }
       }
     }
   } else {
+    loading.value = false
     error.value = '无可用数据'
+    logFloatingInfo('showOverlay received no data')
   }
 }
 
@@ -255,9 +303,12 @@ const showOverlay = async (data) => {
  */
 const closeOverlay = () => {
   console.log('🔧 [FloatingOverlay] 关闭浮窗')
+  overlayRequestId += 1
   visible.value = false
+  loading.value = false
   displayAugments.value = []
   error.value = null
+  logFloatingInfo('overlay closed')
 
   // 隐藏浮动窗口本身
   electronAPI.windows.hideFloating()
