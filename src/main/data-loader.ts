@@ -738,7 +738,7 @@ function mapPublicAugmentRecommendation(
   augment: any,
   augmentBaseById: Record<string, any> = {}
 ): any {
-  const augmentId = augment?.augmentId
+  const augmentId = augment?.id
   const augmentBase = mapAugmentWithBase(augmentId, augmentBaseById)
   const stats = mapPublicAugmentStats(augment)
   const winRate = toNumber(stats.win_rate)
@@ -939,7 +939,7 @@ export async function loadChampionAugments(championId: string | number): Promise
 
     if (detail?.augments) {
       return (detail.augments as any[]).reduce((result: Record<string, any>, augment: any) => {
-        const augmentId = augment?.augmentId
+        const augmentId = augment?.id
         if (augmentId != null) {
           result[String(augmentId)] = mapPublicAugmentStats(augment)
         }
@@ -1055,7 +1055,7 @@ export async function getChampionAugmentStats(championId: string | number): Prom
   const augments = Array.isArray(detail?.augments) ? detail.augments : []
 
   return augments
-    .filter((augment: any) => augment?.augmentId != null)
+    .filter((augment: any) => augment?.id != null)
     .map((augment: any) => mapPublicAugmentRecommendation(augment, augmentBaseById))
     .sort((a: any, b: any) => b.recommendScore - a.recommendScore)
 }
