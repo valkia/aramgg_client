@@ -132,6 +132,10 @@ const getWebPreferences = (isDev, overrides = {}) => ({
     ...overrides,
 })
 
+const getOverlayWebPreferences = (isDev) => getWebPreferences(isDev, {
+    backgroundThrottling: false,
+})
+
 /**
  * 创建主窗口
  */
@@ -185,7 +189,7 @@ export const createMainWindow = async (isDev, devServerUrl) => {
  * 创建弹出窗口
  */
 export const createPopupWindow = async (isDev, devServerUrl) => {
-    const webPreferences = getWebPreferences(isDev)
+    const webPreferences = getOverlayWebPreferences(isDev)
     const bounds = getPopupBounds()
 
     popupWindow = new BrowserWindow({
@@ -221,7 +225,7 @@ export const createPopupWindow = async (isDev, devServerUrl) => {
  * 创建 ARAM 选人席位推荐弹窗
  */
 export const createBenchWindow = async (isDev, devServerUrl) => {
-    const webPreferences = getWebPreferences(isDev)
+    const webPreferences = getOverlayWebPreferences(isDev)
     const bounds = getBenchBounds()
 
     benchWindow = new BrowserWindow({
@@ -258,9 +262,7 @@ export const createBenchWindow = async (isDev, devServerUrl) => {
  * 【重要】窗口位置在屏幕顶部(2%)，确保不与OCR识别区域(从25%开始)重叠
  */
 export const createFloatingWindow = async (isDev, devServerUrl) => {
-    const webPreferences = getWebPreferences(isDev, {
-        backgroundThrottling: false,
-    })
+    const webPreferences = getOverlayWebPreferences(isDev)
     const bounds = getFloatingBounds()
 
     floatingWindow = new BrowserWindow({
