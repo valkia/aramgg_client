@@ -41,6 +41,8 @@
           class="champion-header-section"
         />
 
+        <AramBenchRecommendation class="bench-section" />
+
         <!-- Tabs for different data sections -->
         <div class="tabs-section">
           <Tabs v-model="activeTab" class="w-full">
@@ -85,6 +87,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ChampionStatsHeader from './ChampionStatsHeader.vue'
 import AugmentsList from './AugmentsList.vue'
 import BuildCard from './BuildCard.vue'
+import AramBenchRecommendation from './AramBenchRecommendation.vue'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
 import { ChevronLeft, Crosshair, Package } from 'lucide-vue-next'
 
@@ -270,6 +273,11 @@ onMounted(() => {
 .champion-header-section {
     margin-bottom: 24px;
     animation: slideUp 0.4s ease-out;
+}
+
+.bench-section {
+    margin-bottom: 24px;
+    animation: slideUp 0.45s ease-out;
 }
 
 /* Tabs Section */
