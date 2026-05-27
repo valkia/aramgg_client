@@ -67,6 +67,9 @@ class AutoScreenshotService {
         this.partialOcrSaveCount = 0
         this.lastDetectedAugmentAt = 0
         this.visibleAugmentMissCount = 0
+        this.startedAt = 0
+        this.firstCaptureLogged = false
+        this.firstDetectionLogged = false
         this.performanceMetrics = {
             captureTime: [], // 截图耗时数组
             memoryUsage: [],  // 内存使用量
@@ -115,6 +118,9 @@ class AutoScreenshotService {
         this.visibleAugmentMissCount = 0
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugments = []
+        this.startedAt = Date.now()
+        this.firstCaptureLogged = false
+        this.firstDetectionLogged = false
         this.performanceMetrics = {
             captureTime: [],
             memoryUsage: [],
@@ -151,7 +157,8 @@ class AutoScreenshotService {
         this.isCapturing = false
         this.isAnalyzing = false
 
-        logger.info(`Auto screenshot service stopped by ${owner}. screenshots=${this.screenshotCount}, analyses=${this.analysisCount}, detections=${this.detectionCount}, replacedPendingAnalyses=${this.droppedAnalysisCount}`)
+        const runDurationMs = this.startedAt ? Date.now() - this.startedAt : 0
+        logger.info(`Auto screenshot service stopped by ${owner}. screenshots=${this.screenshotCount}, analyses=${this.analysisCount}, detections=${this.detectionCount}, replacedPendingAnalyses=${this.droppedAnalysisCount}, duration=${runDurationMs}ms`)
         return true
     }
 
@@ -174,11 +181,18 @@ class AutoScreenshotService {
     }
 
     clearAugmentState(reason = 'gameflow-cleared') {
+        const previousIds = this.lastDetectedAugmentIds
+        const ageMs = this.lastDetectedAugmentAt ? Date.now() - this.lastDetectedAugmentAt : null
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugments = []
         this.lastDetectedAugmentAt = 0
         this.visibleAugmentMissCount = 0
         this.pendingAnalysisBuffer = null
+        logger.info('Augment state cleared', {
+            reason,
+            previousIds,
+            ageMs,
+        })
         this._notifyAugmentCleared(reason)
     }
 
@@ -248,6 +262,20 @@ class AutoScreenshotService {
                 this._recordPerformance(captureTimeMs)
 
                 logger.debug(`[Auto Screenshot ${this.screenshotCount}] captured in ${captureTimeMs.toFixed(2)}ms`)
+                if (!this.firstCaptureLogged) {
+                    this.firstCaptureLogged = true
+                    logger.info('Auto screenshot first capture completed', {
+                        captureTimeMs: Number(captureTimeMs.toFixed(1)),
+                        sinceStartMs: this.startedAt ? Date.now() - this.startedAt : 0,
+                        preferScreenCapture: this.preferScreenCapture,
+                    })
+                } else if (captureTimeMs > 1000) {
+                    logger.warn('Auto screenshot slow capture', {
+                        captureTimeMs: Number(captureTimeMs.toFixed(1)),
+                        screenshotCount: this.screenshotCount,
+                        preferScreenCapture: this.preferScreenCapture,
+                    })
+                }
                 this._logPerformanceSummary()
 
                 if (this.enableAnalysis) {
@@ -373,6 +401,7 @@ class AutoScreenshotService {
                     this.visibleAugmentMissCount = 0
 
                     logger.info(`Augment detected: count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, augments=${getAugmentSummary(augments)}`)
+                    this._logFirstDetectionLatency('full', analysisDuration)
                     this._notifyAugmentDetected(analysisResult)
                 } else {
                     // 与上次相同，跳过通知
@@ -401,6 +430,7 @@ class AutoScreenshotService {
                         this.lastDetectedAugmentAt = Date.now()
                         this.visibleAugmentMissCount = 0
                         logger.info(`Augment partial update accepted: count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, augments=${getAugmentSummary(mergedAugments)}`)
+                        this._logFirstDetectionLatency('partial', analysisDuration)
                         this._notifyAugmentDetected({
                             ...analysisResult,
                             analysis: {
@@ -422,6 +452,13 @@ class AutoScreenshotService {
                         const clearReason = cardCount === 0
                             ? 'no-augments-detected'
                             : `partial-augments-detected-count-${cardCount}`
+                        const ageMs = this.lastDetectedAugmentAt ? Date.now() - this.lastDetectedAugmentAt : null
+                        logger.info('Augment overlay cleared after OCR miss', {
+                            reason: clearReason,
+                            previousIds: this.lastDetectedAugmentIds,
+                            ageMs,
+                            cardCount,
+                        })
                         this.lastDetectedAugmentIds = []
                         this.lastDetectedAugments = []
                         this.lastDetectedAugmentAt = 0
@@ -519,6 +556,21 @@ class AutoScreenshotService {
             ...augments,
             ...this.lastDetectedAugments.filter(augment => !partialIds.has(augment.id)),
         ].slice(0, 3)
+    }
+
+    _logFirstDetectionLatency(kind, analysisDuration) {
+        if (this.firstDetectionLogged) {
+            return
+        }
+
+        this.firstDetectionLogged = true
+        logger.info('Auto screenshot first augment detection latency', {
+            kind,
+            sinceStartMs: this.startedAt ? Date.now() - this.startedAt : 0,
+            screenshots: this.screenshotCount,
+            analyses: this.analysisCount,
+            analysisDurationMs: Number(analysisDuration.toFixed(1)),
+        })
     }
 
     _logAnalysisMiss(reason, details = {}) {
@@ -652,7 +704,15 @@ class AutoScreenshotService {
                 })
             }
 
-            logger.info('📢 已通知UI窗口有新的海克斯检测')
+            logger.info('Augment detection notification sent', {
+                championId: championId || null,
+                augmentIds: winrateData.augments.map(augment => augment.id),
+                partialUpdate: winrateData.partialUpdate,
+                analysisConfidence: winrateData.analysisConfidence,
+                floatingWindowFound: !!floatingWindow && !floatingWindow.isDestroyed(),
+                sinceStartMs: this.startedAt ? Date.now() - this.startedAt : 0,
+                sinceLastCaptureMs: this.lastScreenshotTime ? Date.now() - this.lastScreenshotTime : 0,
+            })
         } catch (error) {
             logger.error('Failed to notify windows:', error)
         }
@@ -683,7 +743,8 @@ class AutoScreenshotService {
                 const url = win.webContents.getURL()
                 return url.includes('floating-overlay')
             })
-            if (floatingWindow && !floatingWindow.isDestroyed() && floatingWindow.isVisible()) {
+            const wasFloatingWindowVisible = !!floatingWindow && !floatingWindow.isDestroyed() && floatingWindow.isVisible()
+            if (wasFloatingWindowVisible) {
                 floatingWindow.hide()
                 logger.info('Hidden augment floating window after selection disappeared')
             }
@@ -692,12 +753,18 @@ class AutoScreenshotService {
                 const url = win.webContents.getURL()
                 return url.includes('augment-overlay')
             })
-            if (popupWindow && !popupWindow.isDestroyed() && popupWindow.isVisible()) {
+            const wasPopupWindowVisible = !!popupWindow && !popupWindow.isDestroyed() && popupWindow.isVisible()
+            if (wasPopupWindowVisible) {
                 popupWindow.hide()
                 logger.info('Hidden augment popup window after selection disappeared')
             }
 
-            logger.info(`Notified UI that augment selection cleared: ${reason}`)
+            logger.info('Augment clear notification sent', {
+                reason,
+                windowCount: windows.length,
+                floatingWindowWasVisible: wasFloatingWindowVisible,
+                popupWindowWasVisible: wasPopupWindowVisible,
+            })
         } catch (error) {
             logger.error('Failed to notify augment cleared:', error)
         }
@@ -907,6 +974,9 @@ class AutoScreenshotService {
         this.lastDetectedAugments = []
         this.lastDetectedAugmentAt = 0
         this.visibleAugmentMissCount = 0
+        this.startedAt = 0
+        this.firstCaptureLogged = false
+        this.firstDetectionLogged = false
         this.runId++
         this.performanceMetrics = {
             captureTime: [],

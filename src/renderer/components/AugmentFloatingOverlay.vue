@@ -250,18 +250,33 @@ const showOverlay = async (data) => {
 
         // 查询胜率数据
         const augmentIds = data.augments.map(aug => aug.id).filter(id => id != null)
+        const winrateStartedAt = Date.now()
+        logFloatingInfo('winrate query requested', {
+          championId: championId.value,
+          augmentIds,
+        })
         const winrateResult = await electronAPI.winrate.get({
           championId: championId.value,
           augmentIds: augmentIds
         })
+        const winrateDurationMs = Date.now() - winrateStartedAt
 
         if (requestId !== overlayRequestId) {
           logFloatingInfo('winrate result ignored for stale request', {
             championId: championId.value,
             augmentIds,
+            durationMs: winrateDurationMs,
           })
           return
         }
+
+        logFloatingInfo('winrate query completed', {
+          championId: championId.value,
+          augmentIds,
+          success: winrateResult.success,
+          resultCount: winrateResult.augments?.length || 0,
+          durationMs: winrateDurationMs,
+        })
 
         if (winrateResult.success && winrateResult.augments.length > 0) {
           // 找到了胜率数据，按游戏内从左到右的识别顺序展示。
@@ -271,6 +286,7 @@ const showOverlay = async (data) => {
             championId: championId.value,
             augmentIds,
             resultCount: winrateResult.augments.length,
+            durationMs: winrateDurationMs,
           })
         } else if (winrateResult.success && winrateResult.augments.length === 0) {
           // 查询成功但没有这些海克斯的数据，显示基本信息

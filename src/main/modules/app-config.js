@@ -140,6 +140,7 @@ async function autoDetectLolPath() {
 
 async function startAutoScreenshotForGame(reason) {
     if (store.get('autoScreenshotGameflowControl') === false) {
+        logger.info(`Auto screenshot gameflow start skipped: disabled by config (${reason})`)
         return false
     }
 
@@ -152,10 +153,16 @@ async function startAutoScreenshotForGame(reason) {
         maxScreenshots: AUTO_SCREENSHOT_MAX_CAPTURES,
     })
 
+    const startedAt = Date.now()
     const success = await autoScreenshotService.start(AUTO_SCREENSHOT_INTERVAL_MS, 'gameflow')
     if (success) {
         autoScreenshotManagedByGameFlow = true
-        logger.info(`Auto screenshot service started by game monitor: ${reason}`)
+        logger.info('Auto screenshot service started by game monitor', {
+            reason,
+            durationMs: Date.now() - startedAt,
+            intervalMs: AUTO_SCREENSHOT_INTERVAL_MS,
+            pollFallbackIntervalMs: GAMEFLOW_POLL_FALLBACK_INTERVAL_MS,
+        })
     }
 
     return success
