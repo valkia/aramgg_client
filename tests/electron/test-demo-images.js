@@ -14,6 +14,7 @@ const demoImages = [
     path.join(__dirname, '../../docs/demo1.png'),
     path.join(__dirname, '../../docs/demo2.png'),
     path.join(__dirname, '../../docs/demo3.png'),
+    path.join(__dirname, '../../docs/demo4.png'),
 ]
 
 async function testDemoImages() {
@@ -24,7 +25,7 @@ async function testDemoImages() {
         const filename = path.basename(imagePath)
 
         logger.info(`\n${'='.repeat(80)}`)
-        logger.info(`[${i + 1}/3] 测试: ${filename}`)
+        logger.info(`[${i + 1}/${demoImages.length}] 测试: ${filename}`)
         logger.info('='.repeat(80))
 
         try {
