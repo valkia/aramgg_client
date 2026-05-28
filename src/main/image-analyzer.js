@@ -1350,39 +1350,48 @@ async function buildOrderedTitleAugmentResult(slotTexts, rowFingerprints, groupR
 
 async function readRapidOcrTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
     const startedAt = performance.now()
+    const prepareStartedAt = performance.now()
     const { rect, buffer, rowBounds, rowFingerprints } = await prepareRapidOcrStackedTitleRegion(imageBuffer, imageWidth, imageHeight)
+    const prepareMs = performance.now() - prepareStartedAt
     logger.debug(`RapidOCR ordered title stack: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
 
+    const ocrStartedAt = performance.now()
     const ocrData = await performRapidOCR(buffer)
+    const ocrRoundTripMs = performance.now() - ocrStartedAt
     if (!ocrData) {
         return null
     }
 
+    const extractStartedAt = performance.now()
     const slotTexts = extractRapidOcrSlotTexts(ocrData.items || [], rowBounds)
-    const durationMs = performance.now() - startedAt
+    const extractMs = performance.now() - extractStartedAt
+
+    const matchStartedAt = performance.now()
+    const result = await buildOrderedTitleAugmentResult(slotTexts, rowFingerprints, groupRegion, 'rapidocr')
+    const matchMs = performance.now() - matchStartedAt
+    const totalMs = performance.now() - startedAt
+    const workerMs = Number(ocrData.durationMs || 0)
+
     const logPayload = {
-        durationMs: Number(durationMs.toFixed(1)),
-        workerDurationMs: Number(Number(ocrData.durationMs || 0).toFixed(1)),
+        totalMs: Number(totalMs.toFixed(1)),
+        prepareMs: Number(prepareMs.toFixed(1)),
+        ocrRoundTripMs: Number(ocrRoundTripMs.toFixed(1)),
+        workerMs: Number(workerMs.toFixed(1)),
+        bridgeMs: Number(Math.max(0, ocrRoundTripMs - workerMs).toFixed(1)),
+        extractMs: Number(extractMs.toFixed(1)),
+        matchMs: Number(matchMs.toFixed(1)),
+        matchedCount: result.augments.length,
         slotTexts: slotTexts.map(text => text.slice(0, 80)),
     }
 
-    if (durationMs > 350) {
+    if (totalMs > 350) {
         logger.info('RapidOCR ordered title stack slow', logPayload)
     } else {
         logger.debug('RapidOCR ordered title stack completed', logPayload)
     }
 
-    if (slotTexts.every(text => !text)) {
-        logger.warn('RapidOCR returned empty title text, falling back to Tesseract')
-        return null
-    }
-
-    const result = await buildOrderedTitleAugmentResult(slotTexts, rowFingerprints, groupRegion, 'rapidocr')
     if (result.augments.length === 0) {
-        logger.warn('RapidOCR title text had no augment matches, falling back to Tesseract', {
-            slotTexts: slotTexts.map(text => text.slice(0, 80)),
-        })
-        return null
+        logger.debug('RapidOCR ordered title stack had no augment matches', logPayload)
     }
 
     return result
