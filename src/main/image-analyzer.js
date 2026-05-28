@@ -17,6 +17,7 @@
 
 import sharp from 'sharp'
 import path from 'path'
+import { spawn } from 'child_process'
 import { readFileSync, existsSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { loadAugmentBase } from './data-loader.js'
@@ -134,11 +135,20 @@ let tesseractWorkerPromise = null
 let tesseractModulePromise = null
 let tesseractWorkerIdleTimer = null
 let tesseractWorkerPsm = null
+let rapidOcrWorker = null
+let rapidOcrWorkerPromise = null
+let rapidOcrRequestId = 0
+let rapidOcrDisabled = false
+let rapidOcrUnavailableLogged = false
+let rapidOcrReadyLogged = false
 let ocrQueue = Promise.resolve()
 let loggedTesseractLangPath = null
 let AUGMENT_MATCH_ENTRIES = null
 
 const TESSERACT_WORKER_IDLE_CLEANUP_MS = 60000
+const RAPID_OCR_REQUEST_TIMEOUT_MS = 2500
+const RAPID_OCR_STARTUP_TIMEOUT_MS = 12000
+const RAPID_OCR_RUNTIME_DIR_NAME = 'rapidocr-runtime'
 const OCR_TITLE_ACTIVITY_SAMPLE = { width: 160, height: 50 }
 const OCR_TITLE_FINGERPRINT_SIZE = { width: 16, height: 8 }
 const OCR_TITLE_ACTIVE_BRIGHT_RATIO = 0.012
@@ -160,6 +170,350 @@ const OCR_NAME_ALIASES = new Map([
 ])
 
 const OCR_PUNCTUATION_PATTERN = /[\s"'“”‘’`.,，。:：;；!！?？、|｜/\\()[\]{}<>《》【】「」『』\-_=+~·•]/g
+
+function isPackagedElectronRuntime() {
+    return Boolean(process.resourcesPath && !process.defaultApp && !process.env.ELECTRON_VITE_DEV_SERVER_URL)
+}
+
+function getRapidOcrRuntimeDirs() {
+    const dirs = []
+
+    if (process.resourcesPath) {
+        dirs.push(path.join(process.resourcesPath, RAPID_OCR_RUNTIME_DIR_NAME))
+    }
+
+    dirs.push(path.join(process.cwd(), '.runtime', 'rapidocr'))
+
+    return [...new Set(dirs)]
+}
+
+function getBundledRapidOcrCommand() {
+    for (const runtimeDir of getRapidOcrRuntimeDirs()) {
+        const pythonPath = process.platform === 'win32'
+            ? path.join(runtimeDir, 'python', 'python.exe')
+            : path.join(runtimeDir, 'python', 'bin', 'python3')
+        const workerPath = path.join(runtimeDir, 'worker', 'rapidocr-worker.py')
+
+        if (existsSync(pythonPath) && existsSync(workerPath)) {
+            return {
+                command: pythonPath,
+                args: ['-u', workerPath],
+                source: 'bundled',
+                runtimeDir,
+            }
+        }
+    }
+
+    return null
+}
+
+function getSourceRapidOcrWorkerPath() {
+    const candidates = [
+        path.join(process.cwd(), 'resources', 'rapidocr', 'rapidocr-worker.py'),
+        path.resolve(__dirname, '..', 'resources', 'rapidocr', 'rapidocr-worker.py'),
+        path.resolve(__dirname, '..', '..', 'resources', 'rapidocr', 'rapidocr-worker.py'),
+    ]
+
+    return candidates.find(candidate => existsSync(candidate)) || null
+}
+
+function getRapidOcrCommand() {
+    if (process.env.ARAMGG_DISABLE_RAPIDOCR === '1') {
+        return null
+    }
+
+    const bundledCommand = getBundledRapidOcrCommand()
+    if (bundledCommand) {
+        return bundledCommand
+    }
+
+    if (isPackagedElectronRuntime()) {
+        return null
+    }
+
+    const workerPath = getSourceRapidOcrWorkerPath()
+    if (!workerPath) {
+        return null
+    }
+
+    const configuredPython = process.env.ARAMGG_RAPIDOCR_PYTHON
+    if (configuredPython) {
+        return {
+            command: configuredPython,
+            args: ['-u', workerPath],
+            source: 'dev-python-env',
+            runtimeDir: null,
+        }
+    }
+
+    return {
+        command: 'py',
+        args: ['-3', '-u', workerPath],
+        source: 'dev-python-launcher',
+        runtimeDir: null,
+    }
+}
+
+function logRapidOcrUnavailable(message) {
+    if (rapidOcrUnavailableLogged) {
+        return
+    }
+
+    rapidOcrUnavailableLogged = true
+    logger.warn(`RapidOCR unavailable, falling back to Tesseract: ${message}`)
+}
+
+function rejectRapidOcrPending(worker, error) {
+    for (const pending of worker.pending.values()) {
+        clearTimeout(pending.timeout)
+        pending.reject(error)
+    }
+    worker.pending.clear()
+}
+
+function handleRapidOcrLine(worker, line) {
+    if (!line.trim()) {
+        return
+    }
+
+    let message = null
+    try {
+        message = JSON.parse(line)
+    } catch (error) {
+        logger.debug(`RapidOCR worker non-json output: ${line.slice(0, 300)}`)
+        return
+    }
+
+    if (message.event === 'ready') {
+        worker.ready = true
+        if (worker.startupTimer) {
+            clearTimeout(worker.startupTimer)
+            worker.startupTimer = null
+        }
+        if (!rapidOcrReadyLogged) {
+            rapidOcrReadyLogged = true
+            logger.info('RapidOCR worker ready', {
+                source: worker.commandInfo.source,
+                runtimeDir: worker.commandInfo.runtimeDir,
+            })
+        }
+        worker.resolveReady(worker)
+        return
+    }
+
+    if (message.event === 'error' && !Number.isInteger(message.id)) {
+        const error = new Error(message.error || 'RapidOCR worker failed')
+        if (!worker.ready) {
+            if (worker.startupTimer) {
+                clearTimeout(worker.startupTimer)
+                worker.startupTimer = null
+            }
+            worker.rejectReady(error)
+        } else {
+            logger.warn('RapidOCR worker reported an error:', error.message)
+        }
+        return
+    }
+
+    const pending = worker.pending.get(message.id)
+    if (!pending) {
+        return
+    }
+
+    worker.pending.delete(message.id)
+    clearTimeout(pending.timeout)
+
+    if (message.ok === false) {
+        pending.reject(new Error(message.error || 'RapidOCR request failed'))
+        return
+    }
+
+    pending.resolve(message)
+}
+
+function startRapidOcrWorker(commandInfo) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(commandInfo.command, commandInfo.args, {
+            stdio: ['pipe', 'pipe', 'pipe'],
+            windowsHide: true,
+        })
+        const worker = {
+            child,
+            commandInfo,
+            pending: new Map(),
+            stdoutBuffer: '',
+            startupTimer: null,
+            ready: false,
+            resolveReady: resolve,
+            rejectReady: reject,
+        }
+
+        rapidOcrWorker = worker
+
+        worker.startupTimer = setTimeout(() => {
+            const error = new Error(`RapidOCR worker startup timed out after ${RAPID_OCR_STARTUP_TIMEOUT_MS}ms`)
+            rapidOcrDisabled = true
+            logRapidOcrUnavailable(error.message)
+            rejectRapidOcrPending(worker, error)
+            try {
+                child.kill()
+            } catch {
+                // Ignore kill failures during startup timeout cleanup.
+            }
+            reject(error)
+        }, RAPID_OCR_STARTUP_TIMEOUT_MS)
+
+        if (typeof worker.startupTimer.unref === 'function') {
+            worker.startupTimer.unref()
+        }
+
+        child.stdout.on('data', chunk => {
+            worker.stdoutBuffer += chunk.toString('utf8')
+            let newlineIndex = worker.stdoutBuffer.indexOf('\n')
+            while (newlineIndex !== -1) {
+                const line = worker.stdoutBuffer.slice(0, newlineIndex)
+                worker.stdoutBuffer = worker.stdoutBuffer.slice(newlineIndex + 1)
+                handleRapidOcrLine(worker, line)
+                newlineIndex = worker.stdoutBuffer.indexOf('\n')
+            }
+        })
+
+        child.stderr.on('data', chunk => {
+            const text = chunk.toString('utf8').trim()
+            if (text) {
+                logger.debug(`RapidOCR worker stderr: ${text.slice(0, 500)}`)
+            }
+        })
+
+        child.on('error', error => {
+            rapidOcrDisabled = true
+            logRapidOcrUnavailable(error.message)
+            if (worker.startupTimer) {
+                clearTimeout(worker.startupTimer)
+                worker.startupTimer = null
+            }
+            rejectRapidOcrPending(worker, error)
+            reject(error)
+        })
+
+        child.on('exit', (code, signal) => {
+            const error = new Error(`RapidOCR worker exited (code=${code ?? 'null'}, signal=${signal ?? 'null'})`)
+            if (worker.startupTimer) {
+                clearTimeout(worker.startupTimer)
+                worker.startupTimer = null
+            }
+            rejectRapidOcrPending(worker, error)
+            if (!worker.ready) {
+                rapidOcrDisabled = true
+                logRapidOcrUnavailable(error.message)
+                reject(error)
+            } else {
+                logger.warn(error.message)
+            }
+            if (rapidOcrWorker === worker) {
+                rapidOcrWorker = null
+                rapidOcrWorkerPromise = null
+            }
+        })
+    })
+}
+
+async function getRapidOcrWorker() {
+    if (rapidOcrDisabled) {
+        return null
+    }
+
+    if (rapidOcrWorker?.ready) {
+        return rapidOcrWorker
+    }
+
+    if (!rapidOcrWorkerPromise) {
+        const commandInfo = getRapidOcrCommand()
+
+        if (!commandInfo) {
+            rapidOcrDisabled = true
+            logRapidOcrUnavailable(isPackagedElectronRuntime()
+                ? 'bundled runtime is missing'
+                : 'no bundled runtime or dev Python command found')
+            return null
+        }
+
+        rapidOcrWorkerPromise = startRapidOcrWorker(commandInfo).catch(error => {
+            rapidOcrWorkerPromise = null
+            rapidOcrWorker = null
+            rapidOcrDisabled = true
+            logRapidOcrUnavailable(error.message)
+            return null
+        })
+    }
+
+    return await rapidOcrWorkerPromise
+}
+
+async function warmupRapidOcrWorker() {
+    return Boolean(await getRapidOcrWorker())
+}
+
+async function resetRapidOcrWorker() {
+    const worker = rapidOcrWorker
+    rapidOcrWorker = null
+    rapidOcrWorkerPromise = null
+
+    if (!worker) {
+        return
+    }
+
+    rejectRapidOcrPending(worker, new Error('RapidOCR worker stopped'))
+
+    try {
+        worker.child.kill()
+    } catch (error) {
+        logger.debug('Failed to terminate RapidOCR worker:', error.message)
+    }
+}
+
+async function performRapidOCR(imageBuffer) {
+    const worker = await getRapidOcrWorker()
+    if (!worker) {
+        return null
+    }
+
+    return await new Promise((resolve, reject) => {
+        const id = ++rapidOcrRequestId
+        const timeout = setTimeout(() => {
+            const error = new Error(`RapidOCR request timed out after ${RAPID_OCR_REQUEST_TIMEOUT_MS}ms`)
+            worker.pending.delete(id)
+            rapidOcrDisabled = true
+            void resetRapidOcrWorker()
+            reject(error)
+        }, RAPID_OCR_REQUEST_TIMEOUT_MS)
+
+        if (typeof timeout.unref === 'function') {
+            timeout.unref()
+        }
+
+        worker.pending.set(id, {
+            resolve,
+            reject,
+            timeout,
+        })
+
+        const payload = JSON.stringify({
+            id,
+            imageBase64: imageBuffer.toString('base64'),
+        }) + '\n'
+
+        worker.child.stdin.write(payload, error => {
+            if (!error) {
+                return
+            }
+
+            clearTimeout(timeout)
+            worker.pending.delete(id)
+            reject(error)
+        })
+    })
+}
 
 /**
  * 将调用方传入的图片输入统一成 Buffer。
@@ -617,6 +971,19 @@ function createIndividualTitleRegions(width, height) {
     }))
 }
 
+function createRapidOcrTitleRegions(width, height) {
+    const { cardWidth, cardGap, groupLeft } = createCardLayout(width, height)
+
+    return [0, 1, 2].map(index => ({
+        name: `rapidocr-card-title-${index + 1}`,
+        left: groupLeft + index * (cardWidth + cardGap) + cardWidth * 0.02,
+        top: height * 0.35,
+        width: cardWidth * 0.96,
+        height: height * 0.095,
+        scale: 3,
+    }))
+}
+
 function createOcrRegions(width, height) {
     const { groupWidth, groupLeft } = createCardLayout(width, height)
     const individualTitleRegions = createIndividualTitleRegions(width, height)
@@ -726,6 +1093,28 @@ async function prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight) {
     }
 }
 
+async function prepareRawOcrRegion(imageBuffer, region, imageWidth, imageHeight) {
+    const rect = clampRegion(region, imageWidth, imageHeight)
+    const scale = region.scale || 1
+    const targetWidth = Math.max(1, Math.round(rect.width * scale))
+    const targetHeight = Math.max(1, Math.round(rect.height * scale))
+
+    return {
+        rect,
+        width: targetWidth,
+        height: targetHeight,
+        buffer: await sharp(imageBuffer)
+            .extract(rect)
+            .resize({
+                width: targetWidth,
+                height: targetHeight,
+                fit: 'fill',
+            })
+            .png()
+            .toBuffer(),
+    }
+}
+
 async function createTitleFingerprint(imageBuffer) {
     const { data } = await sharp(imageBuffer)
         .resize({
@@ -754,13 +1143,7 @@ async function createTitleFingerprint(imageBuffer) {
     return hex
 }
 
-async function prepareStackedTitleRegion(imageBuffer, stackRegion, imageWidth, imageHeight) {
-    const preparedRows = []
-
-    for (const region of stackRegion.regions || []) {
-        preparedRows.push(await prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight))
-    }
-
+async function composeStackedTitleRows(preparedRows, minRowGap = 10) {
     if (preparedRows.length === 0) {
         return {
             rect: { left: 0, top: 0, width: 1, height: 1 },
@@ -782,7 +1165,7 @@ async function prepareStackedTitleRegion(imageBuffer, stackRegion, imageWidth, i
     const rowFingerprints = await Promise.all(
         preparedRows.map(row => createTitleFingerprint(row.buffer))
     )
-    const rowGap = Math.max(10, Math.round(preparedRows[0].height * 0.18))
+    const rowGap = Math.max(minRowGap, Math.round(preparedRows[0].height * 0.18))
     const width = Math.max(...preparedRows.map(row => row.width))
     const height = preparedRows.reduce((total, row) => total + row.height, 0) + rowGap * (preparedRows.length - 1)
     const bounds = preparedRows.reduce((acc, row) => {
@@ -841,6 +1224,26 @@ async function prepareStackedTitleRegion(imageBuffer, stackRegion, imageWidth, i
     }
 }
 
+async function prepareStackedTitleRegion(imageBuffer, stackRegion, imageWidth, imageHeight) {
+    const preparedRows = []
+
+    for (const region of stackRegion.regions || []) {
+        preparedRows.push(await prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight))
+    }
+
+    return await composeStackedTitleRows(preparedRows, 10)
+}
+
+async function prepareRapidOcrStackedTitleRegion(imageBuffer, imageWidth, imageHeight) {
+    const preparedRows = []
+
+    for (const region of createRapidOcrTitleRegions(imageWidth, imageHeight)) {
+        preparedRows.push(await prepareRawOcrRegion(imageBuffer, region, imageWidth, imageHeight))
+    }
+
+    return await composeStackedTitleRows(preparedRows, 24)
+}
+
 function extractStackedTitleSlotTexts(ocrData, rowBounds = []) {
     const lines = []
 
@@ -873,32 +1276,34 @@ function extractStackedTitleSlotTexts(ocrData, rowBounds = []) {
     return chunks.length === rowBounds.length ? chunks : rowBounds.map(() => '')
 }
 
-async function readStackedTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
+function extractRapidOcrSlotTexts(items = [], rowBounds = []) {
+    return rowBounds.map(row => items
+        .filter(item => {
+            const points = Array.isArray(item.box) ? item.box : []
+            if (points.length === 0) {
+                return false
+            }
+
+            const centerY = points.reduce((total, point) => total + (Number(point?.[1]) || 0), 0) / points.length
+            return centerY >= row.top && centerY <= row.bottom
+        })
+        .map(item => String(item.text || '').replace(/\s+/g, ' ').trim())
+        .filter(Boolean)
+        .join(' ')
+        .trim())
+}
+
+async function buildOrderedTitleAugmentResult(slotTexts, rowFingerprints, groupRegion, engine) {
     const augments = []
     const seenIds = new Set()
     const slotDiagnostics = []
-    const startedAt = performance.now()
-
-    const { rect, buffer, rowBounds, rowFingerprints } = await prepareStackedTitleRegion(imageBuffer, groupRegion, imageWidth, imageHeight)
-    logger.debug(`OCR ordered title stack: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
-
-    const ocrData = await performOCRData(buffer, 'SPARSE_TEXT', { text: true, blocks: true })
-    const slotTexts = extractStackedTitleSlotTexts(ocrData, rowBounds)
-    const durationMs = performance.now() - startedAt
-
-    if (durationMs > 800) {
-        logger.info('OCR ordered title stack slow', {
-            durationMs: Number(durationMs.toFixed(1)),
-            slotTexts: slotTexts.map(text => text.slice(0, 80)),
-        })
-    }
 
     for (const [index] of (groupRegion.regions || []).entries()) {
         const rawText = slotTexts[index]?.trim() || ''
         const titleFingerprint = rowFingerprints[index] || null
         if (rawText === '') {
-            slotDiagnostics.push({ slot: index, text: '', matchedId: null, titleFingerprint })
-            logger.debug(`  OCR ordered title ${index + 1}: empty`)
+            slotDiagnostics.push({ slot: index, text: '', matchedId: null, titleFingerprint, ocrEngine: engine })
+            logger.debug(`  ${engine} ordered title ${index + 1}: empty`)
             continue
         }
 
@@ -909,8 +1314,14 @@ async function readStackedTitleAugments(imageBuffer, groupRegion, imageWidth, im
         })
 
         if (!match) {
-            slotDiagnostics.push({ slot: index, text: rawText.slice(0, 80), matchedId: null, titleFingerprint })
-            logger.debug(`  OCR ordered title ${index + 1}: no augment match`)
+            slotDiagnostics.push({
+                slot: index,
+                text: rawText.slice(0, 80),
+                matchedId: null,
+                titleFingerprint,
+                ocrEngine: engine,
+            })
+            logger.debug(`  ${engine} ordered title ${index + 1}: no augment match`)
             continue
         }
 
@@ -920,19 +1331,94 @@ async function readStackedTitleAugments(imageBuffer, groupRegion, imageWidth, im
             matchedId: match.id,
             matchedName: match.name,
             titleFingerprint,
+            ocrEngine: engine,
         })
         seenIds.add(String(match.id))
         augments.push({
             ...match,
             detectedSlot: index,
+            ocrEngine: engine,
         })
-        logger.debug(`  OCR ordered title ${index + 1}: ${match.name} (${match.id})`)
+        logger.debug(`  ${engine} ordered title ${index + 1}: ${match.name} (${match.id})`)
     }
 
     return {
         augments,
         slotDiagnostics,
     }
+}
+
+async function readRapidOcrTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
+    const startedAt = performance.now()
+    const { rect, buffer, rowBounds, rowFingerprints } = await prepareRapidOcrStackedTitleRegion(imageBuffer, imageWidth, imageHeight)
+    logger.debug(`RapidOCR ordered title stack: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
+
+    const ocrData = await performRapidOCR(buffer)
+    if (!ocrData) {
+        return null
+    }
+
+    const slotTexts = extractRapidOcrSlotTexts(ocrData.items || [], rowBounds)
+    const durationMs = performance.now() - startedAt
+    const logPayload = {
+        durationMs: Number(durationMs.toFixed(1)),
+        workerDurationMs: Number(Number(ocrData.durationMs || 0).toFixed(1)),
+        slotTexts: slotTexts.map(text => text.slice(0, 80)),
+    }
+
+    if (durationMs > 350) {
+        logger.info('RapidOCR ordered title stack slow', logPayload)
+    } else {
+        logger.debug('RapidOCR ordered title stack completed', logPayload)
+    }
+
+    if (slotTexts.every(text => !text)) {
+        logger.warn('RapidOCR returned empty title text, falling back to Tesseract')
+        return null
+    }
+
+    const result = await buildOrderedTitleAugmentResult(slotTexts, rowFingerprints, groupRegion, 'rapidocr')
+    if (result.augments.length === 0) {
+        logger.warn('RapidOCR title text had no augment matches, falling back to Tesseract', {
+            slotTexts: slotTexts.map(text => text.slice(0, 80)),
+        })
+        return null
+    }
+
+    return result
+}
+
+async function readTesseractTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
+    const startedAt = performance.now()
+    const { rect, buffer, rowBounds, rowFingerprints } = await prepareStackedTitleRegion(imageBuffer, groupRegion, imageWidth, imageHeight)
+    logger.debug(`Tesseract ordered title stack: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
+
+    const ocrData = await performOCRData(buffer, 'SPARSE_TEXT', { text: true, blocks: true })
+    const slotTexts = extractStackedTitleSlotTexts(ocrData, rowBounds)
+    const durationMs = performance.now() - startedAt
+
+    if (durationMs > 800) {
+        logger.info('Tesseract ordered title stack slow', {
+            durationMs: Number(durationMs.toFixed(1)),
+            slotTexts: slotTexts.map(text => text.slice(0, 80)),
+        })
+    }
+
+    return await buildOrderedTitleAugmentResult(slotTexts, rowFingerprints, groupRegion, 'tesseract')
+}
+
+async function readStackedTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
+    try {
+        const rapidResult = await readRapidOcrTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight)
+        if (rapidResult) {
+            return rapidResult
+        }
+    } catch (error) {
+        rapidOcrDisabled = true
+        logRapidOcrUnavailable(error.message)
+    }
+
+    return await readTesseractTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight)
 }
 
 async function measureTitleRegionActivity(imageBuffer, region, imageWidth, imageHeight) {
@@ -1102,13 +1588,19 @@ export const warmupImageAnalyzer = async () => {
     const startedAt = performance.now()
 
     try {
-        await Promise.all([
+        const [, rapidReady] = await Promise.all([
             initAugmentDatabase(),
-            getTesseractWorker(),
+            warmupRapidOcrWorker(),
         ])
-        scheduleTesseractWorkerIdleCleanup()
+
+        if (!rapidReady) {
+            await getTesseractWorker()
+            scheduleTesseractWorkerIdleCleanup()
+        }
+
         logger.info('Image analyzer warmup completed', {
             durationMs: Number((performance.now() - startedAt).toFixed(1)),
+            ocrEngine: rapidReady ? 'rapidocr' : 'tesseract',
         })
         return true
     } catch (error) {
@@ -1639,6 +2131,7 @@ export const getConfidence = (analysisResult) => {
 }
 
 export const shutdownImageAnalyzer = async () => {
+    await resetRapidOcrWorker()
     await resetTesseractWorker()
 }
 

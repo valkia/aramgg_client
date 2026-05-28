@@ -3,6 +3,7 @@ node_modules
 /dist
 /dist-electron
 /build
+/.runtime
 
 # local env files
 .env.local

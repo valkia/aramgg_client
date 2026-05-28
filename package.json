@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "pack": "node scripts/pack-electron.mjs",
+    "pack": "npm run prepare:rapidocr && node scripts/pack-electron.mjs",
+    "prepare:rapidocr": "node scripts/prepare-rapidocr-runtime.mjs",
     "start": "electron .",
     "lint": "eslint src --ext .js,.vue",
     "type-check": "vue-tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
@@ -34,6 +35,10 @@
       {
         "from": "chi_sim.traineddata",
         "to": "data/chi_sim.traineddata"
+      },
+      {
+        "from": ".runtime/rapidocr",
+        "to": "rapidocr-runtime"
       }
     ],
     "win": {
