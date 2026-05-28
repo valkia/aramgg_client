@@ -767,12 +767,19 @@ async function prepareStackedTitleRegion(imageBuffer, stackRegion, imageWidth, i
     }, { left: Infinity, top: Infinity, right: 0, bottom: 0 })
 
     let top = 0
+    const rowBounds = []
     const composites = preparedRows.map(row => {
+        const rowTop = top
         const composite = {
             input: row.buffer,
             left: Math.max(0, Math.round((width - row.width) / 2)),
             top,
         }
+        rowBounds.push({
+            slot: rowBounds.length,
+            top: rowTop,
+            bottom: rowTop + row.height,
+        })
         top += row.height + rowGap
         return composite
     })
@@ -799,20 +806,64 @@ async function prepareStackedTitleRegion(imageBuffer, stackRegion, imageWidth, i
         width,
         height,
         buffer,
+        rowBounds,
     }
 }
 
-async function readIndividualTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
+function extractStackedTitleSlotTexts(ocrData, rowBounds = []) {
+    const lines = []
+
+    for (const block of ocrData?.blocks || []) {
+        for (const paragraph of block.paragraphs || []) {
+            for (const line of paragraph.lines || []) {
+                lines.push(line)
+            }
+        }
+    }
+
+    if (lines.length > 0) {
+        return rowBounds.map(row => lines
+            .filter(line => {
+                const box = line.bbox || {}
+                const centerY = ((box.y0 ?? 0) + (box.y1 ?? 0)) / 2
+                return centerY >= row.top && centerY <= row.bottom
+            })
+            .map(line => String(line.text || '').replace(/\s+/g, ' ').trim())
+            .filter(Boolean)
+            .join(' ')
+            .trim())
+    }
+
+    const chunks = String(ocrData?.text || '')
+        .split(/\n\s*\n/g)
+        .map(text => text.replace(/\s+/g, ' ').trim())
+        .filter(Boolean)
+
+    return chunks.length === rowBounds.length ? chunks : rowBounds.map(() => '')
+}
+
+async function readStackedTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
     const augments = []
     const seenIds = new Set()
     const slotDiagnostics = []
+    const startedAt = performance.now()
 
-    for (const [index, region] of (groupRegion.regions || []).entries()) {
-        const { rect, buffer } = await prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight)
-        logger.debug(`OCR ordered title region ${region.name}: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
+    const { rect, buffer, rowBounds } = await prepareStackedTitleRegion(imageBuffer, groupRegion, imageWidth, imageHeight)
+    logger.debug(`OCR ordered title stack: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
 
-        const text = await performOCR(buffer, region.psm)
-        const rawText = text?.trim() || ''
+    const ocrData = await performOCRData(buffer, 'SPARSE_TEXT', { text: true, blocks: true })
+    const slotTexts = extractStackedTitleSlotTexts(ocrData, rowBounds)
+    const durationMs = performance.now() - startedAt
+
+    if (durationMs > 800) {
+        logger.info('OCR ordered title stack slow', {
+            durationMs: Number(durationMs.toFixed(1)),
+            slotTexts: slotTexts.map(text => text.slice(0, 80)),
+        })
+    }
+
+    for (const [index] of (groupRegion.regions || []).entries()) {
+        const rawText = slotTexts[index]?.trim() || ''
         if (rawText === '') {
             slotDiagnostics.push({ slot: index, text: '', matchedId: null })
             logger.debug(`  OCR ordered title ${index + 1}: empty`)
@@ -1148,7 +1199,7 @@ async function recognizeAugmentsFromImage(imageBuffer) {
         const {
             augments: orderedTitleAugments,
             slotDiagnostics,
-        } = await readIndividualTitleAugments(imageBuffer, individualTitleGroup, width, height)
+        } = await readStackedTitleAugments(imageBuffer, individualTitleGroup, width, height)
         const result = orderAugmentsByDetectedSlot(orderedTitleAugments)
 
         if (result.length === 0) {
@@ -1181,9 +1232,9 @@ async function recognizeAugmentsFromImage(imageBuffer) {
 /**
  * 执行OCR识别
  * @param {Buffer} imageBuffer - 准备好的图像（裁剪、增强对比度）
- * @returns {Promise<string>} 识别的文本
+ * @returns {Promise<Object>} OCR 数据，包含 text 和可选 blocks
  */
-async function performOCR(imageBuffer, psm = 'SPARSE_TEXT') {
+async function performOCRData(imageBuffer, psm = 'SPARSE_TEXT', output = { text: true }) {
     try {
         return await enqueueOcr(async () => {
             try {
@@ -1201,12 +1252,12 @@ async function performOCR(imageBuffer, psm = 'SPARSE_TEXT') {
                     tesseractWorkerPsm = pagesegMode
                 }
 
-                const result = await worker.recognize(imageBuffer)
-                const recognizedText = result.data.text
+                const result = await worker.recognize(imageBuffer, {}, output)
+                const recognizedText = result.data.text || ''
                 logger.debug(`OCR text preview: ${recognizedText.substring(0, 200)}...`)
                 logger.debug(`OCR full text: ${recognizedText}`)
 
-                return recognizedText
+                return result.data
             } finally {
                 scheduleTesseractWorkerIdleCleanup()
             }
@@ -1214,7 +1265,7 @@ async function performOCR(imageBuffer, psm = 'SPARSE_TEXT') {
     } catch (error) {
         logger.error('❌ OCR识别失败:', error)
         await resetTesseractWorker()
-        return ''
+        return { text: '', blocks: null }
     }
 }
 
