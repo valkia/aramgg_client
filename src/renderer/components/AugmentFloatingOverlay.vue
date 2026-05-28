@@ -295,6 +295,14 @@ const showOverlay = async (data) => {
           championId: championId.value,
           augmentIds,
         })
+
+        if (augmentIds.length === 0) {
+          logFloatingInfo('winrate query skipped: no recognized augment ids', {
+            championId: championId.value,
+          })
+          return
+        }
+
         const winrateResult = await electronAPI.winrate.get({
           championId: championId.value,
           augmentIds,

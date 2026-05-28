@@ -140,6 +140,7 @@ let AUGMENT_MATCH_ENTRIES = null
 
 const TESSERACT_WORKER_IDLE_CLEANUP_MS = 60000
 const OCR_TITLE_ACTIVITY_SAMPLE = { width: 160, height: 50 }
+const OCR_TITLE_FINGERPRINT_SIZE = { width: 16, height: 8 }
 const OCR_TITLE_ACTIVE_BRIGHT_RATIO = 0.012
 const OCR_TITLE_WEAK_BRIGHT_RATIO = 0.004
 const OCR_TITLE_DARK_RATIO = 0.72
@@ -725,6 +726,34 @@ async function prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight) {
     }
 }
 
+async function createTitleFingerprint(imageBuffer) {
+    const { data } = await sharp(imageBuffer)
+        .resize({
+            width: OCR_TITLE_FINGERPRINT_SIZE.width,
+            height: OCR_TITLE_FINGERPRINT_SIZE.height,
+            fit: 'fill',
+        })
+        .greyscale()
+        .raw()
+        .toBuffer({ resolveWithObject: true })
+
+    const mean = data.reduce((total, value) => total + value, 0) / Math.max(1, data.length)
+    let hex = ''
+
+    for (let index = 0; index < data.length; index += 4) {
+        let nibble = 0
+        for (let bit = 0; bit < 4; bit++) {
+            const value = data[index + bit] ?? 0
+            if (value >= mean) {
+                nibble |= 1 << (3 - bit)
+            }
+        }
+        hex += nibble.toString(16)
+    }
+
+    return hex
+}
+
 async function prepareStackedTitleRegion(imageBuffer, stackRegion, imageWidth, imageHeight) {
     const preparedRows = []
 
@@ -745,9 +774,14 @@ async function prepareStackedTitleRegion(imageBuffer, stackRegion, imageWidth, i
                     background: '#ffffff',
                 },
             }).png().toBuffer(),
+            rowBounds: [],
+            rowFingerprints: [],
         }
     }
 
+    const rowFingerprints = await Promise.all(
+        preparedRows.map(row => createTitleFingerprint(row.buffer))
+    )
     const rowGap = Math.max(10, Math.round(preparedRows[0].height * 0.18))
     const width = Math.max(...preparedRows.map(row => row.width))
     const height = preparedRows.reduce((total, row) => total + row.height, 0) + rowGap * (preparedRows.length - 1)
@@ -803,6 +837,7 @@ async function prepareStackedTitleRegion(imageBuffer, stackRegion, imageWidth, i
         height,
         buffer,
         rowBounds,
+        rowFingerprints,
     }
 }
 
@@ -844,7 +879,7 @@ async function readStackedTitleAugments(imageBuffer, groupRegion, imageWidth, im
     const slotDiagnostics = []
     const startedAt = performance.now()
 
-    const { rect, buffer, rowBounds } = await prepareStackedTitleRegion(imageBuffer, groupRegion, imageWidth, imageHeight)
+    const { rect, buffer, rowBounds, rowFingerprints } = await prepareStackedTitleRegion(imageBuffer, groupRegion, imageWidth, imageHeight)
     logger.debug(`OCR ordered title stack: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
 
     const ocrData = await performOCRData(buffer, 'SPARSE_TEXT', { text: true, blocks: true })
@@ -860,8 +895,9 @@ async function readStackedTitleAugments(imageBuffer, groupRegion, imageWidth, im
 
     for (const [index] of (groupRegion.regions || []).entries()) {
         const rawText = slotTexts[index]?.trim() || ''
+        const titleFingerprint = rowFingerprints[index] || null
         if (rawText === '') {
-            slotDiagnostics.push({ slot: index, text: '', matchedId: null })
+            slotDiagnostics.push({ slot: index, text: '', matchedId: null, titleFingerprint })
             logger.debug(`  OCR ordered title ${index + 1}: empty`)
             continue
         }
@@ -873,7 +909,7 @@ async function readStackedTitleAugments(imageBuffer, groupRegion, imageWidth, im
         })
 
         if (!match) {
-            slotDiagnostics.push({ slot: index, text: rawText.slice(0, 80), matchedId: null })
+            slotDiagnostics.push({ slot: index, text: rawText.slice(0, 80), matchedId: null, titleFingerprint })
             logger.debug(`  OCR ordered title ${index + 1}: no augment match`)
             continue
         }
@@ -883,6 +919,7 @@ async function readStackedTitleAugments(imageBuffer, groupRegion, imageWidth, im
             text: rawText.slice(0, 80),
             matchedId: match.id,
             matchedName: match.name,
+            titleFingerprint,
         })
         seenIds.add(String(match.id))
         augments.push({
@@ -1085,7 +1122,7 @@ export const warmupImageAnalyzer = async () => {
  * 识别屏幕中央区域的文本内容
  *
  * @param {Buffer} imageBuffer - 图像缓冲区
- * @returns {Promise<Array>} 识别的海克斯列表
+ * @returns {Promise<{augments: Array, slotDiagnostics: Array}>} 识别的海克斯列表和位置诊断
  */
 async function recognizeAugmentsFromImage(imageBuffer) {
     try {
@@ -1096,7 +1133,7 @@ async function recognizeAugmentsFromImage(imageBuffer) {
 
         if (!await hasLikelyAugmentTitleActivity(imageBuffer, width, height)) {
             logger.debug('OCR augment recognition skipped: no likely augment title card activity')
-            return []
+            return { augments: [], slotDiagnostics: [] }
         }
 
         const individualTitleGroup = {
@@ -1113,7 +1150,7 @@ async function recognizeAugmentsFromImage(imageBuffer) {
 
         if (result.length === 0) {
             logger.debug('OCR returned no text in ordered augment title slots')
-            return []
+            return { augments: [], slotDiagnostics }
         }
 
         if (hasCompleteDetectedSlots(result)) {
@@ -1130,10 +1167,10 @@ async function recognizeAugmentsFromImage(imageBuffer) {
             })
         }
 
-        return result
+        return { augments: result, slotDiagnostics }
     } catch (error) {
         logger.error('❌ OCR 识别失败:', error)
-        return []
+        return { augments: [], slotDiagnostics: [] }
     }
 }
 
@@ -1520,7 +1557,9 @@ export const analyzeScreenshot = async (imageInput) => {
         logger.debug(`Screenshot analysis started: source=${sourceType}${sourcePath ? `, path=${sourcePath}` : ''}, buffer=${(imageBuffer.length / 1024).toFixed(1)}KB`)
 
         // 【新方案】使用OCR识别海克斯名称
-        const recognizedAugments = await recognizeAugmentsFromImage(imageBuffer)
+        const recognition = await recognizeAugmentsFromImage(imageBuffer)
+        const recognizedAugments = recognition.augments
+        const slotDiagnostics = recognition.slotDiagnostics || []
 
         logger.debug(`OCR augment result count: ${recognizedAugments.length}`)
 
@@ -1540,6 +1579,7 @@ export const analyzeScreenshot = async (imageInput) => {
                 isAugmentPhase: isAugmentPhase,        // 是否处于海克斯选择阶段
                 cardPositions: [],                     // 不再使用卡片位置
                 detectionMethod: 'ocr-based',          // 新方案标记
+                slotDiagnostics,
             },
             metadata: {
                 bufferSize: imageBuffer.length,

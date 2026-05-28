@@ -16,6 +16,7 @@ import path from 'path'
 import logger from './modules/logger.js'
 import { applyFloatingWindowLayout } from './modules/window-manager.js'
 import { getConfigDir, getPartialOcrScreenshotDir } from './modules/app-paths.js'
+import { getAugmentIds, mergePartialAugments } from './augment-partial-merge.js'
 
 const store = new Store({ cwd: getConfigDir() })
 const AUTO_SCREENSHOT_SUMMARY_INTERVAL_MS = 10000
@@ -41,25 +42,15 @@ function getAugmentSummary(augments = []) {
     }).join(', ') || 'none'
 }
 
-function getAugmentIds(augments = []) {
-    return augments.slice(0, 3).map(augment => {
-        if (augment?.id == null) {
-            return null
+function getSlotFingerprints(slotDiagnostics = []) {
+    const fingerprints = []
+    for (const diagnostic of slotDiagnostics || []) {
+        const slot = diagnostic?.slot
+        if (Number.isInteger(slot) && slot >= 0 && slot < 3 && diagnostic.titleFingerprint) {
+            fingerprints[slot] = diagnostic.titleFingerprint
         }
-
-        return String(augment.id)
-    }).filter(Boolean)
-}
-
-function createEmptyAugmentSlot(slot) {
-    return {
-        id: null,
-        name: '',
-        rarity: 'unknown',
-        confidence: null,
-        detectedSlot: slot,
-        missing: true,
     }
+    return fingerprints
 }
 
 class AutoScreenshotService {
@@ -104,6 +95,7 @@ class AutoScreenshotService {
         // 上一次检测到的海克斯ID列表（用于判断是否需要更新显示）
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugments = []
+        this.lastDetectedAugmentSlotFingerprints = []
     }
 
     /**
@@ -145,6 +137,7 @@ class AutoScreenshotService {
         this.visibleAugmentMissCount = 0
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugments = []
+        this.lastDetectedAugmentSlotFingerprints = []
         this.startedAt = Date.now()
         this.firstCaptureLogged = false
         this.firstDetectionLogged = false
@@ -213,6 +206,7 @@ class AutoScreenshotService {
         const ageMs = this.lastDetectedAugmentAt ? Date.now() - this.lastDetectedAugmentAt : null
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugments = []
+        this.lastDetectedAugmentSlotFingerprints = []
         this.lastDetectedAugmentAt = 0
         this.visibleAugmentMissCount = 0
         this.pendingAnalysisBuffer = null
@@ -427,6 +421,7 @@ class AutoScreenshotService {
                     this.detectionCount++
                     this.lastDetectedAugmentIds = currentIds
                     this.lastDetectedAugments = normalizedAugments
+                    this.lastDetectedAugmentSlotFingerprints = getSlotFingerprints(analysisResult.analysis.slotDiagnostics)
                     this.lastDetectedAugmentAt = Date.now()
                     this.visibleAugmentMissCount = 0
 
@@ -458,14 +453,19 @@ class AutoScreenshotService {
                     // 切换/刷新海克斯时会有短暂动画帧，OCR 可能只读到 0-2 张。
                     // 保留上一轮已显示结果，只有连续 miss 超过宽限才清空。
                     const hadVisibleAugmentOverlay = this.lastDetectedAugmentIds.length > 0
-                    const mergedAugments = this._mergePartialAugments(augments)
-                    if (mergedAugments) {
+                    const partialMerge = this._mergePartialAugments(
+                        augments,
+                        analysisResult.analysis.slotDiagnostics || []
+                    )
+                    if (partialMerge) {
+                        const mergedAugments = partialMerge.augments
                         this.detectionCount++
                         this.lastDetectedAugments = mergedAugments
                         this.lastDetectedAugmentIds = getAugmentIds(mergedAugments)
+                        this.lastDetectedAugmentSlotFingerprints = getSlotFingerprints(analysisResult.analysis.slotDiagnostics)
                         this.lastDetectedAugmentAt = Date.now()
                         this.visibleAugmentMissCount = 0
-                        logger.info(`Augment partial update accepted: count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, augments=${getAugmentSummary(mergedAugments)}`)
+                        logger.info(`Augment partial update accepted: count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, reason=${partialMerge.reason}, clearedSlots=${partialMerge.changedUnmatchedSlots.join(',') || 'none'}, augments=${getAugmentSummary(mergedAugments)}`)
                         this._logFirstDetectionLatency('partial', analysisDuration)
                         this._notifyAugmentDetected({
                             ...analysisResult,
@@ -497,6 +497,7 @@ class AutoScreenshotService {
                         })
                         this.lastDetectedAugmentIds = []
                         this.lastDetectedAugments = []
+                        this.lastDetectedAugmentSlotFingerprints = []
                         this.lastDetectedAugmentAt = 0
                         this.visibleAugmentMissCount = 0
                         this._notifyAugmentCleared(clearReason)
@@ -567,29 +568,14 @@ class AutoScreenshotService {
         return true
     }
 
-    _mergePartialAugments(augments = []) {
-        if (augments.length === 0 || augments.length >= 3) {
-            return null
-        }
-
-        const partialIds = new Set(getAugmentIds(augments))
-        const hasNewId = this.lastDetectedAugmentIds.length === 0 ||
-            [...partialIds].some(id => !this.lastDetectedAugmentIds.includes(id))
-        if (!hasNewId) {
-            return null
-        }
-
-        if (augments.some(augment => Number.isInteger(augment.detectedSlot))) {
-            const merged = [0, 1, 2].map(createEmptyAugmentSlot)
-            for (const augment of augments) {
-                if (Number.isInteger(augment.detectedSlot) && augment.detectedSlot >= 0 && augment.detectedSlot < 3) {
-                    merged[augment.detectedSlot] = augment
-                }
-            }
-            return merged.slice(0, 3)
-        }
-
-        return null
+    _mergePartialAugments(augments = [], slotDiagnostics = []) {
+        return mergePartialAugments({
+            augments,
+            slotDiagnostics,
+            lastDetectedAugmentIds: this.lastDetectedAugmentIds,
+            lastDetectedAugments: this.lastDetectedAugments,
+            lastDetectedSlotFingerprints: this.lastDetectedAugmentSlotFingerprints,
+        })
     }
 
     _logFirstDetectionLatency(kind, analysisDuration) {
@@ -1008,6 +994,7 @@ class AutoScreenshotService {
         this.isAnalyzing = false
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugments = []
+        this.lastDetectedAugmentSlotFingerprints = []
         this.lastDetectedAugmentAt = 0
         this.visibleAugmentMissCount = 0
         this.startedAt = 0
