@@ -137,16 +137,12 @@ let tesseractWorkerPsm = null
 let ocrQueue = Promise.resolve()
 let loggedTesseractLangPath = null
 let AUGMENT_MATCH_ENTRIES = null
-let LAST_AUGMENT_OCR_CACHE = null
 
 const TESSERACT_WORKER_IDLE_CLEANUP_MS = 60000
 const OCR_TITLE_ACTIVITY_SAMPLE = { width: 160, height: 50 }
 const OCR_TITLE_ACTIVE_BRIGHT_RATIO = 0.012
 const OCR_TITLE_WEAK_BRIGHT_RATIO = 0.004
 const OCR_TITLE_DARK_RATIO = 0.72
-const OCR_RESULT_CACHE_MAX_AGE_MS = 30000
-const OCR_TITLE_FINGERPRINT_SIZE = { width: 32, height: 10 }
-const OCR_TITLE_FINGERPRINT_MAX_DIFF_RATIO = 0.08
 
 const MATCH_BLACKLIST = new Set([
     // 属性描述词
@@ -956,82 +952,6 @@ async function hasLikelyAugmentTitleActivity(imageBuffer, width, height) {
     return likely
 }
 
-async function createTitleRegionFingerprint(imageBuffer, width, height) {
-    const titleRegions = createIndividualTitleRegions(width, height)
-    const regionFingerprints = await Promise.all(titleRegions.map(async (region) => {
-        const rect = clampRegion(region, width, height)
-        const data = await sharp(imageBuffer)
-            .extract(rect)
-            .resize({
-                width: OCR_TITLE_FINGERPRINT_SIZE.width,
-                height: OCR_TITLE_FINGERPRINT_SIZE.height,
-                fit: 'fill',
-            })
-            .greyscale()
-            .normalize()
-            .raw()
-            .toBuffer()
-        const mean = data.reduce((sum, value) => sum + value, 0) / data.length
-        let bits = ''
-
-        for (const value of data) {
-            bits += value >= mean ? '1' : '0'
-        }
-
-        return bits
-    }))
-
-    return regionFingerprints.join('|')
-}
-
-function fingerprintDistance(a, b) {
-    if (!a || !b || a.length !== b.length) {
-        return Infinity
-    }
-
-    let distance = 0
-    for (let index = 0; index < a.length; index += 1) {
-        if (a[index] !== b[index]) {
-            distance += 1
-        }
-    }
-
-    return distance
-}
-
-function getCachedAugmentsForFingerprint(fingerprint) {
-    if (!LAST_AUGMENT_OCR_CACHE || !fingerprint) {
-        return null
-    }
-
-    const cacheAgeMs = Date.now() - LAST_AUGMENT_OCR_CACHE.updatedAt
-    if (cacheAgeMs > OCR_RESULT_CACHE_MAX_AGE_MS) {
-        return null
-    }
-
-    const distance = fingerprintDistance(fingerprint, LAST_AUGMENT_OCR_CACHE.fingerprint)
-    const maxDistance = Math.round(fingerprint.length * OCR_TITLE_FINGERPRINT_MAX_DIFF_RATIO)
-    if (distance > maxDistance) {
-        return null
-    }
-
-    logger.debug(`OCR augment recognition reused cached title result: distance=${distance}/${maxDistance}, age=${cacheAgeMs}ms`)
-    LAST_AUGMENT_OCR_CACHE.updatedAt = Date.now()
-    return LAST_AUGMENT_OCR_CACHE.augments.map(augment => ({ ...augment }))
-}
-
-function cacheAugmentsForFingerprint(fingerprint, augments) {
-    if (!fingerprint || !Array.isArray(augments) || augments.length < 3) {
-        return
-    }
-
-    LAST_AUGMENT_OCR_CACHE = {
-        fingerprint,
-        augments: augments.slice(0, 3).map(augment => ({ ...augment })),
-        updatedAt: Date.now(),
-    }
-}
-
 function orderAugmentsByDetectedSlot(augments = []) {
     return augments
         .slice()
@@ -1053,10 +973,6 @@ function hasCompleteDetectedSlots(augments = []) {
     }
 
     return slots.size === 3
-}
-
-function clearAugmentOcrCache() {
-    LAST_AUGMENT_OCR_CACHE = null
 }
 
 function enqueueOcr(task) {
@@ -1180,14 +1096,7 @@ async function recognizeAugmentsFromImage(imageBuffer) {
 
         if (!await hasLikelyAugmentTitleActivity(imageBuffer, width, height)) {
             logger.debug('OCR augment recognition skipped: no likely augment title card activity')
-            clearAugmentOcrCache()
             return []
-        }
-
-        const titleFingerprint = await createTitleRegionFingerprint(imageBuffer, width, height)
-        const cachedAugments = getCachedAugmentsForFingerprint(titleFingerprint)
-        if (cachedAugments) {
-            return cachedAugments
         }
 
         const individualTitleGroup = {
@@ -1209,7 +1118,6 @@ async function recognizeAugmentsFromImage(imageBuffer) {
 
         if (hasCompleteDetectedSlots(result)) {
             logger.debug('OCR augment recognition completed from ordered individual titles: 3 augments')
-            cacheAugmentsForFingerprint(titleFingerprint, result)
         } else {
             const detectedSlots = result
                 .filter(augment => Number.isInteger(augment?.detectedSlot))
