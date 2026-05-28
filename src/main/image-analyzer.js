@@ -614,7 +614,7 @@ function createIndividualTitleRegions(width, height) {
         width: cardWidth * 0.84,
         height: height * 0.07,
         scale: 3,
-        threshold: 145,
+        threshold: 170,
         invert: true,
         psm: 'SINGLE_LINE',
     }))
@@ -805,28 +805,38 @@ async function prepareStackedTitleRegion(imageBuffer, stackRegion, imageWidth, i
 async function readIndividualTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
     const augments = []
     const seenIds = new Set()
+    const slotDiagnostics = []
 
     for (const [index, region] of (groupRegion.regions || []).entries()) {
         const { rect, buffer } = await prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight)
         logger.debug(`OCR ordered title region ${region.name}: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
 
         const text = await performOCR(buffer, region.psm)
-        if (!text || text.trim() === '') {
+        const rawText = text?.trim() || ''
+        if (rawText === '') {
+            slotDiagnostics.push({ slot: index, text: '', matchedId: null })
             logger.debug(`  OCR ordered title ${index + 1}: empty`)
             continue
         }
 
-        const matches = await matchAugmentDatabase(text)
+        const matches = await matchAugmentDatabase(rawText)
         const match = matches.find(augment => {
             const id = String(augment.id)
             return !seenIds.has(id)
         })
 
         if (!match) {
+            slotDiagnostics.push({ slot: index, text: rawText.slice(0, 80), matchedId: null })
             logger.debug(`  OCR ordered title ${index + 1}: no augment match`)
             continue
         }
 
+        slotDiagnostics.push({
+            slot: index,
+            text: rawText.slice(0, 80),
+            matchedId: match.id,
+            matchedName: match.name,
+        })
         seenIds.add(String(match.id))
         augments.push({
             ...match,
@@ -835,7 +845,10 @@ async function readIndividualTitleAugments(imageBuffer, groupRegion, imageWidth,
         logger.debug(`  OCR ordered title ${index + 1}: ${match.name} (${match.id})`)
     }
 
-    return augments
+    return {
+        augments,
+        slotDiagnostics,
+    }
 }
 
 async function measureTitleRegionActivity(imageBuffer, region, imageWidth, imageHeight) {
@@ -1132,7 +1145,10 @@ async function recognizeAugmentsFromImage(imageBuffer) {
             regions: createIndividualTitleRegions(width, height),
             psm: 'SINGLE_LINE',
         }
-        const orderedTitleAugments = await readIndividualTitleAugments(imageBuffer, individualTitleGroup, width, height)
+        const {
+            augments: orderedTitleAugments,
+            slotDiagnostics,
+        } = await readIndividualTitleAugments(imageBuffer, individualTitleGroup, width, height)
         const result = orderAugmentsByDetectedSlot(orderedTitleAugments)
 
         if (result.length === 0) {
@@ -1151,6 +1167,7 @@ async function recognizeAugmentsFromImage(imageBuffer) {
                 detectedSlots,
                 missingSlots: [0, 1, 2].filter(slot => !detectedSlots.includes(slot)),
                 augmentIds: result.map(augment => augment.id),
+                slotDiagnostics,
             })
         }
 
