@@ -57,6 +57,7 @@ const championAugmentStatsCache = new Map<string, any[]>()
 let electronFetch: any = null
 let dataRootDirPromise: Promise<string> | null = null
 let activeDataSetPromise: Promise<ActiveDataSet> | null = null
+let activeDataSetCache: { data: ActiveDataSet; createdAt: number } | null = null
 
 const rarityMap: Record<string, string> = {
   0: 'kSilver',
@@ -480,10 +481,22 @@ async function resolveActiveDataSet(): Promise<ActiveDataSet> {
 }
 
 async function getActiveDataSet(): Promise<ActiveDataSet> {
+  if (activeDataSetCache && Date.now() - activeDataSetCache.createdAt < CONFIG_TTL_MS) {
+    return activeDataSetCache.data
+  }
+
   if (!activeDataSetPromise) {
-    activeDataSetPromise = resolveActiveDataSet().finally(() => {
-      activeDataSetPromise = null
-    })
+    activeDataSetPromise = resolveActiveDataSet()
+      .then((dataSet) => {
+        activeDataSetCache = {
+          data: dataSet,
+          createdAt: Date.now(),
+        }
+        return dataSet
+      })
+      .finally(() => {
+        activeDataSetPromise = null
+      })
   }
 
   return activeDataSetPromise
@@ -1111,4 +1124,5 @@ export function clearCache(): void {
   augmentDetailCache.clear()
   championAugmentStatsCache.clear()
   activeDataSetPromise = null
+  activeDataSetCache = null
 }

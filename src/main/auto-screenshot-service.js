@@ -89,6 +89,7 @@ class AutoScreenshotService {
         this.runId = 0
         this.pendingAnalysisBuffer = null
         this.droppedAnalysisCount = 0
+        this.analysisBackpressureSkipCount = 0
         this.lastAnalysisTime = null
         this.lastAnalysisDuration = 0
         this.captureTimeoutMs = 2500
@@ -140,6 +141,7 @@ class AutoScreenshotService {
         this.isAnalyzing = false
         this.pendingAnalysisBuffer = null
         this.droppedAnalysisCount = 0
+        this.analysisBackpressureSkipCount = 0
         this.lastScreenshotTime = null
         this.lastAnalysisTime = null
         this.lastAnalysisDuration = 0
@@ -196,7 +198,7 @@ class AutoScreenshotService {
         this.isAnalyzing = false
 
         const runDurationMs = this.startedAt ? Date.now() - this.startedAt : 0
-        logger.info(`Auto screenshot service stopped by ${owner}. screenshots=${this.screenshotCount}, analyses=${this.analysisCount}, detections=${this.detectionCount}, replacedPendingAnalyses=${this.droppedAnalysisCount}, duration=${runDurationMs}ms`)
+        logger.info(`Auto screenshot service stopped by ${owner}. screenshots=${this.screenshotCount}, analyses=${this.analysisCount}, detections=${this.detectionCount}, replacedPendingAnalyses=${this.droppedAnalysisCount}, backpressureSkippedCaptures=${this.analysisBackpressureSkipCount}, duration=${runDurationMs}ms`)
         return true
     }
 
@@ -271,6 +273,15 @@ class AutoScreenshotService {
             return {
                 success: false,
                 error: 'capture-in-progress',
+            }
+        }
+
+        if (this.enableAnalysis && this.isAnalysisAllowedByGameflow() && this.isAnalyzing) {
+            this.analysisBackpressureSkipCount++
+            logger.debug('Auto screenshot capture skipped because OCR analysis is still running')
+            return {
+                success: false,
+                error: 'analysis-backpressure',
             }
         }
 
@@ -550,7 +561,7 @@ class AutoScreenshotService {
 
         this.lastSummaryLogAt = now
         const stats = this.getPerformanceStats()
-        logger.info(`Auto screenshot summary: screenshots=${stats.screenshotCount}, analyses=${stats.analysisCount}, detections=${stats.detectionCount}, replacedPendingAnalyses=${stats.droppedAnalysisCount}, avgCapture=${stats.averageCaptureTime}ms, lastAnalysis=${stats.lastAnalysisDuration || 0}ms`)
+        logger.info(`Auto screenshot summary: screenshots=${stats.screenshotCount}, analyses=${stats.analysisCount}, detections=${stats.detectionCount}, replacedPendingAnalyses=${stats.droppedAnalysisCount}, backpressureSkippedCaptures=${stats.analysisBackpressureSkipCount}, avgCapture=${stats.averageCaptureTime}ms, lastAnalysis=${stats.lastAnalysisDuration || 0}ms`)
     }
 
     _shouldClearVisibleAugmentsAfterMiss({ cardCount, augments = [] }) {
@@ -956,6 +967,7 @@ class AutoScreenshotService {
                 analysisCount: this.analysisCount,
                 detectionCount: this.detectionCount,
                 droppedAnalysisCount: this.droppedAnalysisCount,
+                analysisBackpressureSkipCount: this.analysisBackpressureSkipCount,
                 partialOcrSaveCount: this.partialOcrSaveCount,
                 gameflowPhase: this.gameflowPhase,
                 analysisPausedByGameflow: !this.isAnalysisAllowedByGameflow(),
@@ -989,6 +1001,7 @@ class AutoScreenshotService {
             analysisCount: this.analysisCount,
             detectionCount: this.detectionCount,
             droppedAnalysisCount: this.droppedAnalysisCount,
+            analysisBackpressureSkipCount: this.analysisBackpressureSkipCount,
             partialOcrSaveCount: this.partialOcrSaveCount,
             gameflowPhase: this.gameflowPhase,
             analysisPausedByGameflow: !this.isAnalysisAllowedByGameflow(),
@@ -1082,6 +1095,7 @@ class AutoScreenshotService {
             analysisCount: this.analysisCount,
             detectionCount: this.detectionCount,
             droppedAnalysisCount: this.droppedAnalysisCount,
+            analysisBackpressureSkipCount: this.analysisBackpressureSkipCount,
             partialOcrSaveCount: this.partialOcrSaveCount,
             gameflowPhase: this.gameflowPhase,
             analysisPausedByGameflow: !this.isAnalysisAllowedByGameflow(),
@@ -1103,6 +1117,7 @@ class AutoScreenshotService {
         this.analysisCount = 0
         this.detectionCount = 0
         this.droppedAnalysisCount = 0
+        this.analysisBackpressureSkipCount = 0
         this.lastScreenshotTime = null
         this.lastAnalysisTime = null
         this.lastAnalysisDuration = 0
