@@ -1,5 +1,5 @@
 import { app, dialog, shell } from 'electron'
-import { loadDataApiConfig } from './data-loader.js'
+import { loadDataApiConfig } from './data-loader.ts'
 import logger from './modules/logger.js'
 
 const VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/

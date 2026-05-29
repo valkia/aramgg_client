@@ -20,7 +20,7 @@ import path from 'path'
 import { spawn } from 'child_process'
 import { readFileSync, existsSync } from 'fs'
 import { fileURLToPath } from 'url'
-import { loadAugmentBase } from './data-loader.js'
+import { loadAugmentBase } from './data-loader.ts'
 import logger from './modules/logger.js'
 
 // ES Module 中获取 __dirname
@@ -154,6 +154,7 @@ const OCR_TITLE_FINGERPRINT_SIZE = { width: 16, height: 8 }
 const OCR_TITLE_ACTIVE_BRIGHT_RATIO = 0.012
 const OCR_TITLE_WEAK_BRIGHT_RATIO = 0.004
 const OCR_TITLE_DARK_RATIO = 0.72
+const OCR_TITLE_MAX_EXTRA_NORMALIZED_CHARS = 8
 
 const MATCH_BLACKLIST = new Set([
     // 属性描述词
@@ -1225,21 +1226,18 @@ async function composeStackedTitleRows(preparedRows, minRowGap = 10) {
 }
 
 async function prepareStackedTitleRegion(imageBuffer, stackRegion, imageWidth, imageHeight) {
-    const preparedRows = []
-
-    for (const region of stackRegion.regions || []) {
-        preparedRows.push(await prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight))
-    }
+    const preparedRows = await Promise.all(
+        (stackRegion.regions || []).map(region => prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight))
+    )
 
     return await composeStackedTitleRows(preparedRows, 10)
 }
 
 async function prepareRapidOcrStackedTitleRegion(imageBuffer, imageWidth, imageHeight) {
-    const preparedRows = []
-
-    for (const region of createRapidOcrTitleRegions(imageWidth, imageHeight)) {
-        preparedRows.push(await prepareRawOcrRegion(imageBuffer, region, imageWidth, imageHeight))
-    }
+    const preparedRows = await Promise.all(
+        createRapidOcrTitleRegions(imageWidth, imageHeight)
+            .map(region => prepareRawOcrRegion(imageBuffer, region, imageWidth, imageHeight))
+    )
 
     return await composeStackedTitleRows(preparedRows, 24)
 }
@@ -1313,11 +1311,13 @@ async function buildOrderedTitleAugmentResult(slotTexts, rowFingerprints, groupR
             return !seenIds.has(id)
         })
 
-        if (!match) {
+        if (!match || !isLikelyTitleSlotText(rawText, match)) {
             slotDiagnostics.push({
                 slot: index,
                 text: rawText.slice(0, 80),
                 matchedId: null,
+                rejectedMatchedId: match?.id ?? null,
+                rejectReason: match ? 'non-title-text' : null,
                 titleFingerprint,
                 ocrEngine: engine,
             })
@@ -1346,6 +1346,17 @@ async function buildOrderedTitleAugmentResult(slotTexts, rowFingerprints, groupR
         augments,
         slotDiagnostics,
     }
+}
+
+export function isLikelyTitleSlotText(rawText, match) {
+    const normalizedText = normalizeOcrText(rawText)
+    const normalizedName = normalizeOcrText(match?.name)
+
+    if (!normalizedText || !normalizedName) {
+        return false
+    }
+
+    return normalizedText.length <= normalizedName.length + OCR_TITLE_MAX_EXTRA_NORMALIZED_CHARS
 }
 
 async function readRapidOcrTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {

@@ -63,7 +63,7 @@ const loadChampionStatsForRecommendation = async (
     return {}
   }
 
-  const { loadChampionStats, loadChampionName } = await import('../../data-loader.js')
+  const { loadChampionStats, loadChampionName } = await import('../../data-loader.ts')
   const entries = await Promise.all(
     championIds.map(async (championId) => {
       try {

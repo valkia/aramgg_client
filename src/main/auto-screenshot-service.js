@@ -23,6 +23,7 @@ const AUTO_SCREENSHOT_SUMMARY_INTERVAL_MS = 10000
 const ANALYSIS_MISS_LOG_INTERVAL_MS = 10000
 const PARTIAL_OCR_SAVE_INTERVAL_MS = 10000
 const PARTIAL_OCR_MAX_FILES = 60
+const AUGMENT_WINRATE_INLINE_WAIT_MS = 80
 const VISIBLE_AUGMENT_NO_MATCH_GRACE_MS = 900
 const VISIBLE_AUGMENT_PARTIAL_GRACE_MS = 2500
 const VISIBLE_AUGMENT_NO_MATCH_MISSES_BEFORE_CLEAR = 1
@@ -51,6 +52,22 @@ function getSlotFingerprints(slotDiagnostics = []) {
         }
     }
     return fingerprints
+}
+
+function wait(ms) {
+    return new Promise(resolve => {
+        const timer = setTimeout(resolve, ms)
+        if (typeof timer.unref === 'function') {
+            timer.unref()
+        }
+    })
+}
+
+function getPayloadAugmentIds(augments = []) {
+    return augments
+        .slice(0, 3)
+        .map(augment => Number(augment?.id ?? augment?.augmentId))
+        .filter(id => Number.isFinite(id))
 }
 
 class AutoScreenshotService {
@@ -667,40 +684,73 @@ class AutoScreenshotService {
         }
     }
 
-    /**
-     * 通知所有窗口有新的海克斯检测
-     * @private
-     */
-    _notifyAugmentDetected(analysisResult) {
+    _isCurrentAugmentPayload(winrateData) {
+        const payloadIds = getPayloadAugmentIds(winrateData?.augments).map(String)
+        return payloadIds.join(',') === this.lastDetectedAugmentIds.join(',')
+    }
+
+    async _loadAugmentWinratePayload(winrateData) {
+        const championId = winrateData.championId
+        const augmentIds = getPayloadAugmentIds(winrateData.augments)
+        if (!championId || augmentIds.length === 0) {
+            return null
+        }
+
+        const startedAt = Date.now()
         try {
-            // 从store中获取缓存的英雄ID
-            const championId = store.get('lastSelectedChampionId')
+            const { getChampionAugmentStats } = await import('./data-loader.ts')
+            const augmentStats = await getChampionAugmentStats(championId)
+            const augmentIdSet = new Set(augmentIds)
+            const statById = new Map(
+                augmentStats
+                    .filter(augment => augmentIdSet.has(Number(augment.augmentId ?? augment.id)))
+                    .map(augment => [Number(augment.augmentId ?? augment.id), augment])
+            )
+            const enrichedAugments = winrateData.augments.map(augment => {
+                const augmentId = Number(augment?.id ?? augment?.augmentId)
+                const stat = statById.get(augmentId)
+                if (!stat || augment?.missing) {
+                    return augment
+                }
 
-            if (!championId) {
-                logger.warn('⚠️ 未找到缓存的英雄ID，海克斯推荐可能无法显示胜率数据')
-            } else {
-                logger.info(`📌 使用缓存的英雄ID: ${championId}`)
+                return {
+                    ...augment,
+                    ...stat,
+                    id: stat.id || stat.augmentId || augment.id,
+                    augmentId: stat.augmentId || stat.id || augment.id,
+                    detectedSlot: augment.detectedSlot,
+                    missing: false,
+                }
+            })
+
+            logger.info('Augment winrate enriched in main', {
+                championId,
+                augmentIds,
+                resultCount: statById.size,
+                durationMs: Date.now() - startedAt,
+            })
+
+            return {
+                ...winrateData,
+                augments: enrichedAugments,
+                winrateInMain: true,
+                winratePending: false,
+                winrateResultCount: statById.size,
             }
+        } catch (error) {
+            logger.warn('Failed to enrich augment winrate in main:', error.message)
+            return {
+                ...winrateData,
+                winrateInMain: true,
+                winratePending: false,
+                winrateError: error.message,
+            }
+        }
+    }
 
+    _sendAugmentDetectedPayload(winrateData, notifyMode = 'detected') {
+        try {
             const windows = BrowserWindow.getAllWindows()
-            const winrateData = {
-                success: true,
-                gamePhase: 'augment-select',
-                championId: championId || null, // 添加英雄ID
-                augments: analysisResult.analysis.augments.slice(0, 3).map((aug, index) => ({
-                    id: aug.id ?? null,
-                    name: aug.name || '',
-                    rarity: aug.rarity || 'unknown',
-                    confidence: aug.confidence ?? null,
-                    detectedSlot: Number.isInteger(aug.detectedSlot) ? aug.detectedSlot : index,
-                    missing: aug.missing === true,
-                })),
-                analysisConfidence: analysisResult.analysis.confidence,
-                partialUpdate: analysisResult.analysis.partialUpdate === true,
-                timestamp: analysisResult.timestamp,
-                dataSource: 'auto-analysis',
-            }
-
             // 查找浮动窗口并显示
             const floatingWindow = windows.find(win => {
                 const url = win.webContents.getURL()
@@ -727,13 +777,89 @@ class AutoScreenshotService {
             }
 
             logger.info('Augment detection notification sent', {
-                championId: championId || null,
+                championId: winrateData.championId || null,
                 augmentIds: winrateData.augments.map(augment => augment.id),
                 partialUpdate: winrateData.partialUpdate,
                 analysisConfidence: winrateData.analysisConfidence,
+                notifyMode,
+                winrateInMain: winrateData.winrateInMain === true,
+                winratePending: winrateData.winratePending === true,
+                winrateResultCount: winrateData.winrateResultCount ?? null,
                 floatingWindowFound: !!floatingWindow && !floatingWindow.isDestroyed(),
                 sinceStartMs: this.startedAt ? Date.now() - this.startedAt : 0,
                 sinceLastCaptureMs: this.lastScreenshotTime ? Date.now() - this.lastScreenshotTime : 0,
+            })
+        } catch (error) {
+            logger.error('Failed to notify windows:', error)
+        }
+    }
+
+    /**
+     * 通知所有窗口有新的海克斯检测
+     * @private
+     */
+    async _notifyAugmentDetected(analysisResult) {
+        try {
+            // 从store中获取缓存的英雄ID
+            const championId = store.get('lastSelectedChampionId')
+
+            if (!championId) {
+                logger.warn('⚠️ 未找到缓存的英雄ID，海克斯推荐可能无法显示胜率数据')
+            } else {
+                logger.info(`📌 使用缓存的英雄ID: ${championId}`)
+            }
+
+            const baseWinrateData = {
+                success: true,
+                gamePhase: 'augment-select',
+                championId: championId || null, // 添加英雄ID
+                augments: analysisResult.analysis.augments.slice(0, 3).map((aug, index) => ({
+                    id: aug.id ?? null,
+                    name: aug.name || '',
+                    rarity: aug.rarity || 'unknown',
+                    confidence: aug.confidence ?? null,
+                    detectedSlot: Number.isInteger(aug.detectedSlot) ? aug.detectedSlot : index,
+                    missing: aug.missing === true,
+                })),
+                analysisConfidence: analysisResult.analysis.confidence,
+                partialUpdate: analysisResult.analysis.partialUpdate === true,
+                timestamp: analysisResult.timestamp,
+                dataSource: 'auto-analysis',
+                winrateInMain: false,
+                winratePending: false,
+            }
+
+            const shouldEnrichWinrate = !!championId && getPayloadAugmentIds(baseWinrateData.augments).length > 0
+            if (!shouldEnrichWinrate) {
+                this._sendAugmentDetectedPayload(baseWinrateData)
+                return
+            }
+
+            const timeoutToken = Symbol('augment-winrate-timeout')
+            const enrichPromise = this._loadAugmentWinratePayload(baseWinrateData)
+            const quickPayload = await Promise.race([
+                enrichPromise,
+                wait(AUGMENT_WINRATE_INLINE_WAIT_MS).then(() => timeoutToken),
+            ])
+
+            if (quickPayload && quickPayload !== timeoutToken) {
+                this._sendAugmentDetectedPayload(quickPayload, 'main-winrate-inline')
+                return
+            }
+
+            this._sendAugmentDetectedPayload({
+                ...baseWinrateData,
+                winratePending: true,
+            }, 'main-winrate-pending')
+
+            enrichPromise.then((enrichedPayload) => {
+                if (!enrichedPayload || !this._isCurrentAugmentPayload(enrichedPayload)) {
+                    return
+                }
+
+                this._sendAugmentDetectedPayload(enrichedPayload, 'main-winrate-late')
+            }).catch(error => {
+                logger.warn('Late augment winrate enrichment failed:', error.message)
             })
         } catch (error) {
             logger.error('Failed to notify windows:', error)

@@ -95,7 +95,7 @@ function sendPopupError(message) {
 
 async function buildRandomAugmentPreviewData(context = 'random-augment-preview') {
     const startedAt = Date.now()
-    const { loadChampionRoster, getChampionAugmentStats } = await import('../data-loader.js')
+    const { loadChampionRoster, getChampionAugmentStats } = await import('../data-loader.ts')
     logger.info(`[diagnostics] ${context}: loading champion roster`)
     const champions = await loadChampionRoster()
     logger.info(`[diagnostics] ${context}: champion roster loaded`, {
@@ -149,7 +149,7 @@ async function buildRandomAugmentPreviewData(context = 'random-augment-preview')
 }
 
 async function buildRandomBenchRecommendation() {
-    const { loadChampionRoster } = await import('../data-loader.js')
+    const { loadChampionRoster } = await import('../data-loader.ts')
     const { getAramBenchRecommendation } = await import('../services/aram/bench-recommendation.js')
     const champions = await loadChampionRoster()
 
@@ -484,7 +484,7 @@ export function registerIpcHandlers(isDev) {
         })
 
         try {
-            const { getChampionAugmentStats } = await import('../data-loader.js')
+            const { getChampionAugmentStats } = await import('../data-loader.ts')
             let augmentStats = await getChampionAugmentStats(championId)
 
             if (augmentIds && augmentIds.length > 0) {
@@ -529,7 +529,7 @@ export function registerIpcHandlers(isDev) {
     })
 
     ipcMain.handle('load-champion-data', async (_event, championId) => {
-        const { getChampionDetailData } = await import('../data-loader.js')
+        const { getChampionDetailData } = await import('../data-loader.ts')
         const startedAt = Date.now()
         logger.info('[champion-data] load requested', { championId })
 
@@ -693,7 +693,7 @@ export function registerIpcHandlers(isDev) {
                 loadDataApiConfig,
                 loadAugmentBase,
                 loadChampionStats,
-            } = await import('../data-loader.js')
+            } = await import('../data-loader.ts')
             const [config, augments, championStats] = await Promise.all([
                 loadDataApiConfig(),
                 loadAugmentBase(),

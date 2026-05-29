@@ -67,6 +67,11 @@
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { electronAPI } from '../native/electron-api.js'
 import { sortAugmentsByDetectedOrder } from '../service/augment-order.js'
+import {
+  getAugmentKey,
+  getTopPickKey,
+  mergeWinrateWithDetectedSlots
+} from '../service/augment-display.js'
 import { getAugmentIconUrl } from '../service/cdn'
 
 const visible = ref(false)
@@ -79,85 +84,9 @@ let overlayRequestId = 0
 
 const previewAugments = computed(() => displayAugments.value.slice(0, 3))
 
-const getAugmentKey = (augment, index) => {
-  if (augment?.missing) {
-    return `missing-${augment.detectedSlot ?? index}`
-  }
-
-  return augment.augmentId || augment.id || augment.name || index
-}
-
-const getAugmentScore = (augment) => {
-  if (augment?.missing) return -1
-
-  const score = Number(augment?.recommendScore)
-  if (!Number.isNaN(score)) return score
-  const winRate = Number(augment?.winRate)
-  if (!Number.isNaN(winRate)) return winRate
-  return -1
-}
-
-const topPickKey = computed(() => {
-  if (!previewAugments.value.length) return null
-
-  let bestIndex = 0
-  let bestScore = getAugmentScore(previewAugments.value[0])
-  previewAugments.value.forEach((augment, index) => {
-    const score = getAugmentScore(augment)
-    if (score > bestScore) {
-      bestScore = score
-      bestIndex = index
-    }
-  })
-
-  return getAugmentKey(previewAugments.value[bestIndex], bestIndex)
-})
+const topPickKey = computed(() => getTopPickKey(previewAugments.value))
 
 const isTopPick = (augment, index) => getAugmentKey(augment, index) === topPickKey.value
-
-const mapDetectedAugmentsForFallback = (augments) => augments.map(aug => ({
-  augmentId: aug.id,
-  id: aug.id,
-  name: aug.missing ? '' : aug.name,
-  rarity: aug.rarity,
-  winRate: aug.winRate ?? null,
-  pickRate: aug.pickRate ?? null,
-  playCount: aug.playCount ?? 0,
-  recommendScore: aug.missing ? null : (aug.recommendScore ?? 0.5),
-  iconPath: aug.iconPath || aug.iconUrl || null,
-  detectedSlot: aug.detectedSlot,
-  missing: aug.missing === true
-}))
-
-const mergeWinrateWithDetectedSlots = (winrateAugments = [], detectedAugments = []) => {
-  const fallbackSlots = sortAugmentsByDetectedOrder(mapDetectedAugmentsForFallback(detectedAugments), detectedAugments)
-  const winrateById = new Map(
-    winrateAugments
-      .map(augment => [String(augment.augmentId || augment.id), augment])
-      .filter(([id]) => id && id !== 'undefined' && id !== 'null')
-  )
-
-  return fallbackSlots.map(augment => {
-    if (augment.missing) {
-      return augment
-    }
-
-    const id = augment.augmentId || augment.id
-    const winrate = winrateById.get(String(id))
-    if (!winrate) {
-      return augment
-    }
-
-    return {
-      ...augment,
-      ...winrate,
-      id: winrate.id || winrate.augmentId || id,
-      augmentId: winrate.augmentId || winrate.id || id,
-      detectedSlot: augment.detectedSlot,
-      missing: false
-    }
-  })
-}
 
 /**
  * 格式化百分比
@@ -248,9 +177,20 @@ const showOverlay = async (data) => {
       loading.value = false
       console.log('✅ [FloatingOverlay] 直接显示完整数据')
     } else {
-      const fallbackAugments = mergeWinrateWithDetectedSlots([], data.augments)
+      const fallbackAugments = mergeWinrateWithDetectedSlots([], data.augments, displayAugments.value)
       displayAugments.value = fallbackAugments
       loading.value = false
+      if (data.winratePending === true || data.winrateInMain === true) {
+        logFloatingInfo('fallback displayed while main winrate is pending', {
+          championId: championId.value || null,
+          augmentIds: fallbackAugments.map(augment => augment.id),
+          winratePending: data.winratePending === true,
+          winrateInMain: data.winrateInMain === true,
+          winrateError: data.winrateError || null,
+        })
+        return
+      }
+
       console.log('🔍 [FloatingOverlay] 先显示识别结果，后台查询胜率数据...')
       logFloatingInfo('fallback displayed before winrate query', {
         championId: championId.value || null,
@@ -341,7 +281,11 @@ const showOverlay = async (data) => {
 
         if (winrateResult.success && winrateResult.augments.length > 0) {
           // 找到了胜率数据，按游戏内从左到右的识别顺序展示。
-          displayAugments.value = mergeWinrateWithDetectedSlots(winrateResult.augments, data.augments)
+          displayAugments.value = mergeWinrateWithDetectedSlots(
+            winrateResult.augments,
+            data.augments,
+            displayAugments.value
+          )
           console.log('✅ [FloatingOverlay] 胜率数据查询成功:', winrateResult.augments)
           logFloatingInfo('winrate query applied', {
             championId: championId.value,
