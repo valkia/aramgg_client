@@ -4,15 +4,14 @@ import { captureScreenshot, getLolGameStatus } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
 import { registerIpcHandlers } from './ipc-handlers.js'
 import {
-    applyBenchWindowLayout,
     applyFloatingWindowLayout,
-    createBenchWindow,
+    applyPopupWindowLayout,
     createMainWindow,
     createPopupWindow,
     createFloatingWindow,
-    getBenchWindow,
     toggleMainWindow,
     getFloatingWindow,
+    getPopupWindow,
 } from './window-manager.js'
 import autoScreenshotService from '../auto-screenshot-service.js'
 import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
@@ -37,6 +36,17 @@ const GAMEFLOW_TOKEN_REFRESH_INTERVAL_MS = 60000
 const GAMEFLOW_WS_STALE_MS = 15000
 const GAMEFLOW_WS_RECONNECT_BASE_MS = 2000
 const GAMEFLOW_WS_RECONNECT_MAX_MS = 30000
+const GAME_API_DIAGNOSTIC_INTERVAL_MS = 15000
+const GAME_API_DIAGNOSTIC_MAX_PATHS = 40
+const GAME_API_DIAGNOSTIC_KEYWORDS = [
+    'augment',
+    'reroll',
+    'choice',
+    'select',
+    'perk',
+    'upgrade',
+    'card',
+]
 const AUGMENT_CLEAR_PHASES = new Set([
     'Lobby',
     'Matchmaking',
@@ -50,6 +60,8 @@ const AUGMENT_CLEAR_PHASES = new Set([
 let autoScreenshotManagedByGameFlow = false
 let lastGameWindowStatusKey = null
 let lastGameWindowStatusLogAt = 0
+let lastGameApiDiagnosticAt = 0
+let gameApiDiagnosticInFlight = false
 
 /**
  * 初始化应用
@@ -79,16 +91,15 @@ export async function init() {
         arch: process.arch,
         appDataDir: getAppDataDir(),
         logFile: logger.getCurrentLogFile(),
+        lcuApiDiagnosticsLogFile: logger.getCurrentLcuApiDiagnosticsLogFile(),
     })
 
     const mainWindow = await createMainWindow(isDev, devServerUrl)
     const popupWindow = await createPopupWindow(isDev, devServerUrl)
-    const benchWindow = await createBenchWindow(isDev, devServerUrl)
     const floatingWindow = await createFloatingWindow(isDev, devServerUrl)
     logger.info('窗口已创建:', {
         main: !!mainWindow,
         popup: !!popupWindow,
-        bench: !!benchWindow,
         floating: !!floatingWindow
     })
 
@@ -110,7 +121,7 @@ export async function init() {
     // 注册其他应用事件
     registerAppEvents()
 
-    return { mainWindow, popupWindow, benchWindow, toggleMainWindow }
+    return { mainWindow, popupWindow, toggleMainWindow }
 }
 
 /**
@@ -197,26 +208,182 @@ function clearAugmentOverlayForPhase(phase) {
     autoScreenshotService.clearAugmentState(`LCU phase ${phase}`)
 }
 
-function showBenchWindowForChampSelect() {
-    const benchWindow = getBenchWindow()
-    if (!benchWindow || benchWindow.isDestroyed()) {
-        logger.warn('Bench recommendation window is unavailable')
-        return
+function getDiagnosticType(value) {
+    if (Array.isArray(value)) {
+        return 'array'
     }
 
-    applyBenchWindowLayout()
-    if (!benchWindow.isVisible()) {
-        benchWindow.show()
-        logger.info('显示 ARAM 选人席位推荐弹窗')
+    return value === null ? 'null' : typeof value
+}
+
+function sanitizeDiagnosticValue(value) {
+    if (value == null || typeof value === 'number' || typeof value === 'boolean') {
+        return value
+    }
+
+    if (typeof value === 'string') {
+        return value.length > 80 ? `${value.slice(0, 77)}...` : value
+    }
+
+    if (Array.isArray(value)) {
+        return `[${value.length}]`
+    }
+
+    if (typeof value === 'object') {
+        return `{${Object.keys(value).slice(0, 8).join(',')}}`
+    }
+
+    return undefined
+}
+
+function collectKeywordPaths(value, path = '$', depth = 0, results = []) {
+    if (results.length >= GAME_API_DIAGNOSTIC_MAX_PATHS || value == null || depth > 5) {
+        return results
+    }
+
+    if (Array.isArray(value)) {
+        value.slice(0, 3).forEach((item, index) => {
+            collectKeywordPaths(item, `${path}[${index}]`, depth + 1, results)
+        })
+        return results
+    }
+
+    if (typeof value !== 'object') {
+        return results
+    }
+
+    for (const [key, child] of Object.entries(value)) {
+        if (results.length >= GAME_API_DIAGNOSTIC_MAX_PATHS) {
+            break
+        }
+
+        const nextPath = `${path}.${key}`
+        const lowerKey = key.toLowerCase()
+        if (GAME_API_DIAGNOSTIC_KEYWORDS.some(keyword => lowerKey.includes(keyword))) {
+            results.push({
+                path: nextPath,
+                type: getDiagnosticType(child),
+                value: sanitizeDiagnosticValue(child),
+            })
+        }
+
+        collectKeywordPaths(child, nextPath, depth + 1, results)
+    }
+
+    return results
+}
+
+function summarizeDiagnosticPayload(data) {
+    const isArray = Array.isArray(data)
+    const keys = data && typeof data === 'object' && !isArray
+        ? Object.keys(data).slice(0, 40)
+        : []
+
+    return {
+        type: getDiagnosticType(data),
+        length: isArray ? data.length : undefined,
+        keys,
+        keywordPaths: collectKeywordPaths(data),
     }
 }
 
-function hideBenchWindow(reason) {
-    const benchWindow = getBenchWindow()
-    if (benchWindow && !benchWindow.isDestroyed() && benchWindow.isVisible()) {
-        benchWindow.hide()
-        logger.info(`隐藏 ARAM 选人席位推荐弹窗: ${reason}`)
+function getLcuDiagnosticEndpoints(phase) {
+    const endpoints = [
+        { label: 'gameflow-session', path: '/lol-gameflow/v1/session' },
+    ]
+
+    if (phase === 'ChampSelect') {
+        endpoints.unshift({ label: 'champ-select-session', path: '/lol-champ-select/v1/session' })
     }
+
+    if (phase === 'WaitingForStats' || phase === 'PreEndOfGame' || phase === 'EndOfGame') {
+        endpoints.push(
+            { label: 'eog-stats-block', path: '/lol-end-of-game/v1/eog-stats-block' },
+            { label: 'gameclient-eog-stats-block', path: '/lol-end-of-game/v1/gameclient-eog-stats-block' }
+        )
+    }
+
+    return endpoints
+}
+
+async function logReadOnlyGameApiDiagnostics(lcuService, phase, reason, force = false) {
+    if (!phase || gameApiDiagnosticInFlight) {
+        return
+    }
+
+    const now = Date.now()
+    if (!force && now - lastGameApiDiagnosticAt < GAME_API_DIAGNOSTIC_INTERVAL_MS) {
+        return
+    }
+
+    lastGameApiDiagnosticAt = now
+    gameApiDiagnosticInFlight = true
+
+    try {
+        for (const endpoint of getLcuDiagnosticEndpoints(phase)) {
+            const result = await lcuService.getReadOnlyJsonEndpoint(endpoint.path)
+            logger.lcuApiDiagnostics('[LCU diagnostics] read-only endpoint snapshot', {
+                phase,
+                reason,
+                endpoint: endpoint.label,
+                path: endpoint.path,
+                status: result?.status || null,
+                summary: result ? summarizeDiagnosticPayload(result.data) : null,
+            })
+        }
+
+        if (phase === 'InProgress') {
+            const liveClientData = await lcuService.getLiveClientAllGameData()
+            logger.lcuApiDiagnostics('[LCU diagnostics] live client data snapshot', {
+                phase,
+                reason,
+                endpoint: 'liveclientdata-allgamedata',
+                status: liveClientData?.status || null,
+                summary: liveClientData ? summarizeDiagnosticPayload(liveClientData.data) : null,
+            })
+        }
+    } catch (error) {
+        logger.debug('LCU diagnostics snapshot failed:', error.message)
+    } finally {
+        gameApiDiagnosticInFlight = false
+    }
+}
+
+async function showChampionInsightForChampSelect(lcuService) {
+    const popupWindow = getPopupWindow()
+    if (!popupWindow || popupWindow.isDestroyed()) {
+        logger.warn('Champion insight window is unavailable for champ-select')
+        return
+    }
+
+    let snapshot = null
+    try {
+        snapshot = await lcuService.getChampSelectSnapshot()
+        if (snapshot.selfChampionId) {
+            store.set('lastSelectedChampionId', snapshot.selfChampionId)
+        }
+    } catch (error) {
+        logger.debug('Failed to load champ-select snapshot for champion insight:', error.message)
+    }
+
+    applyPopupWindowLayout()
+    if (!popupWindow.isVisible()) {
+        popupWindow.show()
+    }
+
+    popupWindow.webContents.send('for-popup', {
+        championId: snapshot?.selfChampionId || null,
+        augments: [],
+        champSelect: true,
+        dataSource: 'champ-select',
+        timestamp: Date.now(),
+    })
+
+    logger.info('显示英雄洞察选人视图', {
+        championId: snapshot?.selfChampionId || null,
+        benchCount: snapshot?.benchChampions?.length || 0,
+        snapshotStatus: snapshot?.status || 'unavailable',
+    })
 }
 
 function logLolGameStatus(status, phase) {
@@ -344,62 +511,54 @@ async function initGameFlowMonitor() {
                 logger.info(`游戏阶段变化(${source}): ${prevPhase || 'unknown'} → ${phase}`)
                 notifyAllWindows('game-phase-changed', { phase, prevPhase })
                 clearAugmentOverlayForPhase(phase)
+                void logReadOnlyGameApiDiagnostics(lcuService, phase, `phase-change:${source}`, true)
 
                 // 特定阶段处理
                 switch (phase) {
                     case 'Lobby':
                     case 'Matchmaking':
                     case 'ReadyCheck':
-                        hideBenchWindow(`LCU phase ${phase}`)
                         stopAutoScreenshotForGame(`LCU phase ${phase}`)
                         break
                     case 'ChampSelect':
                         logger.info('进入选人阶段 - 暂停游戏内海克斯 OCR')
                         notifyAllWindows('champ-select-start', {})
-                        showBenchWindowForChampSelect()
+                        await showChampionInsightForChampSelect(lcuService)
                         stopAutoScreenshotForGame('LCU phase ChampSelect')
                         break
                     case 'GameStart':
                         logger.info('游戏开始加载')
                         notifyAllWindows('game-started', {})
-                        hideBenchWindow('LCU phase GameStart')
                         stopAutoScreenshotForGame('LCU phase GameStart')
                         break
                     case 'InProgress':
                         logger.info('游戏进行中 - 启动自动截图来检测海克斯选择')
                         notifyAllWindows('game-in-progress', {})
-                        hideBenchWindow('LCU phase InProgress')
                         await startAutoScreenshotForGame('LCU phase InProgress')
                         break
                     case 'WaitingForStats':
                         logger.info('游戏已结束')
                         notifyAllWindows('game-ended', {})
-                        hideBenchWindow('LCU phase WaitingForStats')
                         stopAutoScreenshotForGame('LCU phase WaitingForStats')
                         break
                     case 'PreEndOfGame':
                         logger.info('游戏结束统计阶段')
-                        hideBenchWindow('LCU phase PreEndOfGame')
                         stopAutoScreenshotForGame('LCU phase PreEndOfGame')
                         break
                     case 'EndOfGame':
                         logger.info('游戏完全结束')
                         notifyAllWindows('end-of-game', {})
-                        hideBenchWindow('LCU phase EndOfGame')
                         stopAutoScreenshotForGame('LCU phase EndOfGame')
                         break
                 }
             }
 
             if (phase === GAMEFLOW_AUGMENT_ANALYSIS_PHASE) {
+                void logReadOnlyGameApiDiagnostics(lcuService, phase, `heartbeat:${source}`)
                 await startAutoScreenshotForGame('LCU phase InProgress')
             } else if (phase === 'None') {
-                hideBenchWindow('LCU phase None')
                 await reconcileAutoScreenshotWithLolWindow(phase)
             } else if (phase) {
-                if (phase !== 'ChampSelect') {
-                    hideBenchWindow(`LCU phase ${phase}`)
-                }
                 stopAutoScreenshotForGame(`LCU phase ${phase}`)
             }
         }

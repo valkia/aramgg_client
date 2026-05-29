@@ -39,9 +39,18 @@ const getLogFileName = () => {
     return `app-${dateStr}.log`
 }
 
+const getLcuApiDiagnosticsLogFileName = () => {
+    const dateStr = toBeijingISOString().split('T')[0]
+    return `lcu-api-diagnostics-${dateStr}.log`
+}
+
 // 获取日志文件路径
 const getLogFilePath = () => {
     return path.join(getLogDir(), getLogFileName())
+}
+
+const getLcuApiDiagnosticsLogFilePath = () => {
+    return path.join(getLogDir(), getLcuApiDiagnosticsLogFileName())
 }
 
 const formatArg = (arg) => {
@@ -80,13 +89,13 @@ const formatLogMessage = (level, message, ...args) => {
 }
 
 // 写入日志到文件
-const writeToFile = async (logMessage) => {
+const writeToFile = async (logMessage, resolveFilePath = getLogFilePath) => {
     try {
-        const logFile = getLogFilePath()
+        const logFile = resolveFilePath()
         await fs.appendFile(logFile, logMessage + '\n', { encoding: 'utf8' })
     } catch (error) {
         const now = Date.now()
-        const errorKey = `${error.code || error.name}:${error.message}`
+        const errorKey = `${resolveFilePath.name}:${error.code || error.name}:${error.message}`
         if (errorKey !== lastFileWriteErrorKey || now - lastFileWriteErrorAt > FILE_WRITE_ERROR_LOG_INTERVAL_MS) {
             lastFileWriteErrorAt = now
             lastFileWriteErrorKey = errorKey
@@ -114,6 +123,11 @@ const logWithLevel = (level, levelValue, message, ...args) => {
     writeToFile(formattedMessage)
 }
 
+const logToFileOnly = (level, resolveFilePath, message, ...args) => {
+    const formattedMessage = formatLogMessage(level, message, ...args)
+    writeToFile(formattedMessage, resolveFilePath)
+}
+
 // 导出日志方法
 export const logger = {
     debug: (message, ...args) => logWithLevel('DEBUG', LOG_LEVELS.DEBUG, message, ...args),
@@ -127,8 +141,15 @@ export const logger = {
     // 获取当前日志文件路径
     getCurrentLogFile: getLogFilePath,
 
+    // 获取当前 LCU/API 探索日志文件路径
+    getCurrentLcuApiDiagnosticsLogFile: getLcuApiDiagnosticsLogFilePath,
+
     // 获取北京时区 ISO 时间戳
     toBeijingISOString,
+
+    // LCU/API 探索日志只写入独立文件，避免污染主应用日志
+    lcuApiDiagnostics: (message, ...args) =>
+        logToFileOnly('INFO', getLcuApiDiagnosticsLogFilePath, message, ...args),
     
     // 清理旧日志文件（保留最近N天）
     cleanupOldLogs: async (keepDays = 7) => {

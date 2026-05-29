@@ -20,7 +20,6 @@ export const electronAPI = {
   windows: {
     showPopup: (...args) => requireElectronAPI().windows.showPopup(...args),
     hidePopup: (...args) => requireElectronAPI().windows.hidePopup(...args),
-    hideBench: (...args) => requireElectronAPI().windows.hideBench(...args),
     hideFloating: (...args) => requireElectronAPI().windows.hideFloating(...args),
     toggleMain: (...args) => requireElectronAPI().windows.toggleMain(...args),
     confirmQuit: (...args) => requireElectronAPI().windows.confirmQuit(...args),

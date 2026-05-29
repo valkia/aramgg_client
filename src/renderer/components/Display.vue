@@ -71,8 +71,8 @@
                         <button class="test-btn secondary" @click="testBenchWindow">
                             <Swords class="icon" />
                             <span class="button-copy">
-                                <span class="text">席位推荐</span>
-                                <span class="hint">随机选人席位</span>
+                                <span class="text">洞察席位</span>
+                                <span class="hint">在英雄洞察顶部展示</span>
                             </span>
                         </button>
 
@@ -174,8 +174,10 @@ const formatRandomPreviewMessage = (prefix, result) => {
         .map((augment) => augment.name || augment.id)
         .filter(Boolean)
         .join('、')
+    const benchCount = result?.benchRecommendation?.candidates?.length || 0
+    const benchText = benchCount ? ` | 席位 ${benchCount} 个` : ''
 
-    return `${prefix}：${data.championName || '随机英雄'}${augmentNames ? ' | ' + augmentNames : ''}`
+    return `${prefix}：${data.championName || '随机英雄'}${augmentNames ? ' | ' + augmentNames : ''}${benchText}`
 }
 
 const testFloatingWindow = async () => {
@@ -213,7 +215,7 @@ const testPopupWindow = async () => {
 }
 
 const testBenchWindow = async () => {
-    testStatus.value = { type: 'info', message: '正在抽取真实英雄并打开席位推荐...' }
+    testStatus.value = { type: 'info', message: '正在抽取真实英雄并打开英雄洞察席位预览...' }
 
     try {
         const result = await electronAPI.diagnostics.testShowBenchRecommendation()
@@ -224,7 +226,7 @@ const testBenchWindow = async () => {
         const name = result.recommendation?.recommendedChampion?.name || '随机英雄'
         testStatus.value = {
             type: 'success',
-            message: '席位推荐测试数据已发送：建议关注 ' + name,
+            message: '英雄洞察席位预览已发送：建议关注 ' + name,
         }
     } catch (err) {
         testStatus.value = { type: 'error', message: '发送失败：' + err.message }
@@ -262,7 +264,6 @@ const testDatabaseLoad = async () => {
 const hideAllWindows = () => {
     electronAPI.windows.hidePopup()
     electronAPI.windows.hideFloating()
-    electronAPI.windows.hideBench()
     testStatus.value = { type: 'info', message: '隐藏命令已发送' }
 }
 

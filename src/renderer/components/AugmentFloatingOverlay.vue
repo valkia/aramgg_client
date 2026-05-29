@@ -148,6 +148,43 @@ const logFloatingInfo = (message, details = {}) => {
   }
 }
 
+const getAugmentDebugId = (augment) => augment?.id ?? augment?.augmentId ?? null
+
+const getTopPickDiagnostics = () => {
+  const key = topPickKey.value
+  const index = previewAugments.value.findIndex((augment, slot) => getAugmentKey(augment, slot) === key)
+  const augment = index >= 0 ? previewAugments.value[index] : null
+
+  return {
+    key,
+    index,
+    id: getAugmentDebugId(augment),
+    name: augment?.name || null,
+    recommendScore: augment?.recommendScore ?? null,
+  }
+}
+
+const getDisplayDiagnostics = () => ({
+  augmentIds: previewAugments.value.map(getAugmentDebugId),
+  detectedSlots: previewAugments.value.map((augment, index) => (
+    Number.isInteger(augment?.detectedSlot) ? augment.detectedSlot : index
+  )),
+  missingSlots: previewAugments.value
+    .map((augment, index) => augment?.missing ? index : null)
+    .filter(index => index != null),
+  topPick: getTopPickDiagnostics(),
+})
+
+const logDisplayState = (message, data, details = {}) => {
+  logFloatingInfo(message, {
+    ...details,
+    championId: championId.value || null,
+    requestAugmentIds: (data?.augments || []).map(getAugmentDebugId),
+    requestDiagnostics: data?.analysisDiagnostics || null,
+    display: getDisplayDiagnostics(),
+  })
+}
+
 /**
  * 显示浮窗
  */
@@ -161,8 +198,15 @@ const showOverlay = async (data) => {
   logFloatingInfo('showOverlay received', {
     championId: data?.championId || null,
     augmentCount: Array.isArray(data?.augments) ? data.augments.length : 0,
+    augmentIds: (data?.augments || []).map(getAugmentDebugId),
+    detectedSlots: (data?.augments || []).map((augment, index) => (
+      Number.isInteger(augment?.detectedSlot) ? augment.detectedSlot : index
+    )),
     dataSource: data?.dataSource || null,
     partialUpdate: data?.partialUpdate === true,
+    winratePending: data?.winratePending === true,
+    winrateInMain: data?.winrateInMain === true,
+    analysisDiagnostics: data?.analysisDiagnostics || null,
   })
 
   if (data && data.augments && data.augments.length > 0) {
@@ -176,14 +220,24 @@ const showOverlay = async (data) => {
       displayAugments.value = sortAugmentsByDetectedOrder(data.augments, data.augments)
       loading.value = false
       console.log('✅ [FloatingOverlay] 直接显示完整数据')
+      logDisplayState('display state applied', data, {
+        mode: 'full-winrate',
+        hasWinrateData: true,
+      })
     } else {
       const fallbackAugments = mergeWinrateWithDetectedSlots([], data.augments, displayAugments.value)
       displayAugments.value = fallbackAugments
       loading.value = false
+      logDisplayState('display state applied', data, {
+        mode: 'fallback',
+        hasWinrateData: false,
+        winratePending: data.winratePending === true,
+      })
       if (data.winratePending === true || data.winrateInMain === true) {
         logFloatingInfo('fallback displayed while main winrate is pending', {
           championId: championId.value || null,
           augmentIds: fallbackAugments.map(augment => augment.id),
+          display: getDisplayDiagnostics(),
           winratePending: data.winratePending === true,
           winrateInMain: data.winrateInMain === true,
           winrateError: data.winrateError || null,
@@ -195,6 +249,7 @@ const showOverlay = async (data) => {
       logFloatingInfo('fallback displayed before winrate query', {
         championId: championId.value || null,
         augmentIds: fallbackAugments.map(augment => augment.id),
+        display: getDisplayDiagnostics(),
       })
 
       try {
@@ -287,11 +342,18 @@ const showOverlay = async (data) => {
             displayAugments.value
           )
           console.log('✅ [FloatingOverlay] 胜率数据查询成功:', winrateResult.augments)
+          logDisplayState('display state applied', data, {
+            mode: 'winrate-applied',
+            hasWinrateData: true,
+            resultCount: winrateResult.augments.length,
+            durationMs: winrateDurationMs,
+          })
           logFloatingInfo('winrate query applied', {
             championId: championId.value,
             augmentIds,
             resultCount: winrateResult.augments.length,
             durationMs: winrateDurationMs,
+            display: getDisplayDiagnostics(),
           })
         } else if (winrateResult.success && winrateResult.augments.length === 0) {
           // 查询成功但没有这些海克斯的数据，显示基本信息

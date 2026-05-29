@@ -10,7 +10,7 @@
       </header>
 
       <!-- 加载状态 -->
-      <div v-if="loading" class="loading-state">
+      <div v-if="loading && !contentVisible" class="loading-state">
         <div class="spinner"></div>
         <p>加载英雄数据中...</p>
       </div>
@@ -21,71 +21,79 @@
       </div>
 
       <!-- 主内容区 -->
-      <div v-else-if="championStats" class="overlay-content">
-        <section class="champion-hero">
-          <img
-            :src="getChampionIconUrl(championId)"
-            :alt="championName"
-            class="hero-image"
-            @error="handleImageError"
+      <div v-else-if="contentVisible" class="overlay-content">
+        <section class="bench-inline">
+          <AramBenchRecommendation
+            compact
+            :preview-recommendation="benchPreviewRecommendation"
           />
-          <div class="hero-shade"></div>
-          <div class="hero-content">
-            <div>
-              <span class="hero-kicker">英雄档案</span>
-              <h2 class="champion-name">{{ championName || `英雄 ${championId}` }}</h2>
-            </div>
-            <div class="hero-badges">
-              <span class="tier-badge">梯队 {{ championStats?.tier || '-' }}</span>
-              <span class="winrate-badge" :class="getWinRateClass(championStats?.winRate)">
-                胜率 {{ formatPercent(championStats?.winRate) }}
-              </span>
-            </div>
-          </div>
         </section>
 
-        <section class="stat-strip">
-          <div class="stat-box">
-            <span>胜率</span>
-            <strong :class="getWinRateClass(championStats?.winRate)">
-              {{ formatPercent(championStats?.winRate) }}
-            </strong>
-          </div>
-          <div class="stat-box">
-            <span>选取率</span>
-            <strong>{{ formatPercent(championStats?.pickRate) }}</strong>
-          </div>
-          <div class="stat-box">
-            <span>场次</span>
-            <strong>{{ formatNumber(championStats?.numGames) }}</strong>
-          </div>
-        </section>
-
-        <!-- Tab 切换 -->
-        <div class="tabs-container">
-          <div class="tabs-list">
-            <button
-              v-for="tab in tabs"
-              :key="tab.key"
-              class="tab-btn"
-              :class="{ active: activeTab === tab.key }"
-              @click="activeTab = tab.key"
-            >
-              <span class="tab-icon">{{ tab.icon }}</span>
-              <span class="tab-text">{{ tab.label }}</span>
-            </button>
-          </div>
-
-          <!-- Tab 内容 -->
-          <div class="tab-content">
-            <!-- 海克斯 Tab -->
-            <div v-if="activeTab === 'augments'" class="tab-panel">
-              <div class="section-title-row">
-                <h3>核心海克斯</h3>
-                <span>{{ filteredAugments.length }} 项</span>
+        <div class="insight-scroll">
+          <section class="champion-hero">
+            <img
+              v-if="championId"
+              :src="getChampionIconUrl(championId)"
+              :alt="championName"
+              class="hero-image"
+              @error="handleImageError"
+            />
+            <div v-else class="hero-placeholder">--</div>
+            <div class="hero-shade"></div>
+            <div class="hero-content">
+              <div>
+                <h2 class="champion-name">{{ championName || (championId ? `英雄 ${championId}` : '等待英雄选择') }}</h2>
               </div>
+              <div class="hero-badges">
+                <span class="tier-badge">梯队 {{ championStats?.tier || '-' }}</span>
+                <span class="winrate-badge" :class="getWinRateClass(championStats?.winRate)">
+                  胜率 {{ formatPercent(championStats?.winRate) }}
+                </span>
+              </div>
+            </div>
+          </section>
 
-              <div class="filter-bar">
+          <section class="stat-strip">
+            <div class="stat-box">
+              <span>胜率</span>
+              <strong :class="getWinRateClass(championStats?.winRate)">
+                {{ championDataLoading ? '读取中' : formatPercent(championStats?.winRate) }}
+              </strong>
+            </div>
+            <div class="stat-box">
+              <span>选取率</span>
+              <strong>{{ championDataLoading ? '读取中' : formatPercent(championStats?.pickRate) }}</strong>
+            </div>
+            <div class="stat-box">
+              <span>场次</span>
+              <strong>{{ championDataLoading ? '读取中' : formatNumber(championStats?.numGames) }}</strong>
+            </div>
+          </section>
+
+          <!-- Tab 切换 -->
+          <div class="tabs-container">
+            <div class="tabs-list">
+              <button
+                v-for="tab in tabs"
+                :key="tab.key"
+                class="tab-btn"
+                :class="{ active: activeTab === tab.key }"
+                @click="activeTab = tab.key"
+              >
+                <span class="tab-text">{{ tab.label }}</span>
+              </button>
+            </div>
+
+            <!-- Tab 内容 -->
+            <div class="tab-content">
+              <!-- 海克斯 Tab -->
+              <div v-if="activeTab === 'augments'" class="tab-panel">
+                <div class="section-title-row">
+                  <h3>核心海克斯</h3>
+                  <span>{{ filteredAugments.length }} 项</span>
+                </div>
+
+                <div class="filter-bar">
                 <button
                   v-for="rarity in rarityOptions"
                   :key="rarity.key"
@@ -197,16 +205,13 @@
                 <p>暂无出装数据</p>
               </div>
             </div>
-
-            <div v-if="activeTab === 'bench'" class="tab-panel">
-              <AramBenchRecommendation />
-            </div>
           </div>
         </div>
 
-        <div class="overlay-footer">
-          <small>来源：{{ formatDataSource(dataSource) }}</small>
-          <small v-if="timestamp">更新于 {{ formatTime(timestamp) }}</small>
+          <div class="overlay-footer">
+            <small>来源：{{ formatDataSource(dataSource) }}</small>
+            <small v-if="timestamp">更新于 {{ formatTime(timestamp) }}</small>
+          </div>
         </div>
       </div>
 
@@ -227,6 +232,7 @@ import AramBenchRecommendation from './AramBenchRecommendation.vue'
 
 const visible = ref(false)
 const loading = ref(false)
+const championDataLoading = ref(false)
 const error = ref(null)
 const championId = ref(null)
 const championName = ref('')
@@ -234,6 +240,7 @@ const activeTab = ref('augments')
 const selectedRarity = ref('all')
 const dataSource = ref('local')
 const timestamp = ref(null)
+const champSelectMode = ref(false)
 
 // 英雄数据
 const championStats = ref(null)
@@ -242,7 +249,10 @@ const augmentStats = ref({})
 const buildData = ref(null)
 const itemsData = ref({})
 const displayAugments = ref([])
+const benchPreviewRecommendation = ref(null)
 const unsubscribeEvents = []
+
+const contentVisible = computed(() => champSelectMode.value || !!championId.value || !!championStats.value)
 
 const logOverlayInfo = (message, details = {}) => {
   console.info(`[AugmentWinrateOverlay] ${message}`, details)
@@ -264,8 +274,7 @@ const logOverlayInfo = (message, details = {}) => {
 // Tabs 配置
 const tabs = [
   { key: 'augments', label: '海克斯', icon: '海' },
-  { key: 'builds', label: '出装', icon: '装' },
-  { key: 'bench', label: '席位', icon: '席' }
+  { key: 'builds', label: '出装', icon: '装' }
 ]
 
 // 稀有度选项
@@ -403,20 +412,29 @@ const showOverlay = async (data) => {
     pending: data?.pending === true,
     championId: data?.championId || null,
     augmentCount: Array.isArray(data?.augments) ? data.augments.length : 0,
+    benchCandidateCount: data?.benchRecommendation?.candidates?.length || 0,
     dataSource: data?.dataSource || null,
   })
 
   visible.value = true
-  loading.value = true
+  loading.value = false
+  championDataLoading.value = false
   error.value = null
   championStats.value = null
   displayAugments.value = []
+  benchPreviewRecommendation.value = data?.benchRecommendation || null
+  champSelectMode.value =
+    data?.champSelect === true ||
+    data?.dataSource === 'champ-select' ||
+    !!data?.benchRecommendation
 
   if (data?.pending) {
     championId.value = null
     championName.value = ''
     dataSource.value = data.dataSource || 'pending'
     timestamp.value = data.timestamp || Date.now()
+    benchPreviewRecommendation.value = null
+    loading.value = true
     logOverlayInfo('pending state displayed', {
       message: data.message || '',
       durationMs: Date.now() - startedAt,
@@ -429,6 +447,7 @@ const showOverlay = async (data) => {
     championName.value = ''
     dataSource.value = data.dataSource || 'error'
     timestamp.value = data.timestamp || Date.now()
+    benchPreviewRecommendation.value = null
     error.value = data.error
     loading.value = false
     logOverlayInfo('error state displayed', {
@@ -440,7 +459,17 @@ const showOverlay = async (data) => {
 
   try {
     if (!data || !data.championId) {
-      throw new Error('缺少英雄ID')
+      championId.value = null
+      championName.value = ''
+      dataSource.value = data?.dataSource || 'champ-select'
+      timestamp.value = data?.timestamp || Date.now()
+      activeTab.value = 'augments'
+      selectedRarity.value = 'all'
+      logOverlayInfo('champion detail shown without selected champion', {
+        champSelectMode: champSelectMode.value,
+        durationMs: Date.now() - startedAt,
+      })
+      return
     }
 
     championId.value = data.championId
@@ -456,6 +485,7 @@ const showOverlay = async (data) => {
       championId: championId.value,
     })
     const championLoadStartedAt = Date.now()
+    championDataLoading.value = true
     const result = await electronAPI.winrate.loadChampionData(championId.value)
 
     if (result.success) {
@@ -540,6 +570,7 @@ const showOverlay = async (data) => {
       error.value = err.message || '加载数据失败'
     }
   } finally {
+    championDataLoading.value = false
     loading.value = false
   }
 
@@ -558,6 +589,9 @@ const closeOverlay = () => {
   })
   visible.value = false
   championStats.value = null
+  championDataLoading.value = false
+  champSelectMode.value = false
+  benchPreviewRecommendation.value = null
   augmentBase.value = []
   augmentStats.value = {}
   buildData.value = null
@@ -648,6 +682,7 @@ onMounted(() => {
       pending: data?.pending === true,
       championId: data?.championId || null,
       augmentCount: Array.isArray(data?.augments) ? data.augments.length : 0,
+      benchCandidateCount: data?.benchRecommendation?.candidates?.length || 0,
     })
     if (data) {
       showOverlay(data)
@@ -1399,11 +1434,23 @@ defineExpose({
     rgba(42, 54, 64, 0.84);
 }
 
+.bench-inline {
+  flex: 0 0 auto;
+  padding: 12px 18px 0;
+}
+
+.insight-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 .champion-hero {
   position: relative;
   flex: 0 0 auto;
-  height: 132px;
-  margin: 18px 18px 0;
+  height: 104px;
+  margin: 12px 18px 0;
   overflow: hidden;
   border: 1px solid rgba(133, 148, 145, 0.32);
   border-radius: 8px;
@@ -1418,6 +1465,20 @@ defineExpose({
   object-fit: cover;
   object-position: center top;
   transform: scale(1.04);
+}
+
+.hero-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(215, 228, 241, 0.34);
+  font-size: 38px;
+  font-weight: 900;
+  background:
+    linear-gradient(135deg, rgba(71, 228, 213, 0.08), rgba(226, 195, 132, 0.08)),
+    rgba(8, 21, 30, 0.92);
 }
 
 .hero-shade {
@@ -1449,7 +1510,7 @@ defineExpose({
 .champion-name {
   margin: 0;
   color: #47e4d5;
-  font-size: 34px;
+  font-size: 28px;
   font-weight: 900;
   line-height: 1;
   text-shadow: 0 0 12px rgba(71, 228, 213, 0.5);
@@ -1531,11 +1592,10 @@ defineExpose({
 }
 
 .tabs-container {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .tabs-list {
@@ -1549,7 +1609,6 @@ defineExpose({
 
 .tab-btn {
   justify-content: center;
-  padding: 10px 12px;
   border: 1px solid rgba(60, 74, 71, 0.44);
   border-radius: 8px;
   background: rgba(17, 29, 38, 0.6);
@@ -1573,11 +1632,10 @@ defineExpose({
 }
 
 .tab-content {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
   margin-top: 0;
   padding: 16px 18px 18px;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .section-title-row {
@@ -1801,15 +1859,15 @@ defineExpose({
   color: #859491;
 }
 
-.tab-content::-webkit-scrollbar {
+.insight-scroll::-webkit-scrollbar {
   width: 6px;
 }
 
-.tab-content::-webkit-scrollbar-track {
+.insight-scroll::-webkit-scrollbar-track {
   background: rgba(4, 15, 24, 0.52);
 }
 
-.tab-content::-webkit-scrollbar-thumb {
+.insight-scroll::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, rgba(226, 195, 132, 0.68), rgba(71, 228, 213, 0.46));
   border-radius: 999px;
 }
@@ -1822,6 +1880,7 @@ defineExpose({
   }
 
   .champion-hero,
+  .bench-inline,
   .stat-strip,
   .tabs-list,
   .tab-content,

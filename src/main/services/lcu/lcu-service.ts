@@ -583,6 +583,63 @@ export class LCUService {
   }
 
   /**
+   * 只读读取 LCU JSON 端点，用于阶段诊断和确认客户端是否暴露海克斯相关字段。
+   */
+  async getReadOnlyJsonEndpoint(endpointPath: string): Promise<{ status: number; data: any } | null> {
+    if (!endpointPath.startsWith('/')) {
+      throw new Error(`Invalid LCU endpoint path: ${endpointPath}`)
+    }
+
+    if (!this.active || !this.url) {
+      await this.getAuthToken()
+    }
+
+    if (!this.active || !this.url || !this.auth) {
+      return null
+    }
+
+    try {
+      const res = await axios.get(`${this.url}${endpointPath}`, {
+        ...this.auth,
+        httpsAgent: this.httpsAgent,
+        validateStatus: (status) => status < 500,
+        timeout: 2500,
+      })
+
+      return {
+        status: res.status,
+        data: res.data,
+      }
+    } catch (error) {
+      const err = error as Error
+      logger.debug(`LCU read-only endpoint failed (${endpointPath}):`, err.message)
+      return null
+    }
+  }
+
+  /**
+   * 读取游戏内 Live Client Data。该接口无写操作，仅用于排查游戏中是否有海克斯选择状态。
+   */
+  async getLiveClientAllGameData(): Promise<{ status: number; data: any } | null> {
+    try {
+      const res = await axios.get('https://127.0.0.1:2999/liveclientdata/allgamedata', {
+        httpsAgent: this.httpsAgent,
+        validateStatus: (status) => status < 500,
+        timeout: 2500,
+      })
+
+      return {
+        status: res.status,
+        data: res.data,
+      }
+    } catch (error) {
+      const err = error as Error
+      logger.debug('Live Client Data read failed:', err.message)
+      return null
+    }
+  }
+
+  /**
    * 轮询游戏阶段（用于监听阶段变化）
    * @param callback - 阶段变化时的回调函数
    * @param interval - 轮询间隔（毫秒），默认1000ms

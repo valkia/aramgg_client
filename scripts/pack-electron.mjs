@@ -1,6 +1,19 @@
 import { spawn } from 'node:child_process'
+import net from 'node:net'
 import path from 'node:path'
 import process from 'node:process'
+
+const PROXY_ENV_KEYS = [
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'ALL_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'all_proxy',
+  'npm_config_proxy',
+  'npm_config_https_proxy',
+  'npm_config_all_proxy',
+]
 
 function run(command, args, options = {}) {
   return new Promise((resolve) => {
@@ -31,6 +44,89 @@ function run(command, args, options = {}) {
   })
 }
 
+function parseLocalProxy(value) {
+  if (!value || typeof value !== 'string') {
+    return null
+  }
+
+  const rawValue = value.trim()
+  if (!rawValue) {
+    return null
+  }
+
+  const valueWithProtocol = /^[a-z][a-z\d+.-]*:\/\//i.test(rawValue)
+    ? rawValue
+    : `http://${rawValue}`
+
+  try {
+    const url = new URL(valueWithProtocol)
+    const host = url.hostname.toLowerCase()
+    const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '::1'
+    const port = Number.parseInt(url.port, 10)
+
+    if (!isLocalhost || !Number.isInteger(port)) {
+      return null
+    }
+
+    return { host, port }
+  } catch {
+    return null
+  }
+}
+
+function canConnect(host, port) {
+  return new Promise((resolve) => {
+    const socket = net.createConnection({ host, port })
+    const finish = (isOpen) => {
+      socket.removeAllListeners()
+      socket.destroy()
+      resolve(isOpen)
+    }
+
+    socket.setTimeout(500)
+    socket.once('connect', () => finish(true))
+    socket.once('timeout', () => finish(false))
+    socket.once('error', () => finish(false))
+  })
+}
+
+async function createPackEnv() {
+  const env = { ...process.env }
+  const localProxyEntries = []
+
+  for (const key of PROXY_ENV_KEYS) {
+    const proxy = parseLocalProxy(env[key])
+    if (proxy) {
+      localProxyEntries.push({ key, ...proxy })
+    }
+  }
+
+  const checks = new Map()
+  for (const proxy of localProxyEntries) {
+    const checkKey = `${proxy.host}:${proxy.port}`
+    if (!checks.has(checkKey)) {
+      checks.set(checkKey, canConnect(proxy.host, proxy.port))
+    }
+  }
+
+  const staleKeys = []
+  for (const proxy of localProxyEntries) {
+    const isOpen = await checks.get(`${proxy.host}:${proxy.port}`)
+    if (!isOpen) {
+      delete env[proxy.key]
+      staleKeys.push(proxy.key)
+    }
+  }
+
+  if (staleKeys.length > 0) {
+    console.warn(
+      `\nLocal proxy is configured but not reachable. Ignoring for this package run: ${staleKeys.join(', ')}\n`
+    )
+  }
+
+  return env
+}
+
 function isWinUnpackedLockFailure(output) {
   return (
     /build[\\/]+win-unpacked/i.test(output) &&
@@ -49,7 +145,10 @@ function createFallbackOutputDir() {
 }
 
 async function main() {
+  const packEnv = await createPackEnv()
+
   const buildResult = await run('electron-vite', ['build'], {
+    env: packEnv,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
@@ -58,6 +157,7 @@ async function main() {
   }
 
   const packResult = await run('electron-builder', [], {
+    env: packEnv,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
@@ -78,6 +178,7 @@ async function main() {
     'electron-builder',
     [`--config.directories.output=${fallbackOutput}`],
     {
+      env: packEnv,
       stdio: ['ignore', 'pipe', 'pipe'],
     }
   )

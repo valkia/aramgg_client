@@ -4,7 +4,7 @@
 
 应用会在实际对局阶段自动截图并识别海克斯选择界面，然后在浮窗中展示海克斯胜率和推荐度。识别到三张海克斯时会优先按左、中、右卡片区域确定顺序，避免 OCR 文本流乱序导致推荐顺序错位。手动 F1 截图仍保留，用于补救自动识别失败或临时检查。
 
-自动识别只在 LCU gameflow 的 `InProgress` 阶段允许运行。选人阶段 `ChampSelect` 只显示 ARAM bench 建议，不运行游戏内海克斯 OCR。
+自动识别只在 LCU gameflow 的 `InProgress` 阶段允许运行。选人阶段 `ChampSelect` 会打开英雄洞察并在顶部展示 ARAM bench 建议，不运行游戏内海克斯 OCR。
 
 ## 使用流程
 
@@ -43,7 +43,7 @@
 
 ## OCR 性能策略
 
-图像分析会先采样标题区域判断是否像海克斯卡片界面，明显无关的截图会跳过 OCR。
+图像分析会先采样标题区域判断是否像海克斯卡片界面，再采样卡片底部刷新按钮区域；没有刷新按钮时会跳过 OCR。明显无关的截图不会进入 RapidOCR。
 
 进入 OCR 后优先走标题区快速路径：
 
@@ -83,11 +83,13 @@ await electronAPI.autoScreenshot.setConfig({
 安装版会优先把可变数据写到安装目录旁的 `aramgg_client-data/`，如果该目录不可写则回退到 Electron `userData`。
 
 - 日志目录：`logs/`
+- 主日志：`logs/app-YYYY-MM-DD.log`
+- LCU/API 探索日志：`logs/lcu-api-diagnostics-YYYY-MM-DD.log`
 - OCR 调试截图：`ocr-partial-screenshots/`
 - 远端数据缓存：`remote-data-cache/`
 - 应用配置：`config/`
 
-排查海克斯浮窗速度时，优先看 `Augment detected`、`Augment winrate enriched in main` 和 `Augment detection notification sent`。`notifyMode=main-winrate-inline` 表示主进程已随首包补齐胜率；`main-winrate-pending` 表示先显示基础结果；`main-winrate-late` 表示随后补齐胜率。旧的 renderer 侧胜率查询仍可用 `rendererToMainDelayMs`、`mainDurationMs` 和 `mainToRendererDelayMs` 分段排查。海克斯详情弹窗、席位推荐弹窗和游戏内浮窗已关闭 Electron `backgroundThrottling`，用于减少隐藏窗口刚显示时的 IPC 延迟。
+排查海克斯浮窗速度时，优先看 `Augment detected`、`Augment winrate enriched in main` 和 `Augment detection notification sent`。`notifyMode=main-winrate-inline` 表示主进程已随首包补齐胜率；`main-winrate-pending` 表示先显示基础结果；`main-winrate-late` 表示随后补齐胜率。旧的 renderer 侧胜率查询仍可用 `rendererToMainDelayMs`、`mainDurationMs` 和 `mainToRendererDelayMs` 分段排查。英雄洞察弹窗和游戏内浮窗已关闭 Electron `backgroundThrottling`，用于减少隐藏窗口刚显示时的 IPC 延迟。
 
 ## 常见问题
 
@@ -107,7 +109,7 @@ await electronAPI.autoScreenshot.setConfig({
 
 ### 选人阶段为什么不识别海克斯
 
-选人阶段是 `ChampSelect`，不是实际对局。此阶段应用只显示 ARAM bench 只读推荐，并会暂停或清空游戏内海克斯 OCR 状态。
+选人阶段是 `ChampSelect`，不是实际对局。此阶段应用会在英雄洞察顶部显示 ARAM bench 只读推荐，并会暂停或清空游戏内海克斯 OCR 状态。
 
 ### 如何关闭自动识别
 
@@ -129,5 +131,5 @@ await electronAPI.autoScreenshot.setConfig({
 - 图像分析：`src/main/image-analyzer.js`
 - 主进程 gameflow 监控：`src/main/modules/app-config.js`
 - 游戏内浮窗：`src/renderer/components/AugmentFloatingOverlay.vue`
-- ARAM 席位推荐弹窗：`src/renderer/components/BenchOverlayView.vue`
+- 英雄洞察弹窗：`src/renderer/components/AugmentWinrateOverlay.vue`
 - ARAM 选人建议组件：`src/renderer/components/AramBenchRecommendation.vue`

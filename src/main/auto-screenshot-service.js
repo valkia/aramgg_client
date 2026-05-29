@@ -28,6 +28,7 @@ const VISIBLE_AUGMENT_NO_MATCH_GRACE_MS = 900
 const VISIBLE_AUGMENT_PARTIAL_GRACE_MS = 2500
 const VISIBLE_AUGMENT_NO_MATCH_MISSES_BEFORE_CLEAR = 1
 const VISIBLE_AUGMENT_PARTIAL_MISSES_BEFORE_CLEAR = 3
+const FULL_DETECTION_DIAGNOSTIC_REPEAT_MS = 5000
 
 function getSafeTimestampForFile() {
     return logger.toBeijingISOString().replace(/[:.]/g, '-').replace('+08-00', '+0800')
@@ -52,6 +53,80 @@ function getSlotFingerprints(slotDiagnostics = []) {
         }
     }
     return fingerprints
+}
+
+function summarizeSlotDiagnostics(slotDiagnostics = []) {
+    return [0, 1, 2].map(slot => {
+        const diagnostic = (slotDiagnostics || []).find(item => item?.slot === slot) || {}
+        return {
+            slot,
+            matchedId: diagnostic.matchedId ?? null,
+            matchedName: diagnostic.matchedName || null,
+            rejectedMatchedId: diagnostic.rejectedMatchedId ?? null,
+            rejectReason: diagnostic.rejectReason || null,
+            text: diagnostic.text || '',
+            titleFingerprint: diagnostic.titleFingerprint || null,
+            ocrEngine: diagnostic.ocrEngine || null,
+        }
+    })
+}
+
+function summarizeRerollButtons(rerollButtons) {
+    if (!rerollButtons) {
+        return null
+    }
+
+    return {
+        visible: rerollButtons.visible === true,
+        activeSlots: rerollButtons.activeSlots || [],
+        requiredSlots: rerollButtons.requiredSlots ?? null,
+        reason: rerollButtons.reason || null,
+        samples: (rerollButtons.samples || []).map((sample, slot) => ({
+            slot,
+            active: sample.active === true,
+            buttonLikeRatio: Number((Number(sample.buttonLikeRatio || 0) * 100).toFixed(2)),
+            darkRatio: Number((Number(sample.darkRatio || 0) * 100).toFixed(1)),
+        })),
+    }
+}
+
+function summarizeTitleActivity(titleActivity) {
+    if (!titleActivity) {
+        return null
+    }
+
+    return {
+        likely: titleActivity.likely === true,
+        strongTitleRegions: titleActivity.strongTitleRegions ?? null,
+        weakCardRegions: titleActivity.weakCardRegions ?? null,
+        samples: (titleActivity.samples || []).map((sample, slot) => ({
+            slot,
+            brightRatio: Number((Number(sample.brightRatio || 0) * 100).toFixed(2)),
+            darkRatio: Number((Number(sample.darkRatio || 0) * 100).toFixed(1)),
+        })),
+    }
+}
+
+function summarizeAugmentGate(gate) {
+    if (!gate) {
+        return null
+    }
+
+    return {
+        ocrSkippedReason: gate.ocrSkippedReason || null,
+        titleActivity: summarizeTitleActivity(gate.titleActivity),
+        rerollButtons: summarizeRerollButtons(gate.rerollButtons),
+    }
+}
+
+function getChangedSlots(currentIds = [], previousIds = []) {
+    const changed = []
+    for (let slot = 0; slot < 3; slot++) {
+        if ((currentIds[slot] || null) !== (previousIds[slot] || null)) {
+            changed.push(slot)
+        }
+    }
+    return changed
 }
 
 function wait(ms) {
@@ -114,6 +189,8 @@ class AutoScreenshotService {
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugments = []
         this.lastDetectedAugmentSlotFingerprints = []
+        this.lastFullDetectionDiagnosticKey = ''
+        this.lastFullDetectionDiagnosticLogAt = 0
     }
 
     /**
@@ -157,6 +234,8 @@ class AutoScreenshotService {
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugments = []
         this.lastDetectedAugmentSlotFingerprints = []
+        this.lastFullDetectionDiagnosticKey = ''
+        this.lastFullDetectionDiagnosticLogAt = 0
         this.startedAt = Date.now()
         this.firstCaptureLogged = false
         this.firstDetectionLogged = false
@@ -226,6 +305,8 @@ class AutoScreenshotService {
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugments = []
         this.lastDetectedAugmentSlotFingerprints = []
+        this.lastFullDetectionDiagnosticKey = ''
+        this.lastFullDetectionDiagnosticLogAt = 0
         this.lastDetectedAugmentAt = 0
         this.visibleAugmentMissCount = 0
         this.pendingAnalysisBuffer = null
@@ -443,6 +524,15 @@ class AutoScreenshotService {
                 const currentIds = getAugmentIds(normalizedAugments)
                 const currentIdList = currentIds.join(',')
                 const lastIds = this.lastDetectedAugmentIds.join(',')
+                const changedSlots = getChangedSlots(currentIds, this.lastDetectedAugmentIds)
+                this._logFullDetectionDiagnostics({
+                    analysisResult,
+                    augments: normalizedAugments,
+                    currentIds,
+                    changedSlots,
+                    analysisDuration,
+                    changed: currentIdList !== lastIds,
+                })
 
                 if (currentIdList !== lastIds) {
                     // 新的海克斯组合，更新显示
@@ -618,6 +708,51 @@ class AutoScreenshotService {
             screenshots: this.screenshotCount,
             analyses: this.analysisCount,
             analysisDurationMs: Number(analysisDuration.toFixed(1)),
+        })
+    }
+
+    _logFullDetectionDiagnostics({
+        analysisResult,
+        augments = [],
+        currentIds = [],
+        changedSlots = [],
+        analysisDuration = 0,
+        changed = false,
+    }) {
+        const now = Date.now()
+        const slotFingerprints = getSlotFingerprints(analysisResult.analysis.slotDiagnostics || [])
+        const diagnosticKey = `${currentIds.join(',')}:${slotFingerprints.join(',')}`
+
+        if (
+            !changed &&
+            diagnosticKey === this.lastFullDetectionDiagnosticKey &&
+            now - this.lastFullDetectionDiagnosticLogAt < FULL_DETECTION_DIAGNOSTIC_REPEAT_MS
+        ) {
+            return
+        }
+
+        this.lastFullDetectionDiagnosticKey = diagnosticKey
+        this.lastFullDetectionDiagnosticLogAt = now
+
+        logger.info('Augment full detection diagnostics', {
+            changed,
+            changedSlots,
+            currentIds,
+            previousIds: this.lastDetectedAugmentIds,
+            augments: augments.map((augment, index) => ({
+                slot: Number.isInteger(augment?.detectedSlot) ? augment.detectedSlot : index,
+                id: augment?.id ?? null,
+                name: augment?.name || '',
+                rarity: augment?.rarity || 'unknown',
+            })),
+            slotFingerprints,
+            slotDiagnostics: summarizeSlotDiagnostics(analysisResult.analysis.slotDiagnostics || []),
+            rerollButtons: summarizeRerollButtons(analysisResult.analysis.rerollButtons),
+            gate: summarizeAugmentGate(analysisResult.analysis.augmentGate),
+            analysisDurationMs: Number(analysisDuration.toFixed(1)),
+            sinceStartMs: this.startedAt ? now - this.startedAt : 0,
+            screenshotCount: this.screenshotCount,
+            analysisCount: this.analysisCount,
         })
     }
 
@@ -834,6 +969,11 @@ class AutoScreenshotService {
                 })),
                 analysisConfidence: analysisResult.analysis.confidence,
                 partialUpdate: analysisResult.analysis.partialUpdate === true,
+                analysisDiagnostics: {
+                    slots: summarizeSlotDiagnostics(analysisResult.analysis.slotDiagnostics || []),
+                    rerollButtons: summarizeRerollButtons(analysisResult.analysis.rerollButtons),
+                    gate: summarizeAugmentGate(analysisResult.analysis.augmentGate),
+                },
                 timestamp: analysisResult.timestamp,
                 dataSource: 'auto-analysis',
                 winrateInMain: false,
@@ -1136,6 +1276,8 @@ class AutoScreenshotService {
         this.lastDetectedAugmentIds = []
         this.lastDetectedAugments = []
         this.lastDetectedAugmentSlotFingerprints = []
+        this.lastFullDetectionDiagnosticKey = ''
+        this.lastFullDetectionDiagnosticLogAt = 0
         this.lastDetectedAugmentAt = 0
         this.visibleAugmentMissCount = 0
         this.startedAt = 0

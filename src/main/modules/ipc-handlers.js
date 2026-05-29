@@ -6,11 +6,8 @@ import autoScreenshotService from '../auto-screenshot-service.js'
 import { registerLCUIpcHandlers } from '../services/lcu/ipc-handlers.ts'
 import {
     applyFloatingWindowLayout,
-    applyBenchWindowLayout,
     applyPopupWindowLayout,
-    createBenchWindow,
     createPopupWindow,
-    getBenchWindow,
     getFloatingWindow,
     getMainWindow,
     getPopupWindow,
@@ -22,7 +19,7 @@ import { getAppDataDir, getConfigDir } from './app-paths.js'
 const store = new Store({ cwd: getConfigDir() })
 
 const TEST_AUGMENT_COUNT = 3
-const TEST_BENCH_CHAMPION_COUNT = 5
+const TEST_BENCH_CHAMPION_COUNT = 8
 let quitRequested = false
 
 function getElapsedMs(startedAt) {
@@ -148,7 +145,7 @@ async function buildRandomAugmentPreviewData(context = 'random-augment-preview')
     throw new Error('没有可用英雄海克斯数据')
 }
 
-async function buildRandomBenchRecommendation() {
+async function buildRandomBenchRecommendation(currentChampionId = null) {
     const { loadChampionRoster } = await import('../data-loader.ts')
     const { getAramBenchRecommendation } = await import('../services/aram/bench-recommendation.js')
     const champions = await loadChampionRoster()
@@ -157,7 +154,19 @@ async function buildRandomBenchRecommendation() {
         throw new Error('没有足够的英雄数据用于席位推荐')
     }
 
-    const selectedChampions = sampleItems(champions, Math.min(TEST_BENCH_CHAMPION_COUNT, champions.length))
+    const requestedChampionId = Number(currentChampionId)
+    const preferredChampion = Number.isFinite(requestedChampionId)
+        ? champions.find((champion) => Number(champion.championId) === requestedChampionId)
+        : null
+    const benchPool = preferredChampion
+        ? champions.filter((champion) => Number(champion.championId) !== Number(preferredChampion.championId))
+        : champions
+    const selectedChampions = preferredChampion
+        ? [
+            preferredChampion,
+            ...sampleItems(benchPool, Math.min(TEST_BENCH_CHAMPION_COUNT - 1, benchPool.length)),
+        ]
+        : sampleItems(champions, Math.min(TEST_BENCH_CHAMPION_COUNT, champions.length))
     const [currentChampion, ...benchChampions] = selectedChampions
     const championStatsById = selectedChampions.reduce((result, champion) => {
         result[champion.championId] = champion
@@ -242,14 +251,6 @@ export function registerIpcHandlers(isDev) {
         const popupWindow = getPopupWindow()
         if (popupWindow?.isVisible()) {
             popupWindow.hide()
-        }
-    })
-
-    ipcMain.on('hide-bench', async () => {
-        const benchWindow = getBenchWindow()
-        if (benchWindow && !benchWindow.isDestroyed() && benchWindow.isVisible()) {
-            benchWindow.hide()
-            logger.info('Bench recommendation window hidden')
         }
     })
 
@@ -349,10 +350,12 @@ export function registerIpcHandlers(isDev) {
             })
 
             const data = await buildRandomAugmentPreviewData('random-popup-test')
+            const benchRecommendation = await buildRandomBenchRecommendation(data.championId)
             popupWindow.webContents.send('for-popup', {
                 championId: data.championId,
                 championName: data.championName,
                 augments: data.augments,
+                benchRecommendation,
                 dataSource: data.dataSource,
                 timestamp: data.timestamp,
             })
@@ -360,10 +363,11 @@ export function registerIpcHandlers(isDev) {
             logger.info('Random test data sent to popup window', {
                 championId: data.championId,
                 augmentIds: data.augments.map((augment) => augment.id),
+                benchCandidateCount: benchRecommendation?.candidates?.length || 0,
                 durationMs: getElapsedMs(startedAt),
             })
 
-            return { success: true, data }
+            return { success: true, data, benchRecommendation }
         } catch (error) {
             logger.error('Failed to show random popup test:', error)
             sendPopupError(error.message)
@@ -374,26 +378,35 @@ export function registerIpcHandlers(isDev) {
     ipcMain.handle('test-show-bench-recommendation', async () => {
         const startedAt = Date.now()
         try {
-            logger.info('[diagnostics] random bench recommendation requested')
+            logger.info('[diagnostics] random bench recommendation requested for champion insight')
             const recommendation = await buildRandomBenchRecommendation()
 
-            if (!getBenchWindow()) {
+            if (!getPopupWindow()) {
                 const devServerUrl = isDev ? 'http://localhost:5173' : ''
-                await createBenchWindow(isDev, devServerUrl)
+                await createPopupWindow(isDev, devServerUrl)
             }
 
-            const benchWindow = getBenchWindow()
-            if (!benchWindow || benchWindow.isDestroyed()) {
-                return { success: false, error: 'Bench window does not exist' }
+            const popupWindow = getPopupWindow()
+            if (!popupWindow || popupWindow.isDestroyed()) {
+                return { success: false, error: 'Popup window does not exist' }
             }
 
-            applyBenchWindowLayout()
-            if (!benchWindow.isVisible()) {
-                benchWindow.show()
+            applyPopupWindowLayout()
+            if (!popupWindow.isVisible()) {
+                popupWindow.show()
             }
 
-            benchWindow.webContents.send('bench-recommendation-preview', recommendation)
-            logger.info('Random bench recommendation sent to bench window', {
+            popupWindow.webContents.send('for-popup', {
+                championId: recommendation?.currentChampion?.championId || null,
+                championName: recommendation?.currentChampion?.name || '',
+                augments: [],
+                benchRecommendation: recommendation,
+                champSelect: true,
+                dataSource: 'champ-select',
+                timestamp: Date.now(),
+            })
+            popupWindow.webContents.send('bench-recommendation-preview', recommendation)
+            logger.info('Random bench recommendation sent to champion insight window', {
                 recommendedChampionId: recommendation?.recommendedChampion?.championId,
                 candidateCount: recommendation?.candidates?.length || 0,
                 durationMs: getElapsedMs(startedAt),

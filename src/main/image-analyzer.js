@@ -155,6 +155,9 @@ const OCR_TITLE_ACTIVE_BRIGHT_RATIO = 0.012
 const OCR_TITLE_WEAK_BRIGHT_RATIO = 0.004
 const OCR_TITLE_DARK_RATIO = 0.72
 const OCR_TITLE_MAX_EXTRA_NORMALIZED_CHARS = 8
+const AUGMENT_REROLL_BUTTON_SAMPLE = { width: 120, height: 48 }
+const AUGMENT_REROLL_BUTTON_MIN_RATIO = 0.08
+const AUGMENT_REROLL_BUTTON_MIN_VISIBLE_SLOTS = 2
 
 const MATCH_BLACKLIST = new Set([
     // 属性描述词
@@ -985,6 +988,18 @@ function createRapidOcrTitleRegions(width, height) {
     }))
 }
 
+function createAugmentRerollButtonRegions(width, height) {
+    const { cardWidth, cardGap, groupLeft } = createCardLayout(width, height)
+
+    return [0, 1, 2].map(index => ({
+        name: `augment-reroll-button-${index + 1}`,
+        left: groupLeft + index * (cardWidth + cardGap) + cardWidth * 0.56,
+        top: height * 0.63,
+        width: cardWidth * 0.34,
+        height: height * 0.045,
+    }))
+}
+
 function createOcrRegions(width, height) {
     const { groupWidth, groupLeft } = createCardLayout(width, height)
     const individualTitleRegions = createIndividualTitleRegions(width, height)
@@ -1479,7 +1494,7 @@ async function measureTitleRegionActivity(imageBuffer, region, imageWidth, image
     }
 }
 
-async function hasLikelyAugmentTitleActivity(imageBuffer, width, height) {
+async function getAugmentTitleActivity(imageBuffer, width, height) {
     const titleRegions = createIndividualTitleRegions(width, height)
     const samples = await Promise.all(
         titleRegions.map(region => measureTitleRegionActivity(imageBuffer, region, width, height))
@@ -1492,7 +1507,111 @@ async function hasLikelyAugmentTitleActivity(imageBuffer, width, height) {
 
     logger.debug(`OCR title activity: likely=${likely}, strong=${strongTitleRegions}, weak=${weakCardRegions}, samples=${samples.map(sample => `${(sample.brightRatio * 100).toFixed(2)}%/${(sample.darkRatio * 100).toFixed(1)}%`).join(', ')}`)
 
-    return likely
+    return {
+        likely,
+        strongTitleRegions,
+        weakCardRegions,
+        samples,
+    }
+}
+
+async function measureRerollButtonRegion(imageBuffer, region, imageWidth, imageHeight) {
+    const rect = clampRegion(region, imageWidth, imageHeight)
+    const { data, info } = await sharp(imageBuffer)
+        .extract(rect)
+        .resize({
+            width: AUGMENT_REROLL_BUTTON_SAMPLE.width,
+            height: AUGMENT_REROLL_BUTTON_SAMPLE.height,
+            fit: 'fill',
+        })
+        .removeAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true })
+
+    const channels = info.channels || 3
+    const pixelCount = info.width * info.height
+    let buttonLikePixels = 0
+    let darkPixels = 0
+
+    for (let index = 0; index < data.length; index += channels) {
+        const red = data[index]
+        const green = data[index + 1]
+        const blue = data[index + 2]
+        const max = Math.max(red, green, blue)
+        const min = Math.min(red, green, blue)
+        const spread = max - min
+
+        const grayButtonPixel = max >= 65 && max <= 190 && spread <= 60
+        const goldButtonPixel = red >= 100 && green >= 70 && green <= 190 && blue <= 135
+        const cyanButtonPixel = green >= 105 && blue >= 105 && red <= 120
+        const brightBorderPixel = max >= 145 && min >= 105 && spread <= 85
+
+        if (grayButtonPixel || goldButtonPixel || cyanButtonPixel || brightBorderPixel) {
+            buttonLikePixels++
+        }
+
+        if (max < 45) {
+            darkPixels++
+        }
+    }
+
+    const buttonLikeRatio = buttonLikePixels / pixelCount
+
+    return {
+        name: region.name,
+        buttonLikeRatio,
+        darkRatio: darkPixels / pixelCount,
+        active: buttonLikeRatio >= AUGMENT_REROLL_BUTTON_MIN_RATIO,
+    }
+}
+
+export async function detectAugmentRerollButtons(imageBuffer, imageWidth = null, imageHeight = null) {
+    const metadata = !imageWidth || !imageHeight
+        ? await sharp(imageBuffer).metadata()
+        : { width: imageWidth, height: imageHeight }
+    const width = metadata.width
+    const height = metadata.height
+
+    if (!width || !height) {
+        return {
+            visible: false,
+            activeSlots: [],
+            samples: [],
+        }
+    }
+
+    const samples = await Promise.all(
+        createAugmentRerollButtonRegions(width, height)
+            .map(region => measureRerollButtonRegion(imageBuffer, region, width, height))
+    )
+    const activeSlots = samples
+        .map((sample, index) => sample.active ? index : null)
+        .filter(index => index != null)
+    const visible = activeSlots.length >= AUGMENT_REROLL_BUTTON_MIN_VISIBLE_SLOTS
+    const reason = visible
+        ? 'visible'
+        : `active-slots-${activeSlots.length}-below-${AUGMENT_REROLL_BUTTON_MIN_VISIBLE_SLOTS}`
+
+    logger.debug('OCR reroll button gate', {
+        visible,
+        activeSlots,
+        requiredSlots: AUGMENT_REROLL_BUTTON_MIN_VISIBLE_SLOTS,
+        reason,
+        samples: samples.map(sample => ({
+            name: sample.name,
+            buttonLikeRatio: Number((sample.buttonLikeRatio * 100).toFixed(2)),
+            darkRatio: Number((sample.darkRatio * 100).toFixed(1)),
+            active: sample.active,
+        })),
+    })
+
+    return {
+        visible,
+        activeSlots,
+        requiredSlots: AUGMENT_REROLL_BUTTON_MIN_VISIBLE_SLOTS,
+        reason,
+        samples,
+    }
 }
 
 function orderAugmentsByDetectedSlot(augments = []) {
@@ -1643,9 +1762,39 @@ async function recognizeAugmentsFromImage(imageBuffer) {
 
         logger.debug(`OCR augment recognition started: ${width}x${height}`)
 
-        if (!await hasLikelyAugmentTitleActivity(imageBuffer, width, height)) {
+        const titleActivity = await getAugmentTitleActivity(imageBuffer, width, height)
+        const gate = {
+            titleActivity,
+            rerollButtons: null,
+            ocrSkippedReason: null,
+        }
+
+        if (!titleActivity.likely) {
             logger.debug('OCR augment recognition skipped: no likely augment title card activity')
-            return { augments: [], slotDiagnostics: [] }
+            return {
+                augments: [],
+                slotDiagnostics: [],
+                rerollButtons: null,
+                gate: {
+                    ...gate,
+                    ocrSkippedReason: 'no-likely-title-activity',
+                },
+            }
+        }
+
+        const rerollButtons = await detectAugmentRerollButtons(imageBuffer, width, height)
+        gate.rerollButtons = rerollButtons
+        if (!rerollButtons.visible) {
+            logger.debug('OCR augment recognition skipped: no visible augment reroll buttons')
+            return {
+                augments: [],
+                slotDiagnostics: [],
+                rerollButtons,
+                gate: {
+                    ...gate,
+                    ocrSkippedReason: 'no-visible-reroll-buttons',
+                },
+            }
         }
 
         const individualTitleGroup = {
@@ -1662,7 +1811,7 @@ async function recognizeAugmentsFromImage(imageBuffer) {
 
         if (result.length === 0) {
             logger.debug('OCR returned no text in ordered augment title slots')
-            return { augments: [], slotDiagnostics }
+            return { augments: [], slotDiagnostics, rerollButtons, gate }
         }
 
         if (hasCompleteDetectedSlots(result)) {
@@ -1679,10 +1828,15 @@ async function recognizeAugmentsFromImage(imageBuffer) {
             })
         }
 
-        return { augments: result, slotDiagnostics }
+        return { augments: result, slotDiagnostics, rerollButtons, gate }
     } catch (error) {
         logger.error('❌ OCR 识别失败:', error)
-        return { augments: [], slotDiagnostics: [] }
+        return {
+            augments: [],
+            slotDiagnostics: [],
+            rerollButtons: null,
+            gate: { ocrSkippedReason: 'ocr-error' },
+        }
     }
 }
 
@@ -2072,6 +2226,8 @@ export const analyzeScreenshot = async (imageInput) => {
         const recognition = await recognizeAugmentsFromImage(imageBuffer)
         const recognizedAugments = recognition.augments
         const slotDiagnostics = recognition.slotDiagnostics || []
+        const rerollButtons = recognition.rerollButtons || null
+        const augmentGate = recognition.gate || null
 
         logger.debug(`OCR augment result count: ${recognizedAugments.length}`)
 
@@ -2092,6 +2248,8 @@ export const analyzeScreenshot = async (imageInput) => {
                 cardPositions: [],                     // 不再使用卡片位置
                 detectionMethod: 'ocr-based',          // 新方案标记
                 slotDiagnostics,
+                rerollButtons,
+                augmentGate,
             },
             metadata: {
                 bufferSize: imageBuffer.length,
@@ -2099,6 +2257,8 @@ export const analyzeScreenshot = async (imageInput) => {
                 sourcePath,
                 format: 'png',
                 detectionMethod: 'ocr',
+                rerollButtons,
+                augmentGate,
                 analysisDurationMs: parseFloat((performance.now() - startTime).toFixed(2)),
             },
         }

@@ -8,7 +8,6 @@ import Display from './components/Display.vue'
 import ShowDetail from './components/ShowDetail.vue'
 import PopupAugmentView from './components/PopupAugmentView.vue'
 import FloatingView from './components/FloatingView.vue'
-import BenchOverlayView from './components/BenchOverlayView.vue'
 import { electronAPI, hasElectronAPI } from './native/electron-api.js'
 
 /**
@@ -139,7 +138,6 @@ const router = createRouter({
     { path: '/showDetail', name: 'ShowDetail', component: ShowDetail },
     { path: '/augment-overlay', name: 'AugmentOverlay', component: PopupAugmentView },
     { path: '/floating-overlay', name: 'FloatingOverlay', component: FloatingView },
-    { path: '/bench-overlay', name: 'BenchOverlay', component: BenchOverlayView },
   ],
 })
 

@@ -1,5 +1,5 @@
 <template>
-    <section class="aram-panel">
+    <section class="aram-panel" :class="{ compact }">
         <header class="panel-header">
             <div class="title-lockup">
                 <Swords class="panel-icon" />
@@ -32,17 +32,6 @@
         </div>
 
         <div v-else class="recommendation-body">
-            <div class="headline-row">
-                <div>
-                    <span class="headline-label">{{ recommendedActionLabel }}</span>
-                    <strong>{{ recommendedName }}</strong>
-                </div>
-                <span v-if="recommendation?.deltaScore" class="delta-chip">
-                    {{ formatDelta(recommendation.deltaScore) }}
-                </span>
-            </div>
-
-            <p class="reason-line">{{ headlineReason }}</p>
 
             <div class="candidate-list">
                 <article
@@ -63,18 +52,13 @@
                     <div class="candidate-main">
                         <div class="candidate-title">
                             <strong>{{ candidate.name }}</strong>
-                            <span>{{ candidate.isCurrent ? '当前' : '席位' }}</span>
                         </div>
                         <div class="stat-line">
-                            <span>胜率 {{ formatPercent(candidate.winRate) }}</span>
-                            <span>选取 {{ formatPercent(candidate.pickRate) }}</span>
-                            <span>样本 {{ formatGames(candidate.games) }}</span>
+                            <div>胜率 {{ formatPercent(candidate.winRate) }}</div>
+                            <div>选取 {{ formatPercent(candidate.pickRate) }}</div>
                         </div>
                     </div>
-                    <div class="score-box">
-                        <span>评分</span>
-                        <strong>{{ formatScore(candidate.score) }}</strong>
-                    </div>
+
                 </article>
             </div>
         </div>
@@ -82,7 +66,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
     CircleAlert,
     CircleDashed,
@@ -92,6 +76,17 @@ import {
 } from 'lucide-vue-next'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
 
+const props = defineProps({
+    compact: {
+        type: Boolean,
+        default: false,
+    },
+    previewRecommendation: {
+        type: Object,
+        default: null,
+    },
+})
+
 const recommendation = ref(null)
 const loading = ref(false)
 const error = ref('')
@@ -100,6 +95,7 @@ const previewMode = ref(false)
 const requestInFlight = ref(false)
 const unsubscribeEvents = []
 const BENCH_REFRESH_TIMEOUT_MS = 8 * 1000
+let mounted = false
 
 const isChampSelect = computed(() => recommendation.value?.gameflowPhase === 'ChampSelect')
 
@@ -131,16 +127,6 @@ const emptyMessage = computed(() => {
 
 const topCandidates = computed(() => recommendation.value?.candidates || [])
 const recommended = computed(() => recommendation.value?.recommendedChampion || null)
-const current = computed(() => recommendation.value?.currentChampion || null)
-
-const recommendedName = computed(() => recommended.value?.name || current.value?.name || '--')
-
-const recommendedActionLabel = computed(() => {
-    if (!recommended.value) return '建议'
-    return recommended.value.isCurrent ? '建议保留' : '建议关注'
-})
-
-const headlineReason = computed(() => recommendation.value?.reasons?.[0] || '暂无推荐')
 
 const withTimeout = (promise, timeoutMs, message) => {
     let timeoutId
@@ -149,6 +135,17 @@ const withTimeout = (promise, timeoutMs, message) => {
     })
 
     return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId))
+}
+
+const applyPreviewRecommendation = (data) => {
+    if (!data) {
+        return
+    }
+
+    previewMode.value = true
+    recommendation.value = data
+    error.value = ''
+    loading.value = false
 }
 
 const refresh = async (showLoading = true) => {
@@ -210,38 +207,40 @@ const formatPercent = (value) => {
     return `${(Number(value) * 100).toFixed(1)}%`
 }
 
-const formatGames = (value) => {
-    if (value == null || Number.isNaN(Number(value))) return '--'
-    return Math.round(Number(value)).toLocaleString('zh-CN')
-}
+watch(
+    () => props.previewRecommendation,
+    (data) => {
+        if (data) {
+            applyPreviewRecommendation(data)
+            return
+        }
 
-const formatScore = (value) => {
-    if (value == null || Number.isNaN(Number(value))) return '--'
-    return Math.round(Number(value) * 100)
-}
-
-const formatDelta = (value) => {
-    const score = Number(value)
-    if (!Number.isFinite(score)) return ''
-    const sign = score > 0 ? '+' : ''
-    return `${sign}${Math.round(score * 100)}`
-}
+        if (previewMode.value) {
+            previewMode.value = false
+            recommendation.value = null
+            error.value = ''
+            if (mounted) {
+                refresh(false)
+            }
+        }
+    },
+    { immediate: true }
+)
 
 onMounted(() => {
+    mounted = true
+
     if (hasElectronAPI()) {
         unsubscribeEvents.push(electronAPI.events.on('bench-recommendation-preview', (data) => {
-            if (data) {
-                previewMode.value = true
-                recommendation.value = data
-                error.value = ''
-                loading.value = false
-            }
+            applyPreviewRecommendation(data)
         }))
 
         unsubscribeEvents.push(electronAPI.events.on('game-phase-changed', () => refresh(false)))
     }
 
-    refresh()
+    if (!previewMode.value) {
+        refresh()
+    }
     refreshTimer.value = setInterval(() => refresh(false), 3000)
 })
 
@@ -252,6 +251,7 @@ onBeforeUnmount(() => {
     }
 
     unsubscribeEvents.splice(0).forEach((unsubscribe) => unsubscribe())
+    mounted = false
 })
 </script>
 
@@ -270,8 +270,7 @@ onBeforeUnmount(() => {
 .panel-actions,
 .headline-row,
 .candidate-row,
-.candidate-title,
-.stat-line {
+.candidate-title {
     display: flex;
     align-items: center;
 }
@@ -552,5 +551,105 @@ h3 {
     color: #e2c384;
     font-size: 15px;
     font-weight: 900;
+}
+
+.aram-panel.compact {
+    padding: 10px;
+    background: rgba(17, 29, 38, 0.6);
+}
+
+.aram-panel.compact .panel-header {
+    margin-bottom: 8px;
+}
+
+.aram-panel.compact .panel-icon {
+    width: 15px;
+    height: 15px;
+}
+
+.aram-panel.compact h3 {
+    font-size: 13px;
+}
+
+.aram-panel.compact .status-pill {
+    min-height: 22px;
+    padding: 0 7px;
+    font-size: 10px;
+}
+
+.aram-panel.compact .refresh-btn {
+    width: 26px;
+    height: 26px;
+}
+
+.aram-panel.compact .recommendation-body {
+    gap: 8px;
+}
+
+.aram-panel.compact .headline-row {
+    min-height: 46px;
+    padding: 8px 10px;
+}
+
+.aram-panel.compact .headline-row strong {
+    font-size: 14px;
+}
+
+.aram-panel.compact .reason-line {
+    font-size: 11px;
+}
+
+.aram-panel.compact .candidate-list {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.aram-panel.compact .candidate-row {
+    flex: 0 0 88px;
+    display: grid;
+    grid-template-rows: auto auto;
+    gap: 7px;
+    align-items: center;
+}
+
+.aram-panel.compact .champion-mark {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+}
+
+.aram-panel.compact .candidate-title {
+    margin-bottom: 0;
+}
+
+.aram-panel.compact .stat-line {
+    gap: 4px 8px;
+    font-size: 10px;
+}
+
+.aram-panel.compact .score-box {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    text-align: left;
+}
+
+.aram-panel.compact .empty-state {
+    min-height: 58px;
+}
+
+.aram-panel.compact .candidate-list::-webkit-scrollbar {
+    height: 5px;
+}
+
+.aram-panel.compact .candidate-list::-webkit-scrollbar-track {
+    background: rgba(4, 15, 24, 0.42);
+}
+
+.aram-panel.compact .candidate-list::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(71, 228, 213, 0.36);
 }
 </style>
