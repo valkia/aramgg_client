@@ -102,7 +102,9 @@ const findScreenSource = (sources) => {
 export const getLolGameWindowId = async () => {
     try {
         const sources = await desktopCapturer.getSources({
-            types: ['window']
+            types: ['window'],
+            thumbnailSize: { width: 0, height: 0 },
+            fetchWindowIcons: false,
         })
         const gameWindow = findGameWindow(sources)
         return gameWindow ? gameWindow.id : null
@@ -116,7 +118,8 @@ export const getLolGameWindowInfo = async () => {
     try {
         const sources = await desktopCapturer.getSources({
             types: ['window'],
-            thumbnailSize: { width: 1, height: 1 },
+            thumbnailSize: { width: 0, height: 0 },
+            fetchWindowIcons: false,
         })
         const gameWindow = findGameWindow(sources)
         return {

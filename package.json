@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "node scripts/dev-electron.mjs",
     "build": "electron-vite build",
     "pack": "npm run prepare:rapidocr && node scripts/pack-electron.mjs",
     "prepare:rapidocr": "node scripts/prepare-rapidocr-runtime.mjs",
