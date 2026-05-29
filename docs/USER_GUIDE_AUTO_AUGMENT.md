@@ -39,7 +39,7 @@
 | 置信度 > 90% | 降低误报 |
 | 海克斯组合变化 | 相同组合不会重复通知 |
 
-检测到 0 张或长时间只检测到部分卡片时，会清空旧浮窗状态。切换海克斯或刷新卡片时如果出现短暂动画帧，自动截图服务会临时保留上一轮完整结果；只有连续多次缺失并超过宽限时间，才会清空浮窗，避免动画造成误清空或闪烁。
+检测到 0 张或长时间只检测到部分卡片时，会清空旧浮窗状态。切换海克斯或刷新卡片时如果出现短暂动画帧，自动截图服务会临时保留上一轮完整结果；只有连续多次缺失并超过宽限时间，才会清空浮窗，避免动画造成误清空或闪烁。部分识别只会更新已经显示的完整三卡浮窗；如果此前没有完整三卡结果，单卡或双卡识别不会打开浮窗。
 
 ## OCR 性能策略
 
@@ -51,7 +51,7 @@
 2. 未命中缓存时，只识别左/中/右单卡标题区域，并按卡位写入结果。
 3. 如果某个卡位没有读到标题，该位置保持为空槽，不用宽区域 OCR fallback 补齐。
 
-这套顺序用于降低 Tesseract 调用次数，同时保持左、中、右卡片顺序稳定。只有完整 3 卡结果会进入标题指纹缓存，部分识别结果只用于展示已读到的卡位。
+这套顺序用于降低 OCR 调用次数，同时保持左、中、右卡片顺序稳定。只有完整 3 卡结果会进入标题指纹缓存，部分识别结果只用于更新已显示浮窗中的已读卡位。
 
 ## 配置和状态
 
@@ -87,7 +87,7 @@ await electronAPI.autoScreenshot.setConfig({
 - 远端数据缓存：`remote-data-cache/`
 - 应用配置：`config/`
 
-排查海克斯浮窗速度时，重点看胜率查询日志中的 `rendererToMainDelayMs`、`mainDurationMs` 和 `mainToRendererDelayMs`。`mainDurationMs` 是主进程查询数据的耗时；如果 `rendererToMainDelayMs` 明显偏高，通常说明浮层窗口刚显示后的 renderer/IPC 调度被延迟。海克斯详情弹窗、席位推荐弹窗和游戏内浮窗已关闭 Electron `backgroundThrottling`，用于减少隐藏窗口刚显示时的 IPC 延迟。
+排查海克斯浮窗速度时，优先看 `Augment detected`、`Augment winrate enriched in main` 和 `Augment detection notification sent`。`notifyMode=main-winrate-inline` 表示主进程已随首包补齐胜率；`main-winrate-pending` 表示先显示基础结果；`main-winrate-late` 表示随后补齐胜率。旧的 renderer 侧胜率查询仍可用 `rendererToMainDelayMs`、`mainDurationMs` 和 `mainToRendererDelayMs` 分段排查。海克斯详情弹窗、席位推荐弹窗和游戏内浮窗已关闭 Electron `backgroundThrottling`，用于减少隐藏窗口刚显示时的 IPC 延迟。
 
 ## 常见问题
 

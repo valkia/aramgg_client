@@ -52,6 +52,8 @@ const cache = new Map<string, { data: any; createdAt: number }>()
 const pendingRequests = new Map<string, Promise<any>>()
 const pendingDataFileRequests = new Map<string, Promise<any>>()
 const detailCache = new Map<string, any>()
+const augmentDetailCache = new Map<string, Record<string, any>>()
+const championAugmentStatsCache = new Map<string, any[]>()
 let electronFetch: any = null
 let dataRootDirPromise: Promise<string> | null = null
 let activeDataSetPromise: Promise<ActiveDataSet> | null = null
@@ -940,11 +942,20 @@ export async function loadAugmentBase(): Promise<any[]> {
 }
 
 export async function loadAugmentDetail(): Promise<Record<string, any>> {
+  const dataSet = await getActiveDataSet()
+  const cacheKey = `${dataSet.dataVersion}:augment-detail`
+  const cached = augmentDetailCache.get(cacheKey)
+  if (cached) {
+    return cached
+  }
+
   const augments = await loadAugmentBase()
-  return augments.reduce((result: Record<string, any>, augment: any) => {
+  const detail = augments.reduce((result: Record<string, any>, augment: any) => {
     result[String(augment.id)] = augment
     return result
   }, {})
+  augmentDetailCache.set(cacheKey, detail)
+  return detail
 }
 
 export async function loadChampionAugments(championId: string | number): Promise<Record<string, any>> {
@@ -1062,16 +1073,26 @@ export async function getAugmentWinrate(
 }
 
 export async function getChampionAugmentStats(championId: string | number): Promise<any[]> {
+  const dataSet = await getActiveDataSet()
+  const cacheKey = `${dataSet.dataVersion}:champion-augment-stats:${championId}`
+  const cached = championAugmentStatsCache.get(cacheKey)
+  if (cached) {
+    return cached
+  }
+
   const [detail, augmentBaseById] = await Promise.all([
     loadChampionDetailPayload(championId),
     loadAugmentDetail(),
   ])
   const augments = Array.isArray(detail?.augments) ? detail.augments : []
 
-  return augments
+  const result = augments
     .filter((augment: any) => augment?.id != null)
     .map((augment: any) => mapPublicAugmentRecommendation(augment, augmentBaseById))
     .sort((a: any, b: any) => b.recommendScore - a.recommendScore)
+
+  championAugmentStatsCache.set(cacheKey, result)
+  return result
 }
 
 export function filterAugmentsByRarity(augmentStats: any[], rarity: string | null): any[] {
@@ -1087,5 +1108,7 @@ export function clearCache(): void {
   pendingRequests.clear()
   pendingDataFileRequests.clear()
   detailCache.clear()
+  augmentDetailCache.clear()
+  championAugmentStatsCache.clear()
   activeDataSetPromise = null
 }

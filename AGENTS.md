@@ -20,6 +20,7 @@ Build output directories such as `dist/`, `dist-electron/`, and `build/` are gen
 - `npm run pack`: build and package with `electron-builder`.
 - `npm run lint`: run ESLint on `src/**/*.js` and `src/**/*.vue`.
 - `npm run type-check`: run Vue and Electron TypeScript checks.
+- `npm run test:unit`: run Vitest unit tests for focused shared/main utilities.
 - `npm run test:screenshots`: run screenshot/OCR analysis test script.
 
 Use targeted test scripts in `tests/electron/` directly when debugging a feature, for example `node tests/electron/test-winrate-query.js`.
@@ -32,7 +33,7 @@ Use JavaScript/TypeScript ES modules. Prefer TypeScript for new source files, se
 
 ## Testing Guidelines
 
-There is no full unit test suite yet. Before submitting changes, run `npm run lint`, `npm run type-check`, and `npm run build`. For data, screenshot, OCR, or augment logic, also run the closest script under `tests/electron/`.
+There is a focused Vitest unit suite, but not broad end-to-end coverage. Before submitting changes, run `npm run test:unit`, `npm run lint`, `npm run type-check`, and `npm run build`. For data, screenshot, OCR, or augment logic, also run the closest script under `tests/electron/`.
 
 Name new test scripts with the existing pattern: `tests/electron/test-<feature>.js`.
 

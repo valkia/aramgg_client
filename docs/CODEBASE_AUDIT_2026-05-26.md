@@ -271,7 +271,6 @@ ipcMain.handle('store-clear', () => {
 | 问题 | 文件 |
 |------|------|
 | `image-analyzer.js` 存在 ~6 个弃用函数 | `splitMergedCards_DEPRECATED`, `validateAndOptimizeCards_DEPRECATED`, `scanForColor`, `findBounds`, `generateAugmentRecommendations`, `detectAugmentCards` |
-| `data-loader.js` 和 `data-loader.ts` 重复存在 | 两个文件内容几乎完全相同 |
 | `src/renderer/router/index.js` 是 Vue 2 死代码 | 项目实际使用 `main.js` 中的 Vue 3 路由 |
 | `AUGMENT_COLORS` 常量仅被弃用的颜色检测使用 | `image-analyzer.js:32` |
 
@@ -310,3 +309,4 @@ ipcMain.handle('store-clear', () => {
 |------|------|------|------|
 | 2026-05-26 | #4 构建目标 node18 vs Electron 39 | 已完成 | 升级 Electron 39→42，构建目标改为 node24 |
 | 2026-05-26 | Electron 整体升级 | 已完成 | electron 39.2.7→42.2.0，electron-builder ^26.8.1→^26.11.1 |
+| 2026-05-29 | `data-loader.js` 和 `data-loader.ts` 重复存在 | 已完成 | 当前仅保留 `src/main/data-loader.ts` 作为主数据加载入口 |

@@ -29,7 +29,7 @@ Renderer 不直接访问 Node API。所有主进程能力都必须经由 preload
 | IPC 注册 | `src/main/modules/ipc-handlers.js`、`src/main/services/lcu/ipc-handlers.ts` | Store、截图、数据、LCU 等业务通道 |
 | LCU 服务 | `src/main/services/lcu/` | LCU token、gameflow、champ-select、符文页 |
 | ARAM bench 推荐 | `src/main/services/aram/bench-recommendation.js` | 纯逻辑，只输入快照和英雄统计 |
-| 数据加载 | `src/main/data-loader.js`、`src/main/data-loader.ts` | 远端数据、磁盘缓存、英雄/海克斯/装备统计 |
+| 数据加载 | `src/main/data-loader.ts` | 远端数据、磁盘缓存、英雄/海克斯/装备统计 |
 | 自动截图 | `src/main/auto-screenshot-service.js` | 串行截图和 OCR 队列，受 gameflow 阶段控制 |
 | 图像分析 | `src/main/image-analyzer.js` | 海克斯 OCR 和匹配 |
 | 运行时数据目录 | `src/main/modules/app-paths.js` | 配置、日志、远端数据缓存、OCR 调试截图 |
@@ -72,7 +72,9 @@ LCU gameflow InProgress
 
 `InProgress` 指 `/lol-gameflow/v1/gameflow-phase` 的实际对局阶段。`ChampSelect`、`Lobby`、`EndOfGame` 等阶段会暂停或清空游戏内海克斯浮窗状态，避免展示过期结果。
 
-自动截图服务串行消费 OCR 队列，忙碌时只保留最新待分析截图。海克斯切换动画造成 0-2 张短暂识别结果时，会在宽限期内保留上一轮完整浮窗；图像分析先使用标题区域活动检测、标题指纹缓存和左/中/右标题快速路径。游戏内海克斯固定为左/中/右三卡位，未读到的卡位保留为空槽，不再用宽区域 OCR fallback 补齐，避免 fallback 文本区域改变游戏内顺序。
+自动截图服务串行消费 OCR 队列，忙碌时只保留最新待分析截图。海克斯切换动画造成 0-2 张短暂识别结果时，会在宽限期内保留上一轮完整浮窗；部分识别只允许更新已有完整三卡浮窗，不能从空状态打开单卡或双卡浮窗。图像分析先使用标题区域活动检测、标题指纹缓存和左/中/右标题快速路径。游戏内海克斯固定为左/中/右三卡位，未读到的卡位保留为空槽，不再用宽区域 OCR fallback 补齐，避免 fallback 文本区域改变游戏内顺序。
+
+海克斯浮窗的胜率补齐优先在主进程完成，短等待内完成则随 `augment-detected` 一起发送；超时则先发送 pending payload，稍后再发送补齐后的结果。英雄海克斯推荐和基础海克斯详情按数据版本/英雄缓存，避免同一英雄刷新时重复映射和排序全量数据。
 
 海克斯详情弹窗、席位推荐弹窗和游戏内浮窗是隐藏后按事件显示的 overlay 窗口，创建时关闭 `backgroundThrottling`，避免刚显示时 renderer IPC 被 Chromium 后台节流延迟。
 

@@ -19,11 +19,25 @@ describe('mergePartialAugments', () => {
         expect(getFingerprintHammingDistance('abcd', '')).toBeNull()
     })
 
-    it('fills fixed slots when a partial OCR frame contains a new augment id', () => {
+    it('does not open an overlay from a partial OCR frame without previous stable ids', () => {
         const result = mergePartialAugments({
             augments: [augment(1071, 1)],
             lastDetectedAugmentIds: [],
             lastDetectedAugments: [],
+        })
+
+        expect(result).toBeNull()
+    })
+
+    it('fills fixed slots when a visible overlay receives a partial OCR frame with a new augment id', () => {
+        const result = mergePartialAugments({
+            augments: [augment(1071, 1)],
+            lastDetectedAugmentIds: ['1032', '1996', '1211'],
+            lastDetectedAugments: [
+                augment(1032, 0),
+                augment(1996, 1),
+                augment(1211, 2),
+            ],
         })
 
         expect(result?.reason).toBe('new-id')

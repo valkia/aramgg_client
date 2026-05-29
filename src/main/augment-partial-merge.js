@@ -100,6 +100,10 @@ export function mergePartialAugments({
         return null
     }
 
+    if (lastDetectedAugmentIds.length === 0) {
+        return null
+    }
+
     const partialIds = new Set(getAugmentIds(augments))
     const hasStablePreviousId = [...partialIds].some(id => lastDetectedAugmentIds.includes(id))
     const changedUnmatchedSlots = getChangedUnmatchedSlots({
@@ -113,9 +117,7 @@ export function mergePartialAugments({
         return null
     }
 
-    const hasNewId = partialIds.size > 0 && (lastDetectedAugmentIds.length === 0 ||
-        [...partialIds].some(id => !lastDetectedAugmentIds.includes(id))
-    )
+    const hasNewId = partialIds.size > 0 && [...partialIds].some(id => !lastDetectedAugmentIds.includes(id))
     if (!hasNewId && changedUnmatchedSlots.length === 0) {
         return null
     }

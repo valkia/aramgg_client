@@ -25,6 +25,7 @@
 ```bash
 npm install
 npm run dev
+npm run test:unit
 npm run lint
 npm run type-check
 npm run build
