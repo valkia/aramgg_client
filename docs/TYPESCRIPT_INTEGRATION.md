@@ -85,6 +85,7 @@ npm run build
 node tests/electron/test-aram-bench-recommendation.js
 node tests/electron/test-winrate-query.js
 node tests/electron/test-screenshot-analysis.js
+npm run test:augment-ocr
 ```
 
 ## 迁移注意事项

@@ -26,6 +26,7 @@
 npm install
 npm run dev
 npm run test:unit
+npm run test:augment-ocr
 npm run lint
 npm run type-check
 npm run build
@@ -38,6 +39,7 @@ npm run pack
 node tests/electron/test-aram-bench-recommendation.js
 node tests/electron/test-winrate-query.js
 node tests/electron/test-screenshot-analysis.js
+node tests/electron/test-augment-ocr-fixtures.js
 ```
 
 ## 开发约定

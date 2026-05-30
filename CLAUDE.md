@@ -22,6 +22,7 @@
 npm install
 npm run dev
 npm run test:unit
+npm run test:augment-ocr
 npm run lint
 npm run type-check
 npm run build
@@ -34,6 +35,7 @@ npm run pack
 node tests/electron/test-aram-bench-recommendation.js
 node tests/electron/test-winrate-query.js
 node tests/electron/test-screenshot-analysis.js
+node tests/electron/test-augment-ocr-fixtures.js
 ```
 
 ## 安全红线
@@ -65,7 +67,7 @@ node tests/electron/test-screenshot-analysis.js
 - ARAM bench 推荐入口是 IPC `lcu-get-aram-bench-recommendation`，结果只包含展示字段，不包含动作字段。
 - 选人阶段推荐使用独立席位推荐弹窗展示，不放回主界面；候选英雄列表应展示完整候选，不做固定 top 5 截断。
 - 海克斯识别结果应优先按左/中/右卡片区域确定顺序；自动截图服务需要保留截图超时和 runId 隔离，避免上一局残留任务影响下一局识别。
-- 海克斯 OCR 修改应保留切换动画期间的短暂 miss 宽限、标题区域快速路径和标题指纹缓存；不要用宽区域 OCR fallback 补齐缺失卡位，读不到的位置保持空槽；部分识别只允许更新已有完整三卡浮窗，不能从空状态打开单卡/双卡浮窗。
+- 海克斯 OCR 使用 PaddleOCR Node 后端和 `resources/paddleocr` ONNX 模型；修改时应保留切换动画期间的短暂 miss 宽限、标题区域快速路径和标题指纹缓存；不要用宽区域 OCR fallback 补齐缺失卡位，读不到的位置保持空槽；部分识别只允许更新已有完整三卡浮窗，不能从空状态打开单卡/双卡浮窗。
 
 ## 文档指针
 

@@ -53,6 +53,8 @@
 
 这套顺序用于降低 OCR 调用次数，同时保持左、中、右卡片顺序稳定。只有完整 3 卡结果会进入标题指纹缓存，部分识别结果只用于更新已显示浮窗中的已读卡位。
 
+PaddleOCR 模型随应用打包在 `resources/paddleocr/`。提交海克斯 OCR、裁剪区域或名称匹配改动前，应运行 `npm run test:augment-ocr` 检查仓库内固定样本。
+
 ## 配置和状态
 
 Renderer 只能通过 preload 暴露的业务 API 调用截图服务：

@@ -21,6 +21,7 @@ Build output directories such as `dist/`, `dist-electron/`, and `build/` are gen
 - `npm run lint`: run ESLint on `src/**/*.js` and `src/**/*.vue`.
 - `npm run type-check`: run Vue and Electron TypeScript checks.
 - `npm run test:unit`: run Vitest unit tests for focused shared/main utilities.
+- `npm run test:augment-ocr`: run committed PaddleOCR augment screenshot fixtures.
 - `npm run test:screenshots`: run screenshot/OCR analysis test script.
 
 Use targeted test scripts in `tests/electron/` directly when debugging a feature, for example `node tests/electron/test-winrate-query.js`.
@@ -53,4 +54,4 @@ Keep ARAM champ-select recommendations in the dedicated bench overlay window, no
 
 Mutable runtime data, including electron-store config, logs, remote-data cache, and OCR debug screenshots, must go through `src/main/modules/app-paths.js`. Do not hardcode `~/.aramgg_client` or write mutable state into packaged resources, `dist/`, `dist-electron/`, or `build/`.
 
-Augment OCR changes should preserve left/center/right title-region ordering, transient-miss retention during reroll animations, and the title-region fast path/cache. Do not fill missing title slots with broad OCR fallbacks; keep unread slots empty so game order cannot be reshuffled by fallback text regions.
+Augment OCR runs through the PaddleOCR Node backend and packaged `resources/paddleocr` ONNX models. Preserve left/center/right title-region ordering, transient-miss retention during reroll animations, and the title-region fast path/cache. Do not fill missing title slots with broad OCR fallbacks; keep unread slots empty so game order cannot be reshuffled by fallback text regions.
