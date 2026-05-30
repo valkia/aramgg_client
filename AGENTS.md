@@ -28,9 +28,9 @@ Use targeted test scripts in `tests/electron/` directly when debugging a feature
 
 ## Coding Style & Naming Conventions
 
-Use Vue single-file components for renderer UI. Keep business logic in services where possible, not inside templates. Prefer existing UI primitives in `src/renderer/components/ui/` and project design tokens in `src/renderer/styles/index.css`.
+Use Vue single-file components for renderer UI. Keep business logic in services where possible, not inside templates. Prefer existing UI primitives in `src/renderer/components/ui/`, Tailwind utility classes, and project design tokens in `src/renderer/styles/index.css`. Add scoped CSS only when Tailwind and existing tokens are not a good fit.
 
-Use JavaScript/TypeScript ES modules. Prefer TypeScript for new source files, services, utilities, IPC contracts, and tests; add `.js` only when extending an existing JavaScript module or when a dependency/tooling boundary makes TypeScript impractical. Component files use `PascalCase.vue`; services and utilities use lowercase or kebab-case names. Keep comments short and only where they clarify non-obvious behavior.
+Use JavaScript/TypeScript ES modules. Prefer TypeScript by default for new source files, services, utilities, IPC contracts, and tests; add `.js` only when extending an existing JavaScript module or when a dependency/tooling boundary makes TypeScript impractical. Component files use `PascalCase.vue`; services and utilities use lowercase or kebab-case names. Keep comments short and only where they clarify non-obvious behavior.
 
 ## Testing Guidelines
 

@@ -58,7 +58,11 @@ const getOpggPerks = async () => {
             storedLolPath = await electronAPI.store.get('lolPath') || ''
         }
 
-        const currentLolPath = storedLolPath || configCache.getLolPath() || "E:\\wegame\\英雄联盟(26)"
+        const currentLolPath = storedLolPath || configCache.getLolPath() || ''
+        if (!currentLolPath) {
+            throw new Error('请先配置英雄联盟游戏目录')
+        }
+
         statusMessage.value = '正在获取游戏版本...'
 
         const lolVer = await getLolVer()

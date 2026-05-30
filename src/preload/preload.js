@@ -35,6 +35,7 @@ const once = (channel, callback) => {
 
     const handler = (_event, ...args) => callback(...args)
     ipcRenderer.once(channel, handler)
+    return () => ipcRenderer.removeListener(channel, handler)
 }
 
 const electronAPI = {
@@ -42,7 +43,6 @@ const electronAPI = {
         get: (key) => ipcRenderer.invoke('store-get', key),
         set: (key, value) => ipcRenderer.invoke('store-set', key, value),
         delete: (key) => ipcRenderer.invoke('store-delete', key),
-        clear: () => ipcRenderer.invoke('store-clear'),
     },
     windows: {
         showPopup: (data) => ipcRenderer.send('show-popup', data),

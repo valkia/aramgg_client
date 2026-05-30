@@ -1,5 +1,4 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain } from 'electron'
-import Store from 'electron-store'
 import { captureScreenshot } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
 import autoScreenshotService from '../auto-screenshot-service.js'
@@ -14,12 +13,28 @@ import {
     toggleMainWindow,
 } from './window-manager.js'
 import logger from './logger.js'
-import { getAppDataDir, getConfigDir } from './app-paths.js'
-
-const store = new Store({ cwd: getConfigDir() })
+import store from './app-store.js'
+import { getAppDataDir } from './app-paths.js'
 
 const TEST_AUGMENT_COUNT = 3
 const TEST_BENCH_CHAMPION_COUNT = 8
+const BROADCAST_CHANNELS = new Set([
+    'fromMain',
+    'for-popup',
+    'screenshot-taken',
+    'winrate-updated',
+    'auto-screenshot-taken',
+    'game-phase-changed',
+    'champ-select-start',
+    'game-started',
+    'game-in-progress',
+    'bench-recommendation-preview',
+    'augment-detection-started',
+    'augment-detected',
+    'augment-cleared',
+    'game-ended',
+    'end-of-game',
+])
 let quitRequested = false
 
 function getElapsedMs(startedAt) {
@@ -200,11 +215,14 @@ export function registerIpcHandlers(isDev) {
         store.delete(key)
     })
 
-    ipcMain.handle('store-clear', () => {
-        store.clear()
-    })
-
     ipcMain.on('broadcast', (ev, data) => {
+        if (!data || !BROADCAST_CHANNELS.has(data.channel)) {
+            logger.warn('[ipc] blocked broadcast to invalid channel', {
+                channel: data?.channel || null,
+            })
+            return
+        }
+
         ev.sender.send(data.channel, data)
     })
 

@@ -19,27 +19,36 @@ onMounted(() => {
 
 <style>
 #app {
-  @apply font-sans antialiased h-full w-full;
+  width: 100%;
+  height: 100%;
+  font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 html {
-  @apply h-full;
+  height: 100%;
   background: var(--lol-bg);
 }
 
 body {
-  @apply m-0 h-full;
+  height: 100%;
+  margin: 0;
   background: var(--lol-bg);
   color: var(--lol-ivory);
 }
 
 .return-btn {
-  @apply absolute left-0 border-none;
+  position: absolute;
+  left: 0;
+  border: 0;
   color: var(--lol-ivory);
 }
 
 .nav {
-  @apply py-xs px-sm h-10 text-center;
+  height: 40px;
+  padding: 4px 8px;
+  text-align: center;
   background: var(--lol-surface);
   color: var(--lol-ivory);
 }

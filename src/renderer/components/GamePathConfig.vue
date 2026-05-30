@@ -77,6 +77,11 @@ const saveLolPath = async () => {
  * 选择游戏目录
  */
 const selectLolDirectory = async () => {
+    if (!hasElectronAPI()) {
+        alert('目录选择只在 Electron 应用中可用')
+        return
+    }
+
     try {
         const result = await electronAPI.dialogs.selectLolDirectory()
 

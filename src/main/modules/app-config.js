@@ -1,5 +1,4 @@
 import { app, globalShortcut, BrowserWindow } from 'electron'
-import Store from 'electron-store'
 import { captureScreenshot, getLolGameStatus } from '../screenshot.js'
 import { analyzeScreenshot } from '../image-analyzer.js'
 import { registerIpcHandlers } from './ipc-handlers.js'
@@ -17,16 +16,18 @@ import autoScreenshotService from '../auto-screenshot-service.js'
 import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
 import { checkForClientUpdate } from '../version-checker.js'
 import logger from './logger.js'
-import { getAppDataDir, getConfigDir } from './app-paths.js'
+import store from './app-store.js'
+import { getAppDataDir } from './app-paths.js'
 
 const __dirname = import.meta.dirname
-const store = new Store({ cwd: getConfigDir() })
 
 // 全局游戏流程监控状态
 let lcuPollingTimer = null
 let lcuGameflowSubscription = null
 let lcuGameflowReconnectTimer = null
 let lcuGameflowMonitorStopping = false
+let quitCleanupCompleted = false
+let quitCleanupPromise = null
 const AUTO_SCREENSHOT_INTERVAL_MS = 200
 const AUTO_SCREENSHOT_MAX_CAPTURES = 100
 const GAME_WINDOW_STATUS_LOG_INTERVAL_MS = 30000
@@ -136,7 +137,6 @@ async function autoDetectLolPath() {
         'C:\\Program Files\\League of Legends',
         'D:\\Riot Games\\League of Legends',
         'D:\\Games\\League of Legends',
-        'E:\\wegame\\英雄联盟(26)', // 用户的路径
     ]
 
     for (const checkPath of commonPaths) {
@@ -776,29 +776,44 @@ function registerF1Shortcut() {
 /**
  * 注册应用事件
  */
+async function runQuitCleanup() {
+    logger.info('App is quitting, cleaning up...')
+
+    lcuGameflowMonitorStopping = true
+    stopGameflowWebSocket('app will quit')
+
+    if (lcuPollingTimer) {
+        clearInterval(lcuPollingTimer)
+        lcuPollingTimer = null
+        logger.info('游戏流程轮询已停止')
+    }
+
+    if (autoScreenshotService && autoScreenshotService.isRunning) {
+        autoScreenshotService.stop()
+        logger.info('自动截图服务已停止')
+    }
+
+    await logger.cleanupOldLogs(7)
+}
+
 function registerAppEvents() {
-    // 应用即将退出时的清理
-    app.on('will-quit', async () => {
-        logger.info('App will quit, cleaning up...')
-
-        lcuGameflowMonitorStopping = true
-        stopGameflowWebSocket('app will quit')
-
-        // 停止游戏流程轮询
-        if (lcuPollingTimer) {
-            clearInterval(lcuPollingTimer)
-            lcuPollingTimer = null
-            logger.info('游戏流程轮询已停止')
+    app.on('before-quit', (event) => {
+        if (quitCleanupCompleted) {
+            return
         }
 
-        // 停止自动截图
-        if (autoScreenshotService && autoScreenshotService.isRunning) {
-            autoScreenshotService.stop()
-            logger.info('自动截图服务已停止')
+        event.preventDefault()
+
+        if (!quitCleanupPromise) {
+            quitCleanupPromise = runQuitCleanup()
+                .catch((error) => {
+                    logger.warn('App quit cleanup failed:', error.message)
+                })
+                .finally(() => {
+                    quitCleanupCompleted = true
+                    app.quit()
+                })
         }
-        
-        // 清理旧日志
-        await logger.cleanupOldLogs(7)
     })
 
     // 应用退出时的清理

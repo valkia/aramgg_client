@@ -11,8 +11,6 @@ const [{ init }, windowManager, { default: logger }] = await Promise.all([
 
 const { getMainWindow } = windowManager
 
-// 解决提示ERR_CERT_AUTHORITY_INVALID的问题
-app.commandLine.appendSwitch('ignore-certificate-errors', 'true')
 app.commandLine.appendSwitch('ignore-connections-limit', 'op.gg')
 
 /**

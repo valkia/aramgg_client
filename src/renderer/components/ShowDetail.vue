@@ -69,6 +69,14 @@
                     </div>
                 </div>
 
+                <div
+                    v-if="applyStatus.message"
+                    class="apply-status"
+                    :class="applyStatus.type"
+                >
+                    {{ applyStatus.message }}
+                </div>
+
                 <div v-if="activePerks.length" class="loadout-list">
                     <article
                         v-for="(perk, index) in activePerks"
@@ -110,9 +118,13 @@
                             </div>
                         </div>
 
-                        <button class="apply-btn" @click="apply(perk)">
+                        <button
+                            class="apply-btn"
+                            :disabled="applyingPerk === perk"
+                            @click="apply(perk)"
+                        >
                             <Send class="apply-icon" />
-                            应用
+                            {{ applyingPerk === perk ? '应用中' : '应用' }}
                         </button>
                     </article>
                 </div>
@@ -130,11 +142,10 @@ import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { ChevronLeft, Database, Layers, Send } from 'lucide-vue-next'
 import config from "../native/config";
 import {getChampions} from '../service/qq';
-import LCUService from '../service/lcu';
 import LolQQ from '../service/data-source/lol-qq';
 import Opgg from '../service/data-source/op-gg';
 import {getChampionInfo} from './utils';
-import { electronAPI } from '../native/electron-api.js'
+import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
 
 const type = ref("opgg");
 const championId = ref("");
@@ -144,7 +155,10 @@ const qqPerks = ref([]);
 const opggPerks = ref([]);
 const curPerk = ref({});
 const coordinate = ref({x: 0, y: 0, width: 0, height: 0});
+const applyingPerk = ref(null);
+const applyStatus = ref({ type: '', message: '' });
 let unsubscribeForPopup = null;
+let detailRequestId = 0;
 
 const activePerks = computed(() => (type.value === 'qq' ? qqPerks.value : opggPerks.value) || [])
 const championInitial = computed(() => championDetail.value?.name?.slice(0, 1) || 'LoL')
@@ -168,61 +182,97 @@ const selectType = (typeValue) => {
     type.value = typeValue;
 }
 
+const loadChampionDetail = async (id) => {
+    const requestId = ++detailRequestId;
+    championId.value = id;
+    applyStatus.value = { type: '', message: '' };
+    console.log(`id:${id}`);
+
+    if (!championId.value || !championMap.value?.length) return;
+
+    const champ = getChampionInfo(championId.value, championMap.value);
+    if (requestId !== detailRequestId) return;
+
+    if (!champ) {
+        championId.value = 0;
+        championDetail.value = null;
+        qqPerks.value = [];
+        opggPerks.value = [];
+        return;
+    }
+
+    championDetail.value = champ;
+    qqPerks.value = [];
+    opggPerks.value = [];
+
+    const lolqqInstance = new LolQQ();
+    const opggInstance = new Opgg();
+    const [qqResult, opggResult] = await Promise.allSettled([
+        lolqqInstance.getChampionPerks(champ.key, champ.id),
+        opggInstance.getChampionPerks(champ.id),
+    ]);
+
+    if (requestId !== detailRequestId) return;
+
+    if (qqResult.status === 'fulfilled') {
+        qqPerks.value = qqResult.value;
+    } else {
+        console.warn('QQ 符文数据加载失败:', qqResult.reason);
+    }
+
+    if (opggResult.status === 'fulfilled') {
+        opggPerks.value = opggResult.value;
+    } else {
+        console.warn('OP.GG 符文数据加载失败:', opggResult.reason);
+    }
+}
+
 const init = async () => {
-    const lolVer = config.get(`lolVer`);
-    const championList = await getChampions(lolVer);
-    championMap.value = championList;
-    console.log(championList)
+    try {
+        const lolVer = config.get(`lolVer`);
+        const championList = await getChampions(lolVer);
+        championMap.value = championList;
 
-    unsubscribeForPopup = electronAPI.events.on('for-popup', ({championId: id}) => {
-        if (id) {
-            championId.value = id;
-            console.log(`id:${id}`);
-
-            if (!championId.value || !championMap.value) return;
-
-            const champ = getChampionInfo(championId.value, championMap.value);
-            if (!champ) {
-                championId.value = 0;
-                championDetail.value = null;
-                return;
-            }
-
-            championDetail.value = champ;
-            console.log(champ.key)
-            console.log(champ.id)
-            console.log(championDetail.value)
-            const lolqqInstance = new LolQQ();
-            lolqqInstance.getChampionPerks(champ.key, champ.id).then((result) => {
-                qqPerks.value = (result);
-                console.log(qqPerks.value)
+        if (hasElectronAPI()) {
+            unsubscribeForPopup = electronAPI.events.on('for-popup', ({championId: id} = {}) => {
+                if (id) {
+                    void loadChampionDetail(id);
+                }
             });
-
-            const opggInstance = new Opgg();
-            opggInstance.getChampionPerks(champ.id).then((result) => {
-                opggPerks.value = (result);
-                console.log(result)
-            });
+        } else {
+            console.warn('Electron API 不可用，无法监听英雄详情事件');
         }
-    });
+    } catch (error) {
+        console.error('初始化英雄详情失败:', error);
+    }
 }
 
 const apply = async (perk) => {
     console.log("apply");
-    const lolVer = config.get(`lolVer`);
-    const lolDir = config.get(`lolDir`);
-    console.log(`lolVer:${lolVer}`);
-    console.log(`lolDir:${lolDir}`);
+    applyingPerk.value = perk;
+    applyStatus.value = { type: 'loading', message: '正在应用符文方案...' };
 
     try {
-        const lcuInstance = new LCUService(lolDir);
-        await lcuInstance.getAuthToken();
-        const res = await lcuInstance.applyPerk({
+        if (!hasElectronAPI()) {
+            throw new Error('Electron API 不可用');
+        }
+
+        const res = await electronAPI.lcu.applyPerk({
             ...perk,
         });
+        if (!res?.success) {
+            throw new Error(res?.error || '应用符文失败');
+        }
+        applyStatus.value = { type: 'success', message: '符文方案已应用' };
         console.info(`Apply perk`, res);
     } catch (e) {
+        applyStatus.value = {
+            type: 'error',
+            message: e?.message || '应用符文失败',
+        };
         console.error(e);
+    } finally {
+        applyingPerk.value = null;
     }
 }
 
@@ -248,6 +298,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+    detailRequestId += 1;
     unsubscribeForPopup?.();
 });
 </script>
@@ -519,6 +570,34 @@ onBeforeUnmount(() => {
     gap: 8px;
 }
 
+.apply-status {
+    position: relative;
+    z-index: 1;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    color: var(--lol-muted);
+    background: rgba(7, 10, 13, 0.36);
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.apply-status.loading {
+    color: var(--lol-teal-2);
+    border-color: rgba(40, 217, 200, 0.24);
+}
+
+.apply-status.success {
+    color: var(--lol-success);
+    border-color: rgba(84, 216, 132, 0.28);
+}
+
+.apply-status.error {
+    color: #ff9c96;
+    border-color: rgba(229, 83, 75, 0.28);
+}
+
 .loadout-row {
     display: grid;
     grid-template-columns: 42px 48px minmax(0, 1fr) 210px 96px;
@@ -643,6 +722,12 @@ onBeforeUnmount(() => {
 
 .apply-btn:hover {
     box-shadow: var(--lol-glow);
+}
+
+.apply-btn:disabled {
+    opacity: 0.62;
+    cursor: wait;
+    box-shadow: none;
 }
 
 .empty-state {

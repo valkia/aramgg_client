@@ -1385,9 +1385,13 @@ function hasCompleteDetectedSlots(augments = []) {
     return slots.size === 3
 }
 
+function logOcrQueueError(error) {
+    logger.warn('OCR 队列任务失败:', error?.message || String(error))
+}
+
 function enqueueOcr(task) {
-    const nextTask = ocrQueue.catch(() => {}).then(task)
-    ocrQueue = nextTask.catch(() => {})
+    const nextTask = ocrQueue.catch(logOcrQueueError).then(task)
+    ocrQueue = nextTask.catch(logOcrQueueError)
     return nextTask
 }
 

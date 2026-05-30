@@ -433,6 +433,8 @@ export class LCUService {
       logger.debug('Current rune page:', res.data)
       return res.data
     } catch (error) {
+      const err = error as Error
+      logger.warn('获取当前符文页失败:', err.message)
       return null
     }
   }
@@ -452,6 +454,8 @@ export class LCUService {
       })
       return res.data
     } catch (error) {
+      const err = error as Error
+      logger.warn('获取符文页列表失败:', err.message)
       return []
     }
   }
@@ -471,6 +475,8 @@ export class LCUService {
       })
       return true
     } catch (error) {
+      const err = error as Error
+      logger.warn('删除符文页失败:', { id, error: err.message })
       return false
     }
   }
@@ -490,6 +496,8 @@ export class LCUService {
       })
       return true
     } catch (error) {
+      const err = error as Error
+      logger.warn('创建符文页失败:', err.message)
       return false
     }
   }
@@ -503,13 +511,16 @@ export class LCUService {
     const current = list.find((i) => i.current && i.isDeletable)
 
     if (current) {
-      await this.deletePerk(current.id)
-      await this.createPerk(data)
-      return true
+      const deleted = await this.deletePerk(current.id)
+      if (!deleted) {
+        logger.warn('应用符文页已中止：当前可删除符文页删除失败', { id: current.id })
+        return false
+      }
+
+      return this.createPerk(data)
     }
 
-    await this.createPerk(data)
-    return true
+    return this.createPerk(data)
   }
 
   /**

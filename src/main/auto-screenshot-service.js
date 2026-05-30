@@ -10,15 +10,14 @@
 import { captureScreenshot } from './screenshot.js'
 import { analyzeScreenshot, warmupImageAnalyzer } from './image-analyzer.js'
 import { BrowserWindow } from 'electron'
-import Store from 'electron-store'
 import fs from 'fs-extra'
 import path from 'path'
 import logger from './modules/logger.js'
 import { applyFloatingWindowLayout } from './modules/window-manager.js'
-import { getConfigDir, getPartialOcrScreenshotDir } from './modules/app-paths.js'
+import store from './modules/app-store.js'
+import { getPartialOcrScreenshotDir } from './modules/app-paths.js'
 import { getAugmentIds, mergePartialAugments } from './augment-partial-merge.js'
 
-const store = new Store({ cwd: getConfigDir() })
 const AUTO_SCREENSHOT_SUMMARY_INTERVAL_MS = 10000
 const ANALYSIS_MISS_LOG_INTERVAL_MS = 10000
 const PARTIAL_OCR_SAVE_INTERVAL_MS = 10000

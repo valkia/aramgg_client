@@ -6,9 +6,8 @@
  */
 
 import { ipcMain } from 'electron'
-import Store from 'electron-store'
 import logger from '../../modules/logger.js'
-import { getConfigDir } from '../../modules/app-paths.js'
+import store from '../../modules/app-store.js'
 import { getLCUServiceInstance } from './lcu-service.ts'
 import { ChampionIdResult, ChampSelectSnapshot } from './types.ts'
 import {
@@ -17,7 +16,6 @@ import {
   getAramBenchRecommendation,
 } from '../aram/bench-recommendation.js'
 
-const store = new Store({ cwd: getConfigDir() })
 const LCU_READ_TIMEOUT_MS = 8 * 1000
 
 const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> => {

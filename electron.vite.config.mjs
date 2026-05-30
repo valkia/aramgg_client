@@ -1,4 +1,5 @@
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
 
@@ -87,6 +88,6 @@ export default defineConfig({
       include: ['cheerio'],
       exclude: ['electron', 'electron-store', 'electron-log', 'fs-extra']
     },
-    plugins: [vue(), nodeBuiltinsPlugin()]
+    plugins: [vue(), tailwindcss(), nodeBuiltinsPlugin()]
   }
 })
