@@ -4,6 +4,7 @@ node_modules
 /dist-electron
 /build
 /.runtime
+/.codex-tmp
 
 # local env files
 .env.local
