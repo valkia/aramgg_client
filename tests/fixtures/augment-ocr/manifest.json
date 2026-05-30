@@ -1,0 +1,23 @@
+[
+  {
+    "file": "full-three-cards.png",
+    "description": "Full augment selection with three readable title slots.",
+    "expectedCardCount": 3,
+    "expectedIds": [1032, 1390, 1129],
+    "expectedNames": ["裁决使", "超凡邪恶", "神射法师"]
+  },
+  {
+    "file": "partial-one-card.png",
+    "description": "Partial frame where only the left title should match.",
+    "expectedCardCount": 1,
+    "expectedIds": [1332],
+    "expectedNames": ["不祥契约"]
+  },
+  {
+    "file": "no-match-title-activity.png",
+    "description": "Title-like activity that should not match an augment.",
+    "expectedCardCount": 0,
+    "expectedIds": [],
+    "expectedNames": []
+  }
+]

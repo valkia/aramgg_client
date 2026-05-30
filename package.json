@@ -7,8 +7,7 @@
   "scripts": {
     "dev": "node scripts/dev-electron.mjs",
     "build": "electron-vite build",
-    "pack": "npm run prepare:rapidocr && node scripts/pack-electron.mjs",
-    "prepare:rapidocr": "node scripts/prepare-rapidocr-runtime.mjs",
+    "pack": "node scripts/pack-electron.mjs",
     "start": "electron .",
     "lint": "eslint src --ext .js,.vue",
     "type-check": "vue-tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
@@ -16,6 +15,7 @@
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
+    "test:augment-ocr": "node tests/electron/test-augment-ocr-fixtures.js",
     "test:screenshots": "node tests/electron/test-screenshot-analysis.js"
   },
   "build": {
@@ -33,12 +33,8 @@
     ],
     "extraResources": [
       {
-        "from": "chi_sim.traineddata",
-        "to": "data/chi_sim.traineddata"
-      },
-      {
-        "from": ".runtime/rapidocr",
-        "to": "rapidocr-runtime"
+        "from": "resources/paddleocr",
+        "to": "paddleocr"
       }
     ],
     "win": {
@@ -63,8 +59,9 @@
     "axios": "^1.16.1",
     "electron-store": "^11.0.2",
     "fs-extra": "^11.3.5",
-    "sharp": "^0.34.5",
-    "tesseract.js": "^7.0.0"
+    "onnxruntime-node": "^1.26.0",
+    "paddleocr": "^1.1.1",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

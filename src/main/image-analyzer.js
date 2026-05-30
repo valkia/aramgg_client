@@ -12,12 +12,11 @@
  * - 匹配海克斯数据库中的名称
  * - 更可靠、更简单、更易维护
  *
- * TODO: 实现OCR识别逻辑（需要集成Tesseract.js或其他OCR库）
+ * OCR 由 Node 端 PaddleOCR ONNX 后端处理。
  */
 
 import sharp from 'sharp'
 import path from 'path'
-import { spawn } from 'child_process'
 import { readFileSync, existsSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { loadAugmentBase } from './data-loader.ts'
@@ -130,25 +129,21 @@ async function initAugmentDatabase() {
     }
 }
 
-let tesseractWorker = null
-let tesseractWorkerPromise = null
-let tesseractModulePromise = null
-let tesseractWorkerIdleTimer = null
-let tesseractWorkerPsm = null
-let rapidOcrWorker = null
-let rapidOcrWorkerPromise = null
-let rapidOcrRequestId = 0
-let rapidOcrDisabled = false
-let rapidOcrUnavailableLogged = false
-let rapidOcrReadyLogged = false
+let paddleOcrService = null
+let paddleOcrServicePromise = null
+let paddleOcrDisabled = false
+let paddleOcrUnavailableLogged = false
+let paddleOcrReadyLogged = false
 let ocrQueue = Promise.resolve()
-let loggedTesseractLangPath = null
 let AUGMENT_MATCH_ENTRIES = null
 
-const TESSERACT_WORKER_IDLE_CLEANUP_MS = 60000
-const RAPID_OCR_REQUEST_TIMEOUT_MS = 2500
-const RAPID_OCR_STARTUP_TIMEOUT_MS = 12000
-const RAPID_OCR_RUNTIME_DIR_NAME = 'rapidocr-runtime'
+const PADDLE_OCR_RUNTIME_DIR_NAME = 'paddleocr'
+const PADDLE_OCR_MAX_SIDE_LENGTH = 512
+const PADDLE_OCR_MINIMUM_AREA_THRESHOLD = 24
+const PADDLE_OCR_TEXT_PIXEL_THRESHOLD = 0.55
+const PADDLE_OCR_PADDING_BOX_VERTICAL = 0.3
+const PADDLE_OCR_PADDING_BOX_HORIZONTAL = 0.5
+const PADDLE_OCR_RECOGNITION_IMAGE_HEIGHT = 48
 const OCR_TITLE_ACTIVITY_SAMPLE = { width: 160, height: 50 }
 const OCR_TITLE_FINGERPRINT_SIZE = { width: 16, height: 8 }
 const OCR_TITLE_ACTIVE_BRIGHT_RATIO = 0.012
@@ -175,35 +170,85 @@ const OCR_NAME_ALIASES = new Map([
 
 const OCR_PUNCTUATION_PATTERN = /[\s"'“”‘’`.,，。:：;；!！?？、|｜/\\()[\]{}<>《》【】「」『』\-_=+~·•]/g
 
-function isPackagedElectronRuntime() {
-    return Boolean(process.resourcesPath && !process.defaultApp && !process.env.ELECTRON_VITE_DEV_SERVER_URL)
+function bufferToArrayBuffer(buffer) {
+    return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
 }
 
-function getRapidOcrRuntimeDirs() {
-    const dirs = []
-
-    if (process.resourcesPath) {
-        dirs.push(path.join(process.resourcesPath, RAPID_OCR_RUNTIME_DIR_NAME))
+function stripYamlScalarQuotes(value) {
+    const singleQuoted = /^'(.*)'$/.exec(value)
+    if (singleQuoted) {
+        return singleQuoted[1].replace(/''/g, "'")
     }
 
-    dirs.push(path.join(process.cwd(), '.runtime', 'rapidocr'))
+    const doubleQuoted = /^"(.*)"$/.exec(value)
+    if (doubleQuoted) {
+        return doubleQuoted[1].replace(/\\"/g, '"')
+    }
+
+    return value
+}
+
+function readPaddleOcrCharacterDictionary(ymlText) {
+    const lines = String(ymlText || '').split(/\r?\n/)
+    const startIndex = lines.findIndex(line => /^\s*character_dict:\s*$/.test(line))
+    if (startIndex === -1) {
+        throw new Error('PaddleOCR character_dict not found')
+    }
+
+    const characters = []
+    for (let index = startIndex + 1; index < lines.length; index++) {
+        const line = lines[index]
+        if (/^\S/.test(line)) {
+            break
+        }
+
+        const match = /^\s*-\s?(.*)$/.exec(line)
+        if (match) {
+            characters.push(stripYamlScalarQuotes(match[1]))
+        }
+    }
+
+    if (characters.length === 0) {
+        throw new Error('PaddleOCR character_dict is empty')
+    }
+
+    return ['', ...characters]
+}
+
+function getPaddleOcrResourceDirs() {
+    const dirs = []
+    const configuredDir = process.env.ARAMGG_PADDLEOCR_MODEL_DIR
+
+    if (configuredDir) {
+        dirs.push(configuredDir)
+    }
+    if (process.resourcesPath) {
+        dirs.push(path.join(process.resourcesPath, PADDLE_OCR_RUNTIME_DIR_NAME))
+    }
+
+    dirs.push(path.join(process.cwd(), 'resources', PADDLE_OCR_RUNTIME_DIR_NAME))
+    dirs.push(path.resolve(__dirname, '..', 'resources', PADDLE_OCR_RUNTIME_DIR_NAME))
+    dirs.push(path.resolve(__dirname, '..', '..', 'resources', PADDLE_OCR_RUNTIME_DIR_NAME))
 
     return [...new Set(dirs)]
 }
 
-function getBundledRapidOcrCommand() {
-    for (const runtimeDir of getRapidOcrRuntimeDirs()) {
-        const pythonPath = process.platform === 'win32'
-            ? path.join(runtimeDir, 'python', 'python.exe')
-            : path.join(runtimeDir, 'python', 'bin', 'python3')
-        const workerPath = path.join(runtimeDir, 'worker', 'rapidocr-worker.py')
+function getPaddleOcrModelPaths() {
+    if (process.env.ARAMGG_DISABLE_PADDLEOCR === '1') {
+        return null
+    }
 
-        if (existsSync(pythonPath) && existsSync(workerPath)) {
+    for (const runtimeDir of getPaddleOcrResourceDirs()) {
+        const detModelPath = path.join(runtimeDir, 'det', 'inference.onnx')
+        const recModelPath = path.join(runtimeDir, 'rec', 'inference.onnx')
+        const recConfigPath = path.join(runtimeDir, 'rec', 'inference.yml')
+
+        if (existsSync(detModelPath) && existsSync(recModelPath) && existsSync(recConfigPath)) {
             return {
-                command: pythonPath,
-                args: ['-u', workerPath],
-                source: 'bundled',
                 runtimeDir,
+                detModelPath,
+                recModelPath,
+                recConfigPath,
             }
         }
     }
@@ -211,311 +256,120 @@ function getBundledRapidOcrCommand() {
     return null
 }
 
-function getSourceRapidOcrWorkerPath() {
-    const candidates = [
-        path.join(process.cwd(), 'resources', 'rapidocr', 'rapidocr-worker.py'),
-        path.resolve(__dirname, '..', 'resources', 'rapidocr', 'rapidocr-worker.py'),
-        path.resolve(__dirname, '..', '..', 'resources', 'rapidocr', 'rapidocr-worker.py'),
-    ]
+function logPaddleOcrUnavailable(message) {
+    if (paddleOcrUnavailableLogged) {
+        return
+    }
 
-    return candidates.find(candidate => existsSync(candidate)) || null
+    paddleOcrUnavailableLogged = true
+    logger.warn(`PaddleOCR unavailable, falling back to legacy OCR: ${message}`)
 }
 
-function getRapidOcrCommand() {
-    if (process.env.ARAMGG_DISABLE_RAPIDOCR === '1') {
+async function getPaddleOcrService() {
+    if (paddleOcrDisabled) {
         return null
     }
 
-    const bundledCommand = getBundledRapidOcrCommand()
-    if (bundledCommand) {
-        return bundledCommand
+    if (paddleOcrService) {
+        return paddleOcrService
     }
 
-    if (isPackagedElectronRuntime()) {
-        return null
-    }
-
-    const workerPath = getSourceRapidOcrWorkerPath()
-    if (!workerPath) {
-        return null
-    }
-
-    const configuredPython = process.env.ARAMGG_RAPIDOCR_PYTHON
-    if (configuredPython) {
-        return {
-            command: configuredPython,
-            args: ['-u', workerPath],
-            source: 'dev-python-env',
-            runtimeDir: null,
+    if (!paddleOcrServicePromise) {
+        const modelPaths = getPaddleOcrModelPaths()
+        if (!modelPaths) {
+            paddleOcrDisabled = true
+            logPaddleOcrUnavailable('model files are missing')
+            return null
         }
-    }
 
-    return {
-        command: 'py',
-        args: ['-3', '-u', workerPath],
-        source: 'dev-python-launcher',
-        runtimeDir: null,
-    }
-}
+        paddleOcrServicePromise = (async () => {
+            const [{ PaddleOcrService }, ort] = await Promise.all([
+                import('paddleocr'),
+                import('onnxruntime-node'),
+            ])
 
-function logRapidOcrUnavailable(message) {
-    if (rapidOcrUnavailableLogged) {
-        return
-    }
-
-    rapidOcrUnavailableLogged = true
-    logger.warn(`RapidOCR unavailable, falling back to Tesseract: ${message}`)
-}
-
-function rejectRapidOcrPending(worker, error) {
-    for (const pending of worker.pending.values()) {
-        clearTimeout(pending.timeout)
-        pending.reject(error)
-    }
-    worker.pending.clear()
-}
-
-function handleRapidOcrLine(worker, line) {
-    if (!line.trim()) {
-        return
-    }
-
-    let message = null
-    try {
-        message = JSON.parse(line)
-    } catch (error) {
-        logger.debug(`RapidOCR worker non-json output: ${line.slice(0, 300)}`)
-        return
-    }
-
-    if (message.event === 'ready') {
-        worker.ready = true
-        if (worker.startupTimer) {
-            clearTimeout(worker.startupTimer)
-            worker.startupTimer = null
-        }
-        if (!rapidOcrReadyLogged) {
-            rapidOcrReadyLogged = true
-            logger.info('RapidOCR worker ready', {
-                source: worker.commandInfo.source,
-                runtimeDir: worker.commandInfo.runtimeDir,
+            const charactersDictionary = readPaddleOcrCharacterDictionary(
+                readFileSync(modelPaths.recConfigPath, 'utf8')
+            )
+            const service = await PaddleOcrService.createInstance({
+                ort,
+                detection: {
+                    modelBuffer: bufferToArrayBuffer(readFileSync(modelPaths.detModelPath)),
+                    maxSideLength: PADDLE_OCR_MAX_SIDE_LENGTH,
+                    minimumAreaThreshold: PADDLE_OCR_MINIMUM_AREA_THRESHOLD,
+                    textPixelThreshold: PADDLE_OCR_TEXT_PIXEL_THRESHOLD,
+                    paddingBoxVertical: PADDLE_OCR_PADDING_BOX_VERTICAL,
+                    paddingBoxHorizontal: PADDLE_OCR_PADDING_BOX_HORIZONTAL,
+                },
+                recognition: {
+                    modelBuffer: bufferToArrayBuffer(readFileSync(modelPaths.recModelPath)),
+                    charactersDictionary,
+                    imageHeight: PADDLE_OCR_RECOGNITION_IMAGE_HEIGHT,
+                },
             })
-        }
-        worker.resolveReady(worker)
-        return
-    }
 
-    if (message.event === 'error' && !Number.isInteger(message.id)) {
-        const error = new Error(message.error || 'RapidOCR worker failed')
-        if (!worker.ready) {
-            if (worker.startupTimer) {
-                clearTimeout(worker.startupTimer)
-                worker.startupTimer = null
+            paddleOcrService = service
+            if (!paddleOcrReadyLogged) {
+                paddleOcrReadyLogged = true
+                logger.info('PaddleOCR service ready', {
+                    runtimeDir: modelPaths.runtimeDir,
+                    dictionarySize: charactersDictionary.length,
+                    maxSideLength: PADDLE_OCR_MAX_SIDE_LENGTH,
+                })
             }
-            worker.rejectReady(error)
-        } else {
-            logger.warn('RapidOCR worker reported an error:', error.message)
-        }
-        return
-    }
 
-    const pending = worker.pending.get(message.id)
-    if (!pending) {
-        return
-    }
-
-    worker.pending.delete(message.id)
-    clearTimeout(pending.timeout)
-
-    if (message.ok === false) {
-        pending.reject(new Error(message.error || 'RapidOCR request failed'))
-        return
-    }
-
-    pending.resolve(message)
-}
-
-function startRapidOcrWorker(commandInfo) {
-    return new Promise((resolve, reject) => {
-        const child = spawn(commandInfo.command, commandInfo.args, {
-            stdio: ['pipe', 'pipe', 'pipe'],
-            windowsHide: true,
-        })
-        const worker = {
-            child,
-            commandInfo,
-            pending: new Map(),
-            stdoutBuffer: '',
-            startupTimer: null,
-            ready: false,
-            resolveReady: resolve,
-            rejectReady: reject,
-        }
-
-        rapidOcrWorker = worker
-
-        worker.startupTimer = setTimeout(() => {
-            const error = new Error(`RapidOCR worker startup timed out after ${RAPID_OCR_STARTUP_TIMEOUT_MS}ms`)
-            rapidOcrDisabled = true
-            logRapidOcrUnavailable(error.message)
-            rejectRapidOcrPending(worker, error)
-            try {
-                child.kill()
-            } catch {
-                // Ignore kill failures during startup timeout cleanup.
-            }
-            reject(error)
-        }, RAPID_OCR_STARTUP_TIMEOUT_MS)
-
-        if (typeof worker.startupTimer.unref === 'function') {
-            worker.startupTimer.unref()
-        }
-
-        child.stdout.on('data', chunk => {
-            worker.stdoutBuffer += chunk.toString('utf8')
-            let newlineIndex = worker.stdoutBuffer.indexOf('\n')
-            while (newlineIndex !== -1) {
-                const line = worker.stdoutBuffer.slice(0, newlineIndex)
-                worker.stdoutBuffer = worker.stdoutBuffer.slice(newlineIndex + 1)
-                handleRapidOcrLine(worker, line)
-                newlineIndex = worker.stdoutBuffer.indexOf('\n')
-            }
-        })
-
-        child.stderr.on('data', chunk => {
-            const text = chunk.toString('utf8').trim()
-            if (text) {
-                logger.debug(`RapidOCR worker stderr: ${text.slice(0, 500)}`)
-            }
-        })
-
-        child.on('error', error => {
-            rapidOcrDisabled = true
-            logRapidOcrUnavailable(error.message)
-            if (worker.startupTimer) {
-                clearTimeout(worker.startupTimer)
-                worker.startupTimer = null
-            }
-            rejectRapidOcrPending(worker, error)
-            reject(error)
-        })
-
-        child.on('exit', (code, signal) => {
-            const error = new Error(`RapidOCR worker exited (code=${code ?? 'null'}, signal=${signal ?? 'null'})`)
-            if (worker.startupTimer) {
-                clearTimeout(worker.startupTimer)
-                worker.startupTimer = null
-            }
-            rejectRapidOcrPending(worker, error)
-            if (!worker.ready) {
-                rapidOcrDisabled = true
-                logRapidOcrUnavailable(error.message)
-                reject(error)
-            } else {
-                logger.warn(error.message)
-            }
-            if (rapidOcrWorker === worker) {
-                rapidOcrWorker = null
-                rapidOcrWorkerPromise = null
-            }
-        })
-    })
-}
-
-async function getRapidOcrWorker() {
-    if (rapidOcrDisabled) {
-        return null
-    }
-
-    if (rapidOcrWorker?.ready) {
-        return rapidOcrWorker
-    }
-
-    if (!rapidOcrWorkerPromise) {
-        const commandInfo = getRapidOcrCommand()
-
-        if (!commandInfo) {
-            rapidOcrDisabled = true
-            logRapidOcrUnavailable(isPackagedElectronRuntime()
-                ? 'bundled runtime is missing'
-                : 'no bundled runtime or dev Python command found')
-            return null
-        }
-
-        rapidOcrWorkerPromise = startRapidOcrWorker(commandInfo).catch(error => {
-            rapidOcrWorkerPromise = null
-            rapidOcrWorker = null
-            rapidOcrDisabled = true
-            logRapidOcrUnavailable(error.message)
+            return service
+        })().catch(error => {
+            paddleOcrService = null
+            paddleOcrServicePromise = null
+            paddleOcrDisabled = true
+            logPaddleOcrUnavailable(error.message)
             return null
         })
     }
 
-    return await rapidOcrWorkerPromise
+    return await paddleOcrServicePromise
 }
 
-async function warmupRapidOcrWorker() {
-    return Boolean(await getRapidOcrWorker())
+async function warmupPaddleOcrService() {
+    return Boolean(await getPaddleOcrService())
 }
 
-async function resetRapidOcrWorker() {
-    const worker = rapidOcrWorker
-    rapidOcrWorker = null
-    rapidOcrWorkerPromise = null
+async function resetPaddleOcrService() {
+    const service = paddleOcrService
+    paddleOcrService = null
+    paddleOcrServicePromise = null
 
-    if (!worker) {
+    if (!service || typeof service.destroy !== 'function') {
         return
     }
-
-    rejectRapidOcrPending(worker, new Error('RapidOCR worker stopped'))
 
     try {
-        worker.child.kill()
+        await service.destroy()
     } catch (error) {
-        logger.debug('Failed to terminate RapidOCR worker:', error.message)
+        logger.debug('Failed to destroy PaddleOCR service:', error.message)
     }
 }
 
-async function performRapidOCR(imageBuffer) {
-    const worker = await getRapidOcrWorker()
-    if (!worker) {
-        return null
-    }
-
-    return await new Promise((resolve, reject) => {
-        const id = ++rapidOcrRequestId
-        const timeout = setTimeout(() => {
-            const error = new Error(`RapidOCR request timed out after ${RAPID_OCR_REQUEST_TIMEOUT_MS}ms`)
-            worker.pending.delete(id)
-            rapidOcrDisabled = true
-            void resetRapidOcrWorker()
-            reject(error)
-        }, RAPID_OCR_REQUEST_TIMEOUT_MS)
-
-        if (typeof timeout.unref === 'function') {
-            timeout.unref()
+async function performPaddleOCR(imageBuffer) {
+    return await enqueueOcr(async () => {
+        const service = await getPaddleOcrService()
+        if (!service) {
+            return null
         }
 
-        worker.pending.set(id, {
-            resolve,
-            reject,
-            timeout,
-        })
+        const { data, info } = await sharp(imageBuffer)
+            .ensureAlpha()
+            .raw()
+            .toBuffer({ resolveWithObject: true })
 
-        const payload = JSON.stringify({
-            id,
-            imageBase64: imageBuffer.toString('base64'),
-        }) + '\n'
+        const input = {
+            width: info.width,
+            height: info.height,
+            data: new Uint8Array(data.buffer, data.byteOffset, data.byteLength),
+        }
 
-        worker.child.stdin.write(payload, error => {
-            if (!error) {
-                return
-            }
-
-            clearTimeout(timeout)
-            worker.pending.delete(id)
-            reject(error)
-        })
+        return await service.recognize(input)
     })
 }
 
@@ -545,38 +399,6 @@ function resolveImageBuffer(imageInput) {
         sourceType: 'unknown',
         sourcePath: null,
     }
-}
-
-/**
- * 本地开发时优先使用仓库内的中文模型，避免 Tesseract.js 走 CDN 下载。
- */
-function getTesseractOptions() {
-    const localLangDirs = [
-        process.cwd(),
-        path.join(__dirname, '..'),
-        path.join(process.resourcesPath || '', 'data'),
-        process.resourcesPath || '',
-    ].filter(Boolean)
-
-    for (const langDir of localLangDirs) {
-        if (existsSync(path.join(langDir, 'chi_sim.traineddata'))) {
-            if (loggedTesseractLangPath !== langDir) {
-                loggedTesseractLangPath = langDir
-                logger.info(`OCR language data: local chi_sim.traineddata at ${langDir}`)
-            }
-            return {
-                langPath: langDir,
-                cacheMethod: 'none',
-                gzip: false,
-            }
-        }
-    }
-
-    if (loggedTesseractLangPath !== 'default') {
-        loggedTesseractLangPath = 'default'
-        logger.warn('OCR language data: local chi_sim.traineddata not found; using Tesseract default loading strategy')
-    }
-    return {}
 }
 
 /**
@@ -975,11 +797,11 @@ function createIndividualTitleRegions(width, height) {
     }))
 }
 
-function createRapidOcrTitleRegions(width, height) {
+function createPaddleOcrTitleRegions(width, height) {
     const { cardWidth, cardGap, groupLeft } = createCardLayout(width, height)
 
     return [0, 1, 2].map(index => ({
-        name: `rapidocr-card-title-${index + 1}`,
+        name: `paddleocr-card-title-${index + 1}`,
         left: groupLeft + index * (cardWidth + cardGap) + cardWidth * 0.02,
         top: height * 0.35,
         width: cardWidth * 0.96,
@@ -1070,43 +892,6 @@ function createOcrRegions(width, height) {
         }
 
     return [titleStack, titleBand, individualTitleGroup, textBand, legacyBand]
-}
-
-async function prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight) {
-    const rect = clampRegion(region, imageWidth, imageHeight)
-    const scale = region.scale || 1
-    const targetWidth = Math.max(1, Math.round(rect.width * scale))
-    const targetHeight = Math.max(1, Math.round(rect.height * scale))
-
-    let pipeline = sharp(imageBuffer)
-        .extract(rect)
-        .resize({
-            width: targetWidth,
-            height: targetHeight,
-            fit: 'fill',
-        })
-        .greyscale()
-        .normalize()
-        .sharpen()
-
-    if (region.threshold === false) {
-        pipeline = pipeline.linear(1.5, -48)
-    } else {
-        pipeline = pipeline
-            .linear(1.9, -120)
-            .threshold(region.threshold || 145)
-
-        if (region.invert !== false) {
-            pipeline = pipeline.negate()
-        }
-    }
-
-    return {
-        rect,
-        width: targetWidth,
-        height: targetHeight,
-        buffer: await pipeline.png().toBuffer(),
-    }
 }
 
 async function prepareRawOcrRegion(imageBuffer, region, imageWidth, imageHeight) {
@@ -1240,65 +1025,38 @@ async function composeStackedTitleRows(preparedRows, minRowGap = 10) {
     }
 }
 
-async function prepareStackedTitleRegion(imageBuffer, stackRegion, imageWidth, imageHeight) {
+async function preparePaddleOcrStackedTitleRegion(imageBuffer, imageWidth, imageHeight) {
     const preparedRows = await Promise.all(
-        (stackRegion.regions || []).map(region => prepareOcrRegion(imageBuffer, region, imageWidth, imageHeight))
-    )
-
-    return await composeStackedTitleRows(preparedRows, 10)
-}
-
-async function prepareRapidOcrStackedTitleRegion(imageBuffer, imageWidth, imageHeight) {
-    const preparedRows = await Promise.all(
-        createRapidOcrTitleRegions(imageWidth, imageHeight)
+        createPaddleOcrTitleRegions(imageWidth, imageHeight)
             .map(region => prepareRawOcrRegion(imageBuffer, region, imageWidth, imageHeight))
     )
 
     return await composeStackedTitleRows(preparedRows, 24)
 }
 
-function extractStackedTitleSlotTexts(ocrData, rowBounds = []) {
-    const lines = []
-
-    for (const block of ocrData?.blocks || []) {
-        for (const paragraph of block.paragraphs || []) {
-            for (const line of paragraph.lines || []) {
-                lines.push(line)
-            }
+function getPaddleOcrItemCenterY(item) {
+    const box = item?.box
+    if (Array.isArray(box)) {
+        const points = box.filter(point => Array.isArray(point) && point.length >= 2)
+        if (points.length > 0) {
+            return points.reduce((total, point) => total + (Number(point[1]) || 0), 0) / points.length
         }
     }
 
-    if (lines.length > 0) {
-        return rowBounds.map(row => lines
-            .filter(line => {
-                const box = line.bbox || {}
-                const centerY = ((box.y0 ?? 0) + (box.y1 ?? 0)) / 2
-                return centerY >= row.top && centerY <= row.bottom
-            })
-            .map(line => String(line.text || '').replace(/\s+/g, ' ').trim())
-            .filter(Boolean)
-            .join(' ')
-            .trim())
+    if (box && typeof box === 'object') {
+        const y = Number(box.y ?? box.top ?? box.y0 ?? 0)
+        const height = Number(box.height ?? (Number(box.y1 ?? 0) - y))
+        return y + Math.max(0, height) / 2
     }
 
-    const chunks = String(ocrData?.text || '')
-        .split(/\n\s*\n/g)
-        .map(text => text.replace(/\s+/g, ' ').trim())
-        .filter(Boolean)
-
-    return chunks.length === rowBounds.length ? chunks : rowBounds.map(() => '')
+    return Number.NaN
 }
 
-function extractRapidOcrSlotTexts(items = [], rowBounds = []) {
+function extractPaddleOcrSlotTexts(items = [], rowBounds = []) {
     return rowBounds.map(row => items
         .filter(item => {
-            const points = Array.isArray(item.box) ? item.box : []
-            if (points.length === 0) {
-                return false
-            }
-
-            const centerY = points.reduce((total, point) => total + (Number(point?.[1]) || 0), 0) / points.length
-            return centerY >= row.top && centerY <= row.bottom
+            const centerY = getPaddleOcrItemCenterY(item)
+            return Number.isFinite(centerY) && centerY >= row.top && centerY <= row.bottom
         })
         .map(item => String(item.text || '').replace(/\s+/g, ' ').trim())
         .filter(Boolean)
@@ -1374,86 +1132,76 @@ export function isLikelyTitleSlotText(rawText, match) {
     return normalizedText.length <= normalizedName.length + OCR_TITLE_MAX_EXTRA_NORMALIZED_CHARS
 }
 
-async function readRapidOcrTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
+async function readPaddleOcrTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
     const startedAt = performance.now()
     const prepareStartedAt = performance.now()
-    const { rect, buffer, rowBounds, rowFingerprints } = await prepareRapidOcrStackedTitleRegion(imageBuffer, imageWidth, imageHeight)
+    const { rect, buffer, rowBounds, rowFingerprints } = await preparePaddleOcrStackedTitleRegion(imageBuffer, imageWidth, imageHeight)
     const prepareMs = performance.now() - prepareStartedAt
-    logger.debug(`RapidOCR ordered title stack: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
+    logger.debug(`PaddleOCR ordered title stack: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
 
     const ocrStartedAt = performance.now()
-    const ocrData = await performRapidOCR(buffer)
-    const ocrRoundTripMs = performance.now() - ocrStartedAt
-    if (!ocrData) {
+    const items = await performPaddleOCR(buffer)
+    const ocrMs = performance.now() - ocrStartedAt
+    if (!items) {
         return null
     }
 
     const extractStartedAt = performance.now()
-    const slotTexts = extractRapidOcrSlotTexts(ocrData.items || [], rowBounds)
+    const slotTexts = extractPaddleOcrSlotTexts(items, rowBounds)
     const extractMs = performance.now() - extractStartedAt
 
     const matchStartedAt = performance.now()
-    const result = await buildOrderedTitleAugmentResult(slotTexts, rowFingerprints, groupRegion, 'rapidocr')
+    const result = await buildOrderedTitleAugmentResult(slotTexts, rowFingerprints, groupRegion, 'paddleocr')
     const matchMs = performance.now() - matchStartedAt
     const totalMs = performance.now() - startedAt
-    const workerMs = Number(ocrData.durationMs || 0)
 
     const logPayload = {
         totalMs: Number(totalMs.toFixed(1)),
         prepareMs: Number(prepareMs.toFixed(1)),
-        ocrRoundTripMs: Number(ocrRoundTripMs.toFixed(1)),
-        workerMs: Number(workerMs.toFixed(1)),
-        bridgeMs: Number(Math.max(0, ocrRoundTripMs - workerMs).toFixed(1)),
+        ocrMs: Number(ocrMs.toFixed(1)),
         extractMs: Number(extractMs.toFixed(1)),
         matchMs: Number(matchMs.toFixed(1)),
+        itemCount: Array.isArray(items) ? items.length : 0,
         matchedCount: result.augments.length,
         slotTexts: slotTexts.map(text => text.slice(0, 80)),
     }
 
-    if (totalMs > 350) {
-        logger.info('RapidOCR ordered title stack slow', logPayload)
+    if (totalMs > 220) {
+        logger.info('PaddleOCR ordered title stack slow', logPayload)
     } else {
-        logger.debug('RapidOCR ordered title stack completed', logPayload)
+        logger.debug('PaddleOCR ordered title stack completed', logPayload)
     }
 
     if (result.augments.length === 0) {
-        logger.debug('RapidOCR ordered title stack had no augment matches', logPayload)
+        logger.debug('PaddleOCR ordered title stack had no augment matches', logPayload)
     }
 
     return result
 }
 
-async function readTesseractTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
-    const startedAt = performance.now()
-    const { rect, buffer, rowBounds, rowFingerprints } = await prepareStackedTitleRegion(imageBuffer, groupRegion, imageWidth, imageHeight)
-    logger.debug(`Tesseract ordered title stack: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
-
-    const ocrData = await performOCRData(buffer, 'SPARSE_TEXT', { text: true, blocks: true })
-    const slotTexts = extractStackedTitleSlotTexts(ocrData, rowBounds)
-    const durationMs = performance.now() - startedAt
-
-    if (durationMs > 800) {
-        logger.info('Tesseract ordered title stack slow', {
-            durationMs: Number(durationMs.toFixed(1)),
-            slotTexts: slotTexts.map(text => text.slice(0, 80)),
-        })
-    }
-
-    return await buildOrderedTitleAugmentResult(slotTexts, rowFingerprints, groupRegion, 'tesseract')
-}
-
 async function readStackedTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
     try {
-        const rapidResult = await readRapidOcrTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight)
-        if (rapidResult) {
-            return rapidResult
+        const paddleResult = await readPaddleOcrTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight)
+        if (paddleResult) {
+            return paddleResult
         }
     } catch (error) {
-        rapidOcrDisabled = true
-        logRapidOcrUnavailable(error.message)
+        paddleOcrDisabled = true
+        await resetPaddleOcrService()
+        logPaddleOcrUnavailable(error.message)
     }
 
-    return await readTesseractTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight)
+    return {
+        augments: [],
+        slotDiagnostics: (groupRegion.regions || []).map((_, slot) => ({
+            slot,
+            text: '',
+            matchedId: null,
+            titleFingerprint: null,
+            ocrEngine: 'paddleocr',
+            rejectReason: 'paddleocr-unavailable',
+        })),
+    }
 }
 
 async function measureTitleRegionActivity(imageBuffer, region, imageWidth, imageHeight) {
@@ -1643,103 +1391,18 @@ function enqueueOcr(task) {
     return nextTask
 }
 
-async function getTesseractModule() {
-    if (!tesseractModulePromise) {
-        tesseractModulePromise = import('tesseract.js')
-    }
-
-    return tesseractModulePromise
-}
-
-async function getTesseractWorker() {
-    if (tesseractWorkerIdleTimer) {
-        clearTimeout(tesseractWorkerIdleTimer)
-        tesseractWorkerIdleTimer = null
-    }
-
-    if (tesseractWorker) {
-        return tesseractWorker
-    }
-
-    if (!tesseractWorkerPromise) {
-        tesseractWorkerPromise = (async () => {
-            const Tesseract = await getTesseractModule()
-            const { createWorker, PSM } = Tesseract
-            const worker = await createWorker('chi_sim', 1, getTesseractOptions())
-
-            await worker.setParameters({
-                tessedit_pageseg_mode: PSM.SPARSE_TEXT,
-                preserve_interword_spaces: '1',
-                user_defined_dpi: '300',
-            })
-            tesseractWorkerPsm = PSM.SPARSE_TEXT
-
-            return worker
-        })().catch(error => {
-            tesseractWorkerPromise = null
-            tesseractWorkerPsm = null
-            throw error
-        })
-    }
-
-    tesseractWorker = await tesseractWorkerPromise
-    return tesseractWorker
-}
-
-function scheduleTesseractWorkerIdleCleanup() {
-    if (tesseractWorkerIdleTimer) {
-        clearTimeout(tesseractWorkerIdleTimer)
-    }
-
-    tesseractWorkerIdleTimer = setTimeout(() => {
-        tesseractWorkerIdleTimer = null
-        void resetTesseractWorker()
-    }, TESSERACT_WORKER_IDLE_CLEANUP_MS)
-
-    if (typeof tesseractWorkerIdleTimer.unref === 'function') {
-        tesseractWorkerIdleTimer.unref()
-    }
-}
-
-async function resetTesseractWorker() {
-    if (tesseractWorkerIdleTimer) {
-        clearTimeout(tesseractWorkerIdleTimer)
-        tesseractWorkerIdleTimer = null
-    }
-
-    const worker = tesseractWorker
-    tesseractWorker = null
-    tesseractWorkerPromise = null
-    tesseractWorkerPsm = null
-
-    if (!worker) {
-        return
-    }
-
-    try {
-        await worker.terminate()
-    } catch (error) {
-        logger.debug('Failed to terminate OCR worker after error:', error.message)
-    }
-}
-
 export const warmupImageAnalyzer = async () => {
     const startedAt = performance.now()
 
     try {
-        const [, rapidReady] = await Promise.all([
+        await Promise.all([
             initAugmentDatabase(),
-            warmupRapidOcrWorker(),
+            warmupPaddleOcrService(),
         ])
-
-        if (!rapidReady) {
-            await getTesseractWorker()
-            scheduleTesseractWorkerIdleCleanup()
-        }
 
         logger.info('Image analyzer warmup completed', {
             durationMs: Number((performance.now() - startedAt).toFixed(1)),
-            ocrEngine: rapidReady ? 'rapidocr' : 'tesseract',
+            ocrEngine: 'paddleocr',
         })
         return true
     } catch (error) {
@@ -1837,46 +1500,6 @@ async function recognizeAugmentsFromImage(imageBuffer) {
             rerollButtons: null,
             gate: { ocrSkippedReason: 'ocr-error' },
         }
-    }
-}
-
-/**
- * 执行OCR识别
- * @param {Buffer} imageBuffer - 准备好的图像（裁剪、增强对比度）
- * @returns {Promise<Object>} OCR 数据，包含 text 和可选 blocks
- */
-async function performOCRData(imageBuffer, psm = 'SPARSE_TEXT', output = { text: true }) {
-    try {
-        return await enqueueOcr(async () => {
-            try {
-                const Tesseract = await getTesseractModule()
-                const { PSM } = Tesseract
-                const worker = await getTesseractWorker()
-                const pagesegMode = PSM[psm] || PSM.SPARSE_TEXT
-
-                if (tesseractWorkerPsm !== pagesegMode) {
-                    await worker.setParameters({
-                        tessedit_pageseg_mode: pagesegMode,
-                        preserve_interword_spaces: '1',
-                        user_defined_dpi: '300',
-                    })
-                    tesseractWorkerPsm = pagesegMode
-                }
-
-                const result = await worker.recognize(imageBuffer, {}, output)
-                const recognizedText = result.data.text || ''
-                logger.debug(`OCR text preview: ${recognizedText.substring(0, 200)}...`)
-                logger.debug(`OCR full text: ${recognizedText}`)
-
-                return result.data
-            } finally {
-                scheduleTesseractWorkerIdleCleanup()
-            }
-        })
-    } catch (error) {
-        logger.error('❌ OCR识别失败:', error)
-        await resetTesseractWorker()
-        return { text: '', blocks: null }
     }
 }
 
@@ -2311,8 +1934,7 @@ export const getConfidence = (analysisResult) => {
 }
 
 export const shutdownImageAnalyzer = async () => {
-    await resetRapidOcrWorker()
-    await resetTesseractWorker()
+    await resetPaddleOcrService()
 }
 
 export default {

@@ -1,5 +1,0 @@
-rapidocr_onnxruntime==1.4.4
-onnxruntime==1.26.0
-opencv-python==4.13.0.92
-numpy==2.2.6
-Shapely==2.1.2
