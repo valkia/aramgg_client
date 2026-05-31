@@ -68,6 +68,9 @@ export const electronAPI = {
     logRendererInfo: (...args) => requireElectronAPI().diagnostics.logRendererInfo(...args),
     testDatabaseLoad: (...args) => requireElectronAPI().diagnostics.testDatabaseLoad(...args),
   },
+  shell: {
+    openExternal: (...args) => requireElectronAPI().shell.openExternal(...args),
+  },
   events: {
     on: (...args) => requireElectronAPI().events.on(...args),
     once: (...args) => requireElectronAPI().events.once(...args),
