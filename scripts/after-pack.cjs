@@ -36,19 +36,6 @@ async function pruneLocales(appOutDir) {
   return { removed }
 }
 
-async function pruneFfmpeg(context) {
-  if (process.env.ARAMGG_KEEP_FFMPEG === '1') {
-    return { removed: false, skipped: 'ARAMGG_KEEP_FFMPEG=1' }
-  }
-
-  if (context.electronPlatformName !== 'win32') {
-    return { removed: false, skipped: 'non-win32' }
-  }
-
-  await rm(path.join(context.appOutDir, 'ffmpeg.dll'), { force: true })
-  return { removed: true }
-}
-
 function getTargetArch(context) {
   if (typeof context.arch === 'string') {
     return context.arch
@@ -108,15 +95,14 @@ async function pruneOnnxRuntime(context) {
 }
 
 module.exports = async function afterPack(context) {
-  const [localeResult, ffmpegResult, onnxResult] = await Promise.all([
+  const [localeResult, onnxResult] = await Promise.all([
     pruneLocales(context.appOutDir),
-    pruneFfmpeg(context),
     pruneOnnxRuntime(context),
   ])
 
   console.log(
-    `[afterPack] removed ${localeResult.removed} Electron locale files; ffmpeg.dll ` +
-      (ffmpegResult.removed ? 'removed' : `kept (${ffmpegResult.skipped})`) +
-      `; pruned ${onnxResult.removed} ONNX Runtime platform folders, kept ${onnxResult.target}`
+    `[afterPack] removed ${localeResult.removed} Electron locale files; ` +
+      `kept Electron runtime ffmpeg.dll; pruned ${onnxResult.removed} ONNX Runtime platform folders, ` +
+      `kept ${onnxResult.target}`
   )
 }

@@ -3,6 +3,7 @@ import logger from './logger.ts';
 import { BrowserWindow, screen, app } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { existsSync } from 'fs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -100,6 +101,77 @@ function getRendererIndexPath() {
     return path.join(__dirname, '../dist/index.html')
 }
 
+function attachWindowDiagnostics(name, window) {
+    const { webContents } = window
+
+    webContents.on('did-finish-load', () => {
+        logger.info(`[window:${name}] renderer loaded`, {
+            url: webContents.getURL(),
+        })
+    })
+
+    webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+        logger.error(`[window:${name}] renderer load failed`, {
+            errorCode,
+            errorDescription,
+            validatedURL,
+            isMainFrame,
+            currentUrl: webContents.getURL(),
+        })
+    })
+
+    webContents.on('preload-error', (_event, preloadPath, error) => {
+        logger.error(`[window:${name}] preload failed`, {
+            preloadPath,
+            message: error?.message,
+            stack: error?.stack,
+        })
+    })
+
+    webContents.on('render-process-gone', (_event, details) => {
+        logger.error(`[window:${name}] renderer process gone`, {
+            reason: details.reason,
+            exitCode: details.exitCode,
+            url: webContents.getURL(),
+        })
+    })
+
+    webContents.on('console-message', (_event, level, message, line, sourceId) => {
+        if (level < 2) {
+            return
+        }
+
+        logger.warn(`[window:${name}] renderer console`, {
+            level,
+            message,
+            line,
+            sourceId,
+            url: webContents.getURL(),
+        })
+    })
+}
+
+async function loadRendererRoute(window, name, isDev, devServerUrl, route) {
+    const preloadPath = window.webContents.getLastWebPreferences?.()?.preload
+
+    logger.info(`[window:${name}] loading renderer route`, {
+        route,
+        isDev,
+        preloadPath,
+        preloadExists: preloadPath ? existsSync(preloadPath) : false,
+        rendererIndexPath: isDev ? undefined : getRendererIndexPath(),
+        rendererIndexExists: isDev ? undefined : existsSync(getRendererIndexPath()),
+    })
+
+    if (isDev) {
+        await window.loadURL(`${devServerUrl}/#${route}`)
+    } else {
+        await window.loadFile(getRendererIndexPath(), {
+            hash: route,
+        })
+    }
+}
+
 const getWebPreferences = (isDev, overrides = {}) => ({
     nodeIntegration: false,
     nodeIntegrationInWorker: false,
@@ -127,6 +199,7 @@ export const createMainWindow = async (isDev, devServerUrl) => {
         webPreferences,
         title: 'ARAMGG助手',
     })
+    attachWindowDiagnostics('main', mainWindow)
 
     mainWindow.on('close', () => {
         logger.info('Main window closing...')
@@ -147,13 +220,10 @@ export const createMainWindow = async (isDev, devServerUrl) => {
     })
 
     // 加载应用
+    await loadRendererRoute(mainWindow, 'main', isDev, devServerUrl, '/display')
+
     if (isDev) {
-        mainWindow.loadURL(`${devServerUrl}/#/display`)
         mainWindow.webContents.openDevTools()
-    } else {
-        mainWindow.loadFile(path.join(__dirname, '../dist/index.html'), {
-            hash: '/display',
-        })
     }
 
     return mainWindow
@@ -176,19 +246,14 @@ export const createPopupWindow = async (isDev, devServerUrl) => {
         ...bounds,
         webPreferences,
     })
+    attachWindowDiagnostics('popup', popupWindow)
 
     popupWindow.on('closed', () => {
         logger.info('Popup window closed')
         popupWindow = undefined
     })
 
-    if (isDev) {
-        await popupWindow.loadURL(`${devServerUrl}/#/augment-overlay`)
-    } else {
-        await popupWindow.loadFile(getRendererIndexPath(), {
-            hash: '/augment-overlay',
-        })
-    }
+    await loadRendererRoute(popupWindow, 'popup', isDev, devServerUrl, '/augment-overlay')
 
     if (isDev) {
         popupWindow.webContents.openDevTools({ mode: 'detach' })
@@ -219,6 +284,7 @@ export const createFloatingWindow = async (isDev, devServerUrl) => {
         ...bounds,
         webPreferences,
     })
+    attachWindowDiagnostics('floating', floatingWindow)
 
     // 设置窗口忽略鼠标事件（透传点击）
     // floatingWindow.setIgnoreMouseEvents(true, { forward: true })
@@ -228,13 +294,7 @@ export const createFloatingWindow = async (isDev, devServerUrl) => {
         floatingWindow = undefined
     })
 
-    if (isDev) {
-        await floatingWindow.loadURL(`${devServerUrl}/#/floating-overlay`)
-    } else {
-        await floatingWindow.loadFile(getRendererIndexPath(), {
-            hash: '/floating-overlay',
-        })
-    }
+    await loadRendererRoute(floatingWindow, 'floating', isDev, devServerUrl, '/floating-overlay')
 
     // 开发模式下打开开发者工具
     if (isDev) {

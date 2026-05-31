@@ -88,5 +88,7 @@ if (!gotSingleInstanceLock) {
     })
 
     // Some APIs can only be used after Electron is ready.
-    app.whenReady().then(init)
+    app.whenReady().then(init).catch((error) => {
+        logger.error('[app] initialization failed:', error)
+    })
 }
