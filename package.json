@@ -23,13 +23,31 @@
     "directories": {
       "output": "build"
     },
+    "compression": "maximum",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/sharp/**/*",
+      "node_modules/onnxruntime-node/**/*",
+      "node_modules/paddleocr/**/*"
+    ],
+    "afterPack": "scripts/after-pack.cjs",
     "electronLanguages": [
       "zh-CN",
       "en-US"
     ],
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "!**/*.map",
+      "!**/*.d.ts",
+      "!**/test/**",
+      "!**/tests/**",
+      "!**/__tests__/**",
+      "!**/*.spec.*",
+      "!**/*.test.*",
+      "!**/docs/**",
+      "!**/example/**",
+      "!**/examples/**"
     ],
     "extraResources": [
       {
@@ -83,7 +101,6 @@
     "lodash-es": "^4.18.1",
     "lucide-vue-next": "^1.0.0",
     "nanoid": "^5.1.11",
-    "radix-vue": "^1.9.17",
     "reka-ui": "^2.9.7",
     "shadcn-vue": "^2.7.3",
     "tailwind-merge": "^3.6.0",

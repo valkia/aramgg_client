@@ -111,6 +111,8 @@
 - [x] 升级 Electron 依赖到 `42.2.0`，electron-builder 升级到 `^26.11.1`。
 - [x] 同步项目文档中的主进程路径、英雄详情/海克斯浮窗命名和 ARAM 推荐展示位置。
 - [x] 验证通过：`npm run lint`、`npm run type-check`、`npm run build`。
+- [x] 打包体积优化：启用最高压缩和显式 asar，排除 map/d.ts/test/docs/example 文件，移除未使用的 `radix-vue`，afterPack 删除 `ffmpeg.dll` 并只保留目标平台/架构的 ONNX Runtime。
+- [x] 验证通过：`npm run pack`，Windows 安装包约 138.9 MB。
 
 ### 2026-05-25
 

@@ -20,6 +20,7 @@ export default defineConfig({
     envPrefix: ['VITE_', 'ARAMGG_'],
     build: {
       target: 'node24',
+      sourcemap: false,
       lib: {
         entry: 'src/main/main.ts',
         formats: ['es']
@@ -42,6 +43,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       target: 'node24',
+      sourcemap: false,
       lib: {
         entry: 'src/preload/preload.js',
         formats: ['cjs']
@@ -60,6 +62,7 @@ export default defineConfig({
     publicDir: path.resolve(import.meta.dirname || process.cwd(), 'public'),
     build: {
       outDir: path.resolve(import.meta.dirname || process.cwd(), 'dist'),
+      sourcemap: false,
       rollupOptions: {
         input: {
           index: path.resolve(import.meta.dirname || process.cwd(), 'src/renderer/index.html')
