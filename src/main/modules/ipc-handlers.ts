@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, shell } from 'electron'
 import { captureScreenshot } from '../screenshot.ts'
 import { analyzeScreenshot } from '../image-analyzer.ts'
 import autoScreenshotService from '../auto-screenshot-service.ts'
@@ -74,6 +74,15 @@ function requestAppQuit(reason) {
 
     forceExitTimer.unref?.()
     app.quit()
+}
+
+function assertSafeExternalUrl(url) {
+    const parsedUrl = new URL(url)
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        throw new Error(`Unsupported external URL protocol: ${parsedUrl.protocol}`)
+    }
+
+    return parsedUrl.toString()
 }
 
 function sampleItems(items, count) {
@@ -485,6 +494,12 @@ export function registerIpcHandlers(isDev) {
                 error: error.message,
             }
         }
+    })
+
+    ipcMain.handle('shell-open-external', async (_event, url) => {
+        const safeUrl = assertSafeExternalUrl(url)
+        await shell.openExternal(safeUrl)
+        return { success: true }
     })
 
     ipcMain.handle('screenshot-capture', async () => {

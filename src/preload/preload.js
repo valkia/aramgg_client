@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, shell } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 
 const validEvents = new Set([
     'fromMain',
@@ -98,7 +98,7 @@ const electronAPI = {
             if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
                 throw new Error(`Unsupported external URL protocol: ${parsedUrl.protocol}`)
             }
-            return shell.openExternal(parsedUrl.toString())
+            return ipcRenderer.invoke('shell-open-external', parsedUrl.toString())
         },
     },
     events: {
