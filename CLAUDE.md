@@ -11,7 +11,7 @@
 
 - 项目是 Electron + Vue 3 + electron-vite。
 - 主进程代码在 `src/main/`，preload 在 `src/preload/`，renderer 在 `src/renderer/`。
-- `legacy/` 是旧 React 隔离区，新功能不要扩展它。
+- `legacy/` 仅保留归档材料，不再包含旧 React 源码；新功能不要放到这里。
 - `dist/`、`dist-electron/`、`build/` 是生成产物，不要作为源码编辑。
 - Renderer 不能假设 Node 能力；只能通过 `window.electronAPI` 走 preload/IPC。
 - 运行时可变数据统一走 `src/main/modules/app-paths.ts`：安装版优先写入安装目录旁的 `aramgg_client-data/`，不可写时回退到 Electron `userData`。

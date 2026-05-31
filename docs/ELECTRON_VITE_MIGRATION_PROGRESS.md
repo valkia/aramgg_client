@@ -10,7 +10,7 @@
 
 - 项目已经使用 `electron-vite dev` 和 `electron-vite build`。
 - 源码目录已迁移为 electron-vite 推荐的 `src/main`、`src/preload`、`src/renderer` 三段结构。
-- 根目录旧入口 `main.js`、`preload.js`、`vite.config.js` 已清理，旧 React/BaseUI 代码已隔离到 `legacy/react/src/`。
+- 根目录旧入口 `main.js`、`preload.js`、`vite.config.js` 已清理，旧 React/BaseUI 代码已从当前源码树移除。
 - Electron 安全配置已收敛：renderer 不再拥有 Node 能力，preload 通过 `contextBridge` 暴露业务 API。
 - `package.json#main`、electron-vite 输出目录、electron-builder `files` 已对齐。
 - `npm run type-check`、`npm run lint`、`npm run build` 当前均通过。
@@ -159,6 +159,7 @@
 - [x] 确认旧 React/BaseUI 文件未被当前 Vue 入口引用。
 - [x] 将旧 React 入口、旧 `src/modules/**` 和旧 React 组件目录迁移到 `legacy/react/src/`。
 - [x] 更新 `.eslintignore`，只忽略 `legacy/react/`。
+- [x] 2026-05-31 删除 `legacy/react/src/`，旧 React/BaseUI 源码不再保留在当前仓库源码树。
 - [x] 迁移后运行 `npm run lint`、`npm run type-check`、`npm run build`，均通过。
 - [x] 新增 `tsconfig.base.json`、`tsconfig.renderer.json`、`tsconfig.electron.json`。
 - [x] 更新 `type-check` 脚本，分别检查 renderer 和 Electron 代码。

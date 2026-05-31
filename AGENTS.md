@@ -9,7 +9,7 @@ This is an Electron + Vue app built with `electron-vite`. Source code lives unde
 - `src/renderer/`: Vue renderer app, routes, services, shared utilities, UI components, styles, and assets.
 - `public/`: static assets copied to the renderer build.
 - `tests/electron/`: Node/Electron integration-style test scripts.
-- `legacy/`: isolated legacy React code; do not extend it for new work.
+- `legacy/`: reserved for archived legacy material only; do not add new source code there.
 
 Build output directories such as `dist/`, `dist-electron/`, and `build/` are generated artifacts and should not be committed.
 

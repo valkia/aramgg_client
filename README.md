@@ -16,7 +16,7 @@
 - `src/renderer/`：Vue 渲染进程，页面、组件、服务和样式。
 - `tests/electron/`：Electron/Node 侧测试脚本。
 - `docs/`：当前功能指南、排障、架构进度和归档文档。
-- `legacy/`：旧 React 代码隔离区，新功能不要扩展这里。
+- `legacy/`：仅保留归档材料，不再包含旧 React 源码；新功能不要放到这里。
 
 `dist/`、`dist-electron/`、`build/` 是构建产物，不应提交。
 

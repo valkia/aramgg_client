@@ -8,7 +8,6 @@ export default [
       'build/**',
       'dist/**',
       'dist-electron/**',
-      'legacy/react/**',
       'node_modules/**',
       'tests/electron/**',
     ],
