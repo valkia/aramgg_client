@@ -57,10 +57,11 @@ jobs:
         run: npm run test:unit
 
       - name: Package Windows installer
-        env:
-          ELECTRON_CACHE: ${{ runner.temp }}\electron-cache
-          ELECTRON_BUILDER_CACHE: ${{ runner.temp }}\electron-builder-cache
-        run: npm run pack
+        shell: pwsh
+        run: |
+          $env:ELECTRON_CACHE = Join-Path $env:RUNNER_TEMP 'electron-cache'
+          $env:ELECTRON_BUILDER_CACHE = Join-Path $env:RUNNER_TEMP 'electron-builder-cache'
+          npm run pack
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
