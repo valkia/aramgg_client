@@ -100,45 +100,6 @@
                 <p>ARAMGG助手 v{{ clientVersionLabel }} - 构建 89A</p>
             </footer>
 
-            <div v-if="updatePromptVisible" class="update-overlay">
-                <section class="update-card" role="dialog" aria-modal="true" aria-labelledby="update-title">
-                    <div class="update-card-header">
-                        <span class="section-kicker">{{ isMandatoryUpdate ? '需要更新' : '发现新版本' }}</span>
-                        <button
-                            class="update-close"
-                            type="button"
-                            title="稍后"
-                            @click="dismissUpdatePrompt"
-                        >
-                            <X class="window-icon" />
-                        </button>
-                    </div>
-                    <h3 id="update-title">{{ updatePromptTitle }}</h3>
-                    <p>{{ updatePromptMessage }}</p>
-                    <div class="update-version-grid">
-                        <div>
-                            <span>当前版本</span>
-                            <strong>{{ versionInfo.currentVersion }}</strong>
-                        </div>
-                        <div>
-                            <span>最新版本</span>
-                            <strong>{{ versionInfo.latestVersion }}</strong>
-                        </div>
-                    </div>
-                    <div class="update-actions">
-                        <button class="update-primary" type="button" @click="openDownloadUrl">
-                            去下载
-                        </button>
-                        <button
-                            class="update-secondary"
-                            type="button"
-                            @click="dismissUpdatePrompt"
-                        >
-                            稍后
-                        </button>
-                    </div>
-                </section>
-            </div>
         </section>
     </div>
 </template>
@@ -154,7 +115,6 @@ import { ClipboardList, Cpu, Database, Minus, Target, X } from 'lucide-vue-next'
 const currentLolPath = ref('')
 const testStatus = ref(null)
 const versionInfo = ref(null)
-const updatePromptDismissed = ref(false)
 
 const clientVersionLabel = computed(() => {
     if (!versionInfo.value) {
@@ -186,34 +146,11 @@ const showUpdateLink = computed(() => {
     return Boolean(versionInfo.value?.isNewer && versionInfo.value?.downloadUrl)
 })
 
-const isMandatoryUpdate = computed(() => Boolean(versionInfo.value?.isBelowMinimumVersion))
-
-const updatePromptVisible = computed(() => {
-    return Boolean(versionInfo.value?.shouldPrompt && !updatePromptDismissed.value)
-})
-
-const updatePromptTitle = computed(() => {
-    if (isMandatoryUpdate.value) {
-        return '客户端版本需要更新'
-    }
-
-    return '有可用的新版本'
-})
-
-const updatePromptMessage = computed(() => {
-    if (isMandatoryUpdate.value) {
-        return '当前版本低于最低支持版本，更新后可以继续获取最新数据和功能修复。'
-    }
-
-    return '检测到客户端功能版本更新，建议下载最新安装包。'
-})
-
 const loadVersionInfo = async () => {
     try {
         const result = await electronAPI.appInfo.getVersionInfo()
         if (result.success) {
             versionInfo.value = result.data
-            updatePromptDismissed.value = false
         }
     } catch (error) {
         console.warn('Failed to load version info:', error)
@@ -240,10 +177,6 @@ const openDownloadUrl = async () => {
     } catch (error) {
         console.warn('Failed to open update download url:', error)
     }
-}
-
-const dismissUpdatePrompt = () => {
-    updatePromptDismissed.value = true
 }
 
 const formatRandomPreviewMessage = (prefix, result) => {
@@ -788,147 +721,6 @@ onMounted(() => {
     font-size: 10px;
     font-weight: 900;
     letter-spacing: 0;
-}
-
-.update-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 8;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 18px;
-    background: rgba(4, 12, 18, 0.68);
-    backdrop-filter: blur(8px);
-}
-
-.update-card {
-    width: min(320px, 100%);
-    padding: 16px;
-    border: 1px solid rgba(226, 192, 143, 0.36);
-    border-radius: 4px;
-    background:
-        linear-gradient(145deg, rgba(31, 43, 53, 0.96), rgba(6, 17, 25, 0.98)),
-        #08151e;
-    box-shadow:
-        0 20px 60px rgba(0, 0, 0, 0.48),
-        inset 0 0 28px rgba(194, 156, 109, 0.08);
-}
-
-.update-card-header,
-.update-actions {
-    display: flex;
-    align-items: center;
-}
-
-.update-card-header {
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 8px;
-}
-
-.update-card h3 {
-    margin: 0;
-    color: #f0d6a6;
-    font-size: 18px;
-    font-weight: 900;
-    line-height: 1.25;
-}
-
-.update-card p {
-    margin: 8px 0 14px;
-    color: #bacac6;
-    font-size: 12px;
-    line-height: 1.55;
-}
-
-.update-close {
-    width: 24px;
-    height: 24px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-    border: 1px solid rgba(226, 192, 143, 0.18);
-    border-radius: 4px;
-    background: rgba(226, 192, 143, 0.06);
-    color: #bacac6;
-    cursor: pointer;
-}
-
-.update-close:hover {
-    color: #e2c08f;
-    border-color: rgba(226, 192, 143, 0.36);
-}
-
-.update-version-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    margin-bottom: 14px;
-}
-
-.update-version-grid div {
-    min-width: 0;
-    padding: 9px;
-    border: 1px solid rgba(244, 236, 220, 0.07);
-    border-radius: 4px;
-    background: rgba(4, 15, 24, 0.58);
-}
-
-.update-version-grid span,
-.update-version-grid strong {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.update-version-grid span {
-    color: #859491;
-    font-size: 10px;
-}
-
-.update-version-grid strong {
-    margin-top: 3px;
-    color: #e2c08f;
-    font-size: 14px;
-}
-
-.update-actions {
-    gap: 8px;
-}
-
-.update-primary,
-.update-secondary {
-    min-width: 0;
-    min-height: 34px;
-    flex: 1 1 0;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 900;
-    cursor: pointer;
-}
-
-.update-primary {
-    border: 1px solid rgba(226, 192, 143, 0.46);
-    background: linear-gradient(180deg, #e2c08f, #c29c6d);
-    color: #1d160e;
-}
-
-.update-primary:hover {
-    filter: brightness(1.06);
-}
-
-.update-secondary {
-    border: 1px solid rgba(226, 192, 143, 0.18);
-    background: rgba(17, 29, 38, 0.82);
-    color: #d7e4f1;
-}
-
-.update-secondary:hover {
-    border-color: rgba(226, 192, 143, 0.38);
-    color: #e2c08f;
 }
 
 .hex-scroll::-webkit-scrollbar {
