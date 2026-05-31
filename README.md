@@ -42,6 +42,21 @@ node tests/electron/test-screenshot-analysis.js
 node tests/electron/test-augment-ocr-fixtures.js
 ```
 
+## 发布流程
+
+GitHub Actions 会在 Windows Runner 上执行 lint、type-check、unit tests 和 `npm run pack`。
+
+- 推送到 `master`：生成 Actions artifact，方便检查安装包。
+- 推送 `v*` tag：自动创建 GitHub Release，并上传安装包、`.blockmap` 和 `latest.yml`。
+- 手动触发 `Build Windows Release`：可输入 tag 名创建/更新对应 Release。
+
+发布前先让 `package.json` 的 `version` 与 tag 对齐，例如：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
 ## 开发约定
 
 - 新增源码、服务、工具、IPC 契约和测试优先使用 TypeScript；只有延续既有 JavaScript 模块或工具边界确实不方便时才新增 `.js`。
