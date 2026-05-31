@@ -33,8 +33,6 @@ jobs:
 
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      ELECTRON_CACHE: ${{ runner.temp }}\electron-cache
-      ELECTRON_BUILDER_CACHE: ${{ runner.temp }}\electron-builder-cache
 
     steps:
       - name: Checkout
@@ -59,6 +57,9 @@ jobs:
         run: npm run test:unit
 
       - name: Package Windows installer
+        env:
+          ELECTRON_CACHE: ${{ runner.temp }}\electron-cache
+          ELECTRON_BUILDER_CACHE: ${{ runner.temp }}\electron-builder-cache
         run: npm run pack
 
       - name: Upload workflow artifact
