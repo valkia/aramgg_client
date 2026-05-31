@@ -1,12 +1,13 @@
+// @ts-nocheck
 import { app } from 'electron'
-import { configureAppPaths } from './modules/app-paths.js'
+import { configureAppPaths } from './modules/app-paths.ts'
 
 configureAppPaths()
 
 const [{ init }, windowManager, { default: logger }] = await Promise.all([
-    import('./modules/app-config.js'),
-    import('./modules/window-manager.js'),
-    import('./modules/logger.js'),
+    import('./modules/app-config.ts'),
+    import('./modules/window-manager.ts'),
+    import('./modules/logger.ts'),
 ])
 
 const { getMainWindow } = windowManager

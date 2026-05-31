@@ -37,9 +37,18 @@ export default [
     },
   },
   {
-    files: ['src/main/image-analyzer.js'],
+    files: ['src/main/image-analyzer.ts'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+        ...globals.es2022,
+      },
+    },
     rules: {
       'no-unused-vars': 'off',
+      'no-useless-assignment': 'off',
     },
   },
 ]

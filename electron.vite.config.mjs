@@ -21,7 +21,7 @@ export default defineConfig({
     build: {
       target: 'node24',
       lib: {
-        entry: 'src/main/main.js',
+        entry: 'src/main/main.ts',
         formats: ['es']
       },
       rollupOptions: {

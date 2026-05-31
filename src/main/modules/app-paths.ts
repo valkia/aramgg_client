@@ -1,3 +1,4 @@
+// @ts-nocheck
 import electron from 'electron'
 import fs from 'fs-extra'
 import os from 'os'

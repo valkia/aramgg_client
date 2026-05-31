@@ -3,9 +3,9 @@
  */
 
 import path from 'path'
-import { analyzeScreenshot, shutdownImageAnalyzer } from '../../src/main/image-analyzer.js'
+import { analyzeScreenshot, shutdownImageAnalyzer } from '../../src/main/image-analyzer.ts'
 import { fileURLToPath } from 'url'
-import logger from '../../src/main/modules/logger.js'
+import logger from '../../src/main/modules/logger.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)

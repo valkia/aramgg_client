@@ -9,7 +9,7 @@ import { desktopCapturer } from 'electron'
 import fs from 'fs-extra'
 import path from 'path'
 import os from 'os'
-import logger from '../../src/main/modules/logger.js'
+import logger from '../../src/main/modules/logger.ts'
 
 /**
  * 查找游戏窗口
@@ -108,5 +108,5 @@ export const testDesktopCapturer = async () => {
 // 如果直接运行此脚本，执行测试
 if (import.meta.url === `file://${process.argv[1]}`) {
     logger.info('⚠️  此脚本需要在 Electron 主进程中运行')
-    logger.info('   请在 src/main/main.js 中调用 testDesktopCapturer()')
+    logger.info('   请在 src/main/main.ts 中调用 testDesktopCapturer()')
 }

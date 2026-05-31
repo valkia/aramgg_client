@@ -1,3 +1,4 @@
+// @ts-nocheck
 export function getAugmentIds(augments = []) {
     return augments.slice(0, 3).map(augment => {
         if (augment?.id == null) {

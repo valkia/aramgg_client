@@ -1,7 +1,8 @@
+// @ts-nocheck
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain } from 'electron'
-import { captureScreenshot } from '../screenshot.js'
-import { analyzeScreenshot } from '../image-analyzer.js'
-import autoScreenshotService from '../auto-screenshot-service.js'
+import { captureScreenshot } from '../screenshot.ts'
+import { analyzeScreenshot } from '../image-analyzer.ts'
+import autoScreenshotService from '../auto-screenshot-service.ts'
 import { registerLCUIpcHandlers } from '../services/lcu/ipc-handlers.ts'
 import {
     applyFloatingWindowLayout,
@@ -11,10 +12,10 @@ import {
     getMainWindow,
     getPopupWindow,
     toggleMainWindow,
-} from './window-manager.js'
-import logger from './logger.js'
-import store from './app-store.js'
-import { getAppDataDir } from './app-paths.js'
+} from './window-manager.ts'
+import logger from './logger.ts'
+import store from './app-store.ts'
+import { getAppDataDir } from './app-paths.ts'
 
 const TEST_AUGMENT_COUNT = 3
 const TEST_BENCH_CHAMPION_COUNT = 8
@@ -162,7 +163,7 @@ async function buildRandomAugmentPreviewData(context = 'random-augment-preview')
 
 async function buildRandomBenchRecommendation(currentChampionId = null) {
     const { loadChampionRoster } = await import('../data-loader.ts')
-    const { getAramBenchRecommendation } = await import('../services/aram/bench-recommendation.js')
+    const { getAramBenchRecommendation } = await import('../services/aram/bench-recommendation.ts')
     const champions = await loadChampionRoster()
 
     if (champions.length < 2) {
@@ -449,8 +450,8 @@ export function registerIpcHandlers(isDev) {
             defaultId: 1,
             cancelId: 1,
             noLink: true,
-            title: '退出海克斯核心',
-            message: '确定退出海克斯核心？',
+            title: '退出ARAMGG助手',
+            message: '确定退出ARAMGG助手？',
             detail: '退出后，英雄监控、自动截图和浮窗更新都会停止。',
         }
         const result = mainWindow && !mainWindow.isDestroyed()
@@ -472,7 +473,7 @@ export function registerIpcHandlers(isDev) {
 
     ipcMain.handle('get-version-info', async () => {
         try {
-            const { getVersionInfo } = await import('../version-checker.js')
+            const { getVersionInfo } = await import('../version-checker.ts')
             return {
                 success: true,
                 data: await getVersionInfo(),

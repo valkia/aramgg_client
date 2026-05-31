@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import {
   collectAramCandidateChampionIds,
   getAramBenchRecommendation,
-} from '../../src/main/services/aram/bench-recommendation.js'
+} from '../../src/main/services/aram/bench-recommendation.ts'
 
 function makeSnapshot(overrides = {}) {
   const selfChampionId = Object.hasOwn(overrides, 'selfChampionId') ? overrides.selfChampionId : 63

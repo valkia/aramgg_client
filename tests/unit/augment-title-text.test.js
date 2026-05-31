@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isLikelyTitleSlotText } from '../../src/main/image-analyzer.js'
+import { isLikelyTitleSlotText } from '../../src/main/image-analyzer.ts'
 
 describe('isLikelyTitleSlotText', () => {
   it('accepts title text with a short trait label', () => {

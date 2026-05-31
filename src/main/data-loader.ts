@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'fs/promises'
 import path from 'path'
-import logger from './modules/logger.js'
-import { getAppDataDir } from './modules/app-paths.js'
+import logger from './modules/logger.ts'
+import { getAppDataDir } from './modules/app-paths.ts'
 
 declare const fetch: any
 

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * 图像分析模块 - 检测游戏内海克斯选择界面和识别英雄
  *
@@ -20,7 +21,7 @@ import path from 'path'
 import { readFileSync, existsSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { loadAugmentBase } from './data-loader.ts'
-import logger from './modules/logger.js'
+import logger from './modules/logger.ts'
 
 // ES Module 中获取 __dirname
 const __filename = fileURLToPath(import.meta.url)

@@ -1,6 +1,7 @@
+// @ts-nocheck
 import { execFile } from 'child_process'
 import { desktopCapturer } from 'electron'
-import logger from './modules/logger.js'
+import logger from './modules/logger.ts'
 
 let lastCaptureSourceKey = null
 const CAPTURE_THUMBNAIL_SIZE = { width: 1280, height: 720 }

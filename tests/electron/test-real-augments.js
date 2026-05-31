@@ -4,8 +4,8 @@
 
 import path from 'path'
 import os from 'os'
-import { analyzeScreenshot, shutdownImageAnalyzer } from '../../src/main/image-analyzer.js'
-import logger from '../../src/main/modules/logger.js'
+import { analyzeScreenshot, shutdownImageAnalyzer } from '../../src/main/image-analyzer.ts'
+import logger from '../../src/main/modules/logger.ts'
 
 // 真实海克斯截图列表（在 ~/.aramgg_client/screenshots 目录中）
 const screenshotDir = path.join(os.homedir(), '.aramgg_client', 'screenshots')

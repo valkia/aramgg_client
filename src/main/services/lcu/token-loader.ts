@@ -3,13 +3,13 @@
  * 从 LeagueClient 日志文件中提取认证 token
  *
  * 合并自：
- * - electron/lcu-utils.js
+ * - electron/lcu-utils.ts
  * - src/share/file-browser-safe.js
  */
 
 import fs from 'fs'
 import path from 'path'
-import logger from '../../modules/logger.js'
+import logger from '../../modules/logger.ts'
 import { TokenLoadResult } from './types.ts'
 
 /**

@@ -1,7 +1,8 @@
+// @ts-nocheck
 import { app, globalShortcut, BrowserWindow } from 'electron'
-import { captureScreenshot, getLolGameStatus } from '../screenshot.js'
-import { analyzeScreenshot } from '../image-analyzer.js'
-import { registerIpcHandlers } from './ipc-handlers.js'
+import { captureScreenshot, getLolGameStatus } from '../screenshot.ts'
+import { analyzeScreenshot } from '../image-analyzer.ts'
+import { registerIpcHandlers } from './ipc-handlers.ts'
 import {
     applyFloatingWindowLayout,
     applyPopupWindowLayout,
@@ -11,13 +12,13 @@ import {
     toggleMainWindow,
     getFloatingWindow,
     getPopupWindow,
-} from './window-manager.js'
-import autoScreenshotService from '../auto-screenshot-service.js'
+} from './window-manager.ts'
+import autoScreenshotService from '../auto-screenshot-service.ts'
 import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
-import { checkForClientUpdate } from '../version-checker.js'
-import logger from './logger.js'
-import store from './app-store.js'
-import { getAppDataDir } from './app-paths.js'
+import { checkForClientUpdate } from '../version-checker.ts'
+import logger from './logger.ts'
+import store from './app-store.ts'
+import { getAppDataDir } from './app-paths.ts'
 
 const __dirname = import.meta.dirname
 
@@ -379,7 +380,7 @@ async function showChampionInsightForChampSelect(lcuService) {
         timestamp: Date.now(),
     })
 
-    logger.info('显示英雄洞察选人视图', {
+    logger.info('显示英雄详情选人视图', {
         championId: snapshot?.selfChampionId || null,
         benchCount: snapshot?.benchChampions?.length || 0,
         snapshotStatus: snapshot?.status || 'unavailable',
@@ -483,7 +484,7 @@ async function initGameFlowMonitor() {
             logger.warn('   2. LeagueClientUx.log 文件不存在 - 请重启游戏客户端')
             logger.warn('   3. 游戏目录配置错误 - 请在应用设置中检查')
             logger.info('调试步骤:')
-            logger.info('   1. 运行: node src/main/lcu-debug.js "你的游戏目录"')
+            logger.info('   1. 运行: node src/main/lcu-debug.ts "你的游戏目录"')
             logger.info('   2. 检查输出中是否找到了 LeagueClientUx.log')
             logger.info('   3. 检查日志中是否包含 LCU URL')
             logger.info('将继续低频重试 LCU 连接')

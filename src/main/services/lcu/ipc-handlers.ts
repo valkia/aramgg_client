@@ -2,19 +2,19 @@
  * LCU 服务相关的 IPC 处理器
  * 使用统一的 LCU 服务实现
  *
- * 迁移自 electron/modules/ipc-handlers.js
+ * 迁移自 electron/modules/ipc-handlers.ts
  */
 
 import { ipcMain } from 'electron'
-import logger from '../../modules/logger.js'
-import store from '../../modules/app-store.js'
+import logger from '../../modules/logger.ts'
+import store from '../../modules/app-store.ts'
 import { getLCUServiceInstance } from './lcu-service.ts'
 import { ChampionIdResult, ChampSelectSnapshot } from './types.ts'
 import {
   collectAramCandidateChampionIds,
   createEmptyAramBenchRecommendation,
   getAramBenchRecommendation,
-} from '../aram/bench-recommendation.js'
+} from '../aram/bench-recommendation.ts'
 
 const LCU_READ_TIMEOUT_MS = 8 * 1000
 

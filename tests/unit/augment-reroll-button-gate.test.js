@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'fs'
-import { detectAugmentRerollButtons } from '../../src/main/image-analyzer.js'
+import { detectAugmentRerollButtons } from '../../src/main/image-analyzer.ts'
 
 describe('augment reroll button gate', () => {
   it('detects active and disabled reroll buttons in demo augment screens', async () => {

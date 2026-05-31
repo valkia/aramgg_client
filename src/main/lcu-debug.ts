@@ -1,11 +1,12 @@
+// @ts-nocheck
 /**
  * LCU 诊断工具 - 用于调试 LCU 连接问题
- * 使用: node electron/lcu-debug.js "C:\Riot Games\League of Legends"
+ * 使用: node electron/lcu-debug.ts "C:\Riot Games\League of Legends"
  */
 
 import fs from 'fs'
 import path from 'path'
-import logger from './modules/logger.js'
+import logger from './modules/logger.ts'
 
 function debugLcuToken(lolDir) {
     logger.info('\n========== LCU 诊断报告 ==========\n')

@@ -9,8 +9,8 @@
 import fs from 'fs-extra'
 import path from 'path'
 import os from 'os'
-import { analyzeScreenshot, shutdownImageAnalyzer } from '../../src/main/image-analyzer.js'
-import logger from '../../src/main/modules/logger.js'
+import { analyzeScreenshot, shutdownImageAnalyzer } from '../../src/main/image-analyzer.ts'
+import logger from '../../src/main/modules/logger.ts'
 
 // 截图目录
 const SCREENSHOT_DIR = path.join(os.homedir(), '.aramgg_client', 'screenshots')

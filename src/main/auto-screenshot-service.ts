@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * 定时截图服务
  * 功能：定期自动截图、分析和识别海克斯卡片
@@ -7,16 +8,16 @@
  * 因此截图时无需隐藏浮窗，避免了闪烁问题
  */
 
-import { captureScreenshot } from './screenshot.js'
-import { analyzeScreenshot, warmupImageAnalyzer } from './image-analyzer.js'
+import { captureScreenshot } from './screenshot.ts'
+import { analyzeScreenshot, warmupImageAnalyzer } from './image-analyzer.ts'
 import { BrowserWindow } from 'electron'
 import fs from 'fs-extra'
 import path from 'path'
-import logger from './modules/logger.js'
-import { applyFloatingWindowLayout } from './modules/window-manager.js'
-import store from './modules/app-store.js'
-import { getPartialOcrScreenshotDir } from './modules/app-paths.js'
-import { getAugmentIds, mergePartialAugments } from './augment-partial-merge.js'
+import logger from './modules/logger.ts'
+import { applyFloatingWindowLayout } from './modules/window-manager.ts'
+import store from './modules/app-store.ts'
+import { getPartialOcrScreenshotDir } from './modules/app-paths.ts'
+import { getAugmentIds, mergePartialAugments } from './augment-partial-merge.ts'
 
 const AUTO_SCREENSHOT_SUMMARY_INTERVAL_MS = 10000
 const ANALYSIS_MISS_LOG_INTERVAL_MS = 10000

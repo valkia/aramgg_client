@@ -1,4 +1,5 @@
-import logger from './logger.js';
+// @ts-nocheck
+import logger from './logger.ts';
 import { BrowserWindow, screen, app } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -124,7 +125,7 @@ export const createMainWindow = async (isDev, devServerUrl) => {
         ...bounds,
         frame: false,
         webPreferences,
-        title: '海克斯核心',
+        title: 'ARAMGG助手',
     })
 
     mainWindow.on('close', () => {

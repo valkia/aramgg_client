@@ -1,6 +1,7 @@
+// @ts-nocheck
 import { app, dialog, shell } from 'electron'
 import { loadDataApiConfig } from './data-loader.ts'
-import logger from './modules/logger.js'
+import logger from './modules/logger.ts'
 
 const VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/
 

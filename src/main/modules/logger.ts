@@ -1,10 +1,11 @@
+// @ts-nocheck
 /**
  * 日志模块 - 提供文件日志记录功能
  * 日志存储位置: 应用数据目录/logs/
  */
 import path from 'path'
 import fs from 'fs-extra'
-import { getLogDir as resolveLogDir } from './app-paths.js'
+import { getLogDir as resolveLogDir } from './app-paths.ts'
 
 // 日志级别
 const LOG_LEVELS = {

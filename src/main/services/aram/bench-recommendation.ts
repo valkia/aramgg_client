@@ -1,3 +1,4 @@
+// @ts-nocheck
 const READY_STATUS = 'ready'
 const INACTIVE_STATUS = 'inactive'
 const NO_CURRENT_STATUS = 'no-current-champion'

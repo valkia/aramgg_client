@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getFingerprintHammingDistance, mergePartialAugments } from '../../src/main/augment-partial-merge.js'
+import { getFingerprintHammingDistance, mergePartialAugments } from '../../src/main/augment-partial-merge.ts'
 
 const augment = (id, detectedSlot) => ({
     id,

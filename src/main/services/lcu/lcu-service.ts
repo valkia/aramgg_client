@@ -3,8 +3,8 @@
  *
  * 合并自：
  * - src/service/lcu.js (LCUService)
- * - electron/modules/app-config.js (MainProcessLCU)
- * - electron/modules/ipc-handlers.js (IpcLCUService)
+ * - electron/modules/app-config.ts (MainProcessLCU)
+ * - electron/modules/ipc-handlers.ts (IpcLCUService)
  *
  * 功能：
  * - LCU 认证和连接管理
@@ -16,7 +16,7 @@
 
 import https from 'https'
 import axios from 'axios'
-import logger from '../../modules/logger.js'
+import logger from '../../modules/logger.ts'
 import { getLcuToken } from './token-loader.ts'
 import { LcuJsonApiEvent, LcuWampSocket } from './lcu-wamp-socket.ts'
 import {
