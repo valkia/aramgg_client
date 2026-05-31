@@ -62,6 +62,11 @@ function compareVersion(currentVersion, latestVersion) {
   }
 }
 
+function isVersionLowerThan(currentVersion, targetVersion) {
+  const comparison = compareVersion(currentVersion, targetVersion)
+  return comparison.isNewer
+}
+
 function getSeverityText(severity) {
   if (severity === 'major') {
     return '最好更新'
@@ -83,21 +88,27 @@ export async function getVersionInfo() {
   const currentVersion = app.getVersion()
   const clientConfig = config?.client || config?.electron || {}
   const latestVersion = clientConfig.latestVersion || ''
+  const minimumVersion = clientConfig.minimumVersion || ''
   const comparison = compareVersion(currentVersion, latestVersion)
+  const isBelowMinimumVersion = minimumVersion
+    ? isVersionLowerThan(currentVersion, minimumVersion)
+    : false
+  const shouldPrompt = comparison.shouldPrompt || isBelowMinimumVersion
 
   return {
     currentVersion,
     latestVersion,
     downloadUrl: clientConfig.downloadUrl || '',
-    minimumVersion: clientConfig.minimumVersion || '',
+    minimumVersion,
     dataVersion: config?.dataVersion || '',
     gamePatch: config?.gamePatch || '',
     apiRelease: config?.apiRelease ?? null,
     generatedAt: config?.generatedAt || '',
     publishedAt: config?.publishedAt || '',
     severity: comparison.severity,
-    shouldPrompt: comparison.shouldPrompt,
+    shouldPrompt,
     isNewer: comparison.isNewer,
+    isBelowMinimumVersion,
     statusText: getSeverityText(comparison.severity),
   }
 }
@@ -126,7 +137,9 @@ export async function checkForClientUpdate(parentWindow) {
   }
 
   const message =
-    versionInfo.severity === 'major'
+    versionInfo.isBelowMinimumVersion
+      ? '当前客户端低于最低支持版本，请更新后继续使用。'
+      : versionInfo.severity === 'major'
       ? '检测到客户端大版本不一致，最好更新后继续使用。'
       : '检测到客户端功能版本不一致，建议更新。'
 

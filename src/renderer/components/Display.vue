@@ -32,6 +32,14 @@
                             <span>客户端版本</span>
                             <strong>{{ clientVersionLabel }}</strong>
                             <small v-if="versionHint">{{ versionHint }}</small>
+                            <button
+                                v-if="showUpdateLink"
+                                class="version-download"
+                                type="button"
+                                @click="openDownloadUrl"
+                            >
+                                下载更新
+                            </button>
                         </div>
                         <div>
                             <span>数据版本</span>
@@ -133,6 +141,10 @@ const versionHint = computed(() => {
     return versionInfo.value.statusText + ' ' + versionInfo.value.latestVersion
 })
 
+const showUpdateLink = computed(() => {
+    return Boolean(versionInfo.value?.isNewer && versionInfo.value?.downloadUrl)
+})
+
 const loadVersionInfo = async () => {
     try {
         const result = await electronAPI.appInfo.getVersionInfo()
@@ -151,6 +163,19 @@ const onPathChanged = (path) => {
 
 const onOpggDataReady = (data) => {
     console.log('OP.GG rune data ready', data)
+}
+
+const openDownloadUrl = async () => {
+    const url = versionInfo.value?.downloadUrl
+    if (!url) {
+        return
+    }
+
+    try {
+        await electronAPI.shell.openExternal(url)
+    } catch (error) {
+        console.warn('Failed to open update download url:', error)
+    }
 }
 
 const formatRandomPreviewMessage = (prefix, result) => {
@@ -506,6 +531,25 @@ onMounted(() => {
     margin-top: 3px;
     color: #859491;
     font-size: 10px;
+}
+
+.version-download {
+    max-width: 100%;
+    margin-top: 5px;
+    padding: 3px 6px;
+    border: 1px solid rgba(226, 192, 143, 0.35);
+    border-radius: 4px;
+    background: rgba(194, 156, 109, 0.12);
+    color: #e2c08f;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1.2;
+    cursor: pointer;
+}
+
+.version-download:hover {
+    border-color: rgba(226, 192, 143, 0.58);
+    background: rgba(194, 156, 109, 0.2);
 }
 
 .diagnostic-panel {
