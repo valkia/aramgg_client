@@ -156,7 +156,7 @@ async function main() {
     process.exit(buildResult.code ?? 1)
   }
 
-  const packResult = await run('electron-builder', [], {
+  const packResult = await run('electron-builder', ['--publish', 'never'], {
     env: packEnv,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -176,7 +176,7 @@ async function main() {
 
   const fallbackResult = await run(
     'electron-builder',
-    [`--config.directories.output=${fallbackOutput}`],
+    ['--publish', 'never', `--config.directories.output=${fallbackOutput}`],
     {
       env: packEnv,
       stdio: ['ignore', 'pipe', 'pipe'],
