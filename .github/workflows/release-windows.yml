@@ -34,6 +34,17 @@ jobs:
           node-version: '24'
           cache: npm
 
+      - name: Validate release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $packageVersion = node -p "require('./package.json').version"
+          $expectedTag = "v$packageVersion"
+          if ($env:GITHUB_REF_NAME -ne $expectedTag) {
+            Write-Error "Release tag '$env:GITHUB_REF_NAME' does not match package.json version '$packageVersion'. Expected '$expectedTag'."
+            exit 1
+          }
+
       - name: Install dependencies
         run: npm ci
 
