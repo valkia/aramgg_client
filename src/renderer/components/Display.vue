@@ -105,7 +105,6 @@
                     <div class="update-card-header">
                         <span class="section-kicker">{{ isMandatoryUpdate ? '需要更新' : '发现新版本' }}</span>
                         <button
-                            v-if="!isMandatoryUpdate"
                             class="update-close"
                             type="button"
                             title="稍后"
@@ -131,7 +130,6 @@
                             去下载
                         </button>
                         <button
-                            v-if="!isMandatoryUpdate"
                             class="update-secondary"
                             type="button"
                             @click="dismissUpdatePrompt"
