@@ -25,7 +25,7 @@ const variantClasses = {
   display: inline-flex;
   gap: 4px;
   align-items: center;
-  border-radius: 6px;
+  border-radius: 4px;
   border: 1px solid transparent;
   padding: 2px 10px;
   font-size: 12px;
@@ -35,13 +35,13 @@ const variantClasses = {
 }
 
 .badge-default {
-  background: var(--lol-teal);
+  background: var(--lol-primary);
   color: var(--lol-bg);
-  border-color: rgba(108, 241, 229, 0.32);
+  border-color: rgba(226, 192, 143, 0.32);
 }
 
 .badge-default:hover {
-  background: var(--lol-teal-2);
+  background: var(--lol-primary-2);
 }
 
 .badge-secondary {

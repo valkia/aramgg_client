@@ -17,9 +17,9 @@
             </div>
 
             <!-- 状态显示 -->
-            <div v-if="statusMessage" class="status-message">
-                <span class="status-icon">{{ statusMessage.startsWith('✅') || statusMessage.startsWith('❌') ? '' : '⏳' }}</span>
-                {{ statusMessage }}
+            <div v-if="statusMessage" class="status-message" :class="statusTone">
+                <span class="status-icon"></span>
+                {{ statusText }}
             </div>
 
             <!-- 进度条 -->
@@ -31,7 +31,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import { getLolVer } from "../service/data-source/lol-qq"
 import OpGG from "../service/data-source/op-gg"
@@ -43,6 +43,25 @@ const isLoading = ref(false)
 const progress = ref(0)
 const statusMessage = ref('')
 const emit = defineEmits(['opgg-data-ready'])
+
+const statusTone = computed(() => {
+    if (statusMessage.value.startsWith('✅')) return 'success'
+    if (statusMessage.value.startsWith('❌')) return 'error'
+    if (statusMessage.value.startsWith('⚠️')) return 'warning'
+    return isLoading.value ? 'loading' : 'neutral'
+})
+
+const stripStatusPrefix = (message) => {
+    for (const prefix of ['✅ ', '❌ ', '⚠️ ']) {
+        if (message.startsWith(prefix)) {
+            return message.slice(prefix.length)
+        }
+    }
+
+    return message
+}
+
+const statusText = computed(() => stripStatusPrefix(statusMessage.value))
 
 /**
  * 获取 OP.GG 符文数据
@@ -113,13 +132,14 @@ const time = () => {
 .config-card {
     height: auto;
     flex: 0 0 auto;
-    background: rgba(31, 43, 53, 0.42);
-    border: 1px solid rgba(60, 74, 71, 0.42);
-    border-radius: 8px;
+    background:
+        linear-gradient(145deg, rgba(31, 43, 53, 0.62), rgba(7, 10, 13, 0.34));
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 4px;
     padding: 14px;
     overflow: hidden;
-    color: #d7e4f1;
-    box-shadow: inset 0 0 18px rgba(10, 200, 185, 0.04);
+    color: var(--lol-ivory);
+    box-shadow: inset 0 0 18px rgba(194, 156, 109, 0.04);
 }
 
 .card-header {
@@ -134,12 +154,12 @@ const time = () => {
 .card-icon {
     width: 16px;
     height: 16px;
-    color: #e2c384;
+    color: var(--lol-gold-2);
 }
 
 .card-title {
     margin: 0;
-    color: #e2c384;
+    color: var(--lol-gold-2);
     font-size: 12px;
     font-weight: 900;
     letter-spacing: 0;
@@ -152,7 +172,7 @@ const time = () => {
 
 .action-buttons {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
 }
 
@@ -164,8 +184,8 @@ const time = () => {
     min-width: 0;
     width: 100%;
     padding: 9px 8px;
-    border: 1px solid rgba(60, 74, 71, 0.46);
-    border-radius: 6px;
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
     font-weight: 900;
@@ -178,26 +198,25 @@ const time = () => {
 }
 
 .action-btn-primary {
-    background: rgba(10, 200, 185, 0.16);
-    border-color: rgba(71, 228, 213, 0.36);
-    color: #47e4d5;
+    background: rgba(194, 156, 109, 0.16);
+    border-color: rgba(194, 156, 109, 0.34);
+    color: var(--lol-primary-2);
 }
 
 .action-btn-primary:hover {
-    background: rgba(10, 200, 185, 0.24);
+    background: rgba(194, 156, 109, 0.24);
     transform: translateY(-1px);
-    box-shadow: 0 0 18px rgba(10, 200, 185, 0.14);
+    box-shadow: 0 0 18px rgba(194, 156, 109, 0.14);
 }
 
 .action-btn-secondary {
-    background: rgba(17, 29, 38, 0.72);
-    border-color: rgba(60, 74, 71, 0.46);
-    color: #d7e4f1;
+    background: rgba(7, 10, 13, 0.42);
+    color: var(--lol-ivory);
 }
 
 .action-btn-secondary:hover {
     background: rgba(42, 54, 64, 0.7);
-    border-color: rgba(71, 228, 213, 0.38);
+    border-color: rgba(226, 192, 143, 0.38);
     transform: translateY(-1px);
 }
 
@@ -217,17 +236,51 @@ const time = () => {
     margin-top: 12px;
     padding: 10px 14px;
     background: rgba(4, 15, 24, 0.42);
-    border: 1px solid rgba(60, 74, 71, 0.42);
-    border-radius: 6px;
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 4px;
     font-size: 12px;
-    color: #bacac6;
+    color: var(--lol-muted);
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
 .status-icon {
-    font-size: 14px;
+    width: 7px;
+    height: 7px;
+    flex: 0 0 auto;
+    border-radius: 4px;
+    background: var(--lol-faint);
+}
+
+.status-message.loading,
+.status-message.success {
+    color: var(--lol-primary-2);
+    border-color: rgba(194, 156, 109, 0.24);
+}
+
+.status-message.loading .status-icon,
+.status-message.success .status-icon {
+    background: var(--lol-primary-2);
+    box-shadow: 0 0 8px rgba(194, 156, 109, 0.6);
+}
+
+.status-message.warning {
+    color: var(--lol-gold-2);
+    border-color: var(--lol-border);
+}
+
+.status-message.warning .status-icon {
+    background: var(--lol-gold-2);
+}
+
+.status-message.error {
+    color: #ff9c96;
+    border-color: rgba(229, 83, 75, 0.28);
+}
+
+.status-message.error .status-icon {
+    background: #ff9c96;
 }
 
 .progress-container {
@@ -240,7 +293,7 @@ const time = () => {
 
 .progress-bar {
     height: 100%;
-    background: linear-gradient(90deg, #47e4d5, #e2c384);
+    background: linear-gradient(90deg, var(--lol-primary), var(--lol-gold-2));
     border-radius: 3px;
     transition: width 0.3s ease;
     animation: pulse 1.5s infinite;
@@ -251,9 +304,16 @@ const time = () => {
     50% { opacity: 0.7; }
 }
 
+@media (prefers-reduced-motion: reduce) {
+    .progress-bar {
+        animation: none;
+        transition: none;
+    }
+}
+
 @media (max-width: 640px) {
     .action-buttons {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .action-btn {

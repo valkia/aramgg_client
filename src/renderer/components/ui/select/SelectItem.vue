@@ -51,7 +51,7 @@ const forwardedProps = useForwardProps(delegatedProps);
 }
 .select-item-dark:hover,
 .select-item-dark:focus {
-  background: rgba(40, 217, 200, 0.1);
-  color: var(--lol-teal-2);
+  background: rgba(194, 156, 109, 0.1);
+  color: var(--lol-primary-2);
 }
 </style>

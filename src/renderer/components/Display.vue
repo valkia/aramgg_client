@@ -1,13 +1,10 @@
 <template id='Display'>
     <div class="display-page">
         <section class="hex-window">
-            <div class="corner-accent corner-accent-tl"></div>
-            <div class="corner-accent corner-accent-br"></div>
-
             <header class="hex-titlebar">
                 <div class="brand-lockup">
                     <Cpu class="brand-icon" />
-                    <h1>海克斯核心</h1>
+                    <h1>ARAMGG助手</h1>
                 </div>
                 <div class="window-controls">
                     <button class="window-control" type="button" title="隐藏" @click="hideMainWindow">
@@ -21,22 +18,30 @@
 
             <main class="hex-scroll">
                 <div class="status-strip">
-                    <div class="status-row">
-                        <span>连接状态</span>
-                        <strong :class="{ muted: !currentLolPath }">
+                    <div class="status-header">
+                        <div>
+                            <span class="section-kicker">运行状态</span>
+                            <h2>控制台</h2>
+                        </div>
+                        <strong class="connection-pill" :class="{ muted: !currentLolPath }">
                             {{ currentLolPath ? '已同步' : '未连接' }}
                         </strong>
                     </div>
                     <div class="status-grid">
                         <div>
-                            <span>客户端</span>
+                            <span>客户端版本</span>
                             <strong>{{ clientVersionLabel }}</strong>
                             <small v-if="versionHint">{{ versionHint }}</small>
                         </div>
                         <div>
-                            <span>数据</span>
+                            <span>数据版本</span>
                             <strong>{{ dataVersionLabel }}</strong>
                             <small v-if="versionInfo?.gamePatch">LOL {{ versionInfo.gamePatch }}</small>
+                        </div>
+                        <div>
+                            <span>游戏路径</span>
+                            <strong>{{ currentLolPath ? '已配置' : '待配置' }}</strong>
+                            <small>{{ currentLolPath ? '可读取本地资源' : '先选择目录' }}</small>
                         </div>
                     </div>
                 </div>
@@ -48,14 +53,13 @@
                 <section class="diagnostic-panel">
                     <div class="section-header">
                         <p class="section-kicker">窗口预览</p>
-                        <h3>浮窗诊断</h3>
                     </div>
 
                     <div class="test-controls">
                         <button class="test-btn primary" @click="testFloatingWindow">
                             <Target class="icon" />
                             <span class="button-copy">
-                                <span class="text">游戏浮条</span>
+                                <span class="text">海克斯浮窗</span>
                                 <span class="hint">随机英雄与海克斯</span>
                             </span>
                         </button>
@@ -63,16 +67,8 @@
                         <button class="test-btn secondary" @click="testPopupWindow">
                             <ClipboardList class="icon" />
                             <span class="button-copy">
-                                <span class="text">英雄洞察</span>
+                                <span class="text">英雄详情</span>
                                 <span class="hint">随机英雄详情</span>
-                            </span>
-                        </button>
-
-                        <button class="test-btn secondary" @click="testBenchWindow">
-                            <Swords class="icon" />
-                            <span class="button-copy">
-                                <span class="text">洞察席位</span>
-                                <span class="hint">在英雄洞察顶部展示</span>
                             </span>
                         </button>
 
@@ -84,13 +80,6 @@
                             </span>
                         </button>
 
-                        <button class="test-btn danger" @click="hideAllWindows">
-                            <EyeOff class="icon" />
-                            <span class="button-copy">
-                                <span class="text">隐藏窗口</span>
-                                <span class="hint">关闭预览浮窗</span>
-                            </span>
-                        </button>
                     </div>
 
                     <div v-if="testStatus" class="test-status" :class="testStatus.type">
@@ -100,7 +89,7 @@
             </main>
 
             <footer class="hex-footer">
-                <p>海克斯核心 v{{ clientVersionLabel }} - 构建 89A</p>
+                <p>ARAMGG助手 v{{ clientVersionLabel }} - 构建 89A</p>
             </footer>
         </section>
     </div>
@@ -112,7 +101,7 @@ import GamePathConfig from './GamePathConfig.vue'
 import RuneControls from './RuneControls.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
 import { electronAPI } from '../native/electron-api.js'
-import { ClipboardList, Cpu, Database, EyeOff, Minus, Swords, Target, X } from 'lucide-vue-next'
+import { ClipboardList, Cpu, Database, Minus, Target, X } from 'lucide-vue-next'
 
 const currentLolPath = ref('')
 const testStatus = ref(null)
@@ -181,7 +170,7 @@ const formatRandomPreviewMessage = (prefix, result) => {
 }
 
 const testFloatingWindow = async () => {
-    testStatus.value = { type: 'info', message: '正在抽取真实数据并打开浮条...' }
+    testStatus.value = { type: 'info', message: '正在抽取真实数据并打开海克斯浮窗...' }
 
     try {
         const result = await electronAPI.diagnostics.testShowRandomFloating()
@@ -190,7 +179,7 @@ const testFloatingWindow = async () => {
         }
         testStatus.value = {
             type: 'success',
-            message: formatRandomPreviewMessage('浮条测试数据已发送', result),
+            message: formatRandomPreviewMessage('海克斯浮窗测试数据已发送', result),
         }
     } catch (err) {
         testStatus.value = { type: 'error', message: '发送失败：' + err.message }
@@ -198,7 +187,7 @@ const testFloatingWindow = async () => {
 }
 
 const testPopupWindow = async () => {
-    testStatus.value = { type: 'info', message: '正在抽取真实数据并打开英雄洞察...' }
+    testStatus.value = { type: 'info', message: '正在抽取真实数据并打开英雄详情...' }
 
     try {
         const result = await electronAPI.diagnostics.testShowRandomPopup()
@@ -207,26 +196,7 @@ const testPopupWindow = async () => {
         }
         testStatus.value = {
             type: 'success',
-            message: formatRandomPreviewMessage('英雄洞察测试数据已发送', result),
-        }
-    } catch (err) {
-        testStatus.value = { type: 'error', message: '发送失败：' + err.message }
-    }
-}
-
-const testBenchWindow = async () => {
-    testStatus.value = { type: 'info', message: '正在抽取真实英雄并打开英雄洞察席位预览...' }
-
-    try {
-        const result = await electronAPI.diagnostics.testShowBenchRecommendation()
-        if (!result.success) {
-            throw new Error(result.error || '发送失败')
-        }
-
-        const name = result.recommendation?.recommendedChampion?.name || '随机英雄'
-        testStatus.value = {
-            type: 'success',
-            message: '英雄洞察席位预览已发送：建议关注 ' + name,
+            message: formatRandomPreviewMessage('英雄详情测试数据已发送', result),
         }
     } catch (err) {
         testStatus.value = { type: 'error', message: '发送失败：' + err.message }
@@ -261,12 +231,6 @@ const testDatabaseLoad = async () => {
     }
 }
 
-const hideAllWindows = () => {
-    electronAPI.windows.hidePopup()
-    electronAPI.windows.hideFloating()
-    testStatus.value = { type: 'info', message: '隐藏命令已发送' }
-}
-
 const hideMainWindow = () => {
     try {
         electronAPI.windows.toggleMain()
@@ -290,34 +254,34 @@ onMounted(() => {
 
 <style scoped>
 .display-page {
-    min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 16px;
     background:
-        radial-gradient(circle at 50% 0%, rgba(10, 200, 185, 0.15), transparent 42rem),
+        radial-gradient(circle at 50% 0%, rgba(194, 156, 109, 0.15), transparent 42rem),
         #08151e;
     color: #d7e4f1;
 }
 
 .hex-window {
-    width: min(380px, 100%);
-    height: min(620px, calc(100vh - 32px));
+    width: min(440px, 100%);
+    height: min(720px, calc(100dvh - 32px));
     min-height: 480px;
     position: relative;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     border: 1px solid rgba(226, 195, 132, 0.24);
-    border-radius: 12px;
+    border-radius: 4px;
     background:
         linear-gradient(180deg, rgba(17, 29, 38, 0.95), rgba(4, 15, 24, 0.98)),
         #08151e;
     box-shadow:
         inset -10px 0 20px -10px rgba(226, 195, 132, 0.12),
         0 28px 80px rgba(0, 0, 0, 0.5),
-        0 0 42px rgba(10, 200, 185, 0.12);
+        0 0 42px rgba(194, 156, 109, 0.12);
 }
 
 .hex-window::before {
@@ -327,32 +291,8 @@ onMounted(() => {
     border-radius: inherit;
     pointer-events: none;
     background:
-        linear-gradient(180deg, rgba(71, 228, 213, 0.14), transparent 36%),
-        radial-gradient(circle at 50% 0%, rgba(10, 200, 185, 0.12), transparent 44%);
-}
-
-.corner-accent {
-    position: absolute;
-    width: 18px;
-    height: 18px;
-    z-index: 3;
-    pointer-events: none;
-}
-
-.corner-accent-tl {
-    top: 0;
-    left: 0;
-    border-top: 2px solid rgba(226, 195, 132, 0.72);
-    border-left: 2px solid rgba(226, 195, 132, 0.72);
-    border-top-left-radius: 12px;
-}
-
-.corner-accent-br {
-    right: 0;
-    bottom: 0;
-    border-right: 2px solid rgba(226, 195, 132, 0.72);
-    border-bottom: 2px solid rgba(226, 195, 132, 0.72);
-    border-bottom-right-radius: 12px;
+        linear-gradient(180deg, rgba(226, 192, 143, 0.14), transparent 36%),
+        radial-gradient(circle at 50% 0%, rgba(194, 156, 109, 0.12), transparent 44%);
 }
 
 .hex-titlebar {
@@ -364,8 +304,8 @@ onMounted(() => {
     gap: 12px;
     padding: 10px 16px;
     background: rgba(42, 54, 64, 0.84);
-    border-bottom: 1px solid rgba(71, 228, 213, 0.28);
-    box-shadow: inset 0 -1px 14px rgba(10, 200, 185, 0.12);
+    border-bottom: 1px solid rgba(226, 192, 143, 0.28);
+    box-shadow: inset 0 -1px 14px rgba(194, 156, 109, 0.12);
     -webkit-app-region: drag;
 }
 
@@ -376,7 +316,7 @@ onMounted(() => {
     right: 0;
     bottom: 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(71, 228, 213, 0.72), transparent);
+    background: linear-gradient(90deg, transparent, rgba(226, 192, 143, 0.72), transparent);
 }
 
 .brand-lockup,
@@ -394,18 +334,18 @@ onMounted(() => {
 .brand-icon {
     width: 20px;
     height: 20px;
-    color: #47e4d5;
-    filter: drop-shadow(0 0 10px rgba(71, 228, 213, 0.65));
+    color: #e2c08f;
+    filter: drop-shadow(0 0 10px rgba(226, 192, 143, 0.65));
     flex: 0 0 auto;
 }
 
 .brand-lockup h1 {
     margin: 0;
-    color: #47e4d5;
+    color: #e2c08f;
     font-size: 18px;
     font-weight: 700;
     line-height: 1.1;
-    text-shadow: 0 0 8px rgba(10, 200, 185, 0.36);
+    text-shadow: 0 0 8px rgba(194, 156, 109, 0.36);
 }
 
 .window-controls {
@@ -420,7 +360,7 @@ onMounted(() => {
     align-items: center;
     justify-content: center;
     border: 1px solid transparent;
-    border-radius: 6px;
+    border-radius: 4px;
     background: transparent;
     color: #bacac6;
     cursor: pointer;
@@ -428,9 +368,9 @@ onMounted(() => {
 }
 
 .window-control:hover {
-    color: #47e4d5;
-    background: rgba(71, 228, 213, 0.08);
-    border-color: rgba(71, 228, 213, 0.18);
+    color: #e2c08f;
+    background: rgba(226, 192, 143, 0.08);
+    border-color: rgba(226, 192, 143, 0.18);
 }
 
 .window-control.danger:hover {
@@ -450,12 +390,12 @@ onMounted(() => {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
     min-height: 0;
     overflow-y: auto;
-    padding: 18px;
+    padding: 16px;
     background:
-        radial-gradient(circle at 50% 0%, rgba(10, 200, 185, 0.08), transparent 60%),
+        radial-gradient(circle at 50% 0%, rgba(194, 156, 109, 0.08), transparent 60%),
         rgba(8, 21, 30, 0.58);
 }
 
@@ -465,68 +405,92 @@ onMounted(() => {
 
 .status-strip,
 .diagnostic-panel {
-    border: 1px solid rgba(60, 74, 71, 0.42);
-    border-radius: 8px;
-    background: rgba(31, 43, 53, 0.42);
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 4px;
+    background:
+        linear-gradient(145deg, rgba(31, 43, 53, 0.62), rgba(7, 10, 13, 0.32));
+    box-shadow: inset 0 0 18px rgba(194, 156, 109, 0.04);
 }
 
 .status-strip {
     padding: 12px;
 }
 
-.status-row {
+.status-header {
+    display: flex;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
-    padding: 10px;
-    margin-bottom: 10px;
-    border-radius: 6px;
-    background: rgba(4, 15, 24, 0.48);
+    margin-bottom: 12px;
 }
 
-.status-row span,
+.status-header h2 {
+    margin: 4px 0 0;
+    color: var(--lol-ivory);
+    font-size: 18px;
+    font-weight: 900;
+    line-height: 1.2;
+}
+
 .status-grid span {
     color: #bacac6;
-    font-size: 12px;
+    font-size: 11px;
 }
 
-.status-row strong,
 .status-grid strong {
-    color: #47e4d5;
+    color: #e2c08f;
     font-size: 12px;
     letter-spacing: 0;
 }
 
-.status-row strong::before {
+.connection-pill {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: 8px;
+    padding: 7px 10px;
+    color: var(--lol-primary-2);
+    background: rgba(194, 156, 109, 0.1);
+    border: 1px solid rgba(194, 156, 109, 0.22);
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.connection-pill::before {
     content: '';
-    display: inline-block;
+    display: block;
     width: 8px;
     height: 8px;
-    margin-right: 8px;
-    border-radius: 999px;
-    background: #47e4d5;
-    box-shadow: 0 0 10px rgba(71, 228, 213, 0.85);
+    border-radius: 4px;
+    background: #e2c08f;
+    box-shadow: 0 0 10px rgba(226, 192, 143, 0.85);
 }
 
-.status-row strong.muted {
+.connection-pill.muted {
     color: #859491;
+    background: rgba(244, 236, 220, 0.05);
+    border-color: var(--lol-border-soft);
 }
 
-.status-row strong.muted::before {
+.connection-pill.muted::before {
     background: #859491;
     box-shadow: none;
 }
 
 .status-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
 }
 
 .status-grid div {
     min-width: 0;
-    padding: 10px;
-    border-radius: 6px;
-    background: rgba(17, 29, 38, 0.64);
+    min-height: 62px;
+    padding: 8px 7px;
+    border-radius: 4px;
+    background: rgba(4, 15, 24, 0.48);
+    border: 1px solid rgba(244, 236, 220, 0.06);
 }
 
 .status-grid span,
@@ -539,7 +503,7 @@ onMounted(() => {
 }
 
 .status-grid small {
-    margin-top: 4px;
+    margin-top: 3px;
     color: #859491;
     font-size: 10px;
 }
@@ -569,8 +533,8 @@ onMounted(() => {
 
 .test-controls {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
 }
 
 .test-btn {
@@ -578,16 +542,18 @@ onMounted(() => {
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 12px;
+    gap: 8px;
+    min-height: 58px;
+    padding: 9px 8px;
     position: relative;
     overflow: hidden;
     border: 1px solid rgba(60, 74, 71, 0.46);
-    border-radius: 8px;
+    border-radius: 4px;
     background: rgba(17, 29, 38, 0.78);
     color: #d7e4f1;
     text-align: left;
     cursor: pointer;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 
 .test-btn::before {
@@ -596,7 +562,7 @@ onMounted(() => {
     inset: 0;
     opacity: 0;
     pointer-events: none;
-    background: linear-gradient(90deg, transparent, rgba(71, 228, 213, 0.1), transparent);
+    background: linear-gradient(90deg, transparent, rgba(226, 192, 143, 0.1), transparent);
     transition: opacity 0.2s;
 }
 
@@ -606,7 +572,7 @@ onMounted(() => {
 
 .test-btn:hover {
     transform: translateY(-1px);
-    border-color: rgba(71, 228, 213, 0.38);
+    border-color: rgba(226, 192, 143, 0.38);
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
 }
 
@@ -620,10 +586,18 @@ onMounted(() => {
 }
 
 .test-btn .icon {
-    width: 22px;
-    height: 22px;
-    color: #47e4d5;
+    width: 18px;
+    height: 18px;
+    color: #e2c08f;
     flex: 0 0 auto;
+}
+
+.test-btn.warning .icon {
+    color: var(--lol-gold-2);
+}
+
+.test-btn.danger .icon {
+    color: #ffb4ab;
 }
 
 .button-copy {
@@ -639,28 +613,28 @@ onMounted(() => {
 }
 
 .test-btn .text {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 800;
 }
 
 .test-btn .hint {
-    margin-top: 3px;
+    margin-top: 2px;
     color: #859491;
-    font-size: 11px;
+    font-size: 10px;
 }
 
 .test-status {
     margin-top: 12px;
     padding: 10px 12px;
-    border-radius: 6px;
+    border-radius: 4px;
     font-size: 12px;
     white-space: pre-line;
 }
 
 .test-status.info {
-    background: rgba(71, 228, 213, 0.1);
-    color: #47e4d5;
-    border: 1px solid rgba(71, 228, 213, 0.22);
+    background: rgba(226, 192, 143, 0.1);
+    color: #e2c08f;
+    border: 1px solid rgba(226, 192, 143, 0.22);
 }
 
 .test-status.success {
@@ -692,7 +666,7 @@ onMounted(() => {
     width: 34%;
     height: 2px;
     transform: translateX(-50%);
-    background: linear-gradient(90deg, transparent, #47e4d5, transparent);
+    background: linear-gradient(90deg, transparent, #e2c08f, transparent);
     opacity: 0.55;
 }
 
@@ -714,8 +688,8 @@ onMounted(() => {
 
 .hex-scroll::-webkit-scrollbar-thumb {
     border: 2px solid rgba(4, 15, 24, 0.85);
-    border-radius: 999px;
-    background: linear-gradient(180deg, rgba(226, 195, 132, 0.72), rgba(71, 228, 213, 0.48));
+    border-radius: 4px;
+    background: linear-gradient(180deg, rgba(226, 195, 132, 0.72), rgba(226, 192, 143, 0.48));
 }
 
 @media (max-width: 460px) {
@@ -725,10 +699,14 @@ onMounted(() => {
 
     .hex-window {
         width: 100%;
-        height: 100vh;
+        height: 100dvh;
         border-radius: 0;
         border-left: none;
         border-right: none;
+    }
+
+    .test-controls {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 </style>

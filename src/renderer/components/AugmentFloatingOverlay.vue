@@ -1,7 +1,9 @@
 <template>
   <transition name="float-fade">
     <div v-if="visible" class="floating-overlay">
-      <button class="close-btn" @click="closeOverlay" title="关闭">x</button>
+      <button class="close-btn" type="button" @click="closeOverlay" title="关闭" aria-label="关闭">
+        <X class="close-icon" />
+      </button>
 
       <!-- 加载状态 -->
       <div v-if="loading" class="loading">
@@ -65,6 +67,7 @@
 
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { X } from 'lucide-vue-next'
 import { electronAPI } from '../native/electron-api.js'
 import { sortAugmentsByDetectedOrder } from '../service/augment-order.js'
 import {
@@ -450,9 +453,9 @@ onBeforeUnmount(() => {
     rgba(7, 10, 13, 0.92);
   backdrop-filter: blur(18px);
   border: 1px solid rgba(200, 169, 106, 0.2);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 8px;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.66), 0 0 0 1px rgba(40, 217, 200, 0.08);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.66), 0 0 0 1px rgba(194, 156, 109, 0.08);
   box-sizing: border-box;
   font-family: 'Microsoft YaHei', Arial, sans-serif;
   color: var(--lol-ivory);
@@ -490,9 +493,9 @@ onBeforeUnmount(() => {
 .title-mark {
   width: 8px;
   height: 8px;
-  border-radius: 999px;
-  background: var(--lol-teal);
-  box-shadow: 0 0 12px rgba(40, 217, 200, 0.75);
+  border-radius: 4px;
+  background: var(--lol-primary);
+  box-shadow: 0 0 12px rgba(194, 156, 109, 0.75);
 }
 
 .float-fade-enter-active,
@@ -509,18 +512,25 @@ onBeforeUnmount(() => {
 .close-btn {
   width: 24px;
   height: 24px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
   background: rgba(244, 236, 220, 0.04);
   border: 1px solid var(--lol-border-soft);
-  border-radius: 6px;
+  border-radius: 4px;
   color: var(--lol-muted);
-  font-size: 18px;
+  line-height: 0;
   cursor: pointer;
   transition: all 0.2s;
   z-index: 10;
   pointer-events: auto;
+}
+
+.close-icon {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2;
 }
 
 .close-btn:hover {
@@ -543,7 +553,7 @@ onBeforeUnmount(() => {
   width: 20px;
   height: 20px;
   border: 2px solid rgba(244, 236, 220, 0.16);
-  border-top-color: var(--lol-teal);
+  border-top-color: var(--lol-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -575,7 +585,7 @@ onBeforeUnmount(() => {
     linear-gradient(180deg, rgba(244, 236, 220, 0.035), transparent),
     rgba(12, 18, 25, 0.76);
   border: 1px solid rgba(244, 236, 220, 0.09);
-  border-radius: 8px;
+  border-radius: 4px;
   transition: all 0.2s;
   position: relative;
   min-width: 0;
@@ -583,8 +593,8 @@ onBeforeUnmount(() => {
 
 .augment-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(40, 217, 200, 0.16);
-  border-color: rgba(40, 217, 200, 0.34);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(194, 156, 109, 0.16);
+  border-color: rgba(194, 156, 109, 0.34);
 }
 
 .augment-item.rarity-gold,
@@ -605,9 +615,9 @@ onBeforeUnmount(() => {
 
 .augment-item.rarity-prismatic,
 .augment-item.rarity-kPrismatic {
-  border-color: rgba(40, 217, 200, 0.4);
+  border-color: rgba(194, 156, 109, 0.4);
   background:
-    linear-gradient(135deg, rgba(40, 217, 200, 0.14), transparent 48%),
+    linear-gradient(135deg, rgba(194, 156, 109, 0.14), transparent 48%),
     rgba(12, 18, 25, 0.82);
 }
 
@@ -628,7 +638,7 @@ onBeforeUnmount(() => {
   color: var(--lol-gold-2);
   font-size: 12px;
   font-weight: 900;
-  border-radius: 6px;
+  border-radius: 4px;
   border: 1px solid var(--lol-border-soft);
 }
 
@@ -664,7 +674,7 @@ onBeforeUnmount(() => {
   padding: 5px 7px;
   background: rgba(7, 10, 13, 0.34);
   border: 1px solid var(--lol-border-soft);
-  border-radius: 6px;
+  border-radius: 4px;
   white-space: nowrap;
 }
 
@@ -686,12 +696,12 @@ onBeforeUnmount(() => {
   height: 5px;
   overflow: hidden;
   background: rgba(244, 236, 220, 0.08);
-  border-radius: 999px;
+  border-radius: 4px;
 }
 
 .score-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--lol-teal), var(--lol-gold-2));
+  background: linear-gradient(90deg, var(--lol-primary), var(--lol-gold-2));
   border-radius: inherit;
 }
 
@@ -701,7 +711,7 @@ onBeforeUnmount(() => {
   text-align: center;
   font-size: 11px;
   font-weight: 900;
-  border-radius: 6px;
+  border-radius: 4px;
   letter-spacing: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
@@ -720,9 +730,9 @@ onBeforeUnmount(() => {
 }
 
 .badge.good {
-  background: rgba(40, 217, 200, 0.16);
-  color: var(--lol-teal-2);
-  border: 1px solid rgba(40, 217, 200, 0.32);
+  background: rgba(194, 156, 109, 0.16);
+  color: var(--lol-primary-2);
+  border: 1px solid rgba(194, 156, 109, 0.32);
 }
 
 .badge.ok {
@@ -773,50 +783,32 @@ onBeforeUnmount(() => {
   padding: 16px 18px;
   display: flex;
   align-items: stretch;
+  overflow: hidden;
   background:
-    radial-gradient(circle at top right, rgba(10, 200, 185, 0.15), transparent 42%),
+    radial-gradient(circle at top right, rgba(194, 156, 109, 0.15), transparent 42%),
     radial-gradient(circle at bottom left, rgba(226, 195, 132, 0.07), transparent 42%),
     rgba(4, 15, 24, 0.86);
-  border: 1px solid rgba(71, 228, 213, 0.22);
-  border-radius: 12px;
+  border: 1px solid rgba(226, 192, 143, 0.22);
+  border-radius: 4px;
+  clip-path: inset(0 round 12px);
   box-shadow:
-    inset 0 0 20px rgba(10, 200, 185, 0.1),
+    inset 0 0 20px rgba(194, 156, 109, 0.1),
     0 18px 44px rgba(0, 0, 0, 0.58);
   font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
 }
 
 .floating-overlay::before,
 .floating-overlay::after {
-  content: '';
-  position: absolute;
-  width: 30px;
-  height: 30px;
-  pointer-events: none;
-  opacity: 0.75;
-}
-
-.floating-overlay::before {
-  top: 0;
-  left: 0;
-  border-top: 2px solid rgba(226, 195, 132, 0.55);
-  border-left: 2px solid rgba(226, 195, 132, 0.55);
-  border-top-left-radius: 12px;
-}
-
-.floating-overlay::after {
-  right: 0;
-  bottom: 0;
-  border-right: 2px solid rgba(226, 195, 132, 0.55);
-  border-bottom: 2px solid rgba(226, 195, 132, 0.55);
-  border-bottom-right-radius: 12px;
+  content: none;
+  display: none;
 }
 
 .close-btn {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 24px;
-  height: 24px;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
   border-color: rgba(60, 74, 71, 0.45);
   background: rgba(4, 15, 24, 0.54);
   color: #bacac6;
@@ -852,14 +844,14 @@ onBeforeUnmount(() => {
   padding: 16px;
   position: relative;
   border: 1px solid rgba(60, 74, 71, 0.38);
-  border-radius: 8px;
+  border-radius: 4px;
   background: rgba(31, 43, 53, 0.55);
   box-shadow: none;
 }
 
 .augment-item:hover {
   transform: none;
-  border-color: rgba(71, 228, 213, 0.46);
+  border-color: rgba(226, 192, 143, 0.46);
 }
 
 .augment-item.empty-slot {
@@ -895,7 +887,7 @@ onBeforeUnmount(() => {
   gap: 6px;
   min-height: 28px;
   padding: 0 16px;
-  border-radius: 999px;
+  border-radius: 4px;
   background: #e2c384;
   color: #402d00;
   font-size: 12px;
@@ -910,14 +902,14 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(71, 228, 213, 0.34);
-  border-radius: 8px;
+  border: 1px solid rgba(226, 192, 143, 0.34);
+  border-radius: 4px;
   background: rgba(8, 21, 30, 0.9);
-  color: #47e4d5;
+  color: #e2c08f;
   font-size: 16px;
   font-weight: 900;
   overflow: hidden;
-  box-shadow: inset 0 0 10px rgba(10, 200, 185, 0.12);
+  box-shadow: inset 0 0 10px rgba(194, 156, 109, 0.12);
 }
 
 .top-pick .augment-icon-frame {
@@ -969,7 +961,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 12px;
   padding-bottom: 5px;
-  border-bottom: 1px solid rgba(71, 228, 213, 0.16);
+  border-bottom: 1px solid rgba(226, 192, 143, 0.16);
 }
 
 .stat-line span {
@@ -979,7 +971,7 @@ onBeforeUnmount(() => {
 }
 
 .stat-line strong {
-  color: #47e4d5;
+  color: #e2c08f;
   font-size: 15px;
   font-weight: 900;
 }
@@ -991,10 +983,10 @@ onBeforeUnmount(() => {
 .recommend-label {
   align-self: flex-start;
   padding: 3px 8px;
-  border: 1px solid rgba(71, 228, 213, 0.28);
-  border-radius: 999px;
-  background: rgba(10, 200, 185, 0.1);
-  color: #47e4d5;
+  border: 1px solid rgba(226, 192, 143, 0.28);
+  border-radius: 4px;
+  background: rgba(194, 156, 109, 0.1);
+  color: #e2c08f;
   font-size: 11px;
   font-weight: 900;
 }
@@ -1016,7 +1008,7 @@ onBeforeUnmount(() => {
 }
 
 .score-fill {
-  background: linear-gradient(90deg, #47e4d5, #e2c384);
+  background: linear-gradient(90deg, #e2c08f, #e2c384);
 }
 
 @media (max-width: 820px) {

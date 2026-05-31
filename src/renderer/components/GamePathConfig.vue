@@ -140,13 +140,14 @@ onMounted(() => {
 .config-card {
     height: auto;
     flex: 0 0 auto;
-    background: rgba(31, 43, 53, 0.42);
-    border: 1px solid rgba(60, 74, 71, 0.42);
-    border-radius: 8px;
+    background:
+        linear-gradient(145deg, rgba(31, 43, 53, 0.62), rgba(7, 10, 13, 0.34));
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 4px;
     padding: 14px;
     overflow: hidden;
-    color: #d7e4f1;
-    box-shadow: inset 0 0 18px rgba(10, 200, 185, 0.04);
+    color: var(--lol-ivory);
+    box-shadow: inset 0 0 18px rgba(194, 156, 109, 0.04);
 }
 
 .card-header {
@@ -161,12 +162,12 @@ onMounted(() => {
 .card-icon {
     width: 16px;
     height: 16px;
-    color: #e2c384;
+    color: var(--lol-gold-2);
 }
 
 .card-title {
     margin: 0;
-    color: #e2c384;
+    color: var(--lol-gold-2);
     font-size: 12px;
     font-weight: 900;
     letter-spacing: 0;
@@ -187,22 +188,22 @@ onMounted(() => {
 .path-input {
     width: 100%;
     min-width: 0;
-    background: rgba(42, 54, 64, 0.82);
-    border: 1px solid rgba(226, 195, 132, 0.34);
-    color: #d7e4f1;
+    background: rgba(7, 10, 13, 0.5);
+    border: 1px solid var(--lol-border-soft);
+    color: var(--lol-ivory);
     padding: 11px 12px;
-    border-radius: 6px;
+    border-radius: 4px;
     font-size: 13px;
 }
 
 .path-input::placeholder {
-    color: #859491;
+    color: var(--lol-faint);
 }
 
 .path-input:focus {
     outline: none;
-    border-color: rgba(71, 228, 213, 0.72);
-    box-shadow: 0 0 0 3px rgba(10, 200, 185, 0.12);
+    border-color: rgba(194, 156, 109, 0.55);
+    box-shadow: 0 0 0 3px rgba(194, 156, 109, 0.12);
 }
 
 .button-group {
@@ -218,10 +219,10 @@ onMounted(() => {
     gap: 6px;
     min-width: 62px;
     padding: 9px 10px;
-    background: linear-gradient(180deg, rgba(42, 54, 64, 0.86), rgba(31, 43, 53, 0.86));
-    border: 1px solid rgba(226, 195, 132, 0.36);
-    color: #e2c384;
-    border-radius: 6px;
+    background: rgba(7, 10, 13, 0.42);
+    border: 1px solid var(--lol-border-soft);
+    color: var(--lol-ivory);
+    border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
     font-weight: 900;
@@ -229,9 +230,9 @@ onMounted(() => {
 }
 
 .btn-ghost:hover {
-    color: #47e4d5;
-    border-color: rgba(71, 228, 213, 0.54);
-    box-shadow: 0 0 16px rgba(10, 200, 185, 0.14);
+    color: var(--lol-primary-2);
+    border-color: rgba(194, 156, 109, 0.38);
+    box-shadow: 0 0 16px rgba(194, 156, 109, 0.12);
 }
 
 .btn-accent {
@@ -241,10 +242,10 @@ onMounted(() => {
     gap: 6px;
     min-width: 62px;
     padding: 9px 10px;
-    background: rgba(92, 70, 19, 0.22);
-    border: 1px solid rgba(226, 195, 132, 0.52);
-    color: #e2c384;
-    border-radius: 6px;
+    background: rgba(194, 156, 109, 0.16);
+    border: 1px solid rgba(194, 156, 109, 0.34);
+    color: var(--lol-primary-2);
+    border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
     font-weight: 900;
@@ -252,9 +253,9 @@ onMounted(() => {
 }
 
 .btn-accent:hover {
-    color: #47e4d5;
-    border-color: rgba(71, 228, 213, 0.54);
-    background: rgba(10, 200, 185, 0.08);
+    color: var(--lol-bg);
+    border-color: rgba(226, 192, 143, 0.36);
+    background: linear-gradient(135deg, var(--lol-primary-2), var(--lol-primary));
 }
 
 .btn-icon {
@@ -266,10 +267,10 @@ onMounted(() => {
     margin: 12px 0 0;
     padding: 8px 12px;
     background: rgba(4, 15, 24, 0.42);
-    border: 1px solid rgba(60, 74, 71, 0.42);
-    border-radius: 6px;
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 4px;
     font-size: 12px;
-    color: #bacac6;
+    color: var(--lol-muted);
     display: flex;
     align-items: center;
     gap: 6px;
@@ -279,7 +280,7 @@ onMounted(() => {
 .hint-icon {
     width: 14px;
     height: 14px;
-    color: #47e4d5;
+    color: var(--lol-primary-2);
     flex: 0 0 auto;
 }
 

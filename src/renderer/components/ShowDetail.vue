@@ -130,7 +130,8 @@
                 </div>
 
                 <div v-else class="empty-state">
-                    当前数据源暂无符文方案
+                    <strong>暂无符文方案</strong>
+                    <span>等待英雄选择，或切换数据源后重新查看。</span>
                 </div>
             </section>
         </main>
@@ -305,17 +306,17 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .detail-page {
-    min-height: 100vh;
+    min-height: 100dvh;
     padding: 20px;
     color: var(--lol-ivory);
     background:
-        linear-gradient(180deg, rgba(40, 217, 200, 0.05), transparent 260px),
+        linear-gradient(180deg, rgba(194, 156, 109, 0.05), transparent 260px),
         radial-gradient(circle at 82% 6%, rgba(200, 169, 106, 0.12), transparent 320px),
         linear-gradient(180deg, var(--lol-bg-2), var(--lol-bg));
 }
 
 .detail-shell {
-    max-width: 980px;
+    max-width: 1040px;
     margin: 0 auto;
 }
 
@@ -327,7 +328,7 @@ onBeforeUnmount(() => {
         linear-gradient(145deg, rgba(24, 36, 50, 0.9), rgba(7, 10, 13, 0.96)),
         var(--lol-surface);
     border: 1px solid rgba(200, 169, 106, 0.18);
-    border-radius: 8px;
+    border-radius: 4px;
     box-shadow: 0 28px 70px rgba(0, 0, 0, 0.42);
 }
 
@@ -337,12 +338,12 @@ onBeforeUnmount(() => {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background: linear-gradient(90deg, rgba(40, 217, 200, 0.12), transparent 34%);
+    background: linear-gradient(90deg, rgba(194, 156, 109, 0.12), transparent 34%);
     opacity: 0.58;
 }
 
 .hero-overview {
-    padding: 16px;
+    padding: 18px;
     margin-bottom: 14px;
 }
 
@@ -362,7 +363,7 @@ onBeforeUnmount(() => {
     z-index: 1;
     justify-content: space-between;
     gap: 16px;
-    margin-bottom: 22px;
+    margin-bottom: 18px;
 }
 
 .back-link {
@@ -372,10 +373,18 @@ onBeforeUnmount(() => {
     color: var(--lol-muted);
     font-size: 13px;
     text-decoration: none;
+    border-radius: 4px;
 }
 
 .back-link:hover {
-    color: var(--lol-teal-2);
+    color: var(--lol-primary-2);
+}
+
+.back-link:focus-visible,
+.source-tabs button:focus-visible,
+.apply-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(194, 156, 109, 0.14);
 }
 
 .nav-icon,
@@ -398,8 +407,8 @@ onBeforeUnmount(() => {
     position: relative;
     z-index: 1;
     display: grid;
-    grid-template-columns: 150px minmax(0, 1fr) 260px;
-    gap: 22px;
+    grid-template-columns: 148px minmax(0, 1fr) 248px;
+    gap: 18px;
     align-items: stretch;
 }
 
@@ -410,10 +419,10 @@ onBeforeUnmount(() => {
     min-height: 140px;
     padding: 14px;
     background:
-        radial-gradient(circle at 50% 0%, rgba(40, 217, 200, 0.18), transparent 72%),
-        rgba(7, 10, 13, 0.42);
+        linear-gradient(160deg, rgba(194, 156, 109, 0.14), transparent 54%),
+        rgba(7, 10, 13, 0.46);
     border: 1px solid var(--lol-border-soft);
-    border-radius: 8px;
+    border-radius: 4px;
 }
 
 .hero-mark span {
@@ -437,7 +446,7 @@ onBeforeUnmount(() => {
 .title-copy h1 {
     margin: 6px 0 6px;
     color: var(--lol-ivory);
-    font-size: 28px;
+    font-size: 30px;
     font-weight: 900;
     line-height: 1.16;
 }
@@ -460,9 +469,9 @@ onBeforeUnmount(() => {
 
 .intel-item {
     padding: 12px;
-    background: rgba(7, 10, 13, 0.36);
+    background: rgba(7, 10, 13, 0.42);
     border: 1px solid var(--lol-border-soft);
-    border-radius: 8px;
+    border-radius: 4px;
 }
 
 .intel-item span,
@@ -475,16 +484,17 @@ onBeforeUnmount(() => {
 }
 
 .intel-item strong {
-    color: var(--lol-teal-2);
+    color: var(--lol-primary-2);
     font-size: 15px;
     font-weight: 900;
 }
 
 .source-panel {
     padding: 16px;
-    background: rgba(7, 10, 13, 0.34);
+    background:
+        linear-gradient(145deg, rgba(7, 10, 13, 0.48), rgba(17, 25, 35, 0.4));
     border: 1px solid var(--lol-border-soft);
-    border-radius: 8px;
+    border-radius: 4px;
 }
 
 .source-heading {
@@ -502,7 +512,7 @@ onBeforeUnmount(() => {
     padding: 4px;
     background: rgba(0, 0, 0, 0.2);
     border: 1px solid var(--lol-border-soft);
-    border-radius: 8px;
+    border-radius: 4px;
 }
 
 .source-tabs button {
@@ -511,16 +521,22 @@ onBeforeUnmount(() => {
     color: var(--lol-muted);
     background: transparent;
     border: 0;
-    border-radius: 6px;
+    border-radius: 4px;
     font-size: 13px;
     font-weight: 900;
     cursor: pointer;
+    transition: color 0.18s ease, background 0.18s ease, transform 0.18s ease;
 }
 
 .source-tabs button.active {
     color: var(--lol-bg);
-    background: linear-gradient(135deg, var(--lol-teal-2), var(--lol-gold-2));
-    box-shadow: 0 10px 28px rgba(40, 217, 200, 0.12);
+    background: linear-gradient(135deg, var(--lol-primary-2), var(--lol-primary));
+    box-shadow: 0 10px 28px rgba(194, 156, 109, 0.12);
+}
+
+.source-tabs button:not(.active):hover {
+    color: var(--lol-ivory);
+    background: rgba(244, 236, 220, 0.06);
 }
 
 .source-note {
@@ -531,7 +547,7 @@ onBeforeUnmount(() => {
 }
 
 .loadout-panel {
-    padding: 16px;
+    padding: 18px;
 }
 
 .panel-header {
@@ -557,7 +573,7 @@ onBeforeUnmount(() => {
     color: var(--lol-gold-2);
     background: rgba(200, 169, 106, 0.1);
     border: 1px solid var(--lol-border);
-    border-radius: 8px;
+    border-radius: 4px;
     font-size: 12px;
     font-weight: 800;
 }
@@ -578,14 +594,14 @@ onBeforeUnmount(() => {
     color: var(--lol-muted);
     background: rgba(7, 10, 13, 0.36);
     border: 1px solid var(--lol-border-soft);
-    border-radius: 8px;
+    border-radius: 4px;
     font-size: 13px;
     font-weight: 800;
 }
 
 .apply-status.loading {
-    color: var(--lol-teal-2);
-    border-color: rgba(40, 217, 200, 0.24);
+    color: var(--lol-primary-2);
+    border-color: rgba(194, 156, 109, 0.24);
 }
 
 .apply-status.success {
@@ -600,21 +616,21 @@ onBeforeUnmount(() => {
 
 .loadout-row {
     display: grid;
-    grid-template-columns: 42px 48px minmax(0, 1fr) 210px 96px;
+    grid-template-columns: 42px 48px minmax(0, 1fr) 180px 88px;
     gap: 12px;
     align-items: center;
     min-height: 64px;
     padding: 10px 12px;
     background: linear-gradient(90deg, rgba(17, 25, 35, 0.72), rgba(7, 10, 13, 0.42));
     border: 1px solid var(--lol-border-soft);
-    border-radius: 8px;
+    border-radius: 4px;
     transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
 }
 
 .loadout-row:hover {
     transform: translateY(-1px);
     background: linear-gradient(90deg, rgba(21, 38, 50, 0.82), rgba(7, 10, 13, 0.52));
-    border-color: rgba(40, 217, 200, 0.34);
+    border-color: rgba(194, 156, 109, 0.34);
 }
 
 .row-index {
@@ -631,7 +647,7 @@ onBeforeUnmount(() => {
     justify-content: center;
     background: rgba(7, 10, 13, 0.55);
     border: 1px solid var(--lol-border);
-    border-radius: 8px;
+    border-radius: 4px;
     color: var(--lol-faint);
     font-size: 12px;
     font-weight: 800;
@@ -640,7 +656,7 @@ onBeforeUnmount(() => {
 .perk-img {
     width: 36px;
     height: 36px;
-    border-radius: 6px;
+    border-radius: 4px;
     object-fit: cover;
 }
 
@@ -666,10 +682,10 @@ onBeforeUnmount(() => {
 .row-title span {
     flex: 0 0 auto;
     padding: 3px 7px;
-    color: var(--lol-teal-2);
-    background: rgba(40, 217, 200, 0.1);
-    border: 1px solid rgba(40, 217, 200, 0.2);
-    border-radius: 6px;
+    color: var(--lol-primary-2);
+    background: rgba(194, 156, 109, 0.1);
+    border: 1px solid rgba(194, 156, 109, 0.2);
+    border-radius: 4px;
     font-size: 10px;
     font-weight: 900;
 }
@@ -678,12 +694,12 @@ onBeforeUnmount(() => {
     height: 5px;
     overflow: hidden;
     background: rgba(244, 236, 220, 0.08);
-    border-radius: 999px;
+    border-radius: 4px;
 }
 
 .winrate-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--lol-teal), var(--lol-gold-2));
+    background: linear-gradient(90deg, var(--lol-primary), var(--lol-primary-2));
     border-radius: inherit;
 }
 
@@ -712,9 +728,9 @@ onBeforeUnmount(() => {
     gap: 6px;
     height: 30px;
     color: var(--lol-bg);
-    background: linear-gradient(135deg, var(--lol-teal-2), var(--lol-teal));
-    border: 1px solid rgba(108, 241, 229, 0.36);
-    border-radius: 6px;
+    background: linear-gradient(135deg, var(--lol-primary-2), var(--lol-primary));
+    border: 1px solid rgba(226, 192, 143, 0.36);
+    border-radius: 4px;
     font-size: 12px;
     font-weight: 900;
     cursor: pointer;
@@ -722,6 +738,11 @@ onBeforeUnmount(() => {
 
 .apply-btn:hover {
     box-shadow: var(--lol-glow);
+    transform: translateY(-1px);
+}
+
+.apply-btn:active {
+    transform: translateY(0);
 }
 
 .apply-btn:disabled {
@@ -733,12 +754,31 @@ onBeforeUnmount(() => {
 .empty-state {
     position: relative;
     z-index: 1;
-    padding: 48px 16px;
+    display: flex;
+    min-height: 160px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 38px 16px;
     color: var(--lol-muted);
     text-align: center;
     border: 1px dashed var(--lol-border);
-    border-radius: 8px;
+    border-radius: 4px;
     background: rgba(7, 10, 13, 0.28);
+}
+
+.empty-state strong {
+    color: var(--lol-ivory);
+    font-size: 15px;
+    font-weight: 900;
+}
+
+.empty-state span {
+    max-width: 260px;
+    color: var(--lol-faint);
+    font-size: 12px;
+    line-height: 1.6;
 }
 
 @media (max-width: 920px) {
@@ -757,6 +797,12 @@ onBeforeUnmount(() => {
     .row-metrics {
         grid-column: 3 / 4;
         justify-content: flex-start;
+    }
+
+    .apply-btn {
+        grid-column: 4 / 5;
+        grid-row: 1 / 3;
+        height: 34px;
     }
 }
 
@@ -783,6 +829,12 @@ onBeforeUnmount(() => {
     .row-metrics {
         grid-column: auto;
         justify-content: space-between;
+    }
+
+    .apply-btn {
+        grid-column: auto;
+        grid-row: auto;
+        width: 100%;
     }
 }
 </style>

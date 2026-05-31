@@ -51,7 +51,7 @@ const iconComponent = computed(() => {
 .stat-card {
     background: rgba(7, 10, 13, 0.34);
     border: 1px solid var(--lol-border-soft);
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 16px;
     display: flex;
     align-items: center;
@@ -60,14 +60,14 @@ const iconComponent = computed(() => {
 }
 
 .stat-card:hover {
-    background: rgba(40, 217, 200, 0.07);
+    background: rgba(194, 156, 109, 0.07);
     transform: translateY(-2px);
-    border-color: rgba(40, 217, 200, 0.28);
+    border-color: rgba(194, 156, 109, 0.28);
 }
 
 .stat-icon {
     flex-shrink: 0;
-    color: var(--lol-teal-2);
+    color: var(--lol-primary-2);
 }
 
 .stat-content {

@@ -21,6 +21,19 @@ export function getChampionPortraitUrl(championId) {
 }
 
 /**
+ * Get champion square icon from Community Dragon by numeric champion ID
+ * @param {string|number} championId - Champion ID
+ * @returns {string} Champion square icon URL
+ */
+export function getChampionSquareIconUrl(championId) {
+  if (/^https?:\/\//i.test(String(championId))) {
+    return championId;
+  }
+
+  return `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${championId}.png`;
+}
+
+/**
  * Get item icon URL
  * @param {string|number} itemId - Item ID
  * @returns {string} Item icon URL

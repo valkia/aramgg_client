@@ -2,10 +2,14 @@
   <transition name="overlay-fade">
     <div v-if="visible" class="augment-overlay">
       <header class="insight-titlebar">
-        <h1>英雄洞察</h1>
+        <h1>英雄详情</h1>
         <div class="window-controls">
-          <button class="window-control" type="button" aria-label="最小化" @click="closeOverlay">-</button>
-          <button class="window-control danger" type="button" aria-label="关闭" @click="closeOverlay">x</button>
+          <button class="window-control" type="button" aria-label="最小化" @click="closeOverlay">
+            <Minus class="window-icon" />
+          </button>
+          <button class="window-control danger" type="button" aria-label="关闭" @click="closeOverlay">
+            <X class="window-icon" />
+          </button>
         </div>
       </header>
 
@@ -41,7 +45,14 @@
             <div v-else class="hero-placeholder">--</div>
             <div class="hero-shade"></div>
             <div class="hero-content">
-              <div>
+              <div class="champion-identity">
+                <div v-if="championId" class="hero-avatar">
+                  <img
+                    :src="getChampionSquareIconUrl(championId)"
+                    :alt="championName"
+                    @error="handleImageError"
+                  />
+                </div>
                 <h2 class="champion-name">{{ championName || (championId ? `英雄 ${championId}` : '等待英雄选择') }}</h2>
               </div>
               <div class="hero-badges">
@@ -225,7 +236,8 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { getChampionIconUrl, getAugmentIconUrl, getItemIconUrl } from '../service/cdn'
+import { Minus, X } from 'lucide-vue-next'
+import { getChampionIconUrl, getChampionSquareIconUrl, getAugmentIconUrl, getItemIconUrl } from '../service/cdn'
 import { electronAPI } from '../native/electron-api.js'
 import { sortAugmentsByDetectedOrder } from '../service/augment-order.js'
 import AramBenchRecommendation from './AramBenchRecommendation.vue'
@@ -739,8 +751,8 @@ defineExpose({
     linear-gradient(145deg, rgba(22, 34, 48, 0.98), rgba(7, 10, 13, 0.98)),
     var(--lol-panel-raised);
   border: 1px solid rgba(200, 169, 106, 0.2);
-  border-radius: 8px;
-  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(40, 217, 200, 0.08);
+  border-radius: 4px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(194, 156, 109, 0.08);
   padding: 0;
   color: var(--lol-ivory);
   font-family: 'Microsoft YaHei', Arial, sans-serif;
@@ -776,7 +788,7 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 4px;
   transition: all 0.2s;
   z-index: 10;
 }
@@ -801,7 +813,7 @@ defineExpose({
   width: 40px;
   height: 40px;
   border: 3px solid rgba(244, 236, 220, 0.14);
-  border-top-color: var(--lol-teal);
+  border-top-color: var(--lol-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 16px;
@@ -835,7 +847,7 @@ defineExpose({
 /* 英雄头部 */
 .champion-header {
   background:
-    linear-gradient(135deg, rgba(40, 217, 200, 0.12), transparent 48%),
+    linear-gradient(135deg, rgba(194, 156, 109, 0.12), transparent 48%),
     radial-gradient(circle at 84% 0%, rgba(200, 169, 106, 0.12), transparent 260px),
     rgba(7, 10, 13, 0.3);
   padding: 24px;
@@ -856,7 +868,7 @@ defineExpose({
 .champion-avatar {
   width: 92px;
   height: 122px;
-  border-radius: 8px;
+  border-radius: 4px;
   object-fit: cover;
   border: 1px solid var(--lol-border);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
@@ -867,12 +879,12 @@ defineExpose({
   bottom: -6px;
   left: 50%;
   transform: translateX(-50%);
-  background: linear-gradient(135deg, var(--lol-gold-2), var(--lol-teal));
+  background: linear-gradient(135deg, var(--lol-gold-2), var(--lol-primary));
   color: var(--lol-bg);
   font-size: 11px;
   font-weight: 700;
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: 4px;
   box-shadow: 0 2px 8px rgba(200, 169, 106, 0.32);
 }
 
@@ -897,11 +909,10 @@ defineExpose({
 .stat-box {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   padding: 10px 12px;
   background: rgba(7, 10, 13, 0.38);
   border: 1px solid var(--lol-border-soft);
-  border-radius: 8px;
+  border-radius: 4px;
   min-width: 78px;
 }
 
@@ -959,7 +970,7 @@ defineExpose({
 
 .tab-btn.active {
   color: var(--lol-bg);
-  background: linear-gradient(135deg, var(--lol-teal-2), var(--lol-teal));
+  background: linear-gradient(135deg, var(--lol-primary-2), var(--lol-primary));
 }
 
 .tab-btn.active::after {
@@ -1011,7 +1022,7 @@ defineExpose({
   background: rgba(244, 236, 220, 0.05);
   border: 1px solid var(--lol-border-soft);
   color: var(--lol-muted);
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
   transition: all 0.2s;
@@ -1022,9 +1033,9 @@ defineExpose({
 }
 
 .filter-chip.active {
-  background: rgba(40, 217, 200, 0.16);
-  border-color: rgba(40, 217, 200, 0.38);
-  color: var(--lol-teal-2);
+  background: rgba(194, 156, 109, 0.16);
+  border-color: rgba(194, 156, 109, 0.38);
+  color: var(--lol-primary-2);
 }
 
 .filter-chip.kGold.active {
@@ -1034,9 +1045,9 @@ defineExpose({
 }
 
 .filter-chip.kPrismatic.active {
-  background: rgba(40, 217, 200, 0.16);
-  border-color: rgba(40, 217, 200, 0.38);
-  color: var(--lol-teal-2);
+  background: rgba(194, 156, 109, 0.16);
+  border-color: rgba(194, 156, 109, 0.38);
+  color: var(--lol-primary-2);
 }
 
 .filter-chip.kSilver.active {
@@ -1062,14 +1073,14 @@ defineExpose({
     rgba(7, 10, 13, 0.34);
   border: 1px solid var(--lol-border-soft);
   border-left: 3px solid var(--lol-border);
-  border-radius: 8px;
+  border-radius: 4px;
   transition: all 0.2s;
 }
 
 .augment-card:hover {
-  background: rgba(40, 217, 200, 0.07);
+  background: rgba(194, 156, 109, 0.07);
   transform: translateX(2px);
-  border-color: rgba(40, 217, 200, 0.22);
+  border-color: rgba(194, 156, 109, 0.22);
 }
 
 .augment-card.rarity-kGold {
@@ -1078,8 +1089,8 @@ defineExpose({
 }
 
 .augment-card.rarity-kPrismatic {
-  border-left-color: var(--lol-teal);
-  background: rgba(40, 217, 200, 0.07);
+  border-left-color: var(--lol-primary);
+  background: rgba(194, 156, 109, 0.07);
 }
 
 .augment-card.rarity-kSilver {
@@ -1093,12 +1104,12 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(40, 217, 200, 0.14);
-  border: 1px solid rgba(40, 217, 200, 0.26);
+  background: rgba(194, 156, 109, 0.14);
+  border: 1px solid rgba(194, 156, 109, 0.26);
   border-radius: 7px;
   font-size: 12px;
   font-weight: 900;
-  color: var(--lol-teal-2);
+  color: var(--lol-primary-2);
   flex-shrink: 0;
 }
 
@@ -1109,7 +1120,7 @@ defineExpose({
 .augment-icon {
   width: 42px;
   height: 42px;
-  border-radius: 6px;
+  border-radius: 4px;
   border: 1px solid var(--lol-border-soft);
   object-fit: cover;
 }
@@ -1174,7 +1185,7 @@ defineExpose({
 
 .score-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--lol-teal), var(--lol-gold-2));
+  background: linear-gradient(90deg, var(--lol-primary), var(--lol-gold-2));
   border-radius: 3px;
   transition: width 0.3s ease;
 }
@@ -1195,7 +1206,7 @@ defineExpose({
 .build-section {
   background: rgba(7, 10, 13, 0.32);
   border: 1px solid var(--lol-border-soft);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 12px;
 }
 
@@ -1239,7 +1250,7 @@ defineExpose({
   padding: 10px;
   background: rgba(17, 25, 35, 0.62);
   border: 1px solid var(--lol-border-soft);
-  border-radius: 8px;
+  border-radius: 4px;
 }
 
 .build-item.small {
@@ -1255,7 +1266,7 @@ defineExpose({
 .item-icon {
   width: 38px;
   height: 38px;
-  border-radius: 6px;
+  border-radius: 4px;
   border: 1px solid var(--lol-border-soft);
   object-fit: cover;
 }
@@ -1322,7 +1333,7 @@ defineExpose({
 }
 
 .tab-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(40, 217, 200, 0.5);
+  background: rgba(194, 156, 109, 0.5);
 }
 
 /* 响应式 */
@@ -1365,8 +1376,8 @@ defineExpose({
     linear-gradient(180deg, rgba(42, 54, 64, 0.96), rgba(31, 43, 53, 0.98)),
     #15212a;
   border: 1px solid rgba(226, 195, 132, 0.28);
-  border-radius: 8px;
-  box-shadow: 0 0 40px rgba(10, 200, 185, 0.15), 0 28px 80px rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  box-shadow: 0 0 40px rgba(194, 156, 109, 0.15), 0 28px 80px rgba(0, 0, 0, 0.5);
   font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
 }
 
@@ -1376,20 +1387,20 @@ defineExpose({
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 9px 14px;
+  padding: 10px 16px;
   background: rgba(42, 54, 64, 0.92);
-  border-bottom: 1px solid rgba(71, 228, 213, 0.28);
-  box-shadow: inset 0 0 15px rgba(10, 200, 185, 0.18);
+  border-bottom: 1px solid rgba(226, 192, 143, 0.28);
+  box-shadow: inset 0 0 15px rgba(194, 156, 109, 0.18);
   -webkit-app-region: drag;
 }
 
 .insight-titlebar h1 {
   margin: 0;
-  color: #47e4d5;
-  font-size: 19px;
+  color: #e2c08f;
+  font-size: 18px;
   font-weight: 700;
   line-height: 1.1;
-  text-shadow: 0 0 8px rgba(71, 228, 213, 0.36);
+  text-shadow: 0 0 8px rgba(226, 192, 143, 0.36);
 }
 
 .window-controls {
@@ -1402,19 +1413,29 @@ defineExpose({
 .window-control {
   width: 24px;
   height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 4px;
   background: transparent;
   color: #bacac6;
   cursor: pointer;
-  font-size: 15px;
-  line-height: 1;
+  line-height: 0;
+  -webkit-app-region: no-drag;
+}
+
+.window-icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
 }
 
 .window-control:hover {
-  color: #47e4d5;
-  background: rgba(71, 228, 213, 0.08);
-  border-color: rgba(71, 228, 213, 0.18);
+  color: #e2c08f;
+  background: rgba(226, 192, 143, 0.08);
+  border-color: rgba(226, 192, 143, 0.18);
 }
 
 .window-control.danger:hover {
@@ -1430,7 +1451,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   background:
-    radial-gradient(ellipse at top, rgba(10, 200, 185, 0.07), transparent 54%),
+    radial-gradient(ellipse at top, rgba(194, 156, 109, 0.07), transparent 54%),
     rgba(42, 54, 64, 0.84);
 }
 
@@ -1449,11 +1470,10 @@ defineExpose({
 .champion-hero {
   position: relative;
   flex: 0 0 auto;
-  height: 104px;
   margin: 12px 18px 0;
   overflow: hidden;
   border: 1px solid rgba(133, 148, 145, 0.32);
-  border-radius: 8px;
+  border-radius: 4px;
   background: #08151e;
 }
 
@@ -1477,7 +1497,7 @@ defineExpose({
   font-size: 38px;
   font-weight: 900;
   background:
-    linear-gradient(135deg, rgba(71, 228, 213, 0.08), rgba(226, 195, 132, 0.08)),
+    linear-gradient(135deg, rgba(226, 192, 143, 0.08), rgba(226, 195, 132, 0.08)),
     rgba(8, 21, 30, 0.92);
 }
 
@@ -1498,6 +1518,31 @@ defineExpose({
   padding: 16px;
 }
 
+.champion-identity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hero-avatar {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  overflow: hidden;
+  border: 1px solid rgba(226, 192, 143, 0.42);
+  border-radius: 4px;
+  background: rgba(8, 21, 30, 0.86);
+  box-shadow: 0 0 16px rgba(194, 156, 109, 0.16);
+}
+
+.hero-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
 .hero-kicker {
   display: block;
   margin-bottom: 2px;
@@ -1508,12 +1553,16 @@ defineExpose({
 }
 
 .champion-name {
+  min-width: 0;
   margin: 0;
-  color: #47e4d5;
+  color: #e2c08f;
   font-size: 28px;
   font-weight: 900;
   line-height: 1;
-  text-shadow: 0 0 12px rgba(71, 228, 213, 0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 0 12px rgba(226, 192, 143, 0.5);
 }
 
 .hero-badges {
@@ -1529,8 +1578,8 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   min-height: 24px;
-  padding: 4px 10px;
-  border-radius: 999px;
+  padding: 2px 8px;
+  border-radius: 4px;
   font-size: 11px;
   font-weight: 900;
   white-space: nowrap;
@@ -1543,9 +1592,9 @@ defineExpose({
 }
 
 .winrate-badge {
-  color: #47e4d5;
-  background: rgba(10, 200, 185, 0.14);
-  border: 1px solid rgba(71, 228, 213, 0.5);
+  color: #e2c08f;
+  background: rgba(194, 156, 109, 0.14);
+  border: 1px solid rgba(226, 192, 143, 0.5);
 }
 
 .stat-strip {
@@ -1557,9 +1606,8 @@ defineExpose({
 
 .stat-box {
   min-width: 0;
-  padding: 10px;
   border: 1px solid rgba(60, 74, 71, 0.42);
-  border-radius: 8px;
+  border-radius: 4px;
   background: rgba(17, 29, 38, 0.58);
 }
 
@@ -1578,7 +1626,7 @@ defineExpose({
 
 .stat-box strong.high,
 .winrate-badge.high {
-  color: #47e4d5;
+  color: #e2c08f;
 }
 
 .stat-box strong.medium,
@@ -1610,7 +1658,7 @@ defineExpose({
 .tab-btn {
   justify-content: center;
   border: 1px solid rgba(60, 74, 71, 0.44);
-  border-radius: 8px;
+  border-radius: 4px;
   background: rgba(17, 29, 38, 0.6);
   color: #bacac6;
   font-size: 12px;
@@ -1619,8 +1667,8 @@ defineExpose({
 
 .tab-btn.active {
   color: #00201d;
-  background: #47e4d5;
-  border-color: rgba(71, 228, 213, 0.7);
+  background: #e2c08f;
+  border-color: rgba(226, 192, 143, 0.7);
 }
 
 .tab-icon {
@@ -1655,7 +1703,7 @@ defineExpose({
 .section-title-row span {
   height: 1px;
   flex: 1;
-  background: linear-gradient(90deg, rgba(71, 228, 213, 0.72), transparent);
+  background: linear-gradient(90deg, rgba(226, 192, 143, 0.72), transparent);
 }
 
 .filter-bar {
@@ -1665,7 +1713,7 @@ defineExpose({
 
 .filter-chip {
   padding: 6px 9px;
-  border-radius: 999px;
+  border-radius: 4px;
   background: rgba(17, 29, 38, 0.64);
   border-color: rgba(60, 74, 71, 0.48);
   color: #bacac6;
@@ -1674,9 +1722,9 @@ defineExpose({
 }
 
 .filter-chip.active {
-  background: rgba(10, 200, 185, 0.15);
-  border-color: rgba(71, 228, 213, 0.46);
-  color: #47e4d5;
+  background: rgba(194, 156, 109, 0.15);
+  border-color: rgba(226, 192, 143, 0.46);
+  color: #e2c08f;
 }
 
 .augments-list {
@@ -1694,12 +1742,12 @@ defineExpose({
   border-radius: 0;
   border-left: 0;
   background: rgba(17, 29, 38, 0.72);
-  box-shadow: inset 0 0 10px rgba(10, 200, 185, 0.08);
+  box-shadow: inset 0 0 10px rgba(194, 156, 109, 0.08);
 }
 
 .augment-card:hover {
   transform: none;
-  border-color: rgba(71, 228, 213, 0.38);
+  border-color: rgba(226, 192, 143, 0.38);
   background: rgba(17, 29, 38, 0.84);
 }
 
@@ -1709,10 +1757,10 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(71, 228, 213, 0.38);
-  border-radius: 8px;
+  border: 1px solid rgba(226, 192, 143, 0.38);
+  border-radius: 4px;
   background: rgba(8, 21, 30, 0.84);
-  color: #47e4d5;
+  color: #e2c08f;
   font-size: 18px;
   font-weight: 900;
   overflow: hidden;
@@ -1744,7 +1792,7 @@ defineExpose({
 
 .augment-rate strong {
   display: block;
-  color: #47e4d5;
+  color: #e2c08f;
   font-size: 14px;
   font-weight: 900;
 }
@@ -1771,7 +1819,7 @@ defineExpose({
 .item-section,
 .starter-row {
   border: 1px solid rgba(60, 74, 71, 0.44);
-  border-radius: 8px;
+  border-radius: 4px;
   background: rgba(17, 29, 38, 0.68);
 }
 
@@ -1792,8 +1840,8 @@ defineExpose({
 .item-icon {
   width: 32px;
   height: 32px;
-  border: 1px solid rgba(71, 228, 213, 0.28);
-  border-radius: 6px;
+  border: 1px solid rgba(226, 192, 143, 0.28);
+  border-radius: 4px;
   object-fit: cover;
 }
 
@@ -1809,7 +1857,7 @@ defineExpose({
 
 .build-stats span,
 .starter-row > span {
-  color: #47e4d5;
+  color: #e2c08f;
   font-size: 13px;
   font-weight: 900;
 }
@@ -1868,8 +1916,8 @@ defineExpose({
 }
 
 .insight-scroll::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(226, 195, 132, 0.68), rgba(71, 228, 213, 0.46));
-  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(226, 195, 132, 0.68), rgba(226, 192, 143, 0.46));
+  border-radius: 4px;
 }
 
 @media (max-width: 430px) {

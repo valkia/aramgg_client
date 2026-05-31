@@ -25,6 +25,6 @@ tr {
 }
 
 tr:hover {
-  background: rgba(40, 217, 200, 0.06);
+  background: rgba(194, 156, 109, 0.06);
 }
 </style>

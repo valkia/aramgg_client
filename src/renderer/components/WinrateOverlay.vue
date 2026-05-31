@@ -273,7 +273,7 @@ defineExpose({
   min-width: 320px;
   max-width: 480px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 12px;
+  border-radius: 4px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   padding: 16px;
   color: white;
@@ -354,7 +354,7 @@ defineExpose({
 .error-state {
   padding: 16px;
   background-color: rgba(255, 0, 0, 0.2);
-  border-radius: 8px;
+  border-radius: 4px;
   text-align: center;
   color: #ffcccc;
 }
@@ -402,7 +402,7 @@ defineExpose({
   align-items: center;
   padding: 8px;
   background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border-radius: 4px;
 }
 
 .stat-label {
@@ -471,7 +471,7 @@ defineExpose({
 .champion-card {
   background-color: rgba(255, 255, 255, 0.1);
   padding: 10px;
-  border-radius: 8px;
+  border-radius: 4px;
   border-left: 3px solid rgba(255, 255, 255, 0.3);
 }
 
@@ -534,7 +534,7 @@ defineExpose({
   background-color: rgba(255, 255, 255, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.3);
   color: white;
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
   font-weight: bold;

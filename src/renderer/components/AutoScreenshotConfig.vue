@@ -318,7 +318,7 @@ defineExpose({
 .auto-screenshot-config {
   padding: 16px;
   background-color: #f5f5f5;
-  border-radius: 8px;
+  border-radius: 4px;
   margin-top: 16px;
 }
 
@@ -346,7 +346,7 @@ h4 {
   padding: 10px 16px;
   background-color: #999;
   border: none;
-  border-radius: 6px;
+  border-radius: 4px;
   color: white;
   font-weight: bold;
   cursor: pointer;
@@ -376,7 +376,7 @@ h4 {
 .config-section {
   background-color: white;
   padding: 12px;
-  border-radius: 6px;
+  border-radius: 4px;
   margin-bottom: 16px;
 }
 
@@ -448,7 +448,7 @@ h4 {
 .stats-section {
   background-color: white;
   padding: 12px;
-  border-radius: 6px;
+  border-radius: 4px;
   margin-bottom: 16px;
 }
 

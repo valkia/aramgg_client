@@ -258,7 +258,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .aram-panel {
     border: 1px solid rgba(60, 74, 71, 0.42);
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 14px;
     background: rgba(31, 43, 53, 0.42);
     color: #d7e4f1;
@@ -318,7 +318,7 @@ h3 {
     min-height: 24px;
     padding: 0 9px;
     border: 1px solid rgba(60, 74, 71, 0.46);
-    border-radius: 999px;
+    border-radius: 4px;
     background: rgba(4, 15, 24, 0.42);
     color: #bacac6;
     font-size: 11px;
@@ -327,9 +327,9 @@ h3 {
 }
 
 .status-pill.ready {
-    border-color: rgba(71, 228, 213, 0.32);
-    background: rgba(10, 200, 185, 0.12);
-    color: #47e4d5;
+    border-color: rgba(226, 192, 143, 0.32);
+    background: rgba(194, 156, 109, 0.12);
+    color: #e2c08f;
 }
 
 .status-pill.warning {
@@ -351,15 +351,15 @@ h3 {
     align-items: center;
     justify-content: center;
     border: 1px solid rgba(60, 74, 71, 0.46);
-    border-radius: 6px;
+    border-radius: 4px;
     background: rgba(17, 29, 38, 0.72);
     color: #bacac6;
     cursor: pointer;
 }
 
 .refresh-btn:hover {
-    border-color: rgba(71, 228, 213, 0.38);
-    color: #47e4d5;
+    border-color: rgba(226, 192, 143, 0.38);
+    color: #e2c08f;
 }
 
 .refresh-icon,
@@ -385,7 +385,7 @@ h3 {
     justify-content: center;
     gap: 8px;
     border: 1px solid rgba(60, 74, 71, 0.28);
-    border-radius: 6px;
+    border-radius: 4px;
     background: rgba(4, 15, 24, 0.32);
     color: #859491;
     font-size: 12px;
@@ -406,7 +406,7 @@ h3 {
     gap: 12px;
     min-width: 0;
     padding: 11px 12px;
-    border-radius: 6px;
+    border-radius: 4px;
     background: rgba(4, 15, 24, 0.42);
 }
 
@@ -425,7 +425,7 @@ h3 {
 .headline-row strong {
     display: block;
     overflow: hidden;
-    color: #47e4d5;
+    color: #e2c08f;
     font-size: 16px;
     font-weight: 900;
     text-overflow: ellipsis;
@@ -437,7 +437,7 @@ h3 {
     min-width: 42px;
     padding: 5px 8px;
     border: 1px solid rgba(226, 195, 132, 0.36);
-    border-radius: 999px;
+    border-radius: 4px;
     background: rgba(226, 195, 132, 0.1);
     color: #e2c384;
     text-align: center;
@@ -463,7 +463,7 @@ h3 {
     min-width: 0;
     padding: 9px;
     border: 1px solid rgba(60, 74, 71, 0.34);
-    border-radius: 6px;
+    border-radius: 4px;
     background: rgba(17, 29, 38, 0.52);
 }
 
@@ -473,7 +473,7 @@ h3 {
 }
 
 .candidate-row.current:not(.recommended) {
-    border-color: rgba(71, 228, 213, 0.28);
+    border-color: rgba(226, 192, 143, 0.28);
 }
 
 .champion-mark {
@@ -484,10 +484,10 @@ h3 {
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    border: 1px solid rgba(71, 228, 213, 0.26);
-    border-radius: 6px;
+    border: 1px solid rgba(226, 192, 143, 0.26);
+    border-radius: 4px;
     background: rgba(4, 15, 24, 0.72);
-    color: #47e4d5;
+    color: #e2c08f;
     font-size: 11px;
     font-weight: 900;
 }
@@ -649,7 +649,7 @@ h3 {
 }
 
 .aram-panel.compact .candidate-list::-webkit-scrollbar-thumb {
-    border-radius: 999px;
-    background: rgba(71, 228, 213, 0.36);
+    border-radius: 4px;
+    background: rgba(226, 192, 143, 0.36);
 }
 </style>

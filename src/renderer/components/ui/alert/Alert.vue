@@ -22,15 +22,15 @@ const variantClasses = {
 .alert-base {
   position: relative;
   width: 100%;
-  border-radius: 8px;
+  border-radius: 4px;
   border: 1px solid;
   padding: 12px 16px;
   font-size: 14px;
 }
 
 .alert-default {
-  background: rgba(40, 217, 200, 0.1);
-  border-color: rgba(40, 217, 200, 0.22);
+  background: rgba(194, 156, 109, 0.1);
+  border-color: rgba(194, 156, 109, 0.22);
   color: var(--lol-ivory);
 }
 

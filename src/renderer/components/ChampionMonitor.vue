@@ -229,13 +229,14 @@ onBeforeUnmount(() => {
 <style scoped>
 .config-card {
     flex: 0 0 auto;
-    background: rgba(31, 43, 53, 0.42);
-    border: 1px solid rgba(60, 74, 71, 0.42);
-    border-radius: 8px;
+    background:
+        linear-gradient(145deg, rgba(31, 43, 53, 0.62), rgba(7, 10, 13, 0.34));
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 4px;
     padding: 14px;
     overflow: hidden;
-    color: #d7e4f1;
-    box-shadow: inset 0 0 18px rgba(10, 200, 185, 0.04);
+    color: var(--lol-ivory);
+    box-shadow: inset 0 0 18px rgba(194, 156, 109, 0.04);
 }
 
 .card-header {
@@ -250,12 +251,12 @@ onBeforeUnmount(() => {
 .card-icon {
     width: 16px;
     height: 16px;
-    color: #e2c384;
+    color: var(--lol-gold-2);
 }
 
 .card-title {
     margin: 0;
-    color: #e2c384;
+    color: var(--lol-gold-2);
     font-size: 12px;
     font-weight: 900;
     letter-spacing: 0;
@@ -269,34 +270,40 @@ onBeforeUnmount(() => {
     gap: 6px;
     padding: 4px 10px;
     background: rgba(4, 15, 24, 0.42);
-    border: 1px solid rgba(60, 74, 71, 0.42);
-    border-radius: 999px;
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 4px;
     font-size: 11px;
-    color: #bacac6;
+    color: var(--lol-muted);
 }
 
 .monitor-status.status-active {
-    background: rgba(10, 200, 185, 0.12);
-    border-color: rgba(71, 228, 213, 0.28);
-    color: #47e4d5;
+    background: rgba(194, 156, 109, 0.12);
+    border-color: rgba(194, 156, 109, 0.28);
+    color: var(--lol-primary-2);
 }
 
 .status-dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #859491;
+    background: var(--lol-faint);
 }
 
 .status-active .status-dot {
-    background: #47e4d5;
-    box-shadow: 0 0 8px rgba(71, 228, 213, 0.72);
+    background: var(--lol-primary-2);
+    box-shadow: 0 0 8px rgba(194, 156, 109, 0.72);
     animation: blink 1.5s infinite;
 }
 
 @keyframes blink {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .status-active .status-dot {
+        animation: none;
+    }
 }
 
 .card-content {
@@ -317,7 +324,7 @@ onBeforeUnmount(() => {
     width: 100%;
     padding: 9px 8px;
     border: 1px solid transparent;
-    border-radius: 6px;
+    border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
     font-weight: 900;
@@ -330,15 +337,15 @@ onBeforeUnmount(() => {
 }
 
 .toggle-inactive {
-    background: rgba(10, 200, 185, 0.16);
-    border-color: rgba(71, 228, 213, 0.36);
-    color: #47e4d5;
+    background: rgba(194, 156, 109, 0.16);
+    border-color: rgba(194, 156, 109, 0.34);
+    color: var(--lol-primary-2);
 }
 
 .toggle-inactive:hover {
-    background: rgba(10, 200, 185, 0.24);
+    background: rgba(194, 156, 109, 0.24);
     transform: translateY(-1px);
-    box-shadow: 0 0 18px rgba(10, 200, 185, 0.14);
+    box-shadow: 0 0 18px rgba(194, 156, 109, 0.14);
 }
 
 .toggle-active {
@@ -366,14 +373,14 @@ onBeforeUnmount(() => {
     gap: 4px;
     padding: 10px;
     background: rgba(4, 15, 24, 0.42);
-    border: 1px solid rgba(60, 74, 71, 0.42);
-    border-radius: 6px;
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 4px;
     min-width: 0;
 }
 
 .info-label {
     font-size: 11px;
-    color: #859491;
+    color: var(--lol-faint);
     text-transform: uppercase;
     letter-spacing: 0;
 }
@@ -381,7 +388,7 @@ onBeforeUnmount(() => {
 .info-value {
     font-size: 14px;
     font-weight: 800;
-    color: #d7e4f1;
+    color: var(--lol-ivory);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

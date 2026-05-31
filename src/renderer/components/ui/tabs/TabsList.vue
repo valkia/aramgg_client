@@ -27,7 +27,7 @@ const delegatedProps = reactiveOmit(props, "class");
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.05);
   padding: 4px;
   color: rgba(255, 255, 255, 0.7);

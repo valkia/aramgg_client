@@ -33,7 +33,7 @@ const forwardedProps = useForwardProps(delegatedProps);
   align-items: center;
   justify-content: center;
   white-space: nowrap;
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 6px 12px;
   font-size: 14px;
   font-weight: 700;
@@ -50,7 +50,7 @@ const forwardedProps = useForwardProps(delegatedProps);
 }
 
 .tabs-trigger:focus-visible {
-  outline: 2px solid var(--lol-teal);
+  outline: 2px solid var(--lol-primary);
   outline-offset: 2px;
 }
 
@@ -60,8 +60,8 @@ const forwardedProps = useForwardProps(delegatedProps);
 }
 
 .tabs-trigger[data-state="active"] {
-  background: linear-gradient(135deg, rgba(40, 217, 200, 0.18), rgba(200, 169, 106, 0.16));
+  background: linear-gradient(135deg, rgba(194, 156, 109, 0.18), rgba(200, 169, 106, 0.16));
   color: var(--lol-ivory);
-  box-shadow: inset 0 0 0 1px rgba(40, 217, 200, 0.24);
+  box-shadow: inset 0 0 0 1px rgba(194, 156, 109, 0.24);
 }
 </style>

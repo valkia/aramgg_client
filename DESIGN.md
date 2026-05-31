@@ -18,8 +18,8 @@ colors:
     muted: "#6F7A82"
     inverse: "#070A0D"
   brand:
-    primary: "#28D9C8"
-    primaryHover: "#6CF1E5"
+    primary: "#C29C6D"
+    primaryHover: "#E2C08F"
     accent: "#C8A96A"
     accentHover: "#E2C27A"
   semantic:
@@ -30,7 +30,7 @@ colors:
   border:
     default: "rgba(244, 236, 220, 0.10)"
     accent: "rgba(200, 169, 106, 0.24)"
-    focus: "rgba(40, 217, 200, 0.55)"
+    focus: "rgba(194, 156, 109, 0.55)"
 
 typography:
   fontFamily:
@@ -85,8 +85,8 @@ elevation:
   none: "none"
   panel: "0 18px 50px rgba(0, 0, 0, 0.42)"
   overlay: "0 25px 80px rgba(0, 0, 0, 0.72)"
-  focus: "0 0 0 3px rgba(40, 217, 200, 0.12)"
-  glow: "0 0 0 1px rgba(40, 217, 200, 0.16), 0 12px 30px rgba(40, 217, 200, 0.06)"
+  focus: "0 0 0 3px rgba(194, 156, 109, 0.12)"
+  glow: "0 0 0 1px rgba(194, 156, 109, 0.16), 0 12px 30px rgba(194, 156, 109, 0.06)"
 
 components:
   panel:
@@ -97,9 +97,9 @@ components:
     padding: 18
   button:
     primary:
-      background: "linear-gradient(135deg, #28D9C8, #169A91)"
+      background: "linear-gradient(135deg, #C29C6D, #8F6741)"
       color: "#070A0D"
-      border: "1px solid rgba(108, 241, 229, 0.32)"
+      border: "1px solid rgba(226, 192, 143, 0.32)"
       radius: 6
       height: 36
     secondary:
@@ -119,13 +119,13 @@ components:
     color: "#F4ECDC"
     placeholder: "#6F7A82"
     border: "1px solid rgba(244, 236, 220, 0.10)"
-    focusBorder: "rgba(40, 217, 200, 0.55)"
+    focusBorder: "rgba(194, 156, 109, 0.55)"
     radius: 6
     height: 36
   table:
     headerBackground: "rgba(200, 169, 106, 0.08)"
     rowBackground: "rgba(17, 25, 35, 0.56)"
-    rowHover: "rgba(40, 217, 200, 0.07)"
+    rowHover: "rgba(194, 156, 109, 0.07)"
     border: "1px solid rgba(244, 236, 220, 0.10)"
   overlay:
     background: "linear-gradient(145deg, rgba(17, 25, 35, 0.92), rgba(7, 10, 13, 0.94))"
@@ -148,7 +148,7 @@ accessibility:
 
 ## Overview
 
-LoL Tips Client should feel like a practical esports companion, not a landing page or a decorative game splash screen. The interface is dark, compact, data-forward, and calm under pressure. It uses a fantasy-tech language through black obsidian surfaces, muted navy-gray panels, ivory text, antique gold dividers, electric teal interaction states, and restrained crimson risk states.
+LoL Tips Client should feel like a practical esports companion, not a landing page or a decorative game splash screen. The interface is dark, compact, data-forward, and calm under pressure. It uses a fantasy-tech language through black obsidian surfaces, muted navy-gray panels, ivory text, antique gold dividers, electric antique amber interaction states, and restrained crimson risk states.
 
 The design goal is fast repeated use: users should immediately understand game path configuration, rune controls, champion monitoring, hero statistics, and Hextech augment recommendations. Visual drama should come from surface quality, border discipline, and state color, not from oversized hero art, large gradients, or ornamental effects.
 
@@ -156,7 +156,7 @@ The design goal is fast repeated use: users should immediately understand game p
 
 Use `#070A0D` as the base page color and `#111923` / `#162231` for panels and raised controls. Use `#F4ECDC` for primary text, `#A99F8C` for secondary text, and `#6F7A82` for low-priority labels.
 
-Use teal `#28D9C8` as the primary action and focus color. Use gold `#C8A96A` for dividers, tier/status emphasis, and premium metadata. Use crimson `#E5534B` only for destructive actions, errors, or high-risk states. Avoid purple-blue gradients, saturated default Tailwind blue, beige/brown dominant themes, and one-hue interfaces.
+Use amber `#C29C6D` as the primary action and focus color. Use muted gold `#C8A96A` for dividers, tier/status emphasis, and premium metadata. Use crimson `#E5534B` only for destructive actions, errors, or high-risk states. Avoid purple-blue gradients, saturated default Tailwind blue, beige/brown dominant themes, and one-hue interfaces.
 
 ## Typography
 
@@ -172,7 +172,7 @@ Avoid cards inside cards. Page sections should be full-width surfaces or direct 
 
 ## Elevation & Depth
 
-Use elevation sparingly. Most panels use `0 18px 50px rgba(0,0,0,0.42)`. Overlays and popups can use `0 25px 80px rgba(0,0,0,0.72)`. Focus rings use teal with low opacity.
+Use elevation sparingly. Most panels use `0 18px 50px rgba(0,0,0,0.42)`. Overlays and popups can use `0 25px 80px rgba(0,0,0,0.72)`. Focus rings use amber with low opacity.
 
 Depth should signal hierarchy: page background, panel, raised panel, overlay. Do not use decorative orbs, bokeh blobs, heavy bloom, or unrelated background illustrations.
 
@@ -180,18 +180,18 @@ Depth should signal hierarchy: page background, panel, raised panel, overlay. Do
 
 Use 6px radius for controls and 8px radius for panels, overlays, tables, and repeated cards. Avoid pill-shaped controls unless the element is a status chip. Keep icon buttons square or near-square with stable dimensions.
 
-Borders are part of the visual language. Prefer thin ivory or gold borders at low opacity. Use teal borders only for focus, hover, active selection, or high-priority recommendations.
+Borders are part of the visual language. Prefer thin ivory or gold borders at low opacity. Use amber borders only for focus, hover, active selection, or high-priority recommendations.
 
 ## Components
 
-Primary buttons use teal gradient fill, dark text, 6px radius, and a subtle teal glow on hover. Secondary buttons use translucent ivory surfaces with thin borders. Danger buttons use transparent crimson surfaces with crimson text.
+Primary buttons use amber gradient fill, dark text, 6px radius, and a subtle amber glow on hover. Secondary buttons use translucent ivory surfaces with thin borders. Danger buttons use transparent crimson surfaces with crimson text.
 
-Panels use dark gradients, 8px radius, thin borders, and consistent padding. Tables use gold-tinted headers, dark rows, teal hover states, and clear numeric alignment. Inputs use dark recessed backgrounds, ivory text, muted placeholders, and teal focus borders.
+Panels use dark gradients, 8px radius, thin borders, and consistent padding. Tables use gold-tinted headers, dark rows, amber hover states, and clear numeric alignment. Inputs use dark recessed backgrounds, ivory text, muted placeholders, and amber focus borders.
 
-Hextech augment cards must show rank, name, win rate, recommendation score, and recommendation label in a compact structure. Gold augments use gold accents, silver augments use cool gray accents, and prismatic augments use teal accents rather than dominant purple.
+Hextech augment cards must show rank, name, win rate, recommendation score, and recommendation label in a compact structure. Gold augments use gold accents, silver augments use cool gray accents, and prismatic augments use amber accents rather than dominant purple.
 
 ## Do's and Don'ts
 
-Do keep interfaces dense but organized. Do use teal for interaction and gold for hierarchy. Do keep text legible at small sizes. Do use lucide icons for actions where an icon exists. Do keep overlays compact and readable.
+Do keep interfaces dense but organized. Do use amber for interaction and gold for hierarchy. Do keep text legible at small sizes. Do use lucide icons for actions where an icon exists. Do keep overlays compact and readable.
 
 Do not create marketing-style hero sections. Do not use purple-blue gradient cards. Do not use oversized rounded pills. Do not nest cards. Do not scale font size with viewport width. Do not use nonzero or negative letter spacing. Do not let text overflow buttons, tabs, badges, or cards.

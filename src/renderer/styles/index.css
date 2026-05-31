@@ -7,7 +7,7 @@
   --color-card-foreground: hsl(39 43% 92%);
   --color-popover: hsl(214 30% 9%);
   --color-popover-foreground: hsl(39 43% 92%);
-  --color-primary: hsl(175 72% 50%);
+  --color-primary: hsl(33 41% 59%);
   --color-primary-foreground: hsl(210 30% 4%);
   --color-secondary: hsl(216 26% 15%);
   --color-secondary-foreground: hsl(39 43% 92%);
@@ -19,7 +19,7 @@
   --color-destructive-foreground: hsl(39 43% 92%);
   --color-border: hsl(217 22% 23%);
   --color-input: hsl(217 22% 23%);
-  --color-ring: hsl(175 72% 50%);
+  --color-ring: hsl(33 41% 59%);
   --spacing-xs: 4px;
   --spacing-sm: 8px;
   --spacing-md: 12px;
@@ -59,7 +59,7 @@
   --card-foreground: 39 43% 92%;
   --popover: 214 30% 9%;
   --popover-foreground: 39 43% 92%;
-  --primary: 175 72% 50%;
+  --primary: 33 41% 59%;
   --primary-foreground: 210 30% 4%;
   --secondary: 216 26% 15%;
   --secondary-foreground: 39 43% 92%;
@@ -71,7 +71,7 @@
   --destructive-foreground: 39 43% 92%;
   --border: 217 22% 23%;
   --input: 217 22% 23%;
-  --ring: 175 72% 50%;
+  --ring: 33 41% 59%;
   --lol-bg: #070a0d;
   --lol-bg-2: #0b1117;
   --lol-surface: #111923;
@@ -82,8 +82,8 @@
   --lol-faint: #6f7a82;
   --lol-gold: #c8a96a;
   --lol-gold-2: #e2c27a;
-  --lol-teal: #28d9c8;
-  --lol-teal-2: #6cf1e5;
+  --lol-primary: #c29c6d;
+  --lol-primary-2: #e2c08f;
   --lol-crimson: #e5534b;
   --lol-success: #54d884;
   --lol-border: rgba(200, 169, 106, 0.24);
@@ -91,7 +91,7 @@
   --lol-panel: linear-gradient(145deg, rgba(17, 25, 35, 0.96), rgba(9, 14, 19, 0.98));
   --lol-panel-raised: linear-gradient(145deg, rgba(23, 35, 49, 0.98), rgba(11, 17, 23, 0.98));
   --lol-shadow: 0 18px 50px rgba(0, 0, 0, 0.42);
-  --lol-glow: 0 0 0 1px rgba(40, 217, 200, 0.16), 0 12px 30px rgba(40, 217, 200, 0.06);
+  --lol-glow: 0 0 0 1px rgba(194, 156, 109, 0.16), 0 12px 30px rgba(194, 156, 109, 0.06);
 }
 
 @layer base {
@@ -104,7 +104,7 @@
   body {
     @apply h-full m-0 p-0;
     background:
-      radial-gradient(circle at top left, rgba(40, 217, 200, 0.08), transparent 34rem),
+      radial-gradient(circle at top left, rgba(194, 156, 109, 0.08), transparent 34rem),
       linear-gradient(180deg, #0b1117 0%, #070a0d 100%);
     color: var(--lol-ivory);
   }
@@ -129,7 +129,7 @@
   }
 
   ::selection {
-    background: rgba(40, 217, 200, 0.32);
+    background: rgba(194, 156, 109, 0.32);
     color: var(--lol-ivory);
   }
 
@@ -143,17 +143,17 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, rgba(200, 169, 106, 0.72), rgba(40, 217, 200, 0.46));
+    background: linear-gradient(180deg, rgba(200, 169, 106, 0.72), rgba(194, 156, 109, 0.46));
     border: 2px solid rgba(7, 10, 13, 0.86);
-    border-radius: 999px;
+    border-radius: 4px;
   }
 }
 
 @layer components {
   .btn-primary {
-    background: linear-gradient(135deg, var(--lol-teal), #179c93);
+    background: linear-gradient(135deg, var(--lol-primary), #8f6741);
     color: var(--lol-bg);
-    border: 1px solid rgba(108, 241, 229, 0.32);
+    border: 1px solid rgba(226, 192, 143, 0.32);
     box-shadow: var(--lol-glow);
   }
 
@@ -183,7 +183,7 @@
   .card {
     background: var(--lol-panel);
     border: 1px solid var(--lol-border-soft);
-    border-radius: 8px;
+    border-radius: 4px;
     box-shadow: var(--lol-shadow);
     color: var(--lol-ivory);
     padding: 16px;
@@ -199,7 +199,7 @@
   .card-hover {
     background: var(--lol-panel);
     border: 1px solid var(--lol-border-soft);
-    border-radius: 8px;
+    border-radius: 4px;
     box-shadow: var(--lol-shadow);
     color: var(--lol-ivory);
     padding: 16px;
@@ -227,8 +227,8 @@
   }
 
   .tag-primary {
-    background: rgba(40, 217, 200, 0.14);
-    color: var(--lol-teal-2);
+    background: rgba(194, 156, 109, 0.14);
+    color: var(--lol-primary-2);
   }
 
   .tag-secondary {
