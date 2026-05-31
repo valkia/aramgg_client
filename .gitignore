@@ -7,13 +7,25 @@ node_modules
 /.codex-tmp
 
 # local env files
+.env
+.env.*
+!.env.local.example
 .env.local
 .env.*.local
+
+# Local agent and IDE state
+/.claude
+/.serena
+*.iml
 
 # Log files
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Local archives and backups
+*.zip
+*.bak
 
 # Editor directories and files
 .idea

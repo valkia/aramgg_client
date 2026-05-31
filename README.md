@@ -48,6 +48,12 @@ node tests/electron/test-augment-ocr-fixtures.js
 - Vue 组件继续使用单文件组件，业务逻辑尽量放到 services 或 utilities。
 - TypeScript 迁移和排障细节见 [TypeScript 集成总结](./docs/TYPESCRIPT_INTEGRATION.md)。
 
+## 数据 API
+
+客户端数据接口、API Key 申请和接入说明见 [ARAMGG 数据 API 开发者页面](https://data.dtodo.cn/developer.html)。
+
+本仓库不提交真实 API Key。需要本地配置时，复制 `.env.local.example` 为 `.env.local`，再填入自己的 `ARAMGG_DATA_API_KEY`。
+
 ## 关键文档
 
 - [完整架构](./COMPLETE_ARCHITECTURE.md)
