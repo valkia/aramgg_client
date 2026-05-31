@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { app, dialog, shell } from 'electron'
+import { app } from 'electron'
 import { loadDataApiConfig } from './data-loader.ts'
 import logger from './modules/logger.ts'
 
@@ -113,16 +113,7 @@ export async function getVersionInfo() {
   }
 }
 
-function canOpenDownloadUrl(url) {
-  try {
-    const parsed = new URL(url)
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
-  } catch {
-    return false
-  }
-}
-
-export async function checkForClientUpdate(parentWindow) {
+export async function checkForClientUpdate() {
   let versionInfo
 
   try {
@@ -136,34 +127,14 @@ export async function checkForClientUpdate(parentWindow) {
     return versionInfo
   }
 
-  const message =
-    versionInfo.isBelowMinimumVersion
-      ? '当前客户端低于最低支持版本，请更新后继续使用。'
-      : versionInfo.severity === 'major'
-      ? '检测到客户端大版本不一致，最好更新后继续使用。'
-      : '检测到客户端功能版本不一致，建议更新。'
-
-  const detail = [
-    `当前版本：${versionInfo.currentVersion}`,
-    `最新版本：${versionInfo.latestVersion}`,
-    `数据版本：${versionInfo.dataVersion || '-'}`,
-    `下载地址：${versionInfo.downloadUrl || '-'}`,
-  ].join('\n')
-
-  const result = await dialog.showMessageBox(parentWindow, {
-    type: 'info',
-    title: '客户端更新提示',
-    message,
-    detail,
-    buttons: ['去下载', '稍后'],
-    defaultId: 0,
-    cancelId: 1,
-    noLink: true,
+  logger.info('[update] client update available', {
+    currentVersion: versionInfo.currentVersion,
+    latestVersion: versionInfo.latestVersion,
+    minimumVersion: versionInfo.minimumVersion || null,
+    severity: versionInfo.severity,
+    isBelowMinimumVersion: versionInfo.isBelowMinimumVersion,
+    hasDownloadUrl: !!versionInfo.downloadUrl,
   })
-
-  if (result.response === 0 && canOpenDownloadUrl(versionInfo.downloadUrl)) {
-    await shell.openExternal(versionInfo.downloadUrl)
-  }
 
   return versionInfo
 }
