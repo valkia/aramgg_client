@@ -1,5 +1,7 @@
 # 项目全面审查报告
 
+> 注：本文保留审查发生时的路径、行号和问题上下文。2026-05-31 后主进程源码已迁移为 `.ts`，当前事实以源码、`CLAUDE.md`、`AGENTS.md` 和 `docs/ELECTRON_VITE_MIGRATION_PROGRESS.md` 为准。
+
 > 审查日期：2026-05-26
 > 审查范围：主进程、渲染进程、构建配置、依赖管理
 > 项目：lol_tips_client (Electron + Vue 3 + electron-vite)
@@ -15,7 +17,7 @@
 - #1 全局禁用证书验证
 - #2 `will-quit` 不支持 async
 - #3 Tailwind v4 配置冲突
-- #4 构建目标 node18 vs Electron 39
+- #4 构建目标与 Electron 版本不匹配
 - #5 硬编码本地路径泄露
 - #7 `applyPerk` 无事务保证
 - #8 LCUService 多方法静默吞掉错误
@@ -32,8 +34,8 @@
 ### 已过期 / 不再成立
 
 - #9 ChampionStats 轮询无取消机制：当前仓库没有 `ChampionStats.vue`，实际相关组件 `ChampionMonitor.vue` 已在卸载时清理定时器。
-- #12 重复注册 Electron 事件：当前 `src/main/main.js` 不再注册 `window-all-closed` 和 `activate`，仅 `app-config.js` 注册。
-- 代码重复表中的 “`main.js` 和 `app-config.js` 重复注册 `window-all-closed` 和 `activate`”：同 #12，已过期。
+- #12 重复注册 Electron 事件：当前 `src/main/main.ts` 不再注册 `window-all-closed` 和 `activate`，仅 `app-config.ts` 注册。
+- 代码重复表中的 “`main.js` 和 `app-config.js` 重复注册 `window-all-closed` 和 `activate`”：同 #12，已过期；当前源码路径为 `.ts`。
 
 ### 当前剩余 P1
 
@@ -48,7 +50,7 @@
 - 提取 DDragon `14.24.1` 版本常量或改为动态版本。
 - 将 `src/renderer/service/http.js` 的全局 axios interceptor 改为独立实例。
 - 主进程若继续增长，可处理 ARAM 推荐数据预加载、`getGameflowPhase` 重试上限、`_drainAnalysisQueue` 队列逻辑、LCU 实例缓存清理、`notifyAllWindows` 重复导入。
-- 低优先级清理：`image-analyzer.js` 弃用颜色检测代码、浮窗组件重复逻辑、两套 localStorage 配置、ChampionMonitor 轮询、`Math.max(...array)` 微优化。
+- 低优先级清理：`image-analyzer.ts` 弃用颜色检测代码、浮窗组件重复逻辑、两套 localStorage 配置、ChampionMonitor 轮询、`Math.max(...array)` 微优化。
 
 ---
 
@@ -299,14 +301,14 @@ ipcMain.handle('store-clear', () => {
 
 | 问题 | 文件 | 修复建议 |
 |------|------|----------|
-| `electron-store` 多实例（4处独立创建） | 多文件 | 已完成：通过 `src/main/modules/app-store.js` 共享单例 |
-| `getPreloadPath` dev/prod 分支完全相同 | `window-manager.js:108` | 删除多余 if/else |
+| `electron-store` 多实例（4处独立创建） | 多文件 | 已完成：通过 `src/main/modules/app-store.ts` 共享单例 |
+| `getPreloadPath` dev/prod 分支完全相同 | `window-manager.ts:108` | 删除多余 if/else |
 | ARAM 推荐每次 IPC 全量加载英雄数据 | `ipc-handlers.ts:149` | 考虑批量请求或预加载 |
 | `getGameflowPhase` 缺乏重试次数限制 | `lcu-service.ts:519` | 添加重试上限 |
-| `_drainAnalysisQueue` 的 finally 中递归 | `auto-screenshot-service.js:318` | 简化递归逻辑，增加竞态保护 |
+| `_drainAnalysisQueue` 的 finally 中递归 | `auto-screenshot-service.ts:318` | 简化递归逻辑，增加竞态保护 |
 | `lcu-service.ts` 的 `instances` Map 永不清理 | `lcu-service.ts:681` | 实现并调用 `clearLCUServiceInstances()` |
-| `notifyAllWindows` 重复导入 BrowserWindow | `app-config.js:661` | 使用顶部已导入的模块 |
-| `broadcast` IPC 允许任意 channel | `ipc-handlers.js:39` | 已完成：限制允许的 channel 列表 |
+| `notifyAllWindows` 重复导入 BrowserWindow | `app-config.ts:661` | 使用顶部已导入的模块 |
+| `broadcast` IPC 允许任意 channel | `ipc-handlers.ts:39` | 已完成：限制允许的 channel 列表 |
 
 ---
 
@@ -365,4 +367,4 @@ ipcMain.handle('store-clear', () => {
 | 2026-05-31 | `GamePathConfig.vue` 缺少 Electron API 检查 | 已完成 | 选择目录前检查 Electron API 可用性 |
 | 2026-05-31 | #3 Tailwind v4 配置冲突 | 已完成 | 接入 `@tailwindcss/vite`，删除旧 Tailwind/PostCSS 配置文件，移除顶层 `autoprefixer`/`postcss` 依赖与 `package.json#postcss` |
 | 2026-05-31 | ShowDetail apply 失败无用户反馈 | 已完成 | 添加应用中/成功/失败状态提示，应用中禁用当前按钮 |
-| 2026-05-31 | `electron-store` 多实例 | 已完成 | 新增 `src/main/modules/app-store.js` 共享单例，主进程模块统一复用 |
+| 2026-05-31 | `electron-store` 多实例 | 已完成 | 新增 `src/main/modules/app-store.ts` 共享单例，主进程模块统一复用 |

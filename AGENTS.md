@@ -50,8 +50,8 @@ Renderer code must not assume Node access. Use the preload bridge and IPC APIs. 
 
 ARAM champ-select recommendation code must remain read-only. Do not connect `pickOrBan`, `benchSwap`, `action`, `acceptTrade`, or `declineTrade` to recommendation flows; keep executable LCU writes isolated to their existing feature areas such as rune pages.
 
-Keep ARAM champ-select recommendations in the dedicated bench overlay window, not on the main renderer screen. The bench overlay should show all available candidates and remain a read-only recommendation surface.
+Keep ARAM champ-select recommendations in the hero detail window, not on the main renderer screen. The recommendation area should show all available candidates and remain a read-only recommendation surface.
 
-Mutable runtime data, including electron-store config, logs, remote-data cache, and OCR debug screenshots, must go through `src/main/modules/app-paths.js`. Do not hardcode `~/.aramgg_client` or write mutable state into packaged resources, `dist/`, `dist-electron/`, or `build/`.
+Mutable runtime data, including electron-store config, logs, remote-data cache, and OCR debug screenshots, must go through `src/main/modules/app-paths.ts`. Do not hardcode `~/.aramgg_client` or write mutable state into packaged resources, `dist/`, `dist-electron/`, or `build/`.
 
 Augment OCR runs through the PaddleOCR Node backend and packaged `resources/paddleocr` ONNX models. Preserve left/center/right title-region ordering, transient-miss retention during reroll animations, and the title-region fast path/cache. Do not fill missing title slots with broad OCR fallbacks; keep unread slots empty so game order cannot be reshuffled by fallback text regions.

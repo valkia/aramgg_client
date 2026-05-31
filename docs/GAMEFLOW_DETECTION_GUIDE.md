@@ -24,7 +24,7 @@ GET /lol-gameflow/v1/gameflow-phase
 | `Lobby` | 大厅 | 停止 gameflow 管理的自动截图，清空海克斯浮窗 |
 | `Matchmaking` | 匹配中 | 停止 gameflow 管理的自动截图 |
 | `ReadyCheck` | 准备确认 | 停止 gameflow 管理的自动截图 |
-| `ChampSelect` | 选人阶段 | 显示英雄洞察并在顶部展示 ARAM 席位推荐，暂停海克斯 OCR |
+| `ChampSelect` | 选人阶段 | 显示英雄详情并在顶部展示 ARAM 席位推荐，暂停海克斯 OCR |
 | `GameStart` | 游戏加载 | 清空选人/海克斯过期状态 |
 | `InProgress` | 实际对局中 | 允许自动截图和海克斯 OCR |
 | `WaitingForStats` | 等待结算 | 停止自动截图，清空海克斯浮窗 |
@@ -35,12 +35,12 @@ GET /lol-gameflow/v1/gameflow-phase
 
 ## 当前实现位置
 
-- 主进程 gameflow 监控：`src/main/modules/app-config.js`
+- 主进程 gameflow 监控：`src/main/modules/app-config.ts`
 - LCU 服务：`src/main/services/lcu/lcu-service.ts`
 - LCU WAMP WebSocket：`src/main/services/lcu/lcu-wamp-socket.ts`
 - LCU IPC：`src/main/services/lcu/ipc-handlers.ts`
-- 自动截图服务：`src/main/auto-screenshot-service.js`
-- 英雄洞察窗口：`src/main/modules/window-manager.js` 的 `createPopupWindow()` 和 renderer 路由 `/augment-overlay`
+- 自动截图服务：`src/main/auto-screenshot-service.ts`
+- 英雄详情窗口：`src/main/modules/window-manager.ts` 的 `createPopupWindow()` 和 renderer 路由 `/augment-overlay`
 - 席位推荐组件：`src/renderer/components/AramBenchRecommendation.vue`
 - Renderer 事件监听：`src/preload/preload.js`、`src/renderer/native/electron-api.js`
 
@@ -64,7 +64,7 @@ console.log(snapshotResult.snapshot)
 2. 在应用中配置或自动检测游戏路径。
 3. 进入大厅、选人、加载、实际对局、结算阶段。
 4. 查看日志中是否出现 `LCU OnJsonApiEvent WebSocket 已订阅 gameflow phase`、`游戏阶段变化(websocket)` 或兜底 `游戏阶段变化(poll)`。
-5. 在 `ChampSelect` 确认英雄洞察窗口显示，顶部 ARAM 席位推荐更新完整候选列表。
+5. 在 `ChampSelect` 确认英雄详情窗口显示，顶部 ARAM 席位推荐更新完整候选列表。
 6. 在实际对局 `InProgress` 确认自动截图和海克斯 OCR 允许运行。
 7. 离开实际对局后确认过期海克斯浮窗被清空。
 
@@ -88,7 +88,7 @@ LCU/API 结构探索内容单独写入 `logs/lcu-api-diagnostics-YYYY-MM-DD.log`
 检查：
 
 - `gameflowPhase` 是否为 `ChampSelect`。
-- 英雄洞察窗口是否已显示；如果手动隐藏，下一次进入 `ChampSelect` 会重新显示。
+- 英雄详情窗口是否已显示；如果手动隐藏，下一次进入 `ChampSelect` 会重新显示。
 - `lcu-get-champ-select-snapshot` 是否返回 `status: "ready"`。
 - `snapshot.selfChampionId` 和 `snapshot.benchChampions` 是否有值。
 - 远端英雄统计是否可用；数据缺失时 UI 会降级展示。

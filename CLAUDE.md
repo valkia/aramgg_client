@@ -14,7 +14,7 @@
 - `legacy/` 是旧 React 隔离区，新功能不要扩展它。
 - `dist/`、`dist-electron/`、`build/` 是生成产物，不要作为源码编辑。
 - Renderer 不能假设 Node 能力；只能通过 `window.electronAPI` 走 preload/IPC。
-- 运行时可变数据统一走 `src/main/modules/app-paths.js`：安装版优先写入安装目录旁的 `aramgg_client-data/`，不可写时回退到 Electron `userData`。
+- 运行时可变数据统一走 `src/main/modules/app-paths.ts`：安装版优先写入安装目录旁的 `aramgg_client-data/`，不可写时回退到 Electron `userData`。
 
 ## 常用命令
 
@@ -49,9 +49,9 @@ node tests/electron/test-augment-ocr-fixtures.js
 
 - 主进程 LCU 服务：`src/main/services/lcu/`
 - ARAM bench 推荐纯逻辑：`src/main/services/aram/`
-- ARAM 席位推荐弹窗：`src/renderer/components/BenchOverlayView.vue`、路由 `/bench-overlay`、主进程 `createBenchWindow()`
-- 截图和 OCR：`src/main/auto-screenshot-service.js`、`src/main/image-analyzer.js`
-- 运行时目录和日志/缓存位置：`src/main/modules/app-paths.js`
+- ARAM 席位推荐：`src/renderer/components/AramBenchRecommendation.vue`，嵌在英雄详情窗口 `/augment-overlay` 顶部
+- 截图和 OCR：`src/main/auto-screenshot-service.ts`、`src/main/image-analyzer.ts`
+- 运行时目录和日志/缓存位置：`src/main/modules/app-paths.ts`
 - Preload API：`src/preload/preload.js`
 - Renderer IPC 代理：`src/renderer/native/electron-api.js`
 - Vue UI 组件：`src/renderer/components/`
@@ -65,7 +65,7 @@ node tests/electron/test-augment-ocr-fixtures.js
 - 自动截图/OCR 只应在实际对局 `InProgress` 阶段运行；`ChampSelect`、`Lobby`、`EndOfGame` 等阶段要避免展示过期海克斯结果。
 - 只读选人快照入口是 `LCUService.getChampSelectSnapshot()` 和 IPC `lcu-get-champ-select-snapshot`。
 - ARAM bench 推荐入口是 IPC `lcu-get-aram-bench-recommendation`，结果只包含展示字段，不包含动作字段。
-- 选人阶段推荐使用独立席位推荐弹窗展示，不放回主界面；候选英雄列表应展示完整候选，不做固定 top 5 截断。
+- 选人阶段推荐使用英雄详情窗口顶部展示，不放回主界面；候选英雄列表应展示完整候选，不做固定 top 5 截断。
 - 海克斯识别结果应优先按左/中/右卡片区域确定顺序；自动截图服务需要保留截图超时和 runId 隔离，避免上一局残留任务影响下一局识别。
 - 海克斯 OCR 使用 PaddleOCR Node 后端和 `resources/paddleocr` ONNX 模型；修改时应保留切换动画期间的短暂 miss 宽限、标题区域快速路径和标题指纹缓存；不要用宽区域 OCR fallback 补齐缺失卡位，读不到的位置保持空槽；部分识别只允许更新已有完整三卡浮窗，不能从空状态打开单卡/双卡浮窗。
 

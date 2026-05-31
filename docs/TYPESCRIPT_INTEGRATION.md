@@ -4,7 +4,7 @@
 
 项目已接入 TypeScript 类型检查，源码结构遵循 electron-vite 三段式目录：
 
-- `src/main/`：Electron 主进程，允许 `.ts` 和既有 `.js` 共存。
+- `src/main/`：Electron 主进程，当前源码以 `.ts` 为主。
 - `src/preload/`：sandbox preload，目前入口仍是 `.js`，类型边界由 renderer 侧声明补齐。
 - `src/renderer/`：Vue 3 渲染进程，支持 `.ts`、`.js`、`.vue`。
 
@@ -34,8 +34,8 @@ npm run type-check
 | Renderer LCU 代理 | `src/renderer/services/lcu/*.ts` |
 | 主进程数据加载 | `src/main/data-loader.ts` |
 | Electron API renderer 声明 | `src/renderer/native/electron-api.d.ts` |
-| App path/logger JS 模块声明 | `src/main/modules/*.d.ts` |
-| ARAM bench 推荐声明 | `src/main/services/aram/bench-recommendation.d.ts` |
+| App path/logger/store 运行时模块 | `src/main/modules/{app-paths,app-store,logger}.ts` |
+| ARAM bench 推荐 | `src/main/services/aram/bench-recommendation.ts` |
 
 ## 编写规范
 

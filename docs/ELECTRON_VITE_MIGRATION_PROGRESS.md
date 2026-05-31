@@ -1,6 +1,6 @@
 # Electron / electron-vite 架构整改进度
 
-更新时间：2026-05-25
+更新时间：2026-05-31
 
 ## 目标
 
@@ -14,8 +14,9 @@
 - Electron 安全配置已收敛：renderer 不再拥有 Node 能力，preload 通过 `contextBridge` 暴露业务 API。
 - `package.json#main`、electron-vite 输出目录、electron-builder `files` 已对齐。
 - `npm run type-check`、`npm run lint`、`npm run build` 当前均通过。
-- Windows 安装包已切换为 NSIS 引导式安装，支持选择安装目录并归一化到应用子目录；运行时可变数据统一由 `src/main/modules/app-paths.js` 管理。
-- 除 Electron 外，当前可升级依赖已完成升级；Electron 主版本升级本阶段先忽略，后续如有安全或兼容要求再单独处理。
+- Windows 安装包已切换为 NSIS 引导式安装，支持选择安装目录并归一化到应用子目录；运行时可变数据统一由 `src/main/modules/app-paths.ts` 管理。
+- Electron 依赖已升级到 `electron@42.2.0`，electron-builder 已升级到 `^26.11.1`。
+- 主进程源码已迁移为 TypeScript；preload 入口仍保持 `.js`，通过 renderer 侧声明补齐类型边界。
 
 ## 优先级
 
@@ -77,7 +78,7 @@
 ### P4：依赖升级
 
 - [x] 先升级 patch/minor 依赖。
-- [x] 记录 Electron 主版本升级暂缓，本阶段先忽略。
+- [x] 完成 Electron 主版本升级。
 - [x] 单独验证 electron-builder 主版本升级。
 - [x] 单独验证 vue-tsc 主版本升级。
 - [x] 单独验证 Vue Router、TypeScript 主版本升级。
@@ -94,7 +95,7 @@
 - [x] Windows NSIS 安装包使用引导式安装，而不是 one-click 静默安装。
 - [x] 安装时允许用户选择安装目录。
 - [x] 安装器将用户选择的父目录归一化为 `...\aramgg_client` 应用子目录。
-- [x] 日志、electron-store 配置、远端缓存、OCR 调试截图统一经 `src/main/modules/app-paths.js` 解析。
+- [x] 日志、electron-store 配置、远端缓存、OCR 调试截图统一经 `src/main/modules/app-paths.ts` 解析。
 - [x] 安装版优先写入安装目录旁的 `aramgg_client-data/`，不可写时回退到 Electron `userData`。
 
 完成标准：
@@ -103,6 +104,13 @@
 - 主进程模块不再各自硬编码日志、缓存或 store 目录。
 
 ## 当前执行记录
+
+### 2026-05-31
+
+- [x] 将主进程源文件迁移为 TypeScript，当前 `src/main/` 以 `.ts` 源码为主。
+- [x] 升级 Electron 依赖到 `42.2.0`，electron-builder 升级到 `^26.11.1`。
+- [x] 同步项目文档中的主进程路径、英雄详情/海克斯浮窗命名和 ARAM 推荐展示位置。
+- [x] 验证通过：`npm run lint`、`npm run type-check`、`npm run build`。
 
 ### 2026-05-25
 
@@ -113,7 +121,7 @@
 
 - [x] 将主界面、海克斯浮窗、英雄详情、装备/胜率等主要可见文案收敛为简体中文。
 - [x] 主窗口创建时按主显示器工作区靠右展示。
-- [x] 新增 `src/main/modules/app-paths.js`，统一配置、日志、远端缓存和 OCR 调试截图目录。
+- [x] 新增 `src/main/modules/app-paths.js`，统一配置、日志、远端缓存和 OCR 调试截图目录；2026-05-31 后源码路径为 `src/main/modules/app-paths.ts`。
 - [x] electron-store、logger、远端数据缓存、partial OCR 截图已接入统一运行时目录。
 - [x] 调整 electron-builder NSIS 配置：允许选择安装目录，安装器默认使用简体中文。
 - [x] 运行 `npm run lint`、`npm run type-check`、`npm run build`、`npm run pack`，均通过；安装包生成在 `build/`。
@@ -188,4 +196,4 @@
 
 1. 处理用户级 npm 配置 warning：当前 warning 来自 `C:\Users\du\.npmrc`，不在项目仓库内。
 2. 关注 build 中来自 `@vueuse/core` 的 Rollup `#__PURE__` 注释 warning；当前不阻塞构建。
-3. Electron 主版本升级已作为后续独立事项暂缓，不纳入本阶段收尾范围。
+3. 如继续调整 Electron 依赖，运行 `npm run pack` 并做安装包烟测。

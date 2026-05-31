@@ -1,6 +1,6 @@
 # 大乱斗 LCU 只读推荐能力进度
 
-更新时间：2026-05-29
+更新时间：2026-05-31
 
 ## 目标
 
@@ -30,9 +30,9 @@
 - LCU IPC handlers：[src/main/services/lcu/ipc-handlers.ts](../src/main/services/lcu/ipc-handlers.ts)
 - 渲染进程 LCU 代理：[src/renderer/services/lcu/lcu-client.ts](../src/renderer/services/lcu/lcu-client.ts)
 - 游戏流程监控：[src/renderer/service/game-flow-monitor.ts](../src/renderer/service/game-flow-monitor.ts)
-- 自动截图服务：[src/main/auto-screenshot-service.js](../src/main/auto-screenshot-service.js)
+- 自动截图服务：[src/main/auto-screenshot-service.ts](../src/main/auto-screenshot-service.ts)
 - 海克斯浮窗：[src/renderer/components/AugmentFloatingOverlay.vue](../src/renderer/components/AugmentFloatingOverlay.vue)
-- 英雄洞察弹窗：[src/renderer/components/AugmentWinrateOverlay.vue](../src/renderer/components/AugmentWinrateOverlay.vue)
+- 英雄详情窗口：[src/renderer/components/AugmentWinrateOverlay.vue](../src/renderer/components/AugmentWinrateOverlay.vue)
 - 席位推荐组件：[src/renderer/components/AramBenchRecommendation.vue](../src/renderer/components/AramBenchRecommendation.vue)
 
 ## 当前判断
@@ -87,7 +87,7 @@
 
 ### P3：选人阶段 UI 展示
 
-- [x] 在英雄洞察顶部展示大乱斗选人阶段推荐，不占用主界面。
+- [x] 在英雄详情顶部展示大乱斗选人阶段推荐，不占用主界面。
 - [x] 选人阶段显示当前英雄和 bench 推荐；游戏内阶段继续显示海克斯推荐。
 - [x] 展示完整候选列表，不做固定 top 5 截断。
 - [x] 不提供“自动换英雄”按钮。
@@ -146,8 +146,8 @@
 
 ### 2026-05-29
 
-- 决定移除独立席位推荐弹窗，进入 `ChampSelect` 时打开英雄洞察，并在顶部横向展示席位推荐。
-- 决定英雄尚未选定时也显示英雄洞察空状态，让席位推荐可以先展示，不用整页等待英雄数据。
+- 决定移除独立席位推荐弹窗，进入 `ChampSelect` 时打开英雄详情，并在顶部横向展示席位推荐。
+- 决定英雄尚未选定时也显示英雄详情空状态，让席位推荐可以先展示，不用整页等待英雄数据。
 
 ## LCU 接口审计
 
@@ -209,8 +209,13 @@
 ### 2026-05-29
 
 - [x] 删除独立席位推荐窗口和 `/bench-overlay` 路由。
-- [x] 英雄洞察顶部接入紧凑横向席位推荐。
-- [x] `ChampSelect` 进入时直接显示英雄洞察空状态，并继续暂停游戏内海克斯 OCR。
+- [x] 英雄详情顶部接入紧凑横向席位推荐。
+- [x] `ChampSelect` 进入时直接显示英雄详情空状态，并继续暂停游戏内海克斯 OCR。
+
+### 2026-05-31
+
+- [x] UI 命名统一：主应用为 ARAMGG助手，选人/英雄数据窗口为英雄详情，游戏内强化结果窗口为海克斯浮窗。
+- [x] 主进程相关文件迁移为 TypeScript 后，本文档同步 `.ts` 源码路径。
 
 ## 后续注意事项
 
