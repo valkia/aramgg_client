@@ -1,11 +1,22 @@
 // @ts-nocheck
-import electron from 'electron'
 import fs from 'fs-extra'
 import os from 'os'
 import path from 'path'
+import { createRequire } from 'module'
 
 const APP_DATA_DIR_NAME = 'aramgg_client-data'
 let cachedAppDataDir = null
+const require = createRequire(import.meta.url)
+let electron = null
+
+if (process.versions?.electron) {
+    try {
+        electron = require('electron')
+    } catch {
+        electron = null
+    }
+}
+
 const electronApp = electron?.app || electron?.default?.app || null
 
 function hasElectronApp() {
