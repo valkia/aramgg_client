@@ -100,7 +100,7 @@ const electronAPI = {
     shell: {
         openExternal: (url) => {
             const parsedUrl = new URL(url)
-            if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+            if (!['http:', 'https:', 'mailto:'].includes(parsedUrl.protocol)) {
                 throw new Error(`Unsupported external URL protocol: ${parsedUrl.protocol}`)
             }
             return ipcRenderer.invoke('shell-open-external', parsedUrl.toString())

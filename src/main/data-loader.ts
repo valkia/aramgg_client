@@ -60,6 +60,7 @@ const pendingDataFileRequests = new Map<string, Promise<any>>()
 const detailCache = new Map<string, any>()
 const augmentDetailCache = new Map<string, Record<string, any>>()
 const championAugmentStatsCache = new Map<string, any[]>()
+const championAugmentStatsPending = new Map<string, Promise<any[]>>()
 let electronFetch: any = null
 let dataRootDirPromise: Promise<string> | null = null
 let activeDataSetPromise: Promise<ActiveDataSet> | null = null
@@ -561,6 +562,37 @@ function findShardPathForChampion(shardIndex: any, championId: string | number):
   return shard?.path ? normalizeDataPath(String(shard.path)) : null
 }
 
+function cacheChampionShardDetails(dataVersion: string, champions: Record<string, any>): void {
+  Object.entries(champions).forEach(([id, championDetail]) => {
+    detailCache.set(`${dataVersion}:champion:${id}`, championDetail)
+  })
+}
+
+async function loadChampionDetailFromShard(
+  dataSet: ActiveDataSet,
+  championId: string | number,
+  shardPath: string,
+  source: 'cached' | 'remote'
+): Promise<any | null> {
+  const shardPayload = source === 'cached'
+    ? cache.get(`${dataSet.dataVersion}:${shardPath}`)?.data || await readDataFileFromDisk(dataSet.dataVersion, shardPath)
+    : await fetchVersionedDataFile(
+      dataSet.dataVersion,
+      shardPath,
+      findManifestPath(dataSet.manifest, shardPath)
+    )
+  const shardData = shardPayload ? unwrapEnvelope(shardPayload) : null
+  const champions = shardData?.champions || shardPayload?.champions || {}
+  const detail = champions[String(championId)] || champions[Number(championId)]
+
+  if (!detail) {
+    return null
+  }
+
+  cacheChampionShardDetails(dataSet.dataVersion, champions)
+  return detail
+}
+
 async function loadChampionDetailPayload(championId: string | number): Promise<any | null> {
   const dataSet = await getActiveDataSet()
   const cacheKey = `${dataSet.dataVersion}:champion:${championId}`
@@ -576,22 +608,33 @@ async function loadChampionDetailPayload(championId: string | number): Promise<a
   const shardPath = shardIndex ? findShardPathForChampion(shardIndex, championId) : null
 
   if (shardPath) {
-    const shardCacheKey = `${dataSet.dataVersion}:${shardPath}`
-    const cachedShard = cache.get(shardCacheKey)?.data || await readDataFileFromDisk(dataSet.dataVersion, shardPath)
-    const cachedShardData = cachedShard ? unwrapEnvelope(cachedShard) : null
-    const cachedShardChampions = cachedShardData?.champions || cachedShard?.champions || {}
-    const cachedShardDetail = cachedShardChampions[String(championId)] || cachedShardChampions[Number(championId)]
-
+    const cachedShardDetail = await loadChampionDetailFromShard(dataSet, championId, shardPath, 'cached')
     if (cachedShardDetail) {
-      Object.entries(cachedShardChampions).forEach(([id, championDetail]) => {
-        detailCache.set(`${dataSet.dataVersion}:champion:${id}`, championDetail)
-      })
       logger.debug('[data-loader] champion detail loaded from cached shard', {
         dataVersion: dataSet.dataVersion,
         championId,
         shardPath,
       })
       return cachedShardDetail
+    }
+
+    try {
+      logger.info('[data-loader] champion detail shard fetch start', {
+        dataVersion: dataSet.dataVersion,
+        championId,
+        shardPath,
+      })
+      const shardDetail = await loadChampionDetailFromShard(dataSet, championId, shardPath, 'remote')
+      if (shardDetail) {
+        logger.info('[data-loader] champion detail shard fetch completed', {
+          dataVersion: dataSet.dataVersion,
+          championId,
+          shardPath,
+        })
+        return shardDetail
+      }
+    } catch (error: any) {
+      logger.warn(`Failed to load champion detail shard ${championId}; trying single file fallback:`, error.message)
     }
   }
 
@@ -625,19 +668,8 @@ async function loadChampionDetailPayload(championId: string | number): Promise<a
         championId,
         shardPath,
       })
-      const shardPayload = await fetchVersionedDataFile(
-        dataSet.dataVersion,
-        shardPath,
-        findManifestPath(dataSet.manifest, shardPath)
-      )
-      const shardData = unwrapEnvelope(shardPayload)
-      const champions = shardData?.champions || shardPayload?.champions || {}
-      const detail = champions[String(championId)] || champions[Number(championId)]
-
+      const detail = await loadChampionDetailFromShard(dataSet, championId, shardPath, 'remote')
       if (detail) {
-        Object.entries(champions).forEach(([id, championDetail]) => {
-          detailCache.set(`${dataSet.dataVersion}:champion:${id}`, championDetail)
-        })
         logger.info('[data-loader] champion detail shard fallback completed', {
           dataVersion: dataSet.dataVersion,
           championId,
@@ -1093,25 +1125,38 @@ export async function getAugmentWinrate(
 
 export async function getChampionAugmentStats(championId: string | number): Promise<any[]> {
   const dataSet = await getActiveDataSet()
-  const cacheKey = `${dataSet.dataVersion}:champion-augment-stats:${championId}`
+  const normalizedChampionId = String(championId)
+  const cacheKey = `${dataSet.dataVersion}:champion-augment-stats:${normalizedChampionId}`
   const cached = championAugmentStatsCache.get(cacheKey)
   if (cached) {
     return cached
   }
 
-  const [detail, augmentBaseById] = await Promise.all([
-    loadChampionDetailPayload(championId),
-    loadAugmentDetail(),
-  ])
-  const augments = Array.isArray(detail?.augments) ? detail.augments : []
+  const pending = championAugmentStatsPending.get(cacheKey)
+  if (pending) {
+    return pending
+  }
 
-  const result = augments
-    .filter((augment: any) => augment?.id != null)
-    .map((augment: any) => mapPublicAugmentRecommendation(augment, augmentBaseById))
-    .sort((a: any, b: any) => b.recommendScore - a.recommendScore)
+  const request = (async () => {
+    const [detail, augmentBaseById] = await Promise.all([
+      loadChampionDetailPayload(normalizedChampionId),
+      loadAugmentDetail(),
+    ])
+    const augments = Array.isArray(detail?.augments) ? detail.augments : []
 
-  championAugmentStatsCache.set(cacheKey, result)
-  return result
+    const result = augments
+      .filter((augment: any) => augment?.id != null)
+      .map((augment: any) => mapPublicAugmentRecommendation(augment, augmentBaseById))
+      .sort((a: any, b: any) => b.recommendScore - a.recommendScore)
+
+    championAugmentStatsCache.set(cacheKey, result)
+    return result
+  })().finally(() => {
+    championAugmentStatsPending.delete(cacheKey)
+  })
+
+  championAugmentStatsPending.set(cacheKey, request)
+  return request
 }
 
 export function filterAugmentsByRarity(augmentStats: any[], rarity: string | null): any[] {
@@ -1129,6 +1174,7 @@ export function clearCache(): void {
   detailCache.clear()
   augmentDetailCache.clear()
   championAugmentStatsCache.clear()
+  championAugmentStatsPending.clear()
   activeDataSetPromise = null
   activeDataSetCache = null
 }

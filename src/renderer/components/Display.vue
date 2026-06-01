@@ -97,7 +97,18 @@
             </main>
 
             <footer class="hex-footer">
-                <p>ARAMGG助手 v{{ clientVersionLabel }} - 构建 89A</p>
+                <p>
+                    ARAMGG助手 v{{ clientVersionLabel }} -
+                    <a class="footer-link" :href="ARAMGG_HOME_URL" @click.prevent="openAramggHome">
+                        {{ ARAMGG_HOME_LABEL }}
+                    </a>
+                </p>
+                <p class="footer-feedback">
+                    反馈或者建议：
+                    <a class="footer-link" :href="FEEDBACK_URL" @click.prevent="openFeedbackEmail">
+                        {{ FEEDBACK_EMAIL }}
+                    </a>
+                </p>
             </footer>
 
         </section>
@@ -115,6 +126,10 @@ import { ClipboardList, Cpu, Database, Minus, Target, X } from 'lucide-vue-next'
 const currentLolPath = ref('')
 const testStatus = ref(null)
 const versionInfo = ref(null)
+const ARAMGG_HOME_URL = 'https://aramgg.com'
+const ARAMGG_HOME_LABEL = 'aramgg.com'
+const FEEDBACK_EMAIL = 'djlinguge@gmail.com'
+const FEEDBACK_URL = `mailto:${FEEDBACK_EMAIL}`
 
 const clientVersionLabel = computed(() => {
     if (!versionInfo.value) {
@@ -176,6 +191,22 @@ const openDownloadUrl = async () => {
         await electronAPI.shell.openExternal(url)
     } catch (error) {
         console.warn('Failed to open update download url:', error)
+    }
+}
+
+const openAramggHome = async () => {
+    try {
+        await electronAPI.shell.openExternal(ARAMGG_HOME_URL)
+    } catch (error) {
+        console.warn('Failed to open ARAMGG home:', error)
+    }
+}
+
+const openFeedbackEmail = async () => {
+    try {
+        await electronAPI.shell.openExternal(FEEDBACK_URL)
+    } catch (error) {
+        console.warn('Failed to open feedback email:', error)
     }
 }
 
@@ -721,6 +752,21 @@ onMounted(() => {
     font-size: 10px;
     font-weight: 900;
     letter-spacing: 0;
+}
+
+.hex-footer .footer-feedback {
+    margin-top: 6px;
+}
+
+.footer-link {
+    color: #e2c08f;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+.footer-link:hover {
+    color: #f4ecdc;
 }
 
 .hex-scroll::-webkit-scrollbar {

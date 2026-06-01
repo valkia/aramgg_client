@@ -83,7 +83,7 @@ function requestAppQuit(reason) {
 
 function assertSafeExternalUrl(url) {
     const parsedUrl = new URL(url)
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    if (!['http:', 'https:', 'mailto:'].includes(parsedUrl.protocol)) {
         throw new Error(`Unsupported external URL protocol: ${parsedUrl.protocol}`)
     }
 
@@ -566,8 +566,15 @@ export function registerIpcHandlers(isDev) {
                 const augmentIdSet = new Set(orderedAugmentIds)
                 const augmentOrder = new Map(orderedAugmentIds.map((id, index) => [id, index]))
 
-                augmentStats = augmentStats.filter((augment) => augmentIdSet.has(augment.augmentId))
-                augmentStats.sort((a, b) => augmentOrder.get(a.augmentId) - augmentOrder.get(b.augmentId))
+                augmentStats = augmentStats.filter((augment) => {
+                    const augmentId = Number(augment.augmentId ?? augment.id)
+                    return augmentIdSet.has(augmentId)
+                })
+                augmentStats.sort((a, b) => {
+                    const leftId = Number(a.augmentId ?? a.id)
+                    const rightId = Number(b.augmentId ?? b.id)
+                    return augmentOrder.get(leftId) - augmentOrder.get(rightId)
+                })
             }
 
             const completedAt = Date.now()
