@@ -51,10 +51,7 @@ jobs:
           }
 
       - name: Install dependencies
-        shell: pwsh
-        run: |
-          $env:ELECTRON_CACHE = Join-Path $env:RUNNER_TEMP 'electron-cache'
-          npm ci --foreground-scripts
+        run: npm ci --ignore-scripts
 
       - name: Lint
         run: npm run lint
