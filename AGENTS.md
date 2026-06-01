@@ -44,6 +44,12 @@ Follow the repository’s conventional commit style: `feat:`, `fix:`, `chore:`, 
 
 Pull requests should include a short summary, test results, screenshots or screen recordings for UI changes, and notes about Electron/main/preload security impact when relevant.
 
+## Release Guidelines
+
+The GitHub release workflow runs on Node `22.18.0` with npm 10, installs with `npm ci --ignore-scripts`, and validates that a `v*` tag matches `package.json` version.
+
+After dependency or lockfile changes, verify the lockfile with `npx -p npm@10 npm ci --ignore-scripts` before publishing. Use the existing `npm run release:*` scripts so `npm version` creates the version commit and annotated tag; avoid ad hoc lightweight release tags. If a bad release tag must be cleaned up, delete the intended local and remote tags explicitly and recreate only the confirmed version tag.
+
 ## Security & Configuration Tips
 
 Renderer code must not assume Node access. Use the preload bridge and IPC APIs. Keep `contextIsolation`, `sandbox`, and `webSecurity` enabled unless a change explicitly justifies otherwise.

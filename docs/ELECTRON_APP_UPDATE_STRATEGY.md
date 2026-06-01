@@ -1,6 +1,6 @@
 # Electron 客户端版本更新方案
 
-本文档记录 aramgg Electron 客户端后续实现版本更新的方案。当前只保留方案文档，更新实现代码暂不进入工作区，等打包、发布链路验证完成后再拆分提交。
+本文档记录 aramgg Electron 客户端的版本发布和后续自动更新方案。当前 GitHub Releases 发布链路已经验证可用；应用内 `electron-updater` 运行时代码仍未接入，应后续单独提交。
 
 ## 目标
 
@@ -26,15 +26,33 @@
 
 这些做法会扩大安全边界，也和当前 Electron 安全模型、离线能力、打包发布方式不一致。
 
+## 已验证的发布链路
+
+GitHub Actions 的 `Build Windows Release` workflow 已验证 Windows 安装包发布链路：
+
+- `master` push 会构建 Actions artifact，便于检查安装包。
+- `v*` tag push 会创建 GitHub Release，并上传 NSIS 安装包、`.blockmap` 和 `latest.yml`。
+- workflow 使用 Node `22.18.0` 和 npm 10，安装依赖时执行 `npm ci --ignore-scripts`。
+- workflow 会校验 tag 版本必须等于 `package.json` 版本。
+- 已验证基线：`v0.1.4`，2026-06-02，GitHub Actions run `26766190598`。
+
+改动依赖或 lockfile 后，发布前应使用 npm 10 复现 CI 安装：
+
+```bash
+npx -p npm@10 npm ci --ignore-scripts
+```
+
+这能提前发现本地 npm 版本差异造成的 `package.json` 和 `package-lock.json` 不同步问题。
+
 ## 发布产物
 
-Windows NSIS 更新需要发布以下产物到静态文件服务或 CDN：
+Windows NSIS 更新需要发布以下产物到 GitHub Releases 或其他静态文件服务：
 
 ```text
-releases/windows/
+GitHub Release v0.2.0/
   latest.yml
-  aramgg-setup-0.2.0.exe
-  aramgg-setup-0.2.0.exe.blockmap
+  aramgg_client Setup 0.2.0.exe
+  aramgg_client Setup 0.2.0.exe.blockmap
 ```
 
 其中：
@@ -43,7 +61,7 @@ releases/windows/
 - `.exe` 是完整安装包。
 - `.blockmap` 用于差分更新。
 
-静态服务可以是 EdgeOne、对象存储、GitHub Releases 或其他 HTTPS 文件源。客户端只需要读取公开的更新 feed，不应该内置任何写入 token。
+当前 GitHub Releases 已作为发布产物托管位置验证通过。EdgeOne、对象存储或自建静态目录仍可作为后续切换更新 feed 的备选。客户端只需要读取公开的更新 feed，不应该内置任何写入 token。
 
 ## 配置形态
 
@@ -115,22 +133,21 @@ Electron 的页面更新属于应用本体更新的一部分：
 
 ## 测试清单
 
-实现更新代码前，需要先确认发布链路：
+发布链路已验证，接入应用内自动更新前仍需要完成端到端更新测试：
 
-1. 用当前版本打包，例如 `0.1.0`。
-2. 安装旧版本。
-3. 修改版本号并重新打包，例如 `0.1.1`。
-4. 把新版本 `.exe`、`.blockmap`、`latest.yml` 上传到测试 feed。
-5. 启动旧版本，确认能发现新版本。
-6. 验证下载进度、下载完成、重启安装和版本号变化。
-7. 验证没有更新时的状态。
-8. 验证网络失败、`latest.yml` 异常、hash 不匹配时的错误提示。
-9. 验证开发模式默认不会误触发更新。
-10. 验证 renderer 页面变更能随应用更新生效。
+1. 安装旧版本，例如 `0.1.4`。
+2. 修改版本号并重新发布新版本，例如 `0.1.5`。
+3. 确认 GitHub Release 包含 `.exe`、`.blockmap`、`latest.yml`。
+4. 启动旧版本，确认能发现新版本。
+5. 验证下载进度、下载完成、重启安装和版本号变化。
+6. 验证没有更新时的状态。
+7. 验证网络失败、`latest.yml` 异常、hash 不匹配时的错误提示。
+8. 验证开发模式默认不会误触发更新。
+9. 验证 renderer 页面变更能随应用更新生效。
 
 ## 待定问题
 
-- 更新文件最终托管位置：EdgeOne、对象存储、GitHub Releases 或自建静态目录。
+- 是否长期使用 GitHub Releases 作为更新 feed，或切换到 EdgeOne、对象存储、自建静态目录。
 - Windows 代码签名证书。
 - 更新 UI 放在设置页、启动提示、还是右上角状态入口。
 - 自动检查频率：启动时、每天一次、用户手动检查，或组合策略。
@@ -147,4 +164,4 @@ Electron 的页面更新属于应用本体更新的一部分：
 2. `feat: add electron app update service`
 3. `feat: expose update status in settings`
 
-每个提交都先跑 `npm run type-check`、`npm run lint`、`npm run build`。打包更新验证通过后再考虑提交完整功能。
+每个提交都先跑 `npm run type-check`、`npm run lint`、`npm run build`。涉及依赖或 lockfile 的提交额外跑 `npx -p npm@10 npm ci --ignore-scripts`。

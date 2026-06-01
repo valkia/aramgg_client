@@ -38,6 +38,13 @@ node tests/electron/test-screenshot-analysis.js
 node tests/electron/test-augment-ocr-fixtures.js
 ```
 
+## 发布与 CI
+
+- GitHub release workflow 使用 Node `22.18.0` 和 npm 10，依赖安装命令是 `npm ci --ignore-scripts`。
+- 改动依赖或 lockfile 后，发布前用 `npx -p npm@10 npm ci --ignore-scripts` 校验，避免本地 npm 版本差异漏掉锁文件问题。
+- 正式发布使用 `npm run release:patch|minor|major` 和 `npm run release:push`，让 `npm version` 创建版本提交和 annotated `v*` tag。
+- `v*` tag 必须和 `package.json` 版本一致；清理错误 release 时只删除确认范围内的本地和远端 tag。
+
 ## 安全红线
 
 - 保持 `nodeIntegration: false`、`contextIsolation: true`、`sandbox: true`、`webSecurity: true`，除非用户明确要求并接受风险。
@@ -78,3 +85,4 @@ node tests/electron/test-augment-ocr-fixtures.js
 - 游戏阶段：`docs/GAMEFLOW_DETECTION_GUIDE.md`
 - 自动海克斯：`docs/USER_GUIDE_AUTO_AUGMENT.md`
 - 客户端数据 API：`docs/client-api-strategy.md`
+- Electron 更新方案：`docs/ELECTRON_APP_UPDATE_STRATEGY.md`
