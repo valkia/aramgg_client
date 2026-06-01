@@ -16,6 +16,11 @@ import {
 import logger from './logger.ts'
 import store from './app-store.ts'
 import { getAppDataDir } from './app-paths.ts'
+import {
+    getAnalyticsStatus,
+    setAnalyticsEnabled,
+    trackAnalyticsEvent,
+} from '../services/analytics-service.ts'
 
 const TEST_AUGMENT_COUNT = 3
 const TEST_BENCH_CHAMPION_COUNT = 8
@@ -494,6 +499,26 @@ export function registerIpcHandlers(isDev) {
                 error: error.message,
             }
         }
+    })
+
+    ipcMain.handle('analytics-get-status', async () => {
+        try {
+            return { success: true, data: await getAnalyticsStatus() }
+        } catch (error) {
+            return { success: false, error: error.message }
+        }
+    })
+
+    ipcMain.handle('analytics-set-enabled', async (_event, enabled) => {
+        try {
+            return { success: true, data: await setAnalyticsEnabled(enabled) }
+        } catch (error) {
+            return { success: false, error: error.message }
+        }
+    })
+
+    ipcMain.handle('analytics-track', async (_event, name, properties = {}) => {
+        return trackAnalyticsEvent(name, properties)
     })
 
     ipcMain.handle('shell-open-external', async (_event, url) => {

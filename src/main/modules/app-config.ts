@@ -16,6 +16,7 @@ import {
 import autoScreenshotService from '../auto-screenshot-service.ts'
 import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
 import { checkForClientUpdate } from '../version-checker.ts'
+import { initAnalyticsService, markAnalyticsAppCleanExit } from '../services/analytics-service.ts'
 import logger from './logger.ts'
 import store from './app-store.ts'
 import { getAppDataDir } from './app-paths.ts'
@@ -110,6 +111,10 @@ export async function init() {
             logger.warn('Client update check failed:', error.message)
         })
     }, 1000)
+
+    initAnalyticsService().catch((error) => {
+        logger.debug('[analytics] initialization skipped:', error.message)
+    })
 
     // 初始化游戏流程监控（延迟初始化，避免阻塞应用启动）
     logger.info('将在后台初始化游戏流程监控...')
@@ -779,6 +784,7 @@ function registerF1Shortcut() {
  */
 async function runQuitCleanup() {
     logger.info('App is quitting, cleaning up...')
+    markAnalyticsAppCleanExit()
 
     lcuGameflowMonitorStopping = true
     stopGameflowWebSocket('app will quit')

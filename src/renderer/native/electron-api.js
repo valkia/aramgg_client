@@ -27,6 +27,11 @@ export const electronAPI = {
   appInfo: {
     getVersionInfo: (...args) => requireElectronAPI().appInfo.getVersionInfo(...args),
   },
+  analytics: {
+    getStatus: (...args) => requireElectronAPI().analytics.getStatus(...args),
+    setEnabled: (...args) => requireElectronAPI().analytics.setEnabled(...args),
+    track: (...args) => requireElectronAPI().analytics.track(...args),
+  },
   screenshot: {
     capture: (...args) => requireElectronAPI().screenshot.capture(...args),
     analyze: (...args) => requireElectronAPI().screenshot.analyze(...args),

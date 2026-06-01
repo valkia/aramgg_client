@@ -29,6 +29,12 @@ type ClientConfig = {
     latestVersion?: string
     downloadUrl?: string
   }
+  analytics?: {
+    enabled?: boolean
+    provider?: string
+    firebaseConfig?: Record<string, string>
+    sampleRate?: number
+  }
 }
 
 type ActiveDataSet = {

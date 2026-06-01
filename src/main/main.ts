@@ -22,12 +22,23 @@ function setupMainProcessErrorHandling() {
     process.on('unhandledRejection', (reason, promise) => {
         logger.error('主进程未处理的 Promise 拒绝:', reason)
         console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+        import('./services/analytics-service.ts').then(({ recordPendingAnalyticsEvent }) => {
+            recordPendingAnalyticsEvent('main_unhandled_rejection', {
+                message: reason?.message || String(reason || 'unknown'),
+            })
+        }).catch(() => {})
     })
 
     // 捕获未捕获的异常
     process.on('uncaughtException', (error) => {
         logger.error('主进程未捕获的异常:', error.message, error.stack)
         console.error('Uncaught Exception:', error)
+        import('./services/analytics-service.ts').then(({ recordPendingAnalyticsEvent }) => {
+            recordPendingAnalyticsEvent('main_uncaught_exception', {
+                message: error?.message || 'unknown',
+                name: error?.name || 'Error',
+            })
+        }).catch(() => {})
     })
 
     // 捕获警告
@@ -38,6 +49,9 @@ function setupMainProcessErrorHandling() {
 
     app.on('before-quit', () => {
         logger.info('[app] before-quit')
+        import('./services/analytics-service.ts').then(({ markAnalyticsAppCleanExit }) => {
+            markAnalyticsAppCleanExit()
+        }).catch(() => {})
     })
 
     app.on('render-process-gone', (_event, webContents, details) => {
@@ -46,14 +60,34 @@ function setupMainProcessErrorHandling() {
             exitCode: details.exitCode,
             url: webContents.getURL(),
         })
+        import('./services/analytics-service.ts').then(({ recordPendingAnalyticsEvent }) => {
+            recordPendingAnalyticsEvent('renderer_process_gone', {
+                reason: details.reason,
+                exit_code: details.exitCode,
+                url: webContents.getURL(),
+            })
+        }).catch(() => {})
     })
 
     app.on('child-process-gone', (_event, details) => {
         logger.error('[app] child process gone:', details)
+        import('./services/analytics-service.ts').then(({ recordPendingAnalyticsEvent }) => {
+            recordPendingAnalyticsEvent('child_process_gone', {
+                type: details.type,
+                reason: details.reason,
+                exit_code: details.exitCode,
+                name: details.name,
+            })
+        }).catch(() => {})
     })
 
     app.on('gpu-process-crashed', (_event, killed) => {
         logger.error('[app] gpu process crashed:', { killed })
+        import('./services/analytics-service.ts').then(({ recordPendingAnalyticsEvent }) => {
+            recordPendingAnalyticsEvent('gpu_process_crashed', {
+                killed,
+            })
+        }).catch(() => {})
     })
 
     // 记录应用启动

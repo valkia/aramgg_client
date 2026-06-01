@@ -55,6 +55,11 @@ const electronAPI = {
     appInfo: {
         getVersionInfo: () => ipcRenderer.invoke('get-version-info'),
     },
+    analytics: {
+        getStatus: () => ipcRenderer.invoke('analytics-get-status'),
+        setEnabled: (enabled) => ipcRenderer.invoke('analytics-set-enabled', enabled),
+        track: (name, properties) => ipcRenderer.invoke('analytics-track', name, properties),
+    },
     screenshot: {
         capture: () => ipcRenderer.invoke('screenshot-capture'),
         analyze: (imagePathOrBuffer) => ipcRenderer.invoke('analyze-screenshot', imagePathOrBuffer),

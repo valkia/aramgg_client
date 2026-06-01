@@ -52,6 +52,20 @@ https://data.dtodo.cn/api/client/v1/config
     "latestVersion": "0.1.0",
     "minimumVersion": "0.1.0",
     "downloadUrl": "https://data.dtodo.cn/downloads/aramgg-electron/latest"
+  },
+  "analytics": {
+    "enabled": true,
+    "provider": "firebase",
+    "firebaseConfig": {
+      "apiKey": "AIza...",
+      "authDomain": "aramgg-client.firebaseapp.com",
+      "projectId": "aramgg-client",
+      "storageBucket": "aramgg-client.firebasestorage.app",
+      "messagingSenderId": "781910915674",
+      "appId": "1:781910915674:web:...",
+      "measurementId": "G-CHG0KEV5K1"
+    },
+    "sampleRate": 1
   }
 }
 ```
@@ -251,6 +265,13 @@ edge-functions/api/[[default]].js
 - `config` 最后切到新的 `dataVersion`。
 - 回滚时只需要把 `config` 指回上一个可用 `dataVersion`。
 - 客户端缓存多个版本时，可以在启动后清理过旧版本，但至少保留当前版本和上一个版本。
+
+## 客户端统计
+
+- Firebase Analytics 没有专门的 Electron 桌面 SDK；Electron renderer 本质是 Chromium 页面，可以使用 Firebase Web SDK。
+- 客户端通过 `analytics.firebaseConfig` 开启统计，不需要额外服务端。
+- Firebase config 是 Web SDK 公开配置，不是服务端密钥；但应为 Electron 客户端单独建 Firebase App / GA4 数据流，避免和官网数据混在一起。
+- 客户端用 Firebase `logEvent` 上报 `page_view` 和自定义事件。由于生产页面是 `file://`，客户端会手动上报 `app://aramgg/...` 作为页面地址。
 
 ## 风险说明
 
