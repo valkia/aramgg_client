@@ -16,6 +16,7 @@ const validEvents = new Set([
     'augment-cleared',
     'game-ended',
     'end-of-game',
+    'quit-confirm-requested',
 ])
 
 const on = (channel, callback) => {
@@ -77,6 +78,7 @@ const electronAPI = {
     },
     dialogs: {
         selectLolDirectory: () => ipcRenderer.invoke('select-lol-directory'),
+        validateLolDirectory: (lolPath) => ipcRenderer.invoke('validate-lol-directory', lolPath),
     },
     lcu: {
         getChampionId: () => ipcRenderer.invoke('get-champion-id'),

@@ -111,12 +111,29 @@
                 </p>
             </footer>
 
+            <div v-if="showQuitConfirm" class="app-modal-overlay" @click.self="cancelQuitApp">
+                <section class="app-modal" role="dialog" aria-modal="true" aria-labelledby="quit-title">
+                    <div class="app-modal-copy">
+                        <h2 id="quit-title">退出ARAMGG助手？</h2>
+                        <p>退出后，英雄监控、自动截图和浮窗更新都会停止。</p>
+                    </div>
+                    <div class="app-modal-actions">
+                        <button class="app-modal-action secondary" type="button" @click="cancelQuitApp">
+                            取消
+                        </button>
+                        <button class="app-modal-action danger" type="button" @click="quitApp">
+                            退出
+                        </button>
+                    </div>
+                </section>
+            </div>
+
         </section>
     </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import GamePathConfig from './GamePathConfig.vue'
 import RuneControls from './RuneControls.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
@@ -126,10 +143,12 @@ import { ClipboardList, Cpu, Database, Minus, Target, X } from 'lucide-vue-next'
 const currentLolPath = ref('')
 const testStatus = ref(null)
 const versionInfo = ref(null)
+const showQuitConfirm = ref(false)
 const ARAMGG_HOME_URL = 'https://aramgg.com'
 const ARAMGG_HOME_LABEL = 'aramgg.com'
 const FEEDBACK_EMAIL = 'djlinguge@gmail.com'
 const FEEDBACK_URL = `mailto:${FEEDBACK_EMAIL}`
+let removeQuitConfirmListener = null
 
 const clientVersionLabel = computed(() => {
     if (!versionInfo.value) {
@@ -296,7 +315,15 @@ const hideMainWindow = () => {
     }
 }
 
-const confirmQuitApp = async () => {
+const confirmQuitApp = () => {
+    showQuitConfirm.value = true
+}
+
+const cancelQuitApp = () => {
+    showQuitConfirm.value = false
+}
+
+const quitApp = async () => {
     try {
         await electronAPI.windows.confirmQuit()
     } catch (error) {
@@ -306,6 +333,12 @@ const confirmQuitApp = async () => {
 
 onMounted(() => {
     loadVersionInfo()
+    removeQuitConfirmListener = electronAPI.events.on('quit-confirm-requested', confirmQuitApp)
+})
+
+onBeforeUnmount(() => {
+    removeQuitConfirmListener?.()
+    removeQuitConfirmListener = null
 })
 </script>
 
@@ -756,6 +789,110 @@ onMounted(() => {
 
 .hex-footer .footer-feedback {
     margin-top: 6px;
+}
+
+.app-modal-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(4, 10, 14, 0.42);
+    backdrop-filter: blur(4px);
+}
+
+.app-modal {
+    width: min(350px, 100%);
+    position: relative;
+    overflow: hidden;
+    padding: 16px;
+    border: 1px solid rgba(226, 195, 132, 0.32);
+    border-radius: 4px;
+    background:
+        linear-gradient(180deg, rgba(38, 50, 58, 0.98), rgba(9, 18, 24, 0.98));
+    box-shadow:
+        0 22px 64px rgba(0, 0, 0, 0.46),
+        inset 0 1px 0 rgba(244, 236, 220, 0.08),
+        inset 0 0 24px rgba(194, 156, 109, 0.05);
+}
+
+.app-modal::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #e2c08f, transparent);
+    opacity: 0.72;
+}
+
+.app-modal-copy {
+    margin-top: 0;
+    padding: 11px 12px;
+    border: 1px solid rgba(244, 236, 220, 0.07);
+    border-radius: 4px;
+    background: rgba(4, 15, 24, 0.42);
+}
+
+.app-modal-copy h2 {
+    margin: 0;
+    color: var(--lol-ivory);
+    font-size: 17px;
+    font-weight: 900;
+    line-height: 1.2;
+}
+
+.app-modal-copy p {
+    margin: 8px 0 0;
+    color: #bacac6;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.app-modal-actions {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.app-modal-action {
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 900;
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.app-modal-action.secondary {
+    border: 1px solid var(--lol-border-soft);
+    background: rgba(7, 10, 13, 0.42);
+    color: var(--lol-ivory);
+}
+
+.app-modal-action.secondary:hover {
+    color: var(--lol-primary-2);
+    border-color: rgba(194, 156, 109, 0.38);
+}
+
+.app-modal-action.danger {
+    border: 1px solid rgba(226, 192, 143, 0.35);
+    background: rgba(194, 156, 109, 0.12);
+    color: #e2c08f;
+}
+
+.app-modal-action.danger:hover {
+    border-color: rgba(226, 192, 143, 0.58);
+    background: linear-gradient(135deg, var(--lol-primary-2), var(--lol-primary));
+    color: var(--lol-bg);
 }
 
 .footer-link {

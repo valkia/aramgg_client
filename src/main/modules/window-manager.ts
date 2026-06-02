@@ -11,6 +11,7 @@ const __dirname = path.dirname(__filename)
 let mainWindow = null
 let popupWindow = null
 let floatingWindow = null
+let mainWindowCloseAllowed = false
 
 const MAIN_WINDOW_SIZE = { width: 380, height: 620 }
 const POPUP_WINDOW_SIZE = { width: 360, height: 640 }
@@ -201,7 +202,21 @@ export const createMainWindow = async (isDev, devServerUrl) => {
     })
     attachWindowDiagnostics('main', mainWindow)
 
-    mainWindow.on('close', () => {
+    mainWindow.on('close', (event) => {
+        if (!mainWindowCloseAllowed) {
+            event.preventDefault()
+            logger.info('Main window close requested; asking renderer for confirmation')
+            if (!mainWindow.isVisible()) {
+                mainWindow.show()
+            }
+            if (mainWindow.isMinimized()) {
+                mainWindow.restore()
+            }
+            mainWindow.focus()
+            mainWindow.webContents.send('quit-confirm-requested')
+            return
+        }
+
         logger.info('Main window closing...')
         // 关闭主窗口时，同时关闭 popup 窗口和浮动窗口
         if (popupWindow && !popupWindow.isDestroyed()) {
@@ -323,6 +338,10 @@ export const getPopupWindow = () => popupWindow
  * 获取浮动窗口实例
  */
 export const getFloatingWindow = () => floatingWindow
+
+export const allowMainWindowClose = () => {
+    mainWindowCloseAllowed = true
+}
 
 /**
  * 切换主窗口可见性

@@ -9,7 +9,8 @@
                 <Input
                     v-model="lolPath"
                     placeholder="例如: D:\\Program Files (x86)\\WeGameApps\\英雄联盟"
-                    class="path-input"
+                    :class="['path-input', { 'path-input-error': validationStatus === 'invalid' }]"
+                    @blur="validateCurrentPath({ silentEmpty: true })"
                 />
                 <div class="button-group">
                     <Button @click="selectLolDirectory" class="btn-ghost" title="浏览目录">
@@ -22,7 +23,19 @@
                     </Button>
                 </div>
             </div>
-            <p v-if="lolPath" class="path-hint">
+            <div v-if="showPathGuide" class="path-guide" :class="pathGuideClass">
+                <component :is="pathGuideIcon" class="guide-icon" />
+                <span>{{ pathGuideMessage }}</span>
+                <button
+                    v-if="suggestedPath"
+                    class="guide-action"
+                    type="button"
+                    @click="applySuggestedPath"
+                >
+                    使用上一层
+                </button>
+            </div>
+            <p v-if="lolPath && validationStatus === 'valid'" class="path-hint">
                 <Check class="hint-icon" /> {{ lolPath }}
             </p>
         </div>
@@ -30,26 +43,130 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import configCache from '../service/config-cache'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
-import { Check, FolderOpen, FolderSearch, Save } from 'lucide-vue-next'
+import { AlertTriangle, Check, FolderOpen, FolderSearch, Info, Save } from 'lucide-vue-next'
 
 const lolPath = ref('')
+const validationStatus = ref('idle')
+const validationMessage = ref('')
+const suggestedPath = ref('')
+const lastValidatedPath = ref('')
 const emit = defineEmits(['path-changed'])
+
+const pathGuideClass = computed(() => ({
+    invalid: validationStatus.value === 'invalid',
+    checking: validationStatus.value === 'checking',
+}))
+
+const showPathGuide = computed(() => validationStatus.value !== 'valid')
+
+const pathGuideIcon = computed(() => {
+    if (validationStatus.value === 'invalid') {
+        return AlertTriangle
+    }
+
+    return Info
+})
+
+const pathGuideMessage = computed(() => {
+    if (validationStatus.value === 'checking') {
+        return '正在检查游戏路径...'
+    }
+
+    if (validationMessage.value) {
+        return validationMessage.value
+    }
+
+    return '请选择英雄联盟安装目录：目录内应包含 LeagueClient 文件夹，不要选择 LeagueClient 子目录或 exe 文件。'
+})
+
+const setInvalidPathGuide = (message) => {
+    validationStatus.value = 'invalid'
+    validationMessage.value = message
+    suggestedPath.value = ''
+}
+
+const validateCurrentPath = async (options = {}) => {
+    const path = lolPath.value.trim()
+
+    if (!path) {
+        if (options.silentEmpty) {
+            validationStatus.value = 'idle'
+            validationMessage.value = ''
+            suggestedPath.value = ''
+        } else {
+            setInvalidPathGuide('请输入英雄联盟安装目录，或点击“浏览”选择目录。')
+        }
+        return false
+    }
+
+    if (!hasElectronAPI()) {
+        validationStatus.value = 'valid'
+        validationMessage.value = '路径已填写；自动校验需要在 Electron 应用内运行。'
+        suggestedPath.value = ''
+        lastValidatedPath.value = path
+        return true
+    }
+
+    validationStatus.value = 'checking'
+    validationMessage.value = ''
+    suggestedPath.value = ''
+
+    try {
+        const result = await electronAPI.dialogs.validateLolDirectory(path)
+
+        if (lolPath.value.trim() !== path) {
+            return false
+        }
+
+        if (!result?.success) {
+            throw new Error(result?.message || result?.error || '路径校验失败')
+        }
+
+        lastValidatedPath.value = path
+        validationStatus.value = result.valid ? 'valid' : 'invalid'
+        validationMessage.value = result.message || (result.valid ? '路径格式正确。' : '游戏路径不正确，请重新选择。')
+        suggestedPath.value = result.suggestedPath || ''
+        return Boolean(result.valid)
+    } catch (error) {
+        if (lolPath.value.trim() !== path) {
+            return false
+        }
+
+        setInvalidPathGuide(error.message || '路径校验失败，请重试。')
+        lastValidatedPath.value = path
+        return false
+    }
+}
+
+const applySuggestedPath = async () => {
+    if (!suggestedPath.value) {
+        return
+    }
+
+    lolPath.value = suggestedPath.value
+    await validateCurrentPath()
+}
 
 /**
  * 保存游戏路径到缓存和主进程 store
  */
 const saveLolPath = async () => {
     if (!lolPath.value.trim()) {
-        alert('请输入游戏路径')
+        setInvalidPathGuide('请输入英雄联盟安装目录，或点击“浏览”选择目录。')
         return
     }
 
     const path = lolPath.value.trim()
+    const isValid = await validateCurrentPath()
+
+    if (!isValid) {
+        return
+    }
 
     // 保存到 localStorage（本地缓存）
     const success = configCache.saveLolPath(path)
@@ -65,7 +182,6 @@ const saveLolPath = async () => {
     }
 
     if (success) {
-        alert('游戏路径已保存')
         console.log('✅ 游戏路径已保存:', path)
         emit('path-changed', path)
     } else {
@@ -87,7 +203,7 @@ const selectLolDirectory = async () => {
 
         if (result.success && result.path) {
             lolPath.value = result.path
-            saveLolPath()
+            await saveLolPath()
         } else {
             alert('目录选择失败: ' + (result.reason || result.error || '未知错误'))
         }
@@ -116,7 +232,10 @@ const loadLolPath = async () => {
 
     if (path) {
         lolPath.value = path
-        emit('path-changed', path)
+        const isValid = await validateCurrentPath({ silentEmpty: true })
+        if (isValid) {
+            emit('path-changed', path)
+        }
     }
 
     if (stored && stored !== cached) {
@@ -129,6 +248,14 @@ const loadLolPath = async () => {
         }
     }
 }
+
+watch(lolPath, (path) => {
+    if (path.trim() !== lastValidatedPath.value) {
+        validationStatus.value = 'idle'
+        validationMessage.value = ''
+        suggestedPath.value = ''
+    }
+})
 
 // 组件挂载时加载缓存路径
 onMounted(() => {
@@ -206,6 +333,16 @@ onMounted(() => {
     box-shadow: 0 0 0 3px rgba(194, 156, 109, 0.12);
 }
 
+.path-input-error {
+    border-color: rgba(255, 99, 99, 0.82);
+    background: rgba(42, 12, 16, 0.42);
+}
+
+.path-input-error:focus {
+    border-color: rgba(255, 126, 126, 0.95);
+    box-shadow: 0 0 0 3px rgba(255, 99, 99, 0.16);
+}
+
 .button-group {
     display: flex;
     gap: 8px;
@@ -263,6 +400,57 @@ onMounted(() => {
     height: 15px;
 }
 
+.path-guide {
+    margin: 10px 0 0;
+    padding: 8px 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    border: 1px solid rgba(244, 236, 220, 0.08);
+    border-radius: 4px;
+    background: rgba(4, 15, 24, 0.34);
+    color: var(--lol-muted);
+    font-size: 11px;
+    line-height: 1.45;
+}
+
+.path-guide.invalid {
+    color: #ffb4ab;
+    border-color: rgba(255, 99, 99, 0.36);
+    background: rgba(68, 14, 20, 0.34);
+}
+
+.path-guide.checking {
+    color: var(--lol-primary-2);
+    border-color: rgba(194, 156, 109, 0.2);
+    background: rgba(194, 156, 109, 0.08);
+}
+
+.guide-icon {
+    width: 14px;
+    height: 14px;
+    margin-top: 1px;
+    flex: 0 0 auto;
+}
+
+.guide-action {
+    margin-left: auto;
+    flex: 0 0 auto;
+    border: 1px solid rgba(255, 180, 171, 0.28);
+    border-radius: 4px;
+    background: rgba(255, 180, 171, 0.08);
+    color: #ffcec8;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.guide-action:hover {
+    border-color: rgba(255, 180, 171, 0.5);
+    background: rgba(255, 180, 171, 0.15);
+}
+
 .path-hint {
     margin: 12px 0 0;
     padding: 8px 12px;
@@ -291,6 +479,10 @@ onMounted(() => {
 
     .button-group {
         flex-direction: row;
+    }
+
+    .path-guide {
+        align-items: flex-start;
     }
 }
 </style>

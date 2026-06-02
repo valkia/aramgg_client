@@ -49,6 +49,7 @@ export const electronAPI = {
   },
   dialogs: {
     selectLolDirectory: (...args) => requireElectronAPI().dialogs.selectLolDirectory(...args),
+    validateLolDirectory: (...args) => requireElectronAPI().dialogs.validateLolDirectory(...args),
   },
   lcu: {
     getChampionId: (...args) => requireElectronAPI().lcu.getChampionId(...args),

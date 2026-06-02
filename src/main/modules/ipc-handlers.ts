@@ -1,5 +1,7 @@
 // @ts-nocheck
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, shell } from 'electron'
+import fs from 'fs/promises'
+import path from 'path'
 import { captureScreenshot } from '../screenshot.ts'
 import { analyzeScreenshot } from '../image-analyzer.ts'
 import autoScreenshotService from '../auto-screenshot-service.ts'
@@ -7,6 +9,7 @@ import { registerLCUIpcHandlers } from '../services/lcu/ipc-handlers.ts'
 import {
     applyFloatingWindowLayout,
     applyPopupWindowLayout,
+    allowMainWindowClose,
     createPopupWindow,
     getFloatingWindow,
     getMainWindow,
@@ -67,6 +70,8 @@ function requestAppQuit(reason) {
         logger.warn('[app] failed to stop auto screenshot before quit:', error.message)
     }
 
+    allowMainWindowClose()
+
     const forceExitTimer = setTimeout(() => {
         logger.warn('[app] force exiting after quit timeout')
         for (const window of BrowserWindow.getAllWindows()) {
@@ -88,6 +93,78 @@ function assertSafeExternalUrl(url) {
     }
 
     return parsedUrl.toString()
+}
+
+async function directoryExists(directoryPath) {
+    try {
+        const stats = await fs.stat(directoryPath)
+        return stats.isDirectory()
+    } catch {
+        return false
+    }
+}
+
+async function validateLolDirectory(lolPath) {
+    const normalizedPath = typeof lolPath === 'string' ? lolPath.trim() : ''
+
+    if (!normalizedPath) {
+        return {
+            success: true,
+            valid: false,
+            reason: 'empty',
+            message: '请输入英雄联盟安装目录，或点击“浏览”选择目录。',
+        }
+    }
+
+    let stats
+    try {
+        stats = await fs.stat(normalizedPath)
+    } catch {
+        return {
+            success: true,
+            valid: false,
+            reason: 'not-found',
+            message: '这个路径不存在。请检查拼写，或点击“浏览”重新选择英雄联盟安装目录。',
+        }
+    }
+
+    if (!stats.isDirectory()) {
+        return {
+            success: true,
+            valid: false,
+            reason: 'not-directory',
+            message: '请选择文件夹路径，不要选择 exe 文件或快捷方式。',
+        }
+    }
+
+    const directoryName = path.basename(path.normalize(normalizedPath)).toLowerCase()
+    if (directoryName === 'leagueclient') {
+        const parentPath = path.dirname(normalizedPath)
+        return {
+            success: true,
+            valid: false,
+            reason: 'league-client-subdirectory',
+            message: `当前选中的是 LeagueClient 子目录，请改选上一层英雄联盟安装目录：${parentPath}`,
+            suggestedPath: parentPath,
+        }
+    }
+
+    const leagueClientPath = path.join(normalizedPath, 'LeagueClient')
+    if (!(await directoryExists(leagueClientPath))) {
+        return {
+            success: true,
+            valid: false,
+            reason: 'missing-league-client',
+            message: '未找到 LeagueClient 文件夹。请选择包含 LeagueClient 的英雄联盟安装目录，例如 C:\\Riot Games\\League of Legends 或 WeGameApps\\英雄联盟。',
+        }
+    }
+
+    return {
+        success: true,
+        valid: true,
+        reason: 'ok',
+        message: '路径格式正确。若后续连接失败，请确认英雄联盟客户端已启动。',
+    }
 }
 
 function sampleItems(items, count) {
@@ -457,27 +534,8 @@ export function registerIpcHandlers(isDev) {
     })
 
     ipcMain.handle('confirm-quit-app', async () => {
-        const mainWindow = getMainWindow()
-        const options = {
-            type: 'question',
-            buttons: ['退出', '取消'],
-            defaultId: 1,
-            cancelId: 1,
-            noLink: true,
-            title: '退出ARAMGG助手',
-            message: '确定退出ARAMGG助手？',
-            detail: '退出后，英雄监控、自动截图和浮窗更新都会停止。',
-        }
-        const result = mainWindow && !mainWindow.isDestroyed()
-            ? await dialog.showMessageBox(mainWindow, options)
-            : await dialog.showMessageBox(options)
-
-        if (result.response === 0) {
-            requestAppQuit('user confirmed quit')
-            return { success: true, quit: true }
-        }
-
-        return { success: true, quit: false }
+        requestAppQuit('user confirmed quit')
+        return { success: true, quit: true }
     })
 
     ipcMain.on('restart-app', () => {
@@ -712,6 +770,20 @@ export function registerIpcHandlers(isDev) {
                 success: false,
                 path: null,
                 error: error.message,
+            }
+        }
+    })
+
+    ipcMain.handle('validate-lol-directory', async (_event, lolPath) => {
+        try {
+            return await validateLolDirectory(lolPath)
+        } catch (error) {
+            logger.error('Directory validation failed:', error)
+            return {
+                success: false,
+                valid: false,
+                reason: 'validation-error',
+                message: error.message || '路径校验失败，请重试。',
             }
         }
     })
