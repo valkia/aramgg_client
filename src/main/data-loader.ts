@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from 'fs/promises'
+import { mkdir, readFile, rename, stat, writeFile } from 'fs/promises'
 import path from 'path'
 import logger from './modules/logger.ts'
 import { getAppDataDir } from './modules/app-paths.ts'
@@ -56,6 +56,14 @@ const DATA_CACHE_DIR_NAME = 'data'
 const BUNDLED_DATA_DIR_NAME = 'client-data'
 const CURRENT_DATA_FILE = 'current.json'
 const DATA_CACHE_SCHEMA_VERSION = 3
+const DATA_REFRESH_CONCURRENCY = 4
+const REQUIRED_VERSION_DATA_PATHS = new Set([
+  'augments.json',
+  'champions.json',
+  'items.json',
+  'manifest.json',
+  'champion-shards/index.json',
+])
 const cache = new Map<string, { data: any; createdAt: number }>()
 const pendingRequests = new Map<string, Promise<any>>()
 const pendingDataFileRequests = new Map<string, Promise<any>>()
@@ -67,6 +75,7 @@ let electronFetch: any = null
 let dataRootDirPromise: Promise<string> | null = null
 let activeDataSetPromise: Promise<ActiveDataSet> | null = null
 let activeDataSetCache: { data: ActiveDataSet; createdAt: number } | null = null
+let activeDataSetRefreshPromise: Promise<ActiveDataSet | null> | null = null
 
 const rarityMap: Record<string, string> = {
   0: 'kSilver',
@@ -206,6 +215,17 @@ async function getVersionDir(dataVersion: string): Promise<string> {
   return versionDir
 }
 
+async function getDataFileCandidatePaths(dataVersion: string, dataPath: string): Promise<string[]> {
+  const dataRootDir = await getDataRootDir()
+  const normalizedPath = normalizeDataPath(dataPath)
+  return [
+    path.join(dataRootDir, 'versions', sanitizePathPart(dataVersion), normalizedPath),
+    ...getBundledDataRootDirs().map((bundledDataRootDir) =>
+      path.join(bundledDataRootDir, 'versions', sanitizePathPart(dataVersion), normalizedPath)
+    ),
+  ]
+}
+
 async function readJsonFile(filePath: string): Promise<any | null> {
   try {
     const content = await readFile(filePath, 'utf8')
@@ -219,6 +239,18 @@ async function readJsonFile(filePath: string): Promise<any | null> {
   }
 }
 
+async function getJsonFileSize(filePath: string): Promise<number | null> {
+  try {
+    return (await stat(filePath)).size
+  } catch (error: any) {
+    if (error.code !== 'ENOENT') {
+      logger.warn(`Failed to stat JSON file ${filePath}:`, error.message)
+    }
+
+    return null
+  }
+}
+
 async function writeJsonFileAtomic(filePath: string, payload: any): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true })
   const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`
@@ -226,24 +258,37 @@ async function writeJsonFileAtomic(filePath: string, payload: any): Promise<void
   await rename(tempPath, filePath)
 }
 
-async function readCurrentDataPointer(): Promise<any | null> {
+async function readCachedCurrentDataPointer(): Promise<any | null> {
   const dataRootDir = await getDataRootDir()
-  const cachedPointer = await readJsonFile(path.join(dataRootDir, CURRENT_DATA_FILE))
-  if (cachedPointer) {
-    return cachedPointer
-  }
+  return readJsonFile(path.join(dataRootDir, CURRENT_DATA_FILE))
+}
 
+async function readBundledCurrentDataPointers(): Promise<any[]> {
+  const pointers: any[] = []
   for (const bundledDataRootDir of getBundledDataRootDirs()) {
     const bundledPointer = await readJsonFile(path.join(bundledDataRootDir, CURRENT_DATA_FILE))
     if (bundledPointer) {
       logger.info('[data-loader] bundled data pointer found', {
         dataVersion: bundledPointer.dataVersion || null,
       })
-      return bundledPointer
+      pointers.push(bundledPointer)
     }
   }
 
-  return null
+  return pointers
+}
+
+async function readCurrentDataPointerCandidates(): Promise<Array<{ pointer: any; source: string }>> {
+  const candidates: Array<{ pointer: any; source: string }> = []
+  const cachedPointer = await readCachedCurrentDataPointer()
+  if (cachedPointer) {
+    candidates.push({ pointer: cachedPointer, source: 'cache' })
+  }
+
+  const bundledPointers = await readBundledCurrentDataPointers()
+  bundledPointers.forEach((pointer) => candidates.push({ pointer, source: 'bundled' }))
+
+  return candidates
 }
 
 async function writeCurrentDataPointer(config: ClientConfig): Promise<void> {
@@ -315,20 +360,67 @@ function findManifestPathIfExists(manifest: any, logicalPath: string): string | 
   return entry ? normalizeDataPath(String(entry.path || entry.url || logicalPath)) : null
 }
 
-async function readDataFileFromDisk(dataVersion: string, dataPath: string): Promise<any | null> {
-  const versionDir = await getVersionDir(dataVersion)
+function isRequiredBundledDataPath(dataPath: string): boolean {
   const normalizedPath = normalizeDataPath(dataPath)
-  const diskPayload = await readJsonFile(path.join(versionDir, normalizedPath))
-  if (diskPayload != null) {
-    return diskPayload
+  return REQUIRED_VERSION_DATA_PATHS.has(normalizedPath) || normalizedPath.startsWith('champion-shards/')
+}
+
+function collectRequiredVersionDataFiles(manifest: any): Array<{ path: string; bytes: number }> {
+  const filesByPath = new Map<string, { path: string; bytes: number }>()
+  for (const dataPath of REQUIRED_VERSION_DATA_PATHS) {
+    filesByPath.set(dataPath, { path: dataPath, bytes: 0 })
   }
 
-  for (const bundledDataRootDir of getBundledDataRootDirs()) {
-    const bundledPayload = await readJsonFile(
-      path.join(bundledDataRootDir, 'versions', sanitizePathPart(dataVersion), normalizedPath)
-    )
-    if (bundledPayload != null) {
-      return bundledPayload
+  getManifestFileEntries(manifest)
+    .map((entry: any) => ({
+      path: normalizeDataPath(String(entry.path || entry.url || '')),
+      bytes: Number(entry.bytes || 0),
+    }))
+    .filter((entry: any) => entry.path && isRequiredBundledDataPath(entry.path))
+    .forEach((entry: any) => filesByPath.set(entry.path, entry))
+
+  return [...filesByPath.values()].sort((left, right) => left.path.localeCompare(right.path))
+}
+
+async function hasDataFile(dataVersion: string, dataPath: string, expectedBytes = 0): Promise<boolean> {
+  for (const filePath of await getDataFileCandidatePaths(dataVersion, dataPath)) {
+    const fileSize = await getJsonFileSize(filePath)
+    if (fileSize == null) {
+      continue
+    }
+
+    if (expectedBytes > 0 && fileSize !== expectedBytes) {
+      continue
+    }
+
+    return true
+  }
+
+  return false
+}
+
+async function isCompleteVersionDataSet(dataVersion: string, manifest: any): Promise<boolean> {
+  const requiredFiles = collectRequiredVersionDataFiles(manifest)
+  for (const file of requiredFiles) {
+    if (!await hasDataFile(dataVersion, file.path, file.bytes)) {
+      logger.debug('[data-loader] data version completeness check missing file', {
+        dataVersion,
+        path: file.path,
+        expectedBytes: file.bytes || null,
+      })
+      return false
+    }
+  }
+
+  return true
+}
+
+async function readDataFileFromDisk(dataVersion: string, dataPath: string): Promise<any | null> {
+  const normalizedPath = normalizeDataPath(dataPath)
+  for (const filePath of await getDataFileCandidatePaths(dataVersion, normalizedPath)) {
+    const payload = await readJsonFile(filePath)
+    if (payload != null) {
+      return payload
     }
   }
 
@@ -440,50 +532,122 @@ async function loadManifestForConfig(config: ClientConfig): Promise<any> {
   return fetchVersionedDataFile(dataVersion, 'manifest.json', manifestPath, { force: true })
 }
 
+async function runLimited<T>(items: T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
+  let nextIndex = 0
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    while (nextIndex < items.length) {
+      const item = items[nextIndex]
+      nextIndex += 1
+      await worker(item)
+    }
+  })
+
+  await Promise.all(workers)
+}
+
 async function prepareDataVersion(config: ClientConfig): Promise<ActiveDataSet> {
   const dataVersion = String(config.dataVersion || '')
   const manifest = await loadManifestForConfig(config)
-  const requiredDataPaths = [
-    'augments.json',
-    'champions.json',
-    'items.json',
-    'champion-shards/index.json',
-  ]
+  const requiredDataPaths = collectRequiredVersionDataFiles(manifest)
+    .map((file) => file.path)
+    .filter((dataPath) => dataPath !== 'manifest.json')
 
-  await Promise.all(
-    requiredDataPaths.map((dataPath) =>
-      fetchVersionedDataFile(dataVersion, dataPath, findManifestPath(manifest, dataPath), {
+  await runLimited(requiredDataPaths, DATA_REFRESH_CONCURRENCY, async (dataPath) => {
+    await fetchVersionedDataFile(dataVersion, dataPath, findManifestPath(manifest, dataPath), {
         force: true,
       })
-    )
-  )
+  })
   await writeCurrentDataPointer(config)
+
+  logger.info('[data-loader] data version files prepared', {
+    dataVersion,
+    fileCount: requiredDataPaths.length + 1,
+  })
 
   return { config, dataVersion, manifest }
 }
 
 async function loadCachedActiveDataSet(): Promise<ActiveDataSet | null> {
-  const current = await readCurrentDataPointer()
-  const dataVersion = String(current?.dataVersion || '')
-  if (!dataVersion) {
-    return null
-  }
+  for (const candidate of await readCurrentDataPointerCandidates()) {
+    const current = candidate.pointer
+    const dataVersion = String(current?.dataVersion || '')
+    if (!dataVersion) {
+      continue
+    }
 
-  const manifest = await readDataFileFromDisk(dataVersion, 'manifest.json')
-  if (!manifest) {
-    return null
-  }
+    const manifest = await readDataFileFromDisk(dataVersion, 'manifest.json')
+    if (!manifest) {
+      continue
+    }
 
-  return {
-    config: {
+    if (!await isCompleteVersionDataSet(dataVersion, manifest)) {
+      logger.warn('[data-loader] cached data version is incomplete; skipping foreground use', {
+        dataVersion,
+        source: candidate.source,
+      })
+      continue
+    }
+
+    return {
+      config: {
+        dataVersion,
+        gamePatch: current.gamePatch || '',
+        generatedAt: current.generatedAt || '',
+        manifest: current.manifest || `${getVersionDataPrefix(dataVersion)}/manifest.json`,
+      },
       dataVersion,
-      gamePatch: current.gamePatch || '',
-      generatedAt: current.generatedAt || '',
-      manifest: current.manifest || `${getVersionDataPrefix(dataVersion)}/manifest.json`,
-    },
-    dataVersion,
-    manifest,
+      manifest,
+    }
   }
+
+  return null
+}
+
+function refreshLatestDataVersionInBackground(currentDataSet: ActiveDataSet): void {
+  if (activeDataSetRefreshPromise) {
+    return
+  }
+
+  activeDataSetRefreshPromise = (async () => {
+    const config = await loadDataApiConfig()
+    const remoteDataVersion = String(config?.dataVersion || '')
+    if (!remoteDataVersion || remoteDataVersion === currentDataSet.dataVersion) {
+      return currentDataSet
+    }
+
+    logger.info('[data-loader] remote data version refresh queued', {
+      cachedDataVersion: currentDataSet.dataVersion,
+      remoteDataVersion,
+    })
+
+    const dataSet = await prepareDataVersion(config)
+    if (!await isCompleteVersionDataSet(dataSet.dataVersion, dataSet.manifest)) {
+      throw new Error(`Prepared data version ${dataSet.dataVersion} is incomplete`)
+    }
+
+    return dataSet
+  })()
+    .then((dataSet) => {
+      if (!dataSet || dataSet.dataVersion === currentDataSet.dataVersion) {
+        return dataSet
+      }
+
+      activeDataSetCache = {
+        data: dataSet,
+        createdAt: Date.now(),
+      }
+      logger.info('[data-loader] active data version refreshed in background', {
+        dataVersion: dataSet.dataVersion,
+      })
+      return dataSet
+    })
+    .catch((error: any) => {
+      logger.warn('[data-loader] background data refresh failed:', error.message)
+      return null
+    })
+    .finally(() => {
+      activeDataSetRefreshPromise = null
+    })
 }
 
 async function resolveActiveDataSet(): Promise<ActiveDataSet> {
@@ -492,25 +656,20 @@ async function resolveActiveDataSet(): Promise<ActiveDataSet> {
 
   try {
     cachedDataSet = await loadCachedActiveDataSet()
+    if (cachedDataSet) {
+      logger.info('[data-loader] active data version resolved from complete local data', {
+        dataVersion: cachedDataSet.dataVersion,
+        durationMs: getElapsedMs(startedAt),
+      })
+      refreshLatestDataVersionInBackground(cachedDataSet)
+      return cachedDataSet
+    }
+
     const config = await loadDataApiConfig()
     const remoteDataVersion = String(config?.dataVersion || '')
 
     if (!remoteDataVersion) {
       throw new Error('Remote client data config is missing dataVersion')
-    }
-
-    if (cachedDataSet && cachedDataSet.dataVersion === remoteDataVersion) {
-      logger.debug('[data-loader] active data version resolved from cache', {
-        dataVersion: remoteDataVersion,
-        durationMs: getElapsedMs(startedAt),
-      })
-      return {
-        ...cachedDataSet,
-        config: {
-          ...cachedDataSet.config,
-          ...config,
-        },
-      }
     }
 
     const preparedDataSet = await prepareDataVersion(config)
