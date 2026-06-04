@@ -170,6 +170,7 @@ async function runLimited(items, limit, worker) {
 
 async function main() {
   const startedAt = Date.now()
+  console.log(`[client-data] fetching config from ${getApiUrl(`${DATA_API_PREFIX}/config`)}`)
   const config = await fetchJson(`${DATA_API_PREFIX}/config`)
   const dataVersion = String(config?.dataVersion || '')
 
@@ -178,6 +179,11 @@ async function main() {
   }
 
   const manifestPath = config.manifest || `${DATA_API_PREFIX}/data/${encodeURIComponent(dataVersion)}/manifest.json`
+  console.log(
+    `[client-data] remote config dataVersion=${dataVersion} ` +
+      `gamePatch=${config.gamePatch || 'unknown'} generatedAt=${config.generatedAt || 'unknown'}`
+  )
+  console.log(`[client-data] fetching manifest from ${getApiUrl(manifestPath)}`)
   const manifestText = await fetchText(manifestPath)
   const manifest = JSON.parse(manifestText)
   const versionDir = path.join(OUTPUT_DIR, 'versions', sanitizePathPart(dataVersion))
@@ -202,11 +208,34 @@ async function main() {
 
   const files = [...filesByPath.values()].sort((a, b) => a.path.localeCompare(b.path))
   const existingPointer = await readJsonFile(path.join(OUTPUT_DIR, 'current.json'))
+  const shardCount = files.filter((file) =>
+    file.path.startsWith('champion-shards/') && file.path.endsWith('.json') && file.path !== 'champion-shards/index.json'
+  ).length
+  const totalBytes = files.reduce((sum, file) => sum + (file.bytes || 0), 0)
+
+  console.log(
+    `[client-data] required bundle files=${files.length} shards=${shardCount} ` +
+      `bytes=${totalBytes} output=${path.resolve(OUTPUT_DIR)}`
+  )
 
   if (
     String(existingPointer?.dataVersion || '') === dataVersion &&
     await isExistingBundleComplete(versionDir, files)
   ) {
+    await writeTextFile(
+      path.join(OUTPUT_DIR, 'current.json'),
+      JSON.stringify({
+        schemaVersion: 3,
+        dataVersion,
+        gamePatch: config.gamePatch || '',
+        generatedAt: config.generatedAt || '',
+        bundledFileCount: files.length,
+        bundledShardCount: shardCount,
+        bundledBytes: totalBytes,
+        manifest: config.manifest || manifestPath,
+        activatedAt: existingPointer?.activatedAt || new Date().toISOString(),
+      })
+    )
     console.log(
       `[client-data] existing bundle for ${dataVersion} is complete; ` +
         `skipped download in ${Date.now() - startedAt}ms`
@@ -229,15 +258,18 @@ async function main() {
       dataVersion,
       gamePatch: config.gamePatch || '',
       generatedAt: config.generatedAt || '',
+      bundledFileCount: files.length,
+      bundledShardCount: shardCount,
+      bundledBytes: totalBytes,
       manifest: config.manifest || manifestPath,
       activatedAt: new Date().toISOString(),
     })
   )
 
-  const totalBytes = files.reduce((sum, file) => sum + (file.bytes || 0), 0)
   console.log(
     `[client-data] bundled ${files.length} files for ${dataVersion} ` +
-      `(${(totalBytes / 1024 / 1024).toFixed(2)} MB) in ${Date.now() - startedAt}ms`
+      `with ${shardCount} shards (${(totalBytes / 1024 / 1024).toFixed(2)} MB) ` +
+      `in ${Date.now() - startedAt}ms`
   )
 }
 

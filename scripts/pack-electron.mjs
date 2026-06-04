@@ -150,6 +150,20 @@ async function getPackageVersion() {
   return packageJson.version
 }
 
+async function logPreparedClientData() {
+  try {
+    const currentJsonPath = path.join(process.cwd(), 'resources', 'client-data', 'current.json')
+    const current = JSON.parse(await readFile(currentJsonPath, 'utf8'))
+    console.log(
+      `[pack] client-data ready dataVersion=${current.dataVersion || 'unknown'} ` +
+        `gamePatch=${current.gamePatch || 'unknown'} generatedAt=${current.generatedAt || 'unknown'} ` +
+        `files=${current.bundledFileCount ?? 'unknown'} shards=${current.bundledShardCount ?? 'unknown'}`
+    )
+  } catch (error) {
+    console.warn(`[pack] client-data current.json is unavailable: ${error.message}`)
+  }
+}
+
 async function removeFileIfExists(filePath) {
   try {
     await rm(filePath, { force: true })
@@ -184,6 +198,7 @@ async function main() {
   if (clientDataResult.code !== 0) {
     process.exit(clientDataResult.code ?? 1)
   }
+  await logPreparedClientData()
 
   const buildResult = await run('electron-vite', ['build'], {
     env: packEnv,

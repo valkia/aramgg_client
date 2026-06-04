@@ -67,6 +67,22 @@ jobs:
           $env:ELECTRON_BUILDER_CACHE = Join-Path $env:RUNNER_TEMP 'electron-builder-cache'
           npm run pack
 
+          $clientDataCurrent = Join-Path $PWD 'build/win-unpacked/resources/client-data/current.json'
+          if (!(Test-Path $clientDataCurrent)) {
+            Write-Error "Packaged client-data current.json was not found at $clientDataCurrent"
+            exit 1
+          }
+
+          $clientData = Get-Content $clientDataCurrent -Raw | ConvertFrom-Json
+          $shardDir = Join-Path $PWD "build/win-unpacked/resources/client-data/versions/$($clientData.dataVersion)/champion-shards"
+          $shardCount = @(Get-ChildItem $shardDir -Filter '*.json' -File | Where-Object { $_.Name -ne 'index.json' }).Count
+          Write-Host "Packaged client-data dataVersion=$($clientData.dataVersion) gamePatch=$($clientData.gamePatch) generatedAt=$($clientData.generatedAt) files=$($clientData.bundledFileCount) shards=$shardCount bytes=$($clientData.bundledBytes)"
+
+          if ($shardCount -lt 40) {
+            Write-Error "Packaged client-data shard count is too low: $shardCount"
+            exit 1
+          }
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
