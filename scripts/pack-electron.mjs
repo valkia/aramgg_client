@@ -176,6 +176,15 @@ async function main() {
   const packEnv = await createPackEnv()
   const packageVersion = await getPackageVersion()
 
+  const clientDataResult = await run('node', ['scripts/fetch-client-data.mjs'], {
+    env: packEnv,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+
+  if (clientDataResult.code !== 0) {
+    process.exit(clientDataResult.code ?? 1)
+  }
+
   const buildResult = await run('electron-vite', ['build'], {
     env: packEnv,
     stdio: ['ignore', 'pipe', 'pipe'],

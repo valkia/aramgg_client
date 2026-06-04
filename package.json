@@ -6,6 +6,7 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "node scripts/dev-electron.mjs",
+    "prepare:client-data": "node scripts/fetch-client-data.mjs",
     "build": "electron-vite build",
     "pack": "node scripts/pack-electron.mjs",
     "start": "electron .",
@@ -60,6 +61,13 @@
       {
         "from": "resources/paddleocr",
         "to": "paddleocr"
+      },
+      {
+        "to": "client-data",
+        "from": "resources/client-data",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {

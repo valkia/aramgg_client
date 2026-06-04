@@ -55,7 +55,7 @@
                 </div>
 
                 <GamePathConfig @path-changed="onPathChanged" />
-                <RuneControls @opgg-data-ready="onOpggDataReady" />
+                <ItemSetInstaller :lol-path="currentLolPath" />
                 <ChampionMonitor />
 
                 <section class="diagnostic-panel">
@@ -135,7 +135,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import GamePathConfig from './GamePathConfig.vue'
-import RuneControls from './RuneControls.vue'
+import ItemSetInstaller from './ItemSetInstaller.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
 import { electronAPI } from '../native/electron-api.js'
 import { ClipboardList, Cpu, Database, Minus, Target, X } from 'lucide-vue-next'
@@ -194,10 +194,6 @@ const loadVersionInfo = async () => {
 const onPathChanged = (path) => {
     currentLolPath.value = path
     console.log('Game path updated', path)
-}
-
-const onOpggDataReady = (data) => {
-    console.log('OP.GG rune data ready', data)
 }
 
 const openDownloadUrl = async () => {

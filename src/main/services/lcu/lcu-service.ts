@@ -279,6 +279,8 @@ export class LCUService {
         curSession: `${url}/lol-champ-select/v1/session`,
         curPerk: `${url}/lol-perks/v1/currentpage`,
         perks: `${url}/lol-perks/v1/pages`,
+        currentSummoner: `${url}/lol-summoner/v1/current-summoner`,
+        itemSets: `${url}/lol-item-sets/v1/item-sets`,
         position1: `${url}/lol-lobby-team-builder/v1/position-preferences`,
         position2: `${url}/lol-lobby-team-builder/v2/position-preferences`,
         gameflowPhase: `${url}/lol-gameflow/v1/gameflow-phase`,
@@ -458,6 +460,165 @@ export class LCUService {
       logger.warn('获取符文页列表失败:', err.message)
       return []
     }
+  }
+
+  async getCurrentSummoner(): Promise<any | null> {
+    if (!this.active || !this.url) {
+      await this.getAuthToken()
+    }
+
+    if (!this.urls || !this.auth) {
+      return null
+    }
+
+    try {
+      const res = await axios.get(this.urls.currentSummoner, {
+        ...this.auth,
+        httpsAgent: this.httpsAgent,
+        validateStatus: (status) => status < 500,
+        timeout: 5000,
+      })
+
+      return res.status >= 200 && res.status < 300 ? res.data : null
+    } catch (error) {
+      const err = error as Error
+      logger.warn('获取当前召唤师失败:', err.message)
+      return null
+    }
+  }
+
+  async syncItemSets(itemSets: any[]): Promise<{
+    success: boolean
+    summonerId?: number
+    status?: number
+    method?: 'put'
+    removedCount?: number
+    itemSetCount?: number
+    error?: string
+  }> {
+    const managedItemSets = Array.isArray(itemSets)
+      ? itemSets.filter((itemSet) => itemSet && typeof itemSet === 'object')
+      : []
+
+    if (!this.active || !this.url) {
+      await this.getAuthToken()
+    }
+
+    if (!this.urls || !this.auth) {
+      return { success: false, error: 'LCU 未连接' }
+    }
+
+    const summoner = await this.getCurrentSummoner()
+    const summonerId = Number(summoner?.summonerId ?? summoner?.accountId ?? summoner?.id)
+    if (!Number.isFinite(summonerId) || summonerId <= 0) {
+      return { success: false, error: '未获取到当前召唤师 ID' }
+    }
+
+    const endpoint = `${this.urls.itemSets}/${summonerId}/sets`
+    const firstItemSet = managedItemSets[0] || null
+    const championId = Number(firstItemSet?.associatedChampions?.[0] || 0)
+    const isManagedAramggItemSet = (set: any) => {
+      const setUid = String(set?.uid || '')
+      const setTitle = String(set?.title || '')
+      const blocks = Array.isArray(set?.blocks) ? set.blocks : []
+
+      return (
+        setUid.startsWith('aramgg-') ||
+        setTitle.startsWith('ARAMGG ARAM ') ||
+        blocks.some((block: any) => String(block?.type || '').startsWith('ARAMGG '))
+      )
+    }
+
+    try {
+      const current = await axios.get(endpoint, {
+        ...this.auth,
+        httpsAgent: this.httpsAgent,
+        validateStatus: (status) => status < 500,
+        timeout: 5000,
+      })
+      const currentPayload = current.data && typeof current.data === 'object' ? current.data : {}
+      const currentItemSets = Array.isArray(currentPayload.itemSets) ? currentPayload.itemSets : []
+      const nextItemSets = currentItemSets.filter((set: any) => !isManagedAramggItemSet(set))
+      const removedCount = currentItemSets.length - nextItemSets.length
+
+      nextItemSets.unshift(...managedItemSets)
+
+      const payload = {
+        ...currentPayload,
+        accountId: Number(currentPayload.accountId ?? summonerId),
+        itemSets: nextItemSets,
+        timestamp: Date.now(),
+      }
+
+      logger.info('[LCU] item set sync payload prepared', {
+        summonerId,
+        championId,
+        incomingCount: managedItemSets.length,
+        uids: managedItemSets.map((itemSet) => itemSet?.uid || null),
+        titles: managedItemSets.map((itemSet) => itemSet?.title || null),
+        sortRanks: managedItemSets.map((itemSet) => itemSet?.sortrank ?? itemSet?.sortRank ?? null),
+        currentCount: currentItemSets.length,
+        removedCount,
+        nextCount: nextItemSets.length,
+        blockCounts: managedItemSets.map((itemSet) =>
+          Array.isArray(itemSet?.blocks) ? itemSet.blocks.length : 0
+        ),
+      })
+
+      const putResult = await axios.put(endpoint, payload, {
+        ...this.auth,
+        httpsAgent: this.httpsAgent,
+        validateStatus: (status) => status < 500,
+        timeout: 5000,
+      })
+
+      if (putResult.status >= 200 && putResult.status < 300) {
+        return {
+          success: true,
+          summonerId,
+          status: putResult.status,
+          method: 'put',
+          removedCount,
+          itemSetCount: nextItemSets.length,
+        }
+      }
+
+      logger.warn('[LCU] item set PUT failed', {
+        status: putResult.status,
+        data: putResult.data || null,
+      })
+
+      return {
+        success: false,
+        summonerId,
+        status: putResult.status,
+        method: 'put',
+        removedCount,
+        itemSetCount: nextItemSets.length,
+        error: `LCU item set PUT failed: ${putResult.status}`,
+      }
+    } catch (error) {
+      const err = error as Error
+      logger.warn('[LCU] item set PUT failed:', err.message)
+      return {
+        success: false,
+        summonerId,
+        method: 'put',
+        error: err.message,
+      }
+    }
+  }
+
+  async syncItemSet(itemSet: any): Promise<{
+    success: boolean
+    summonerId?: number
+    status?: number
+    method?: 'put'
+    removedCount?: number
+    itemSetCount?: number
+    error?: string
+  }> {
+    return this.syncItemSets([itemSet])
   }
 
   /**

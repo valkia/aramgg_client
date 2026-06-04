@@ -26,6 +26,17 @@
 
       <!-- 主内容区 -->
       <div v-else-if="contentVisible" class="overlay-content">
+        <transition name="item-set-toast">
+          <div
+            v-if="itemSetToast.message"
+            class="item-set-toast"
+            :class="itemSetToast.type"
+          >
+            <PackageCheck v-if="itemSetToast.type === 'success'" class="item-set-toast-icon" />
+            {{ itemSetToast.message }}
+          </div>
+        </transition>
+
         <section class="bench-inline">
           <AramBenchRecommendation
             compact
@@ -224,6 +235,18 @@
             <small v-if="timestamp">更新于 {{ formatTime(timestamp) }}</small>
           </div>
         </div>
+
+        <div v-if="championId" class="item-set-actions">
+          <button
+            class="item-set-btn"
+            type="button"
+            :disabled="itemSetApplying || !buildData"
+            @click="configureCurrentChampionItems(false)"
+          >
+            <PackagePlus class="item-set-icon" />
+            {{ itemSetButtonLabel }}
+          </button>
+        </div>
       </div>
 
       <!-- 无数据状态 -->
@@ -236,7 +259,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { Minus, X } from 'lucide-vue-next'
+import { Minus, PackageCheck, PackagePlus, X } from 'lucide-vue-next'
 import { getChampionIconUrl, getChampionSquareIconUrl, getAugmentIconUrl, getItemIconUrl } from '../service/cdn'
 import { electronAPI } from '../native/electron-api.js'
 import { sortAugmentsByDetectedOrder } from '../service/augment-order.js'
@@ -248,6 +271,7 @@ const championDataLoading = ref(false)
 const error = ref(null)
 const championId = ref(null)
 const championName = ref('')
+const championNameData = ref(null)
 const activeTab = ref('augments')
 const selectedRarity = ref('all')
 const dataSource = ref('local')
@@ -263,8 +287,25 @@ const itemsData = ref({})
 const displayAugments = ref([])
 const benchPreviewRecommendation = ref(null)
 const unsubscribeEvents = []
+const itemSetApplying = ref(false)
+const itemSetAutoEnabled = ref(true)
+const itemSetToast = ref({ type: '', message: '' })
+const ITEM_SET_AUTO_KEY = 'itemSets.autoApplyAram'
+let itemSetToastTimer = null
+let championLoadSequence = 0
 
 const contentVisible = computed(() => champSelectMode.value || !!championId.value || !!championStats.value)
+const itemSetButtonLabel = computed(() => {
+  if (itemSetApplying.value) {
+    return '配置中'
+  }
+
+  if (!buildData.value) {
+    return '等待出装数据'
+  }
+
+  return itemSetAutoEnabled.value ? '重新配置装备' : '配置当前英雄装备'
+})
 
 const logOverlayInfo = (message, details = {}) => {
   console.info(`[AugmentWinrateOverlay] ${message}`, details)
@@ -280,6 +321,60 @@ const logOverlayInfo = (message, details = {}) => {
     })
   } catch (err) {
     console.warn('Failed to send overlay diagnostic log:', err)
+  }
+}
+
+const loadItemSetAutoPreference = async () => {
+  try {
+    const storedValue = await electronAPI.store.get(ITEM_SET_AUTO_KEY)
+    if (storedValue == null) {
+      await electronAPI.store.set(ITEM_SET_AUTO_KEY, true)
+      itemSetAutoEnabled.value = true
+      return
+    }
+
+    itemSetAutoEnabled.value = Boolean(storedValue)
+  } catch (err) {
+    console.warn('Failed to load item set preference:', err)
+  }
+}
+
+const showItemSetToast = (type, message) => {
+  itemSetToast.value = { type, message }
+
+  if (itemSetToastTimer) {
+    clearTimeout(itemSetToastTimer)
+  }
+
+  itemSetToastTimer = setTimeout(() => {
+    itemSetToast.value = { type: '', message: '' }
+    itemSetToastTimer = null
+  }, 2600)
+}
+
+const configureCurrentChampionItems = async (automatic = false) => {
+  if (!championId.value || itemSetApplying.value || !buildData.value) {
+    return
+  }
+
+  itemSetApplying.value = true
+  showItemSetToast('loading', automatic ? '正在自动配置装备...' : '正在配置装备...')
+
+  try {
+    const result = await electronAPI.itemSets.installAramChampion({
+      championId: championId.value,
+      build: buildData.value,
+      championName: championNameData.value || { nameCN: championName.value },
+    })
+    if (!result?.success) {
+      throw new Error(result?.error || '装备配置失败')
+    }
+
+    showItemSetToast('success', automatic ? '已自动写入游戏推荐' : '已写入游戏推荐')
+  } catch (err) {
+    showItemSetToast('error', err?.message || '装备配置失败')
+  } finally {
+    itemSetApplying.value = false
   }
 }
 
@@ -420,6 +515,7 @@ const startingItems = computed(() => {
  */
 const showOverlay = async (data) => {
   const startedAt = Date.now()
+  const loadSequence = ++championLoadSequence
   logOverlayInfo('showOverlay called', {
     pending: data?.pending === true,
     championId: data?.championId || null,
@@ -433,8 +529,12 @@ const showOverlay = async (data) => {
   championDataLoading.value = false
   error.value = null
   championStats.value = null
+  buildData.value = null
+  itemsData.value = {}
   displayAugments.value = []
   benchPreviewRecommendation.value = data?.benchRecommendation || null
+  championNameData.value = null
+  itemSetToast.value = { type: '', message: '' }
   champSelectMode.value =
     data?.champSelect === true ||
     data?.dataSource === 'champ-select' ||
@@ -487,18 +587,33 @@ const showOverlay = async (data) => {
     championId.value = data.championId
     // 优先使用传入的英雄名称，如果没有则后面从数据加载
     championName.value = data.championName || ''
+    championNameData.value = null
     dataSource.value = data.dataSource || 'local'
     timestamp.value = data.timestamp || Date.now()
     activeTab.value = 'augments'
     selectedRarity.value = 'all'
+    await loadItemSetAutoPreference()
+    if (itemSetAutoEnabled.value) {
+      showItemSetToast('loading', '自动配置已开启，检测到当前英雄后会写入游戏推荐')
+    }
 
     // 加载完整英雄数据
+    const requestedChampionId = Number(championId.value)
     logOverlayInfo('loadChampionData requested', {
-      championId: championId.value,
+      championId: requestedChampionId,
     })
     const championLoadStartedAt = Date.now()
     championDataLoading.value = true
-    const result = await electronAPI.winrate.loadChampionData(championId.value)
+    const result = await electronAPI.winrate.loadChampionData(requestedChampionId)
+
+    if (loadSequence !== championLoadSequence || Number(championId.value) !== requestedChampionId) {
+      logOverlayInfo('stale champion data ignored', {
+        requestedChampionId,
+        currentChampionId: championId.value,
+        durationMs: Date.now() - championLoadStartedAt,
+      })
+      return
+    }
 
     if (result.success) {
       const { stats, augments, augmentStats: augStats, build, items, championName: nameData } = result.data
@@ -507,6 +622,7 @@ const showOverlay = async (data) => {
       augmentStats.value = augStats
       buildData.value = build
       itemsData.value = items
+      championNameData.value = nameData || null
 
       // 设置英雄名称（优先使用传入的，否则使用从数据加载的）
       if (!championName.value && nameData) {
@@ -582,8 +698,10 @@ const showOverlay = async (data) => {
       error.value = err.message || '加载数据失败'
     }
   } finally {
-    championDataLoading.value = false
-    loading.value = false
+    if (loadSequence === championLoadSequence) {
+      championDataLoading.value = false
+      loading.value = false
+    }
   }
 
   logOverlayInfo('showOverlay completed', {
@@ -599,7 +717,9 @@ const closeOverlay = () => {
   logOverlayInfo('overlay closed', {
     championId: championId.value,
   })
+  championLoadSequence += 1
   visible.value = false
+  championNameData.value = null
   championStats.value = null
   championDataLoading.value = false
   champSelectMode.value = false
@@ -725,10 +845,28 @@ onMounted(() => {
     console.log('🎮 游戏进行中，隐藏弹窗')
     closeOverlay()
   }))
+
+  unsubscribeEvents.push(electronAPI.events.on('item-set-auto-apply-completed', (data) => {
+    const eventChampionId = Number(data?.championId)
+    if (!eventChampionId || Number(championId.value) !== eventChampionId) {
+      return
+    }
+
+    if (data?.success) {
+      showItemSetToast('success', '已写入游戏推荐')
+      return
+    }
+
+    showItemSetToast('error', data?.error || '装备配置失败')
+  }))
 })
 
 onBeforeUnmount(() => {
   unsubscribeEvents.splice(0).forEach(unsubscribe => unsubscribe())
+  if (itemSetToastTimer) {
+    clearTimeout(itemSetToastTimer)
+    itemSetToastTimer = null
+  }
 })
 
 // 暴露方法供外部调用
@@ -1445,6 +1583,7 @@ defineExpose({
 }
 
 .overlay-content {
+  position: relative;
   flex: 1;
   min-height: 0;
   max-height: none;
@@ -1595,6 +1734,105 @@ defineExpose({
   color: #e2c08f;
   background: rgba(194, 156, 109, 0.14);
   border: 1px solid rgba(226, 192, 143, 0.5);
+}
+
+.item-set-actions {
+  flex: 0 0 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  background:
+    linear-gradient(180deg, rgba(17, 29, 38, 0.94), rgba(8, 21, 30, 0.98));
+  border-top: 1px solid rgba(226, 192, 143, 0.24);
+  box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.26);
+}
+
+.item-set-btn {
+  width: 100%;
+  min-width: 150px;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid rgba(226, 192, 143, 0.42);
+  border-radius: 4px;
+  background: linear-gradient(135deg, rgba(226, 192, 143, 0.22), rgba(194, 156, 109, 0.16));
+  color: #f4ecdc;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.item-set-btn:hover:not(:disabled) {
+  border-color: rgba(226, 192, 143, 0.68);
+  background: rgba(194, 156, 109, 0.28);
+  color: #f4ecdc;
+}
+
+.item-set-btn:disabled {
+  opacity: 0.62;
+  cursor: wait;
+}
+
+.item-set-icon,
+.item-set-toast-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.item-set-toast {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 58px;
+  z-index: 5;
+  min-height: 34px;
+  padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border-radius: 4px;
+  background: rgba(8, 21, 30, 0.94);
+  border: 1px solid rgba(244, 236, 220, 0.1);
+  color: #bacac6;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);
+}
+
+.item-set-toast.loading {
+  color: #e2c08f;
+  border-color: rgba(226, 192, 143, 0.28);
+}
+
+.item-set-toast.success {
+  color: #54d884;
+  border-color: rgba(84, 216, 132, 0.28);
+}
+
+.item-set-toast.error {
+  color: #ffb4ab;
+  border-color: rgba(255, 180, 171, 0.28);
+}
+
+.item-set-toast-enter-active,
+.item-set-toast-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.item-set-toast-enter-from,
+.item-set-toast-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
 }
 
 .stat-strip {
@@ -1937,6 +2175,11 @@ defineExpose({
     margin-right: 12px;
     padding-left: 0;
     padding-right: 0;
+  }
+
+  .item-set-actions {
+    align-items: stretch;
+    padding: 10px 12px;
   }
 }
 </style>

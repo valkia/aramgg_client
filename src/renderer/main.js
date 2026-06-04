@@ -5,7 +5,6 @@ import './styles/index.css'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
 import Display from './components/Display.vue'
-import ShowDetail from './components/ShowDetail.vue'
 import PopupAugmentView from './components/PopupAugmentView.vue'
 import FloatingView from './components/FloatingView.vue'
 import { electronAPI, hasElectronAPI } from './native/electron-api.js'
@@ -156,7 +155,6 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'Display', component: Display },
     { path: '/display', name: 'Display', component: Display },
-    { path: '/showDetail', name: 'ShowDetail', component: ShowDetail },
     { path: '/augment-overlay', name: 'AugmentOverlay', component: PopupAugmentView },
     { path: '/floating-overlay', name: 'FloatingOverlay', component: FloatingView },
   ],

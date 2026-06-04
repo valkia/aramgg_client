@@ -35,6 +35,7 @@ const BROADCAST_CHANNELS = new Set([
     'auto-screenshot-taken',
     'game-phase-changed',
     'champ-select-start',
+    'item-set-auto-apply-completed',
     'game-started',
     'game-in-progress',
     'bench-recommendation-preview',
@@ -44,6 +45,7 @@ const BROADCAST_CHANNELS = new Set([
     'game-ended',
     'end-of-game',
 ])
+const championDataLoadRequests = new Map()
 let quitRequested = false
 
 function getElapsedMs(startedAt) {
@@ -666,43 +668,58 @@ export function registerIpcHandlers(isDev) {
     })
 
     ipcMain.handle('load-champion-data', async (_event, championId) => {
-        const { getChampionDetailData } = await import('../data-loader.ts')
-        const startedAt = Date.now()
-        logger.info('[champion-data] load requested', { championId })
-
-        try {
-            const detail = await getChampionDetailData(championId)
-            logger.info('[champion-data] load completed', {
-                championId,
-                hasBuild: !!detail.build,
-                augmentCount: detail.augments ? Object.keys(detail.augments).length : 0,
-                durationMs: getElapsedMs(startedAt),
-            })
-
-            return {
-                success: true,
-                data: {
-                    stats: detail.stats,
-                    augments: detail.augmentBase,
-                    augmentStats: detail.augments,
-                    augmentTrios: detail.augmentTrios,
-                    build: detail.build,
-                    items: detail.items,
-                    championName: detail.championName,
-                },
-            }
-        } catch (error) {
-            logger.error('Champion data load error:', error)
-            return {
-                success: false,
-                error: error.message,
-            }
-        } finally {
-            logger.info('[champion-data] load finished', {
-                championId,
-                durationMs: getElapsedMs(startedAt),
-            })
+        const requestKey = String(championId || '')
+        const pendingRequest = championDataLoadRequests.get(requestKey)
+        if (pendingRequest) {
+            logger.info('[champion-data] load joined pending request', { championId })
+            return pendingRequest
         }
+
+        const startedAt = Date.now()
+
+        const request = (async () => {
+            const { getChampionDetailData } = await import('../data-loader.ts')
+            logger.info('[champion-data] load requested', { championId })
+
+            try {
+                const detail = await getChampionDetailData(championId)
+                logger.info('[champion-data] load completed', {
+                    championId,
+                    hasBuild: !!detail.build,
+                    augmentCount: detail.augments ? Object.keys(detail.augments).length : 0,
+                    durationMs: getElapsedMs(startedAt),
+                })
+
+                return {
+                    success: true,
+                    data: {
+                        stats: detail.stats,
+                        augments: detail.augmentBase,
+                        augmentStats: detail.augments,
+                        augmentTrios: detail.augmentTrios,
+                        build: detail.build,
+                        items: detail.items,
+                        championName: detail.championName,
+                    },
+                }
+            } catch (error) {
+                logger.error('Champion data load error:', error)
+                return {
+                    success: false,
+                    error: error.message,
+                }
+            } finally {
+                logger.info('[champion-data] load finished', {
+                    championId,
+                    durationMs: getElapsedMs(startedAt),
+                })
+            }
+        })().finally(() => {
+            championDataLoadRequests.delete(requestKey)
+        })
+
+        championDataLoadRequests.set(requestKey, request)
+        return request
     })
 
     ipcMain.handle('auto-screenshot-start', async (_event, config = {}) => {
@@ -784,6 +801,62 @@ export function registerIpcHandlers(isDev) {
                 valid: false,
                 reason: 'validation-error',
                 message: error.message || '路径校验失败，请重试。',
+            }
+        }
+    })
+
+    ipcMain.handle('item-sets-get-aram-status', async () => {
+        try {
+            const { getAramItemSetInstallStatus } = await import('../services/item-sets/item-set-installer.ts')
+            const lolPath = store.get('lolPath')
+
+            if (!lolPath) {
+                return {
+                    success: true,
+                    installed: false,
+                    installedCount: 0,
+                    error: '游戏路径未配置',
+                }
+            }
+
+            return await getAramItemSetInstallStatus({ lolPath })
+        } catch (error) {
+            logger.warn('[item-set] failed to read ARAM item set status:', error.message)
+            return {
+                success: false,
+                installed: false,
+                installedCount: 0,
+                error: error.message,
+            }
+        }
+    })
+
+    ipcMain.handle('item-sets-install-aram-champion', async (_event, payload) => {
+        try {
+            const { installAramItemSetForChampion } = await import('../services/item-sets/item-set-installer.ts')
+            const lolPath = store.get('lolPath')
+            const request = payload && typeof payload === 'object'
+                ? payload
+                : { championId: payload }
+
+            if (!lolPath) {
+                return {
+                    success: false,
+                    error: '游戏路径未配置',
+                }
+            }
+
+            return await installAramItemSetForChampion({
+                lolPath,
+                championId: request.championId,
+                build: request.build,
+                championName: request.championName,
+            })
+        } catch (error) {
+            logger.error('[item-set] failed to install ARAM item set:', error)
+            return {
+                success: false,
+                error: error.message,
             }
         }
     })

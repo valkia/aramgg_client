@@ -8,6 +8,7 @@ const validEvents = new Set([
     'auto-screenshot-taken',
     'game-phase-changed',
     'champ-select-start',
+    'item-set-auto-apply-completed',
     'game-started',
     'game-in-progress',
     'bench-recommendation-preview',
@@ -79,6 +80,10 @@ const electronAPI = {
     dialogs: {
         selectLolDirectory: () => ipcRenderer.invoke('select-lol-directory'),
         validateLolDirectory: (lolPath) => ipcRenderer.invoke('validate-lol-directory', lolPath),
+    },
+    itemSets: {
+        getAramStatus: () => ipcRenderer.invoke('item-sets-get-aram-status'),
+        installAramChampion: (payload) => ipcRenderer.invoke('item-sets-install-aram-champion', payload),
     },
     lcu: {
         getChampionId: () => ipcRenderer.invoke('get-champion-id'),

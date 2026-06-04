@@ -24,6 +24,8 @@ export interface LCUUrls {
   curSession: string
   curPerk: string
   perks: string
+  currentSummoner: string
+  itemSets: string
   position1: string
   position2: string
   gameflowPhase: string

@@ -53,6 +53,7 @@ const DATA_TTL_MS = 12 * 60 * 60 * 1000
 const DATA_FETCH_TIMEOUT_MS = 10 * 1000
 const CHAMPION_DETAIL_FETCH_TIMEOUT_MS = 5 * 1000
 const DATA_CACHE_DIR_NAME = 'data'
+const BUNDLED_DATA_DIR_NAME = 'client-data'
 const CURRENT_DATA_FILE = 'current.json'
 const DATA_CACHE_SCHEMA_VERSION = 3
 const cache = new Map<string, { data: any; createdAt: number }>()
@@ -186,6 +187,18 @@ async function getDataRootDir(): Promise<string> {
   return dataRootDirPromise
 }
 
+function getBundledDataRootDirs(): string[] {
+  const candidates: string[] = []
+
+  if (typeof process.resourcesPath === 'string' && process.resourcesPath) {
+    candidates.push(path.join(process.resourcesPath, BUNDLED_DATA_DIR_NAME))
+  }
+
+  candidates.push(path.join(process.cwd(), 'resources', BUNDLED_DATA_DIR_NAME))
+
+  return candidates
+}
+
 async function getVersionDir(dataVersion: string): Promise<string> {
   const dataRootDir = await getDataRootDir()
   const versionDir = path.join(dataRootDir, 'versions', sanitizePathPart(dataVersion))
@@ -215,7 +228,22 @@ async function writeJsonFileAtomic(filePath: string, payload: any): Promise<void
 
 async function readCurrentDataPointer(): Promise<any | null> {
   const dataRootDir = await getDataRootDir()
-  return readJsonFile(path.join(dataRootDir, CURRENT_DATA_FILE))
+  const cachedPointer = await readJsonFile(path.join(dataRootDir, CURRENT_DATA_FILE))
+  if (cachedPointer) {
+    return cachedPointer
+  }
+
+  for (const bundledDataRootDir of getBundledDataRootDirs()) {
+    const bundledPointer = await readJsonFile(path.join(bundledDataRootDir, CURRENT_DATA_FILE))
+    if (bundledPointer) {
+      logger.info('[data-loader] bundled data pointer found', {
+        dataVersion: bundledPointer.dataVersion || null,
+      })
+      return bundledPointer
+    }
+  }
+
+  return null
 }
 
 async function writeCurrentDataPointer(config: ClientConfig): Promise<void> {
@@ -289,7 +317,22 @@ function findManifestPathIfExists(manifest: any, logicalPath: string): string | 
 
 async function readDataFileFromDisk(dataVersion: string, dataPath: string): Promise<any | null> {
   const versionDir = await getVersionDir(dataVersion)
-  return readJsonFile(path.join(versionDir, normalizeDataPath(dataPath)))
+  const normalizedPath = normalizeDataPath(dataPath)
+  const diskPayload = await readJsonFile(path.join(versionDir, normalizedPath))
+  if (diskPayload != null) {
+    return diskPayload
+  }
+
+  for (const bundledDataRootDir of getBundledDataRootDirs()) {
+    const bundledPayload = await readJsonFile(
+      path.join(bundledDataRootDir, 'versions', sanitizePathPart(dataVersion), normalizedPath)
+    )
+    if (bundledPayload != null) {
+      return bundledPayload
+    }
+  }
+
+  return null
 }
 
 async function writeDataFileToDisk(dataVersion: string, dataPath: string, payload: any): Promise<void> {
@@ -615,6 +658,21 @@ async function loadChampionDetailPayload(championId: string | number): Promise<a
     return detailCache.get(cacheKey)
   }
 
+  const shardIndex = await loadChampionShardIndex()
+  const shardPath = shardIndex ? findShardPathForChampion(shardIndex, championId) : null
+
+  if (shardPath) {
+    const cachedShardDetail = await loadChampionDetailFromShard(dataSet, championId, shardPath, 'cached')
+    if (cachedShardDetail) {
+      logger.debug('[data-loader] champion detail loaded from local shard', {
+        dataVersion: dataSet.dataVersion,
+        championId,
+        shardPath,
+      })
+      return cachedShardDetail
+    }
+  }
+
   const singleChampionPath = `champions/${championId}.json`
   const manifestSingleChampionPath = findManifestPathIfExists(dataSet.manifest, singleChampionPath)
   if (manifestSingleChampionPath) {
@@ -647,21 +705,6 @@ async function loadChampionDetailPayload(championId: string | number): Promise<a
       path: singleChampionPath,
       reason: 'not-in-manifest',
     })
-  }
-
-  const shardIndex = await loadChampionShardIndex()
-  const shardPath = shardIndex ? findShardPathForChampion(shardIndex, championId) : null
-
-  if (shardPath) {
-    const cachedShardDetail = await loadChampionDetailFromShard(dataSet, championId, shardPath, 'cached')
-    if (cachedShardDetail) {
-      logger.debug('[data-loader] champion detail loaded from cached shard', {
-        dataVersion: dataSet.dataVersion,
-        championId,
-        shardPath,
-      })
-      return cachedShardDetail
-    }
   }
 
   if (shardPath) {
@@ -718,6 +761,10 @@ function normalizeRarity(augment: any): string {
 function normalizeItemIds(itemIds: any): string[] {
   if (Array.isArray(itemIds)) {
     return itemIds.map((id) => String(id).trim()).filter(Boolean)
+  }
+
+  if (itemIds != null && itemIds !== '') {
+    return [String(itemIds).trim()].filter(Boolean)
   }
 
   return []
@@ -848,7 +895,7 @@ function mapBuildSet(record: any): any {
 
 function mapSituationalItem(record: any): any {
   const stats = record?.stats || record || {}
-  const itemId = normalizeItemIds(record?.itemIds)[0]
+  const itemId = normalizeItemIds(record?.itemIds ?? record?.itemId ?? record?.id)[0]
 
   return {
     ...record,
@@ -898,8 +945,13 @@ function mapPublicBuild(publicBuild: any, championId: string | number): any {
     .filter((record: any) => Array.isArray(record?.itemIds))
     .map((record: any) => mapBuildSet(record))
   const situationalItems = (publicBuild.situationalItems || [])
-    .filter((record: any) => Array.isArray(record?.itemIds))
+    .filter((record: any) =>
+      Array.isArray(record?.itemIds) || record?.itemId != null || record?.id != null
+    )
     .map(mapSituationalItem)
+  const itemExtensions = (publicBuild.itemExtensions || [])
+    .filter((record: any) => Array.isArray(record?.itemIds))
+    .map((record: any) => mapBuildSet(record))
 
   return {
     patch: publicBuild.patch || '',
@@ -914,7 +966,7 @@ function mapPublicBuild(publicBuild: any, championId: string | number): any {
     coreItems,
     recommended: coreItems,
     itemSequences: {},
-    itemExtensions: publicBuild.itemExtensions || [],
+    itemExtensions,
     situationalItems,
     startingItems,
     games: toNumber(publicBuild.stats?.games),
@@ -922,6 +974,62 @@ function mapPublicBuild(publicBuild: any, championId: string | number): any {
     pickRate: toNumber(publicBuild.stats?.pickRate),
     winRate: toNumber(publicBuild.stats?.winRate),
     allBuilds: [],
+  }
+}
+
+function collectPublicBuildCandidates(detail: any): any[] {
+  const candidates: any[] = []
+  const addBuild = (build: any) => {
+    if (build && typeof build === 'object' && !Array.isArray(build)) {
+      candidates.push(build)
+    }
+  }
+  const addBuilds = (builds: any) => {
+    if (Array.isArray(builds)) {
+      builds.forEach(addBuild)
+    }
+  }
+
+  addBuilds(detail?.builds)
+  addBuilds(detail?.allBuilds)
+  addBuilds(detail?.buildVariants)
+  addBuilds(detail?.buildOptions)
+  addBuilds(detail?.build?.builds)
+  addBuilds(detail?.build?.allBuilds)
+  addBuilds(detail?.build?.variants)
+  addBuild(detail?.build)
+
+  const seen = new Set<string>()
+  return candidates.filter((build) => {
+    const coreKey = Array.isArray(build?.coreItems)
+      ? build.coreItems
+        .slice(0, 3)
+        .map((record: any) => normalizeItemIds(record?.itemIds).join('-'))
+        .join('|')
+      : ''
+    const tagKey = JSON.stringify(build?.tags || {})
+    const key = `${tagKey}:${coreKey}:${build?.role || ''}:${build?.tier || ''}`
+    if (seen.has(key)) {
+      return false
+    }
+
+    seen.add(key)
+    return true
+  })
+}
+
+function mapChampionBuilds(detail: any, championId: string | number): any {
+  const builds = collectPublicBuildCandidates(detail)
+    .map((build) => mapPublicBuild(build, championId))
+    .filter(Boolean)
+
+  if (!builds.length) {
+    return null
+  }
+
+  return {
+    ...builds[0],
+    allBuilds: builds,
   }
 }
 
@@ -1054,11 +1162,7 @@ export async function loadChampionAugmentTrios(championId: string | number): Pro
 export async function loadChampionBuild(championId: string | number): Promise<any> {
   try {
     const detail = await loadChampionDetailPayload(championId)
-    if (detail?.build) {
-      return mapPublicBuild(detail.build, championId)
-    }
-
-    return null
+    return mapChampionBuilds(detail, championId)
   } catch (error: any) {
     logger.warn(`Failed to load build for champion ${championId}:`, error.message)
     return null
