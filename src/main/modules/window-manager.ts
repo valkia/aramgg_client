@@ -1,9 +1,10 @@
 // @ts-nocheck
 import logger from './logger.ts';
 import { BrowserWindow, screen, app } from 'electron'
+import { createServer } from 'http'
+import { createReadStream, existsSync } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { existsSync } from 'fs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -12,10 +13,25 @@ let mainWindow = null
 let popupWindow = null
 let floatingWindow = null
 let mainWindowCloseAllowed = false
+let rendererServerPromise = null
 
 const MAIN_WINDOW_SIZE = { width: 380, height: 620 }
 const POPUP_WINDOW_SIZE = { width: 360, height: 640 }
 const FLOATING_WINDOW_SIZE = { width: 760, height: 170 }
+const MIME_TYPES = {
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.ico': 'image/x-icon',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.svg': 'image/svg+xml',
+    '.webp': 'image/webp',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+}
 
 function getMainWindowBounds() {
     const display = screen.getPrimaryDisplay()
@@ -102,6 +118,125 @@ function getRendererIndexPath() {
     return path.join(__dirname, '../dist/index.html')
 }
 
+function getRendererDistPath() {
+    return path.dirname(getRendererIndexPath())
+}
+
+function resolveRendererAssetPath(requestUrl) {
+    const url = new URL(requestUrl, 'http://127.0.0.1')
+    const requestedPath = decodeURIComponent(url.pathname).replace(/^\/+/, '') || 'index.html'
+    const rendererDistPath = path.resolve(getRendererDistPath())
+    const filePath = path.resolve(rendererDistPath, requestedPath)
+    const isInsideRendererDist =
+        filePath === rendererDistPath || filePath.startsWith(`${rendererDistPath}${path.sep}`)
+
+    return isInsideRendererDist ? filePath : null
+}
+
+function getMimeType(filePath) {
+    return MIME_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream'
+}
+
+function startRendererServer() {
+    if (rendererServerPromise) {
+        return rendererServerPromise
+    }
+
+    rendererServerPromise = new Promise((resolve, reject) => {
+        const server = createServer((request, response) => {
+            const filePath = resolveRendererAssetPath(request.url || '/index.html')
+            if (!filePath || !existsSync(filePath)) {
+                response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
+                response.end('Not found')
+                return
+            }
+
+            const stream = createReadStream(filePath)
+            stream.once('open', () => {
+                response.writeHead(200, {
+                    'content-type': getMimeType(filePath),
+                    'cache-control': 'no-store',
+                })
+                stream.pipe(response)
+            })
+            stream.once('error', () => {
+                if (!response.headersSent) {
+                    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
+                    response.end('Not found')
+                    return
+                }
+
+                response.destroy()
+            })
+        })
+
+        server.once('error', reject)
+        server.listen(0, '127.0.0.1', () => {
+            const address = server.address()
+            if (!address || typeof address === 'string') {
+                server.close()
+                reject(new Error('Renderer server did not return a TCP address'))
+                return
+            }
+
+            app.once('will-quit', () => {
+                server.close()
+            })
+            resolve(`http://127.0.0.1:${address.port}`)
+        })
+    }).catch((error) => {
+        rendererServerPromise = null
+        throw error
+    })
+
+    return rendererServerPromise
+}
+
+async function getRendererBaseUrl(isDev, devServerUrl) {
+    if (isDev) {
+        return devServerUrl
+    }
+
+    return startRendererServer()
+}
+
+async function loadRendererUrl(window, route, isDev, devServerUrl) {
+    const baseUrl = await getRendererBaseUrl(isDev, devServerUrl)
+    await window.loadURL(`${baseUrl}/#${route}`)
+}
+
+function getRendererLogUrl(isDev, devServerUrl) {
+    if (isDev) {
+        return devServerUrl
+    }
+
+    return 'http://127.0.0.1:<dynamic>'
+}
+
+function getRendererLogPath(isDev) {
+    if (isDev) {
+        return undefined
+    }
+
+    return getRendererIndexPath()
+}
+
+function getRendererLogPathExists(isDev) {
+    if (isDev) {
+        return undefined
+    }
+
+    return existsSync(getRendererIndexPath())
+}
+
+function getRendererLogInfo(isDev, devServerUrl) {
+    return {
+        rendererBaseUrl: getRendererLogUrl(isDev, devServerUrl),
+        rendererIndexPath: getRendererLogPath(isDev),
+        rendererIndexExists: getRendererLogPathExists(isDev),
+    }
+}
+
 function attachWindowDiagnostics(name, window) {
     const { webContents } = window
 
@@ -160,17 +295,10 @@ async function loadRendererRoute(window, name, isDev, devServerUrl, route) {
         isDev,
         preloadPath,
         preloadExists: preloadPath ? existsSync(preloadPath) : false,
-        rendererIndexPath: isDev ? undefined : getRendererIndexPath(),
-        rendererIndexExists: isDev ? undefined : existsSync(getRendererIndexPath()),
+        ...getRendererLogInfo(isDev, devServerUrl),
     })
 
-    if (isDev) {
-        await window.loadURL(`${devServerUrl}/#${route}`)
-    } else {
-        await window.loadFile(getRendererIndexPath(), {
-            hash: route,
-        })
-    }
+    await loadRendererUrl(window, route, isDev, devServerUrl)
 }
 
 const getWebPreferences = (isDev, overrides = {}) => ({

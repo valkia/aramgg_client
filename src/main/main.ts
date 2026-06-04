@@ -1,14 +1,55 @@
 // @ts-nocheck
 import { app } from 'electron'
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
 import { configureAppPaths } from './modules/app-paths.ts'
 
-configureAppPaths()
+function getBootstrapLogFile() {
+    const appDataRoot = process.env.APPDATA
+        ? path.join(process.env.APPDATA, 'aramgg_client')
+        : path.join(os.homedir(), '.aramgg_client')
+    const logDir = path.join(appDataRoot, 'logs')
+    fs.mkdirSync(logDir, { recursive: true })
+    const date = new Date().toISOString().slice(0, 10)
+    return path.join(logDir, `bootstrap-${date}.log`)
+}
 
-const [{ init }, windowManager, { default: logger }] = await Promise.all([
-    import('./modules/app-config.ts'),
-    import('./modules/window-manager.ts'),
-    import('./modules/logger.ts'),
-])
+function writeBootstrapError(stage, error) {
+    try {
+        const message = error instanceof Error
+            ? `${error.message}\n${error.stack || ''}`
+            : String(error)
+        fs.appendFileSync(
+            getBootstrapLogFile(),
+            `[${new Date().toISOString()}] ${stage}\n${message}\n\n`,
+            'utf8'
+        )
+    } catch {
+        // Last-resort diagnostics must never mask the original startup error.
+    }
+}
+
+try {
+    configureAppPaths()
+} catch (error) {
+    writeBootstrapError('configureAppPaths failed', error)
+    throw error
+}
+
+let init
+let windowManager
+let logger
+try {
+    ;[{ init }, windowManager, { default: logger }] = await Promise.all([
+        import('./modules/app-config.ts'),
+        import('./modules/window-manager.ts'),
+        import('./modules/logger.ts'),
+    ])
+} catch (error) {
+    writeBootstrapError('main module imports failed', error)
+    throw error
+}
 
 const { getMainWindow } = windowManager
 
@@ -123,6 +164,7 @@ if (!gotSingleInstanceLock) {
 
     // Some APIs can only be used after Electron is ready.
     app.whenReady().then(init).catch((error) => {
+        writeBootstrapError('app initialization failed', error)
         logger.error('[app] initialization failed:', error)
     })
 }

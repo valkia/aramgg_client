@@ -51,6 +51,7 @@ export const DATA_API_CONFIG_PATH = `${DATA_API_PREFIX}/config`
 const CONFIG_TTL_MS = 5 * 60 * 1000
 const DATA_TTL_MS = 12 * 60 * 60 * 1000
 const DATA_FETCH_TIMEOUT_MS = 10 * 1000
+const CHAMPION_DETAIL_FETCH_TIMEOUT_MS = 5 * 1000
 const DATA_CACHE_DIR_NAME = 'data'
 const CURRENT_DATA_FILE = 'current.json'
 const DATA_CACHE_SCHEMA_VERSION = 3
@@ -266,14 +267,24 @@ function getManifestFileEntries(manifest: any): any[] {
   return []
 }
 
-function findManifestPath(manifest: any, logicalPath: string): string {
+function findManifestEntry(manifest: any, logicalPath: string): any | null {
   const normalized = normalizeDataPath(logicalPath)
-  const entry = getManifestFileEntries(manifest).find((file: any) => {
+  return getManifestFileEntries(manifest).find((file: any) => {
     const filePath = normalizeDataPath(String(file.path || file.url || ''))
     return filePath === normalized || filePath.endsWith(`/${normalized}`)
-  })
+  }) || null
+}
+
+function findManifestPath(manifest: any, logicalPath: string): string {
+  const normalized = normalizeDataPath(logicalPath)
+  const entry = findManifestEntry(manifest, normalized)
 
   return normalizeDataPath(String(entry?.path || normalized))
+}
+
+function findManifestPathIfExists(manifest: any, logicalPath: string): string | null {
+  const entry = findManifestEntry(manifest, logicalPath)
+  return entry ? normalizeDataPath(String(entry.path || entry.url || logicalPath)) : null
 }
 
 async function readDataFileFromDisk(dataVersion: string, dataPath: string): Promise<any | null> {
@@ -336,7 +347,7 @@ async function fetchVersionedDataFile(
       })
       const payload = await fetchJson(
         resolvedResourcePath,
-        { force, ttlMs: options.ttlMs }
+        { force, ttlMs: options.ttlMs, timeoutMs: options.timeoutMs }
       )
       await writeDataFileToDisk(dataVersion, normalizedPath, payload)
       cache.set(cacheKey, { data: payload, createdAt: Date.now() })
@@ -604,6 +615,40 @@ async function loadChampionDetailPayload(championId: string | number): Promise<a
     return detailCache.get(cacheKey)
   }
 
+  const singleChampionPath = `champions/${championId}.json`
+  const manifestSingleChampionPath = findManifestPathIfExists(dataSet.manifest, singleChampionPath)
+  if (manifestSingleChampionPath) {
+    try {
+      logger.debug('[data-loader] champion detail single fetch start', {
+        dataVersion: dataSet.dataVersion,
+        championId,
+        path: manifestSingleChampionPath,
+      })
+      const payload = await fetchVersionedDataFile(
+        dataSet.dataVersion,
+        singleChampionPath,
+        manifestSingleChampionPath,
+        { timeoutMs: CHAMPION_DETAIL_FETCH_TIMEOUT_MS }
+      )
+      const detail = unwrapEnvelope(payload)
+      detailCache.set(cacheKey, detail)
+      logger.debug('[data-loader] champion detail single fetch completed', {
+        dataVersion: dataSet.dataVersion,
+        championId,
+      })
+      return detail
+    } catch (error: any) {
+      logger.warn(`Failed to load single champion detail ${championId}; trying shard fallback:`, error.message)
+    }
+  } else {
+    logger.debug('[data-loader] champion detail single fetch skipped', {
+      dataVersion: dataSet.dataVersion,
+      championId,
+      path: singleChampionPath,
+      reason: 'not-in-manifest',
+    })
+  }
+
   const shardIndex = await loadChampionShardIndex()
   const shardPath = shardIndex ? findShardPathForChampion(shardIndex, championId) : null
 
@@ -617,48 +662,6 @@ async function loadChampionDetailPayload(championId: string | number): Promise<a
       })
       return cachedShardDetail
     }
-
-    try {
-      logger.info('[data-loader] champion detail shard fetch start', {
-        dataVersion: dataSet.dataVersion,
-        championId,
-        shardPath,
-      })
-      const shardDetail = await loadChampionDetailFromShard(dataSet, championId, shardPath, 'remote')
-      if (shardDetail) {
-        logger.info('[data-loader] champion detail shard fetch completed', {
-          dataVersion: dataSet.dataVersion,
-          championId,
-          shardPath,
-        })
-        return shardDetail
-      }
-    } catch (error: any) {
-      logger.warn(`Failed to load champion detail shard ${championId}; trying single file fallback:`, error.message)
-    }
-  }
-
-  try {
-    const fallbackPath = `champions/${championId}.json`
-    logger.debug('[data-loader] champion detail single fetch start', {
-      dataVersion: dataSet.dataVersion,
-      championId,
-      path: fallbackPath,
-    })
-    const payload = await fetchVersionedDataFile(
-      dataSet.dataVersion,
-      fallbackPath,
-      findManifestPath(dataSet.manifest, fallbackPath)
-    )
-    const detail = unwrapEnvelope(payload)
-    detailCache.set(cacheKey, detail)
-    logger.debug('[data-loader] champion detail single fetch completed', {
-      dataVersion: dataSet.dataVersion,
-      championId,
-    })
-    return detail
-  } catch (error: any) {
-    logger.warn(`Failed to load single champion detail ${championId}; trying shard fallback:`, error.message)
   }
 
   if (shardPath) {

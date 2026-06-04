@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { readFile, rm } from 'node:fs/promises'
 import net from 'node:net'
 import path from 'node:path'
 import process from 'node:process'
@@ -144,8 +145,36 @@ function createFallbackOutputDir() {
   return path.join('build', `pack-${timestamp}`)
 }
 
+async function getPackageVersion() {
+  const packageJson = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'))
+  return packageJson.version
+}
+
+async function removeFileIfExists(filePath) {
+  try {
+    await rm(filePath, { force: true })
+  } catch (error) {
+    console.warn(`Could not remove stale package artifact ${filePath}: ${error.message}`)
+  }
+}
+
+async function cleanRootPackageArtifacts(version) {
+  const outputDir = path.join(process.cwd(), 'build')
+  const artifactBaseName = `aramgg_client Setup ${version}`
+  const artifactPaths = [
+    path.join(outputDir, `${artifactBaseName}.exe`),
+    path.join(outputDir, `${artifactBaseName}.exe.blockmap`),
+    path.join(outputDir, `${artifactBaseName}.__uninstaller.exe`),
+    path.join(outputDir, `aramgg_client-${version}-x64.nsis.7z`),
+    path.join(outputDir, 'latest.yml'),
+  ]
+
+  await Promise.all(artifactPaths.map(removeFileIfExists))
+}
+
 async function main() {
   const packEnv = await createPackEnv()
+  const packageVersion = await getPackageVersion()
 
   const buildResult = await run('electron-vite', ['build'], {
     env: packEnv,
@@ -155,6 +184,8 @@ async function main() {
   if (buildResult.code !== 0) {
     process.exit(buildResult.code ?? 1)
   }
+
+  await cleanRootPackageArtifacts(packageVersion)
 
   const packResult = await run('electron-builder', ['--publish', 'never'], {
     env: packEnv,
@@ -182,6 +213,11 @@ async function main() {
       stdio: ['ignore', 'pipe', 'pipe'],
     }
   )
+
+  if (fallbackResult.code === 0) {
+    await cleanRootPackageArtifacts(packageVersion)
+    console.warn(`\nPackage artifacts were written to fallback output: ${fallbackOutput}\n`)
+  }
 
   process.exit(fallbackResult.code ?? 1)
 }
