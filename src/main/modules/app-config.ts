@@ -21,6 +21,7 @@ import { collectAramCandidateChampionIds } from '../services/aram/bench-recommen
 import logger from './logger.ts'
 import store from './app-store.ts'
 import { getAppDataDir } from './app-paths.ts'
+import { logDiagnosticSnapshot } from './diagnostic-logger.ts'
 
 const __dirname = import.meta.dirname
 
@@ -85,7 +86,7 @@ const itemSetPreloadDataByChampionId = new Map()
  */
 export async function init() {
     logger.info(`${'='.repeat(50)}`)
-    logger.info(`ChampR 应用启动中...`)
+    logger.info(`ARAMGG助手启动中...`)
     logger.info(`${'='.repeat(50)}`)
 
     // 设置应用菜单为空
@@ -108,7 +109,9 @@ export async function init() {
         arch: process.arch,
         appDataDir: getAppDataDir(),
         logFile: logger.getCurrentLogFile(),
-        lcuApiDiagnosticsLogFile: logger.getCurrentLcuApiDiagnosticsLogFile(),
+    })
+    logDiagnosticSnapshot('startup').catch((error) => {
+        logger.warn('[diagnostics] startup snapshot failed:', error.message)
     })
 
     const mainWindow = await createMainWindow(isDev, devServerUrl)
@@ -356,7 +359,7 @@ async function logReadOnlyGameApiDiagnostics(lcuService, phase, reason, force = 
     try {
         for (const endpoint of getLcuDiagnosticEndpoints(phase)) {
             const result = await lcuService.getReadOnlyJsonEndpoint(endpoint.path)
-            logger.lcuApiDiagnostics('[LCU diagnostics] read-only endpoint snapshot', {
+            logger.info('[LCU diagnostics] read-only endpoint snapshot', {
                 phase,
                 reason,
                 endpoint: endpoint.label,
@@ -368,7 +371,7 @@ async function logReadOnlyGameApiDiagnostics(lcuService, phase, reason, force = 
 
         if (phase === 'InProgress') {
             const liveClientData = await lcuService.getLiveClientAllGameData()
-            logger.lcuApiDiagnostics('[LCU diagnostics] live client data snapshot', {
+            logger.info('[LCU diagnostics] live client data snapshot', {
                 phase,
                 reason,
                 endpoint: 'liveclientdata-allgamedata',

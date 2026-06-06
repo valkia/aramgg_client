@@ -19,6 +19,7 @@ import {
 import logger from './logger.ts'
 import store from './app-store.ts'
 import { getAppDataDir } from './app-paths.ts'
+import { logDiagnosticSnapshot } from './diagnostic-logger.ts'
 import {
     getAnalyticsStatus,
     setAnalyticsEnabled,
@@ -600,6 +601,29 @@ export function registerIpcHandlers(isDev) {
             }
         } catch (error) {
             logger.warn('Failed to load version info:', error.message)
+            return {
+                success: false,
+                error: error.message,
+            }
+        }
+    })
+
+    ipcMain.handle('open-log-directory', async () => {
+        try {
+            await logDiagnosticSnapshot('open-log-directory')
+            const logDir = logger.getLogDir()
+            const openError = await shell.openPath(logDir)
+            if (openError) {
+                throw new Error(openError)
+            }
+
+            return {
+                success: true,
+                path: logDir,
+                currentLogFile: logger.getCurrentLogFile(),
+            }
+        } catch (error) {
+            logger.warn('Failed to open log directory:', error.message)
             return {
                 success: false,
                 error: error.message,

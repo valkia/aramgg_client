@@ -18,6 +18,7 @@ if (process.versions?.electron) {
 }
 
 const electronApp = electron?.app || electron?.default?.app || null
+const WRITE_TEST_FILE = '.aramgg-write-test'
 
 function hasElectronApp() {
     return electronApp && typeof electronApp.getPath === 'function'
@@ -47,22 +48,24 @@ function getInstallSideDataDir() {
     }
 }
 
-function migrateInstallSideDataDir(targetDir) {
-    const installSideDataDir = getInstallSideDataDir()
-
-    if (!installSideDataDir || path.resolve(installSideDataDir) === path.resolve(targetDir)) {
-        return
+function canUseDataDir(directoryPath) {
+    if (!directoryPath) {
+        return false
     }
 
+    const testFile = path.join(directoryPath, WRITE_TEST_FILE)
     try {
-        if (fs.pathExistsSync(installSideDataDir)) {
-            fs.copySync(installSideDataDir, targetDir, {
-                overwrite: false,
-                errorOnExist: false,
-            })
-        }
+        fs.ensureDirSync(directoryPath)
+        fs.writeFileSync(testFile, String(Date.now()), { encoding: 'utf8' })
+        fs.removeSync(testFile)
+        return true
     } catch {
-        // Startup should continue even if an old install-side cache cannot be migrated.
+        try {
+            fs.removeSync(testFile)
+        } catch {
+            // Ignore cleanup failures for the probe file.
+        }
+        return false
     }
 }
 
@@ -71,9 +74,16 @@ export function getAppDataDir() {
         return cachedAppDataDir
     }
 
-    cachedAppDataDir = getDefaultUserDataDir()
+    const userDataDir = getDefaultUserDataDir()
+    const installSideDataDir = getInstallSideDataDir()
+
+    if (installSideDataDir && canUseDataDir(installSideDataDir)) {
+        cachedAppDataDir = installSideDataDir
+        return cachedAppDataDir
+    }
+
+    cachedAppDataDir = userDataDir
     fs.ensureDirSync(cachedAppDataDir)
-    migrateInstallSideDataDir(cachedAppDataDir)
 
     return cachedAppDataDir
 }

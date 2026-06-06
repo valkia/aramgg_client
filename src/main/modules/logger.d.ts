@@ -5,8 +5,6 @@ export interface Logger {
   error(message: unknown, ...args: unknown[]): void
   getLogDir(): string
   getCurrentLogFile(): string
-  getCurrentLcuApiDiagnosticsLogFile(): string
-  lcuApiDiagnostics(message: unknown, ...args: unknown[]): void
   cleanupOldLogs(keepDays?: number): Promise<void>
 }
 

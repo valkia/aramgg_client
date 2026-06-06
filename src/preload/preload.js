@@ -56,6 +56,7 @@ const electronAPI = {
     },
     appInfo: {
         getVersionInfo: () => ipcRenderer.invoke('get-version-info'),
+        openLogDirectory: () => ipcRenderer.invoke('open-log-directory'),
     },
     analytics: {
         getStatus: () => ipcRenderer.invoke('analytics-get-status'),

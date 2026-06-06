@@ -1248,6 +1248,25 @@ class AutoScreenshotService {
         }
     }
 
+    getRecentAugmentDiagnostic() {
+        const detectedAt = this.lastDetectedAugmentAt || null
+        return {
+            detectedAt,
+            ageMs: detectedAt ? Date.now() - detectedAt : null,
+            ids: [...this.lastDetectedAugmentIds],
+            augments: this.lastDetectedAugments.map((augment, index) => ({
+                slot: Number.isInteger(augment?.detectedSlot) ? augment.detectedSlot : index,
+                id: augment?.id ?? augment?.augmentId ?? null,
+                augmentId: augment?.augmentId ?? augment?.id ?? null,
+                name: augment?.name || '',
+                rarity: augment?.rarity || 'unknown',
+                detectedSlot: Number.isInteger(augment?.detectedSlot) ? augment.detectedSlot : index,
+                missing: Boolean(augment?.missing),
+            })),
+            slotFingerprints: [...this.lastDetectedAugmentSlotFingerprints],
+        }
+    }
+
     /**
      * 重置服务
      */

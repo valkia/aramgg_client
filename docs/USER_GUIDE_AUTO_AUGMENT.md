@@ -86,7 +86,6 @@ await electronAPI.autoScreenshot.setConfig({
 
 - 日志目录：`logs/`
 - 主日志：`logs/app-YYYY-MM-DD.log`
-- LCU/API 探索日志：`logs/lcu-api-diagnostics-YYYY-MM-DD.log`
 - OCR 调试截图：`ocr-partial-screenshots/`
 - 远端数据缓存：`remote-data-cache/`
 - 应用配置：`config/`

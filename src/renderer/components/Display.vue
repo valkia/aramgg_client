@@ -108,6 +108,14 @@
                     <a class="footer-link" :href="FEEDBACK_URL" @click.prevent="openFeedbackEmail">
                         {{ FEEDBACK_EMAIL }}
                     </a>
+                    <span class="footer-separator">·</span>
+                    <a class="footer-link" :href="GITHUB_URL" @click.prevent="openGithub">
+                        GitHub
+                    </a>
+                    <span class="footer-separator">·</span>
+                    <button class="footer-link footer-action" type="button" @click="openLogDirectory">
+                        打开日志目录
+                    </button>
                 </p>
             </footer>
 
@@ -148,6 +156,7 @@ const ARAMGG_HOME_URL = 'https://aramgg.com'
 const ARAMGG_HOME_LABEL = 'aramgg.com'
 const FEEDBACK_EMAIL = 'djlinguge@gmail.com'
 const FEEDBACK_URL = `mailto:${FEEDBACK_EMAIL}`
+const GITHUB_URL = 'https://github.com/valkia/aramgg_client'
 let removeQuitConfirmListener = null
 
 const clientVersionLabel = computed(() => {
@@ -222,6 +231,33 @@ const openFeedbackEmail = async () => {
         await electronAPI.shell.openExternal(FEEDBACK_URL)
     } catch (error) {
         console.warn('Failed to open feedback email:', error)
+    }
+}
+
+const openGithub = async () => {
+    try {
+        await electronAPI.shell.openExternal(GITHUB_URL)
+    } catch (error) {
+        console.warn('Failed to open GitHub:', error)
+    }
+}
+
+const openLogDirectory = async () => {
+    try {
+        const result = await electronAPI.appInfo.openLogDirectory()
+        if (!result?.success) {
+            throw new Error(result?.error || '打开日志目录失败')
+        }
+        testStatus.value = {
+            type: 'success',
+            message: '日志目录已打开。请发送今天的 app-YYYY-MM-DD.log。',
+        }
+    } catch (error) {
+        console.warn('Failed to open log directory:', error)
+        testStatus.value = {
+            type: 'error',
+            message: '打开日志目录失败：' + (error.message || error),
+        }
     }
 }
 
@@ -787,6 +823,11 @@ onBeforeUnmount(() => {
     margin-top: 6px;
 }
 
+.footer-separator {
+    margin: 0 5px;
+    color: #859491;
+}
+
 .app-modal-overlay {
     position: absolute;
     inset: 0;
@@ -900,6 +941,13 @@ onBeforeUnmount(() => {
 
 .footer-link:hover {
     color: #f4ecdc;
+}
+
+.footer-action {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
 }
 
 .hex-scroll::-webkit-scrollbar {

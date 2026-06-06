@@ -26,6 +26,7 @@ export const electronAPI = {
   },
   appInfo: {
     getVersionInfo: (...args) => requireElectronAPI().appInfo.getVersionInfo(...args),
+    openLogDirectory: (...args) => requireElectronAPI().appInfo.openLogDirectory(...args),
   },
   analytics: {
     getStatus: (...args) => requireElectronAPI().analytics.getStatus(...args),

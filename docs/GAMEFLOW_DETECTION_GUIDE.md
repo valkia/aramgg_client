@@ -68,7 +68,7 @@ console.log(snapshotResult.snapshot)
 6. 在实际对局 `InProgress` 确认自动截图和海克斯 OCR 允许运行。
 7. 离开实际对局后确认过期海克斯浮窗被清空。
 
-LCU/API 结构探索内容单独写入 `logs/lcu-api-diagnostics-YYYY-MM-DD.log`，不混入主应用日志。
+LCU/API 结构探索和阶段诊断内容写入当天主日志 `logs/app-YYYY-MM-DD.log`。
 
 ## 常见问题
 
