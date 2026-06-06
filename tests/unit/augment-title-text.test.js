@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isLikelyTitleSlotText, matchAugmentDatabase } from '../../src/main/image-analyzer.ts'
+import { isLikelyTitleSlotText, matchAugmentTitleRecords } from '../../src/main/augment-title-matcher.ts'
 
 describe('isLikelyTitleSlotText', () => {
   it('accepts title text with a short trait label', () => {
@@ -11,8 +11,10 @@ describe('isLikelyTitleSlotText', () => {
     expect(isLikelyTitleSlotText('裁决红包会每24（） 持续3秒的100移', { name: '红包' })).toBe(false)
   })
 
-  it('matches a known OCR alias when a title drops its first character', async () => {
-    const matches = await matchAugmentDatabase('板一眼 伤告')
+  it('matches a known OCR alias when a title drops its first character', () => {
+    const matches = matchAugmentTitleRecords('板一眼 伤告', [
+      { id: 123, name: '一板一眼', rarity: 'gold', iconPath: 'augment.png' },
+    ])
 
     expect(matches[0]?.name).toBe('一板一眼')
   })
