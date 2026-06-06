@@ -287,9 +287,7 @@ function attachWindowDiagnostics(name, window) {
     })
 }
 
-async function loadRendererRoute(window, name, isDev, devServerUrl, route) {
-    const preloadPath = window.webContents.getLastWebPreferences?.()?.preload
-
+async function loadRendererRoute(window, name, isDev, devServerUrl, route, preloadPath) {
     logger.info(`[window:${name}] loading renderer route`, {
         route,
         isDev,
@@ -363,7 +361,7 @@ export const createMainWindow = async (isDev, devServerUrl) => {
     })
 
     // 加载应用
-    await loadRendererRoute(mainWindow, 'main', isDev, devServerUrl, '/display')
+    await loadRendererRoute(mainWindow, 'main', isDev, devServerUrl, '/display', webPreferences.preload)
 
     if (isDev) {
         mainWindow.webContents.openDevTools()
@@ -396,7 +394,7 @@ export const createPopupWindow = async (isDev, devServerUrl) => {
         popupWindow = undefined
     })
 
-    await loadRendererRoute(popupWindow, 'popup', isDev, devServerUrl, '/augment-overlay')
+    await loadRendererRoute(popupWindow, 'popup', isDev, devServerUrl, '/augment-overlay', webPreferences.preload)
 
     if (isDev) {
         popupWindow.webContents.openDevTools({ mode: 'detach' })
@@ -437,7 +435,7 @@ export const createFloatingWindow = async (isDev, devServerUrl) => {
         floatingWindow = undefined
     })
 
-    await loadRendererRoute(floatingWindow, 'floating', isDev, devServerUrl, '/floating-overlay')
+    await loadRendererRoute(floatingWindow, 'floating', isDev, devServerUrl, '/floating-overlay', webPreferences.preload)
 
     // 开发模式下打开开发者工具
     if (isDev) {

@@ -319,8 +319,11 @@ const itemSetApplying = ref(false)
 const itemSetAutoEnabled = ref(true)
 const itemSetToast = ref({ type: '', message: '' })
 const ITEM_SET_AUTO_KEY = 'itemSets.autoApplyAram'
+const CHAMPION_DATA_CACHE_TTL_MS = 15000
 let itemSetToastTimer = null
 let championLoadSequence = 0
+let championDataRequest = null
+let championDataCache = null
 
 const contentVisible = computed(() => champSelectMode.value || !!championId.value || !!championStats.value)
 const itemSetButtonLabel = computed(() => {
@@ -398,6 +401,55 @@ const loadItemSetAutoPreference = async () => {
     itemSetAutoEnabled.value = Boolean(storedValue)
   } catch (err) {
     console.warn('Failed to load item set preference:', err)
+  }
+}
+
+const loadChampionDataOnce = async (requestedChampionId) => {
+  const now = Date.now()
+  if (
+    championDataCache?.championId === requestedChampionId &&
+    now - championDataCache.loadedAt < CHAMPION_DATA_CACHE_TTL_MS
+  ) {
+    return {
+      result: championDataCache.result,
+      source: 'cache',
+    }
+  }
+
+  if (championDataRequest?.championId === requestedChampionId) {
+    return {
+      result: await championDataRequest.promise,
+      source: 'in-flight',
+    }
+  }
+
+  const promise = electronAPI.winrate.loadChampionData(requestedChampionId)
+    .then((result) => {
+      if (result?.success) {
+        championDataCache = {
+          championId: requestedChampionId,
+          loadedAt: Date.now(),
+          result,
+        }
+      }
+
+      return result
+    })
+
+  championDataRequest = {
+    championId: requestedChampionId,
+    promise,
+  }
+
+  try {
+    return {
+      result: await promise,
+      source: 'ipc',
+    }
+  } finally {
+    if (championDataRequest?.promise === promise) {
+      championDataRequest = null
+    }
   }
 }
 
@@ -670,14 +722,20 @@ const showOverlay = async (data) => {
     })
     const championLoadStartedAt = Date.now()
     championDataLoading.value = true
-    const result = await electronAPI.winrate.loadChampionData(requestedChampionId)
+    const { result, source: championDataSource } = await loadChampionDataOnce(requestedChampionId)
 
     if (loadSequence !== championLoadSequence || Number(championId.value) !== requestedChampionId) {
-      logOverlayInfo('stale champion data ignored', {
-        requestedChampionId,
-        currentChampionId: championId.value,
-        durationMs: Date.now() - championLoadStartedAt,
-      })
+      const currentChampionId = Number(championId.value) || null
+      if (currentChampionId !== requestedChampionId || !visible.value) {
+        logOverlayInfo('stale champion data ignored', {
+          requestedChampionId,
+          currentChampionId,
+          visible: visible.value,
+          loadSequence,
+          currentSequence: championLoadSequence,
+          durationMs: Date.now() - championLoadStartedAt,
+        })
+      }
       return
     }
 
@@ -706,6 +764,7 @@ const showOverlay = async (data) => {
 
       logOverlayInfo('loadChampionData completed', {
         championId: championId.value,
+        source: championDataSource,
         durationMs: Date.now() - championLoadStartedAt,
         augmentCount: augStats ? Object.keys(augStats).length : 0,
         hasBuild: !!build,
@@ -733,6 +792,9 @@ const showOverlay = async (data) => {
             requestStartedAt: winrateStartedAt,
             requestSource: 'augment-insight',
           })
+          if (loadSequence !== championLoadSequence || Number(championId.value) !== requestedChampionId) {
+            return
+          }
           const winrateCompletedAt = Date.now()
           const winrateTiming = winrateResult?.timing || {}
           const mainToRendererDelayMs = Number.isFinite(winrateTiming.mainCompletedAt)
@@ -967,6 +1029,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  championLoadSequence += 1
   unsubscribeEvents.splice(0).forEach(unsubscribe => unsubscribe())
   if (itemSetToastTimer) {
     clearTimeout(itemSetToastTimer)

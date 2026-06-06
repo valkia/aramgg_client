@@ -19,7 +19,7 @@ import store from './modules/app-store.ts'
 import { getPartialOcrScreenshotDir } from './modules/app-paths.ts'
 import { getAugmentIds, mergePartialAugments } from './augment-partial-merge.ts'
 
-const AUTO_SCREENSHOT_SUMMARY_INTERVAL_MS = 10000
+const AUTO_SCREENSHOT_SUMMARY_INTERVAL_MS = 30000
 const ANALYSIS_MISS_LOG_INTERVAL_MS = 10000
 const PARTIAL_OCR_SAVE_INTERVAL_MS = 10000
 const PARTIAL_OCR_MAX_FILES = 60

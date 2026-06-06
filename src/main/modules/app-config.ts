@@ -32,7 +32,7 @@ let lcuGameflowReconnectTimer = null
 let lcuGameflowMonitorStopping = false
 let quitCleanupCompleted = false
 let quitCleanupPromise = null
-const AUTO_SCREENSHOT_INTERVAL_MS = 200
+const AUTO_SCREENSHOT_INTERVAL_MS = 800
 const AUTO_SCREENSHOT_MAX_CAPTURES = 100
 const GAME_WINDOW_STATUS_LOG_INTERVAL_MS = 30000
 const GAMEFLOW_AUGMENT_ANALYSIS_PHASE = 'InProgress'
@@ -42,6 +42,7 @@ const GAMEFLOW_WS_STALE_MS = 15000
 const GAMEFLOW_WS_RECONNECT_BASE_MS = 2000
 const GAMEFLOW_WS_RECONNECT_MAX_MS = 30000
 const GAME_API_DIAGNOSTIC_INTERVAL_MS = 15000
+const GAME_API_DIAGNOSTIC_HEARTBEAT_ENABLED_KEY = 'diagnostics.lcuHeartbeat'
 const GAME_API_DIAGNOSTIC_MAX_PATHS = 40
 const GAME_API_DIAGNOSTIC_KEYWORDS = [
     'augment',
@@ -345,6 +346,11 @@ function getLcuDiagnosticEndpoints(phase) {
 
 async function logReadOnlyGameApiDiagnostics(lcuService, phase, reason, force = false) {
     if (!phase || gameApiDiagnosticInFlight) {
+        return
+    }
+
+    const isHeartbeat = String(reason || '').startsWith('heartbeat:')
+    if (!force && isHeartbeat && store.get(GAME_API_DIAGNOSTIC_HEARTBEAT_ENABLED_KEY) !== true) {
         return
     }
 
