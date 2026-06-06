@@ -165,8 +165,7 @@ const MATCH_BLACKLIST = new Set([
 ])
 
 const OCR_NAME_ALIASES = new Map([
-    ['夺金', ['厅金']],
-    ['神射法师', ['枝师']],
+    ['一板一眼', ['板一眼']],
 ])
 
 const OCR_PUNCTUATION_PATTERN = /[\s"'“”‘’`.,，。:：;；!！?？、|｜/\\()[\]{}<>《》【】「」『』\-_=+~·•]/g
@@ -1666,7 +1665,7 @@ function rangesOverlap(a, b) {
  * @param {string} recognizedText - OCR识别的文本
  * @returns {Array} 匹配的海克斯列表
  */
-async function matchAugmentDatabase(recognizedText) {
+export async function matchAugmentDatabase(recognizedText) {
     if (!recognizedText || recognizedText.trim() === '') {
         logger.warn(`⚠️ matchAugmentDatabase: 输入文本为空或空白`)
         return []
