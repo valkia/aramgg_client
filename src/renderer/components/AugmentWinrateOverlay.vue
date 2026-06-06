@@ -809,13 +809,30 @@ const closeOverlay = () => {
   electronAPI.windows.hidePopup()
 }
 
+const withClientUtm = (url) => {
+  try {
+    const parsedUrl = new URL(url)
+    parsedUrl.searchParams.set('utm_source', 'aramgg_client')
+    parsedUrl.searchParams.set('utm_medium', 'desktop_app')
+    parsedUrl.searchParams.set('utm_campaign', 'champion_detail')
+
+    if (championId.value) {
+      parsedUrl.searchParams.set('utm_content', `champion_${championId.value}`)
+    }
+
+    return parsedUrl.toString()
+  } catch {
+    return url
+  }
+}
+
 const openChampionBlog = async (url) => {
   if (!url) {
     return
   }
 
   try {
-    await electronAPI.shell.openExternal(url)
+    await electronAPI.shell.openExternal(withClientUtm(url))
   } catch (err) {
     console.warn('Failed to open champion blog:', err)
   }
