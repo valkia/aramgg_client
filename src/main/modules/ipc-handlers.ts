@@ -106,6 +106,23 @@ async function directoryExists(directoryPath) {
     }
 }
 
+async function findLolInstallChildPath(directoryPath) {
+    const candidates = [
+        'League of Legends',
+        'LeagueOfLegends',
+        '英雄联盟',
+    ]
+
+    for (const directoryName of candidates) {
+        const candidatePath = path.join(directoryPath, directoryName)
+        if (await directoryExists(path.join(candidatePath, 'LeagueClient'))) {
+            return candidatePath
+        }
+    }
+
+    return null
+}
+
 async function validateLolDirectory(lolPath) {
     const normalizedPath = typeof lolPath === 'string' ? lolPath.trim() : ''
 
@@ -139,15 +156,44 @@ async function validateLolDirectory(lolPath) {
         }
     }
 
-    const directoryName = path.basename(path.normalize(normalizedPath)).toLowerCase()
-    if (directoryName === 'leagueclient') {
+    const normalizedDirectory = path.normalize(normalizedPath)
+    const directoryName = path.basename(normalizedDirectory).toLowerCase()
+    if (directoryName === 'leagueclient' || directoryName === 'game') {
         const parentPath = path.dirname(normalizedPath)
-        return {
-            success: true,
-            valid: false,
-            reason: 'league-client-subdirectory',
-            message: `当前选中的是 LeagueClient 子目录，请改选上一层英雄联盟安装目录：${parentPath}`,
-            suggestedPath: parentPath,
+        if (await directoryExists(path.join(parentPath, 'LeagueClient'))) {
+            return {
+                success: true,
+                valid: false,
+                reason: `${directoryName}-subdirectory`,
+                message: `当前选中的是 ${path.basename(normalizedDirectory)} 子目录，请改选上一层英雄联盟安装目录：${parentPath}`,
+                suggestedPath: parentPath,
+            }
+        }
+    }
+
+    if (directoryName === 'riot client') {
+        const siblingLolPath = path.join(path.dirname(normalizedPath), 'League of Legends')
+        if (await directoryExists(path.join(siblingLolPath, 'LeagueClient'))) {
+            return {
+                success: true,
+                valid: false,
+                reason: 'riot-client-directory',
+                message: `当前选中的是 Riot Client 目录，请选择同级的 League of Legends 游戏目录：${siblingLolPath}`,
+                suggestedPath: siblingLolPath,
+            }
+        }
+    }
+
+    if (directoryName === 'riot games' || directoryName === 'wegameapps') {
+        const childLolPath = await findLolInstallChildPath(normalizedPath)
+        if (childLolPath) {
+            return {
+                success: true,
+                valid: false,
+                reason: 'publisher-root-directory',
+                message: `当前选中的是上级安装目录，请选择英雄联盟游戏目录：${childLolPath}`,
+                suggestedPath: childLolPath,
+            }
         }
     }
 
@@ -157,7 +203,7 @@ async function validateLolDirectory(lolPath) {
             success: true,
             valid: false,
             reason: 'missing-league-client',
-            message: '未找到 LeagueClient 文件夹。请选择包含 LeagueClient 的英雄联盟安装目录，例如 C:\\Riot Games\\League of Legends 或 WeGameApps\\英雄联盟。',
+            message: '未找到 LeagueClient 文件夹。国际服请选择 C:\\Riot Games\\League of Legends 这类游戏目录；国服请选择 WeGameApps\\英雄联盟。不要选择 Riot Client、LeagueClient、Game 或 exe 文件。',
         }
     }
 

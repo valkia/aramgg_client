@@ -151,16 +151,30 @@ export async function init() {
 async function autoDetectLolPath() {
     const fs = await import('fs')
 
+    const driveLetters = 'CDEFGHI'.split('')
+    const driveCandidates = driveLetters.flatMap((drive) => [
+        `${drive}:\\Riot Games\\League of Legends`,
+        `${drive}:\\Games\\League of Legends`,
+        `${drive}:\\Program Files\\Riot Games\\League of Legends`,
+        `${drive}:\\Program Files\\League of Legends`,
+    ])
+
     // 常见的游戏安装目录
     const commonPaths = [
         'C:\\Riot Games\\League of Legends',
+        'C:\\Program Files\\Riot Games\\League of Legends',
         'C:\\Program Files\\League of Legends',
+        'C:\\Program Files (x86)\\WeGameApps\\英雄联盟',
+        'D:\\Program Files (x86)\\WeGameApps\\英雄联盟',
         'D:\\Riot Games\\League of Legends',
         'D:\\Games\\League of Legends',
+        ...driveCandidates,
     ]
+    const uniquePaths = [...new Set(commonPaths)]
 
-    for (const checkPath of commonPaths) {
-        if (fs.existsSync(checkPath)) {
+    for (const checkPath of uniquePaths) {
+        const hasLeagueClient = fs.existsSync(`${checkPath}\\LeagueClient`)
+        if (fs.existsSync(checkPath) && hasLeagueClient) {
             logger.info(`自动检测到游戏目录: ${checkPath}`)
             return checkPath
         }

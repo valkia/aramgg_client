@@ -67,6 +67,16 @@
                 <h2 class="champion-name">{{ championName || (championId ? `英雄 ${championId}` : '等待英雄选择') }}</h2>
               </div>
               <div class="hero-badges">
+                <button
+                  v-if="championBlogUrl"
+                  class="blog-link-badge"
+                  type="button"
+                  title="打开英雄攻略"
+                  @click="openChampionBlog(championBlogUrl)"
+                >
+                  <ExternalLink class="blog-link-icon" />
+                  攻略
+                </button>
                 <span class="tier-badge">梯队 {{ championStats?.tier || '-' }}</span>
                 <span class="winrate-badge" :class="getWinRateClass(championStats?.winRate)">
                   胜率 {{ formatPercent(championStats?.winRate) }}
@@ -90,6 +100,23 @@
               <span>场次</span>
               <strong>{{ championDataLoading ? '读取中' : formatNumber(championStats?.numGames) }}</strong>
             </div>
+          </section>
+
+          <section v-if="championBlogs.length" class="related-blogs">
+            <div class="section-title-row compact">
+              <h3>相关攻略</h3>
+              <span>{{ championBlogs.length }} 篇</span>
+            </div>
+            <button
+              v-for="blog in championBlogs"
+              :key="blog.url"
+              class="related-blog-link"
+              type="button"
+              @click="openChampionBlog(blog.url)"
+            >
+              <span>{{ blog.title }}</span>
+              <ExternalLink class="related-blog-icon" />
+            </button>
           </section>
 
           <!-- Tab 切换 -->
@@ -259,7 +286,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { Minus, PackageCheck, PackagePlus, X } from 'lucide-vue-next'
+import { ExternalLink, Minus, PackageCheck, PackagePlus, X } from 'lucide-vue-next'
 import { getChampionIconUrl, getChampionSquareIconUrl, getAugmentIconUrl, getItemIconUrl } from '../service/cdn'
 import { electronAPI } from '../native/electron-api.js'
 import { sortAugmentsByDetectedOrder } from '../service/augment-order.js'
@@ -284,6 +311,7 @@ const augmentBase = ref([])
 const augmentStats = ref({})
 const buildData = ref(null)
 const itemsData = ref({})
+const championLinks = ref({})
 const displayAugments = ref([])
 const benchPreviewRecommendation = ref(null)
 const unsubscribeEvents = []
@@ -305,6 +333,40 @@ const itemSetButtonLabel = computed(() => {
   }
 
   return itemSetAutoEnabled.value ? '重新配置装备' : '配置当前英雄装备'
+})
+
+const championBlogUrl = computed(() => {
+  return championBlogs.value[0]?.url || null
+})
+
+const normalizeBlogRecords = (records = []) => {
+  if (!Array.isArray(records)) {
+    return []
+  }
+
+  const seen = new Set()
+  return records
+    .map(record => {
+      const url = typeof record === 'string' ? record : record?.url || record?.href || record?.link
+      if (!url || seen.has(url)) {
+        return null
+      }
+
+      seen.add(url)
+      return {
+        title: String(record?.title || record?.name || record?.label || '英雄攻略').trim() || '英雄攻略',
+        url,
+      }
+    })
+    .filter(Boolean)
+}
+
+const championBlogs = computed(() => {
+  return [
+    ...normalizeBlogRecords(championLinks.value?.relatedBlogs),
+    ...normalizeBlogRecords(championStats.value?.relatedBlogs),
+    ...normalizeBlogRecords(championNameData.value?.relatedBlogs),
+  ].filter((blog, index, blogs) => blogs.findIndex(item => item.url === blog.url) === index)
 })
 
 const logOverlayInfo = (message, details = {}) => {
@@ -446,6 +508,9 @@ const applyFallbackChampionData = (data) => {
   augmentStats.value = {}
   buildData.value = null
   itemsData.value = {}
+  championLinks.value = data?.championLinks || {
+    relatedBlogs: data?.relatedBlogs || [],
+  }
   displayAugments.value = mapIncomingAugmentsForFallback(data?.augments || [])
   dataSource.value = data?.dataSource || '不可用'
   timestamp.value = data?.timestamp || Date.now()
@@ -531,6 +596,7 @@ const showOverlay = async (data) => {
   championStats.value = null
   buildData.value = null
   itemsData.value = {}
+  championLinks.value = {}
   displayAugments.value = []
   benchPreviewRecommendation.value = data?.benchRecommendation || null
   championNameData.value = null
@@ -616,13 +682,22 @@ const showOverlay = async (data) => {
     }
 
     if (result.success) {
-      const { stats, augments, augmentStats: augStats, build, items, championName: nameData } = result.data
+      const {
+        stats,
+        augments,
+        augmentStats: augStats,
+        build,
+        items,
+        championName: nameData,
+        championLinks: linksData,
+      } = result.data
       championStats.value = stats
       augmentBase.value = augments
       augmentStats.value = augStats
       buildData.value = build
       itemsData.value = items
       championNameData.value = nameData || null
+      championLinks.value = linksData || {}
 
       // 设置英雄名称（优先使用传入的，否则使用从数据加载的）
       if (!championName.value && nameData) {
@@ -728,9 +803,22 @@ const closeOverlay = () => {
   augmentStats.value = {}
   buildData.value = null
   itemsData.value = {}
+  championLinks.value = {}
   displayAugments.value = []
 
   electronAPI.windows.hidePopup()
+}
+
+const openChampionBlog = async (url) => {
+  if (!url) {
+    return
+  }
+
+  try {
+    await electronAPI.shell.openExternal(url)
+  } catch (err) {
+    console.warn('Failed to open champion blog:', err)
+  }
 }
 
 /**
@@ -1713,7 +1801,8 @@ defineExpose({
 }
 
 .tier-badge,
-.winrate-badge {
+.winrate-badge,
+.blog-link-badge {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
@@ -1722,6 +1811,27 @@ defineExpose({
   font-size: 11px;
   font-weight: 900;
   white-space: nowrap;
+}
+
+.blog-link-badge {
+  gap: 4px;
+  color: #f4ecdc;
+  background: rgba(8, 21, 30, 0.78);
+  border: 1px solid rgba(226, 192, 143, 0.46);
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.blog-link-badge:hover {
+  color: #08151e;
+  background: #e2c08f;
+  border-color: rgba(226, 192, 143, 0.72);
+}
+
+.blog-link-icon {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
 }
 
 .tier-badge {
@@ -1734,6 +1844,59 @@ defineExpose({
   color: #e2c08f;
   background: rgba(194, 156, 109, 0.14);
   border: 1px solid rgba(226, 192, 143, 0.5);
+}
+
+.related-blogs {
+  margin: 12px 18px 0;
+  padding: 12px;
+  border: 1px solid rgba(133, 148, 145, 0.24);
+  border-radius: 4px;
+  background: rgba(8, 21, 30, 0.46);
+}
+
+.section-title-row.compact {
+  margin-bottom: 8px;
+}
+
+.related-blog-link {
+  width: 100%;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #d7e4f1;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.related-blog-link + .related-blog-link {
+  margin-top: 4px;
+}
+
+.related-blog-link:hover {
+  color: #e2c08f;
+  background: rgba(194, 156, 109, 0.08);
+  border-color: rgba(226, 192, 143, 0.2);
+}
+
+.related-blog-link span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.related-blog-icon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
 }
 
 .item-set-actions {

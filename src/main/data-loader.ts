@@ -973,6 +973,7 @@ function mapPublicChampionStats(champion: any, meta: any = {}): any {
     title: champion?.title || '',
     roles: champion?.roles || [],
     iconUrl: champion?.iconUrl || null,
+    relatedBlogs: getChampionRelatedBlogs(champion),
     tier: toNullableNumber(stats.tier),
     winRate: toNumber(stats.winRate),
     numWinGames: toNumber(stats.wins ?? stats.numWinGames),
@@ -993,7 +994,67 @@ function mapPublicChampionName(champion: any): any {
     nameEN: champion?.alias || champion?.nameEN || '',
     roles: champion?.roles || [],
     iconUrl: champion?.iconUrl || null,
+    relatedBlogs: getChampionRelatedBlogs(champion),
   }
+}
+
+function normalizeExternalUrl(value: any): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const url = value.trim()
+  if (!/^https?:\/\//i.test(url)) {
+    return null
+  }
+
+  return url
+}
+
+function normalizeRelatedBlog(record: any): any | null {
+  const url = normalizeExternalUrl(record)
+    || normalizeExternalUrl(record?.url)
+    || normalizeExternalUrl(record?.href)
+    || normalizeExternalUrl(record?.link)
+  if (!url) {
+    return null
+  }
+
+  const title = String(record?.title || record?.name || record?.label || '英雄攻略').trim()
+  return {
+    title: title || '英雄攻略',
+    url,
+  }
+}
+
+function getChampionRelatedBlogs(...sources: any[]): any[] {
+  const blogs: any[] = []
+  const seen = new Set<string>()
+
+  for (const source of sources) {
+    if (!source || typeof source !== 'object') {
+      continue
+    }
+
+    const candidates = [
+      source.relatedBlogs,
+    ]
+
+    for (const candidate of candidates) {
+      const records = Array.isArray(candidate) ? candidate : candidate ? [candidate] : []
+      for (const record of records) {
+        const blog = normalizeRelatedBlog(record)
+        if (!blog || seen.has(blog.url)) {
+          continue
+        }
+
+        seen.add(blog.url)
+        blogs.push(blog)
+      }
+    }
+  }
+
+  return blogs
 }
 
 function mapPublicAugmentStats(augment: any): any {
@@ -1257,6 +1318,25 @@ export async function loadChampionName(championId: string | number): Promise<any
   }
 }
 
+export async function loadChampionLinks(championId: string | number): Promise<any> {
+  try {
+    const championsPayload = await loadChampionsPayload()
+    const champions = extractList(championsPayload, 'champions')
+    const champion = findChampionInList(champions, championId)
+    const detail = await loadChampionDetailPayload(championId)
+    const relatedBlogs = getChampionRelatedBlogs(detail, detail?.champion, champion)
+
+    return {
+      relatedBlogs,
+    }
+  } catch (error: any) {
+    logger.warn(`Failed to load champion links for ${championId}:`, error.message)
+    return {
+      relatedBlogs: [],
+    }
+  }
+}
+
 export async function loadAugmentBase(): Promise<any[]> {
   const augmentsPayload = await loadAugmentsPayload()
   return extractList(augmentsPayload, 'augments').map(mapPublicAugmentBase)
@@ -1344,7 +1424,7 @@ export async function loadChampionRoster(): Promise<any[]> {
 }
 
 export async function getChampionDetailData(championId: string | number): Promise<any> {
-  const [stats, augmentBase, augmentDetail, augments, augmentTrios, build, items, championName] =
+  const [stats, augmentBase, augmentDetail, augments, augmentTrios, build, items, championName, championLinks] =
     await Promise.all([
       loadChampionStats(championId),
       loadAugmentBase(),
@@ -1354,17 +1434,25 @@ export async function getChampionDetailData(championId: string | number): Promis
       loadChampionBuild(championId),
       loadItems(),
       loadChampionName(championId),
+      loadChampionLinks(championId),
     ])
 
   return {
-    stats,
+    stats: {
+      ...stats,
+      relatedBlogs: stats?.relatedBlogs?.length ? stats.relatedBlogs : championLinks?.relatedBlogs || [],
+    },
     augmentBase,
     augmentDetail,
     augments,
     augmentTrios,
     build,
     items,
-    championName,
+    championName: {
+      ...championName,
+      relatedBlogs: championName?.relatedBlogs?.length ? championName.relatedBlogs : championLinks?.relatedBlogs || [],
+    },
+    championLinks,
   }
 }
 

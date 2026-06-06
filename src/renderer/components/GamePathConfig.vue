@@ -8,7 +8,7 @@
             <div class="input-group">
                 <Input
                     v-model="lolPath"
-                    placeholder="例如: D:\\Program Files (x86)\\WeGameApps\\英雄联盟"
+                    placeholder="例如: C:\\Riot Games\\League of Legends"
                     :class="['path-input', { 'path-input-error': validationStatus === 'invalid' }]"
                     @blur="validateCurrentPath({ silentEmpty: true })"
                 />
@@ -81,7 +81,7 @@ const pathGuideMessage = computed(() => {
         return validationMessage.value
     }
 
-    return '请选择英雄联盟安装目录：目录内应包含 LeagueClient 文件夹，不要选择 LeagueClient 子目录或 exe 文件。'
+    return '请选择英雄联盟游戏目录：国际服通常是 C:\\Riot Games\\League of Legends，国服通常是 WeGameApps\\英雄联盟；不要选择 Riot Client、LeagueClient、Game 子目录或 exe 文件。'
 })
 
 const setInvalidPathGuide = (message) => {
