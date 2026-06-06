@@ -150,7 +150,8 @@ class AutoScreenshotService {
         this.isRunning = false
         this.intervalId = null
         this.interval = 5000 // 默认5秒
-        this.minInterval = 250
+        this.minInterval = 200
+        this.stableDetectionInterval = null
         this.maxScreenshots = 50 // 保留字段但已不再使用（截图直接使用内存 Buffer）
         this.screenshotCount = 0
         this.lastScreenshotTime = null
@@ -208,6 +209,9 @@ class AutoScreenshotService {
         }
 
         this.interval = Math.max(intervalMs, this.minInterval)
+        if (owner === 'manual') {
+            this.stableDetectionInterval = null
+        }
         this.runId++
         this.isRunning = true
         this.controlOwner = owner
@@ -244,7 +248,11 @@ class AutoScreenshotService {
             memoryUsage: [],
         }
 
-        logger.info(`Auto screenshot service started with interval: ${this.interval}ms, owner=${owner}`)
+        logger.info('Auto screenshot service started', {
+            intervalMs: this.interval,
+            stableDetectionIntervalMs: this.stableDetectionInterval,
+            owner,
+        })
         void warmupImageAnalyzer()
 
         this._scheduleNextCapture(0, this.runId)
@@ -338,9 +346,18 @@ class AutoScreenshotService {
             await this._captureScreenshot(runId)
 
             const elapsed = performance.now() - cycleStart
-            const nextDelay = Math.max(0, this.interval - elapsed)
+            const activeInterval = this._getCurrentCaptureInterval()
+            const nextDelay = Math.max(0, activeInterval - elapsed)
             this._scheduleNextCapture(nextDelay, runId)
         }, delayMs)
+    }
+
+    _getCurrentCaptureInterval() {
+        if (this.lastDetectedAugmentIds.length > 0 && this.stableDetectionInterval) {
+            return this.stableDetectionInterval
+        }
+
+        return this.interval
     }
 
     /**
@@ -651,7 +668,7 @@ class AutoScreenshotService {
 
         this.lastSummaryLogAt = now
         const stats = this.getPerformanceStats()
-        logger.info(`Auto screenshot summary: screenshots=${stats.screenshotCount}, analyses=${stats.analysisCount}, detections=${stats.detectionCount}, replacedPendingAnalyses=${stats.droppedAnalysisCount}, backpressureSkippedCaptures=${stats.analysisBackpressureSkipCount}, avgCapture=${stats.averageCaptureTime}ms, lastAnalysis=${stats.lastAnalysisDuration || 0}ms`)
+        logger.info(`Auto screenshot summary: screenshots=${stats.screenshotCount}, analyses=${stats.analysisCount}, detections=${stats.detectionCount}, replacedPendingAnalyses=${stats.droppedAnalysisCount}, backpressureSkippedCaptures=${stats.analysisBackpressureSkipCount}, interval=${stats.activeInterval}ms, avgCapture=${stats.averageCaptureTime}ms, lastAnalysis=${stats.lastAnalysisDuration || 0}ms`)
     }
 
     _shouldClearVisibleAugmentsAfterMiss({ cardCount, augments = [] }) {
@@ -1116,6 +1133,9 @@ class AutoScreenshotService {
                 isAnalyzing: this.isAnalyzing,
                 captureTimeoutMs: this.captureTimeoutMs,
                 preferScreenCapture: this.preferScreenCapture,
+                interval: this.interval,
+                stableDetectionInterval: this.stableDetectionInterval,
+                activeInterval: this._getCurrentCaptureInterval(),
                 averageCaptureTime: 0,
                 maxCaptureTime: 0,
                 minCaptureTime: 0,
@@ -1161,6 +1181,8 @@ class AutoScreenshotService {
             averageMemory: parseFloat(avgMemory.toFixed(2)),
             maxMemory: parseFloat(maxMemory.toFixed(2)),
             performanceLevel: this._assessPerformanceLevel(avgCapture, avgMemory),
+            stableDetectionInterval: this.stableDetectionInterval,
+            activeInterval: this._getCurrentCaptureInterval(),
         }
     }
 
@@ -1208,6 +1230,12 @@ class AutoScreenshotService {
         if (config.interval !== undefined && config.interval > 0) {
             this.interval = Math.max(config.interval, this.minInterval)
         }
+        if (Object.prototype.hasOwnProperty.call(config, 'stableDetectionInterval')) {
+            const stableDetectionInterval = Number(config.stableDetectionInterval)
+            this.stableDetectionInterval = stableDetectionInterval > 0
+                ? Math.max(stableDetectionInterval, this.minInterval)
+                : null
+        }
         if (config.maxScreenshots !== undefined && config.maxScreenshots > 0) {
             this.maxScreenshots = config.maxScreenshots
         }
@@ -1244,6 +1272,8 @@ class AutoScreenshotService {
             isAnalyzing: this.isAnalyzing,
             captureTimeoutMs: this.captureTimeoutMs,
             preferScreenCapture: this.preferScreenCapture,
+            stableDetectionInterval: this.stableDetectionInterval,
+            activeInterval: this._getCurrentCaptureInterval(),
             lastAnalysisDuration: parseFloat(this.lastAnalysisDuration.toFixed(2)),
         }
     }
@@ -1288,6 +1318,7 @@ class AutoScreenshotService {
         this.partialOcrSaveInFlight = false
         this.partialOcrSaveCount = 0
         this.pendingAnalysisBuffer = null
+        this.stableDetectionInterval = null
         this.gameflowPhase = null
         this.controlOwner = null
         this.isCapturing = false

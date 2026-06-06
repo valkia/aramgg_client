@@ -32,7 +32,8 @@ let lcuGameflowReconnectTimer = null
 let lcuGameflowMonitorStopping = false
 let quitCleanupCompleted = false
 let quitCleanupPromise = null
-const AUTO_SCREENSHOT_INTERVAL_MS = 800
+const AUTO_SCREENSHOT_INTERVAL_MS = 200
+const AUTO_SCREENSHOT_STABLE_INTERVAL_MS = 800
 const AUTO_SCREENSHOT_MAX_CAPTURES = 100
 const GAME_WINDOW_STATUS_LOG_INTERVAL_MS = 30000
 const GAMEFLOW_AUGMENT_ANALYSIS_PHASE = 'InProgress'
@@ -199,6 +200,7 @@ async function startAutoScreenshotForGame(reason) {
 
     autoScreenshotService.setConfig({
         interval: AUTO_SCREENSHOT_INTERVAL_MS,
+        stableDetectionInterval: AUTO_SCREENSHOT_STABLE_INTERVAL_MS,
         maxScreenshots: AUTO_SCREENSHOT_MAX_CAPTURES,
     })
 
@@ -210,6 +212,7 @@ async function startAutoScreenshotForGame(reason) {
             reason,
             durationMs: Date.now() - startedAt,
             intervalMs: AUTO_SCREENSHOT_INTERVAL_MS,
+            stableDetectionIntervalMs: AUTO_SCREENSHOT_STABLE_INTERVAL_MS,
             pollFallbackIntervalMs: GAMEFLOW_POLL_FALLBACK_INTERVAL_MS,
         })
     }

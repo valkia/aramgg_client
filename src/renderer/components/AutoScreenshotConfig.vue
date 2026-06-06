@@ -78,7 +78,7 @@
 
         <div class="stat-card">
           <div class="stat-label">当前间隔</div>
-          <div class="stat-value">{{ (stats.interval / 1000).toFixed(1) }}s</div>
+          <div class="stat-value">{{ ((stats.activeInterval || stats.interval) / 1000).toFixed(1) }}s</div>
         </div>
 
         <!-- 性能指标 -->
