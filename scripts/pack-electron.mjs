@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { readFile, rm } from 'node:fs/promises'
+import { copyFile, cp, mkdir, readFile, readdir, rm } from 'node:fs/promises'
 import net from 'node:net'
 import path from 'node:path'
 import process from 'node:process'
@@ -186,6 +186,47 @@ async function cleanRootPackageArtifacts(version) {
   await Promise.all(artifactPaths.map(removeFileIfExists))
 }
 
+async function copyFallbackArtifactIfExists(fallbackOutput, fileName) {
+  const source = path.join(process.cwd(), fallbackOutput, fileName)
+  const target = path.join(process.cwd(), 'build', fileName)
+
+  try {
+    await copyFile(source, target)
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      throw error
+    }
+  }
+}
+
+async function mirrorFallbackOutput(fallbackOutput, version) {
+  const fallbackRoot = path.join(process.cwd(), fallbackOutput)
+  const rootOutput = path.join(process.cwd(), 'build')
+  const fallbackUnpacked = path.join(fallbackRoot, 'win-unpacked')
+  const rootUnpacked = path.join(rootOutput, 'win-unpacked')
+  const artifactBaseName = `aramgg_client Setup ${version}`
+
+  await rm(rootUnpacked, { recursive: true, force: true })
+  await cp(fallbackUnpacked, rootUnpacked, { recursive: true })
+  await mkdir(rootOutput, { recursive: true })
+
+  await Promise.all([
+    copyFallbackArtifactIfExists(fallbackOutput, `${artifactBaseName}.exe`),
+    copyFallbackArtifactIfExists(fallbackOutput, `${artifactBaseName}.exe.blockmap`),
+    copyFallbackArtifactIfExists(fallbackOutput, 'latest.yml'),
+  ])
+
+  const copiedArtifacts = await readdir(rootOutput)
+  const expectedArtifactPrefix = `${artifactBaseName}.`
+  const releaseArtifacts = copiedArtifacts.filter((fileName) => (
+    fileName === 'latest.yml' || fileName.startsWith(expectedArtifactPrefix)
+  ))
+
+  console.warn(
+    `\nPackage artifacts were mirrored to default output after fallback: ${releaseArtifacts.join(', ')}\n`
+  )
+}
+
 async function main() {
   const packEnv = await createPackEnv()
   const packageVersion = await getPackageVersion()
@@ -240,6 +281,7 @@ async function main() {
 
   if (fallbackResult.code === 0) {
     await cleanRootPackageArtifacts(packageVersion)
+    await mirrorFallbackOutput(fallbackOutput, packageVersion)
     console.warn(`\nPackage artifacts were written to fallback output: ${fallbackOutput}\n`)
   }
 
