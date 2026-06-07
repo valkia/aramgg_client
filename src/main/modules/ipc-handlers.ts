@@ -1,6 +1,5 @@
 // @ts-nocheck
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, shell } from 'electron'
-import fs from 'fs/promises'
 import path from 'path'
 import { captureScreenshot } from '../screenshot.ts'
 import { analyzeScreenshot } from '../image-analyzer.ts'
@@ -20,6 +19,11 @@ import logger from './logger.ts'
 import store from './app-store.ts'
 import { getAppDataDir } from './app-paths.ts'
 import { logDiagnosticSnapshot } from './diagnostic-logger.ts'
+import {
+    findLeagueInstallChildPath,
+    inspectLeagueInstallDirectory,
+    isLeagueInstallDirectory,
+} from './lol-path.ts'
 import {
     getAnalyticsStatus,
     setAnalyticsEnabled,
@@ -98,32 +102,6 @@ function assertSafeExternalUrl(url) {
     return parsedUrl.toString()
 }
 
-async function directoryExists(directoryPath) {
-    try {
-        const stats = await fs.stat(directoryPath)
-        return stats.isDirectory()
-    } catch {
-        return false
-    }
-}
-
-async function findLolInstallChildPath(directoryPath) {
-    const candidates = [
-        'League of Legends',
-        'LeagueOfLegends',
-        '英雄联盟',
-    ]
-
-    for (const directoryName of candidates) {
-        const candidatePath = path.join(directoryPath, directoryName)
-        if (await directoryExists(path.join(candidatePath, 'LeagueClient'))) {
-            return candidatePath
-        }
-    }
-
-    return null
-}
-
 async function validateLolDirectory(lolPath) {
     const normalizedPath = typeof lolPath === 'string' ? lolPath.trim() : ''
 
@@ -136,10 +114,9 @@ async function validateLolDirectory(lolPath) {
         }
     }
 
-    let stats
-    try {
-        stats = await fs.stat(normalizedPath)
-    } catch {
+    const installInfo = await inspectLeagueInstallDirectory(normalizedPath)
+
+    if (!installInfo.exists) {
         return {
             success: true,
             valid: false,
@@ -148,7 +125,7 @@ async function validateLolDirectory(lolPath) {
         }
     }
 
-    if (!stats.isDirectory()) {
+    if (!installInfo.isDirectory) {
         return {
             success: true,
             valid: false,
@@ -161,7 +138,7 @@ async function validateLolDirectory(lolPath) {
     const directoryName = path.basename(normalizedDirectory).toLowerCase()
     if (directoryName === 'leagueclient' || directoryName === 'game') {
         const parentPath = path.dirname(normalizedPath)
-        if (await directoryExists(path.join(parentPath, 'LeagueClient'))) {
+        if (await isLeagueInstallDirectory(parentPath)) {
             return {
                 success: true,
                 valid: false,
@@ -174,7 +151,7 @@ async function validateLolDirectory(lolPath) {
 
     if (directoryName === 'riot client') {
         const siblingLolPath = path.join(path.dirname(normalizedPath), 'League of Legends')
-        if (await directoryExists(path.join(siblingLolPath, 'LeagueClient'))) {
+        if (await isLeagueInstallDirectory(siblingLolPath)) {
             return {
                 success: true,
                 valid: false,
@@ -186,7 +163,7 @@ async function validateLolDirectory(lolPath) {
     }
 
     if (directoryName === 'riot games' || directoryName === 'wegameapps') {
-        const childLolPath = await findLolInstallChildPath(normalizedPath)
+        const childLolPath = await findLeagueInstallChildPath(normalizedPath)
         if (childLolPath) {
             return {
                 success: true,
@@ -198,13 +175,12 @@ async function validateLolDirectory(lolPath) {
         }
     }
 
-    const leagueClientPath = path.join(normalizedPath, 'LeagueClient')
-    if (!(await directoryExists(leagueClientPath))) {
+    if (!installInfo.valid) {
         return {
             success: true,
             valid: false,
             reason: 'missing-league-client',
-            message: '未找到 LeagueClient 文件夹。国际服请选择 C:\\Riot Games\\League of Legends 这类游戏目录；国服请选择 WeGameApps\\英雄联盟。不要选择 Riot Client、LeagueClient、Game 或 exe 文件。',
+            message: '未找到 LeagueClient.exe 或 LeagueClient 文件夹。国际服请选择 C:\\Riot Games\\League of Legends 这类游戏目录；国服请选择 WeGameApps\\英雄联盟。不要选择 Riot Client、LeagueClient、Game 或 exe 文件。',
         }
     }
 

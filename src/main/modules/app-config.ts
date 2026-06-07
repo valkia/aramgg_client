@@ -22,6 +22,7 @@ import logger from './logger.ts'
 import store from './app-store.ts'
 import { getAppDataDir } from './app-paths.ts'
 import { logDiagnosticSnapshot } from './diagnostic-logger.ts'
+import { isLeagueInstallDirectory } from './lol-path.ts'
 
 const __dirname = import.meta.dirname
 
@@ -154,8 +155,6 @@ export async function init() {
  * 自动检测游戏目录
  */
 async function autoDetectLolPath() {
-    const fs = await import('fs')
-
     const driveLetters = 'CDEFGHI'.split('')
     const driveCandidates = driveLetters.flatMap((drive) => [
         `${drive}:\\Riot Games\\League of Legends`,
@@ -178,8 +177,7 @@ async function autoDetectLolPath() {
     const uniquePaths = [...new Set(commonPaths)]
 
     for (const checkPath of uniquePaths) {
-        const hasLeagueClient = fs.existsSync(`${checkPath}\\LeagueClient`)
-        if (fs.existsSync(checkPath) && hasLeagueClient) {
+        if (await isLeagueInstallDirectory(checkPath)) {
             logger.info(`自动检测到游戏目录: ${checkPath}`)
             return checkPath
         }

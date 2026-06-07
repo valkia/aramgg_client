@@ -1,6 +1,10 @@
-import { readdir, readFile, rm, stat } from 'fs/promises'
+import { readdir, readFile, rm } from 'fs/promises'
 import path from 'path'
 import logger from '../../modules/logger.ts'
+import {
+  inspectLeagueInstallDirectory,
+  normalizeLolPath,
+} from '../../modules/lol-path.ts'
 import { getLCUServiceInstance } from '../lcu/lcu-service.ts'
 import {
   loadChampionBuild,
@@ -58,20 +62,6 @@ const MIN_RECOMMENDATION_GAMES = 2
 const MIN_BUILD_GAMES = 300
 const MIN_CORE_SEQUENCE_GAMES = 20
 const MAX_ITEM_SETS_PER_CHAMPION = 4
-
-function normalizeLolPath(lolPath: string): string {
-  const trimmedPath = String(lolPath || '').trim()
-  return trimmedPath ? path.resolve(trimmedPath) : ''
-}
-
-async function directoryExists(directoryPath: string): Promise<boolean> {
-  try {
-    const stats = await stat(directoryPath)
-    return stats.isDirectory()
-  } catch {
-    return false
-  }
-}
 
 async function readJsonFileSafe(filePath: string): Promise<any | null> {
   try {
@@ -213,15 +203,21 @@ async function assertValidLolPath(lolPath: string): Promise<string> {
     throw new Error('游戏路径未配置')
   }
 
-  if (!(await directoryExists(normalizedPath))) {
+  const installInfo = await inspectLeagueInstallDirectory(normalizedPath)
+
+  if (!installInfo.exists) {
     throw new Error('游戏路径不存在')
   }
 
-  if (!(await directoryExists(path.join(normalizedPath, 'LeagueClient')))) {
-    throw new Error('未找到 LeagueClient 文件夹，请选择英雄联盟安装目录')
+  if (!installInfo.isDirectory) {
+    throw new Error('请选择英雄联盟安装目录，不要选择 exe 文件')
   }
 
-  return normalizedPath
+  if (!installInfo.valid) {
+    throw new Error('未找到 LeagueClient.exe 或 LeagueClient 文件夹，请选择英雄联盟安装目录')
+  }
+
+  return installInfo.normalizedPath
 }
 
 function getChampionId(champion: ChampionLike): number {

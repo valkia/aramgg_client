@@ -5,35 +5,41 @@
  */
 
 import fs from 'fs'
-import path from 'path'
 import logger from './modules/logger.ts'
+import {
+    findLeagueClientLogFiles,
+    getLeagueClientLogDirectories,
+    inspectLeagueInstallDirectory,
+} from './modules/lol-path.ts'
+import { getLcuToken } from './services/lcu/token-loader.ts'
 
-function debugLcuToken(lolDir) {
+async function debugLcuToken(lolDir) {
     logger.info('\n========== LCU 诊断报告 ==========\n')
     logger.info('📁 游戏目录:', lolDir)
-    logger.info('✓ 目录存在:', fs.existsSync(lolDir))
+    const installInfo = await inspectLeagueInstallDirectory(lolDir)
+    logger.info('✓ 目录存在:', installInfo.exists)
+    logger.info('✓ 是文件夹:', installInfo.isDirectory)
+    logger.info('✓ LoL 目录结构:', installInfo.valid ? installInfo.layout : '未识别')
 
-    const leagueClientDir = path.join(lolDir, 'LeagueClient')
-    logger.info('\n🔍 检查 LeagueClient 目录:')
-    logger.info('   路径:', leagueClientDir)
-    logger.info('   存在:', fs.existsSync(leagueClientDir))
-
-    if (!fs.existsSync(leagueClientDir)) {
-        logger.error('❌ LeagueClient 目录不存在！')
+    if (!installInfo.valid) {
+        logger.error('❌ 未找到 LeagueClient.exe 或 LeagueClient 文件夹！')
         return
     }
 
-    // 列出所有文件
-    const files = fs.readdirSync(leagueClientDir)
-    logger.info('\n📄 目录中的文件数:', files.length)
+    const files = fs.readdirSync(installInfo.normalizedPath)
+    logger.info('\n📄 游戏目录中的文件数:', files.length)
     logger.info('   前10个文件:')
     files.slice(0, 10).forEach((f) => {
         logger.info('   -', f)
     })
 
-    // 查找日志文件
     logger.info('\n🔎 查找日志文件:')
-    const logFiles = files.filter((f) => f.includes('LeagueClientUx.log') && !f.includes('-tracing'))
+    const logDirectories = await getLeagueClientLogDirectories(installInfo.normalizedPath)
+    logger.info('   搜索目录:')
+    logDirectories.forEach((directoryPath) => {
+        logger.info('   -', directoryPath)
+    })
+    const logFiles = await findLeagueClientLogFiles(installInfo.normalizedPath)
     logger.info('   找到 LeagueClientUx.log 文件:', logFiles.length)
     logFiles.forEach((f) => {
         logger.info('   -', f)
@@ -45,44 +51,21 @@ function debugLcuToken(lolDir) {
         logger.info('   1. 游戏客户端未启动')
         logger.info('   2. 游戏安装路径不正确')
         logger.info('   3. 日志文件被删除或清理')
-        return
     }
 
-    // 读取最新的日志文件
-    const latest = logFiles.sort((a, b) => a.localeCompare(b)).pop()
-    const logPath = path.join(leagueClientDir, latest)
-
-    logger.info('\n📖 读取最新日志文件:')
-    logger.info('   文件:', latest)
-    logger.info('   完整路径:', logPath)
-
-    try {
-        const content = fs.readFileSync(logPath, 'utf8')
-        logger.info('   文件大小:', content.length, 'bytes')
-
-        // 查找 LCU URL
-        logger.info('\n🔗 查找 LCU URL:')
-        const urlMatch = content.match(/https:\/\/riot:([^@]+)@127\.0\.0\.1:(\d+)/)
-
-        if (urlMatch) {
-            const token = urlMatch[1]
-            const port = urlMatch[2]
-            logger.info('   ✅ 找到 LCU URL!')
-            logger.info('   Token:', token.substring(0, 10) + '...' + token.substring(token.length - 4))
-            logger.info('   Port:', port)
-            logger.info('\n   完整 URL: https://riot:' + token + '@127.0.0.1:' + port)
-        } else {
-            logger.error('   ❌ 未找到 LCU URL!')
-            logger.info('\n   📝 日志片段（最后500字符）:')
-            logger.info('   ' + content.substring(content.length - 500))
-
-            logger.info('\n   💡 可能的原因:')
-            logger.info('   1. 游戏客户端未完全启动')
-            logger.info('   2. 还未进入游戏界面')
-            logger.info('   3. 日志格式已改变（游戏版本更新）')
-        }
-    } catch (error) {
-        logger.error('❌ 读取日志文件失败:', error.message)
+    logger.info('\n🔗 查找 LCU Token:')
+    const [token, port, urlWithAuth] = await getLcuToken(installInfo.normalizedPath)
+    if (token && port) {
+        logger.info('   ✅ 找到 LCU Token!')
+        logger.info('   Token:', token.substring(0, 10) + '...' + token.substring(token.length - 4))
+        logger.info('   Port:', port)
+        logger.info('\n   完整 URL:', urlWithAuth)
+    } else {
+        logger.error('   ❌ 未找到 LCU Token!')
+        logger.info('\n   💡 可能的原因:')
+        logger.info('   1. 游戏客户端未完全启动')
+        logger.info('   2. 还未进入游戏界面')
+        logger.info('   3. 日志格式已改变（游戏版本更新）')
     }
 
     logger.info('\n==================\n')
@@ -90,4 +73,6 @@ function debugLcuToken(lolDir) {
 
 // 从命令行参数获取游戏目录
 const gameDir = process.argv[2] || 'C:\\Riot Games\\League of Legends'
-debugLcuToken(gameDir)
+debugLcuToken(gameDir).catch((error) => {
+    logger.error('LCU 诊断失败:', error.message)
+})
