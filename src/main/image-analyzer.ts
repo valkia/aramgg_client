@@ -22,6 +22,7 @@ import { readFileSync, existsSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { loadAugmentBase } from './data-loader.ts'
 import logger from './modules/logger.ts'
+import { ensureOnnxruntimeNativeDllPath } from './modules/onnxruntime-native-path.ts'
 
 // ES Module 中获取 __dirname
 const __filename = fileURLToPath(import.meta.url)
@@ -283,6 +284,7 @@ async function getPaddleOcrService() {
         }
 
         paddleOcrServicePromise = (async () => {
+            ensureOnnxruntimeNativeDllPath(logger)
             const [{ PaddleOcrService }, ort] = await Promise.all([
                 import('paddleocr'),
                 import('onnxruntime-node'),
