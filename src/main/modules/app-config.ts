@@ -22,6 +22,7 @@ import logger from './logger.ts'
 import store from './app-store.ts'
 import { getAppDataDir } from './app-paths.ts'
 import { logDiagnosticSnapshot } from './diagnostic-logger.ts'
+import { getLolPathChangeMonitorAction } from './gameflow-monitor-lifecycle.ts'
 import { isLeagueInstallDirectory } from './lol-path.ts'
 
 const __dirname = import.meta.dirname
@@ -31,6 +32,8 @@ let lcuPollingTimer = null
 let lcuGameflowSubscription = null
 let lcuGameflowReconnectTimer = null
 let lcuGameflowMonitorStopping = false
+let lcuGameflowInitPromise = null
+let lolPathChangeUnsubscribe = null
 let quitCleanupCompleted = false
 let quitCleanupPromise = null
 const AUTO_SCREENSHOT_INTERVAL_MS = 200
@@ -138,8 +141,9 @@ export async function init() {
 
     // 初始化游戏流程监控（延迟初始化，避免阻塞应用启动）
     logger.info('将在后台初始化游戏流程监控...')
+    registerGameflowConfigWatchers()
     setTimeout(() => {
-        initGameFlowMonitor()
+        void ensureGameFlowMonitor('startup-delay')
     }, 2000)
 
     // 注册 F1 全局快捷键
@@ -755,6 +759,72 @@ function stopGameflowWebSocket(reason) {
     }
 }
 
+function stopGameflowMonitorRuntime(reason) {
+    lcuGameflowMonitorStopping = true
+    stopGameflowWebSocket(reason)
+
+    if (lcuPollingTimer) {
+        clearInterval(lcuPollingTimer)
+        lcuPollingTimer = null
+        logger.info(`游戏流程轮询已停止: ${reason}`)
+    }
+}
+
+async function ensureGameFlowMonitor(reason = 'manual') {
+    if (lcuPollingTimer) {
+        logger.debug(`Game flow monitor already running (${reason})`)
+        return true
+    }
+
+    if (lcuGameflowInitPromise) {
+        logger.debug(`Game flow monitor initialization already in progress (${reason})`)
+        await lcuGameflowInitPromise
+        return Boolean(lcuPollingTimer)
+    }
+
+    logger.info(`Ensuring game flow monitor: ${reason}`)
+    lcuGameflowInitPromise = initGameFlowMonitor()
+        .catch((error) => {
+            logger.warn(`Game flow monitor ensure failed (${reason}):`, error.message)
+        })
+        .finally(() => {
+            lcuGameflowInitPromise = null
+        })
+
+    await lcuGameflowInitPromise
+    return Boolean(lcuPollingTimer)
+}
+
+function registerGameflowConfigWatchers() {
+    if (lolPathChangeUnsubscribe || typeof store.onDidChange !== 'function') {
+        return
+    }
+
+    lolPathChangeUnsubscribe = store.onDidChange('lolPath', (newPath, oldPath) => {
+        const action = getLolPathChangeMonitorAction({
+            newPath,
+            oldPath,
+            monitorRunning: Boolean(lcuPollingTimer),
+        })
+
+        if (action === 'ignore') {
+            return
+        }
+
+        logger.info('Game path changed; ensuring game flow monitor', {
+            hadPreviousPath: Boolean(oldPath),
+            monitorRunning: Boolean(lcuPollingTimer),
+            action,
+        })
+
+        if (action === 'restart') {
+            stopGameflowMonitorRuntime('lolPath changed')
+        }
+
+        void ensureGameFlowMonitor('lolPath changed')
+    })
+}
+
 /**
  * 简化的游戏流程监控 - 直接在主进程中实现
  * 避免与其他服务的兼容性问题
@@ -1113,13 +1183,11 @@ async function runQuitCleanup() {
     logger.info('App is quitting, cleaning up...')
     markAnalyticsAppCleanExit()
 
-    lcuGameflowMonitorStopping = true
-    stopGameflowWebSocket('app will quit')
+    stopGameflowMonitorRuntime('app will quit')
 
-    if (lcuPollingTimer) {
-        clearInterval(lcuPollingTimer)
-        lcuPollingTimer = null
-        logger.info('游戏流程轮询已停止')
+    if (lolPathChangeUnsubscribe) {
+        lolPathChangeUnsubscribe()
+        lolPathChangeUnsubscribe = null
     }
 
     if (autoScreenshotService && autoScreenshotService.isRunning) {

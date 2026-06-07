@@ -6,6 +6,7 @@ import { createRequire } from 'module'
 
 const APP_DATA_DIR_NAME = 'aramgg_client-data'
 let cachedAppDataDir = null
+let cachedDefaultUserDataDir = null
 const require = createRequire(import.meta.url)
 let electron = null
 
@@ -25,15 +26,22 @@ function hasElectronApp() {
 }
 
 function getDefaultUserDataDir() {
+    if (cachedDefaultUserDataDir) {
+        return cachedDefaultUserDataDir
+    }
+
     if (!hasElectronApp()) {
-        return path.join(os.homedir(), '.aramgg_client')
+        cachedDefaultUserDataDir = path.join(os.homedir(), '.aramgg_client')
+        return cachedDefaultUserDataDir
     }
 
     try {
-        return electronApp.getPath('userData')
+        cachedDefaultUserDataDir = electronApp.getPath('userData')
     } catch {
-        return path.join(os.homedir(), '.aramgg_client')
+        cachedDefaultUserDataDir = path.join(os.homedir(), '.aramgg_client')
     }
+
+    return cachedDefaultUserDataDir
 }
 
 function getInstallSideDataDir() {
@@ -107,9 +115,38 @@ export function configureAppPaths() {
 }
 
 export function getConfigDir() {
-    const configDir = path.join(getAppDataDir(), 'config')
+    const configDir = path.join(getDefaultUserDataDir(), 'config')
     fs.ensureDirSync(configDir)
+    migrateInstallSideConfigDir(configDir)
     return configDir
+}
+
+function migrateInstallSideConfigDir(configDir) {
+    const installSideDataDir = getInstallSideDataDir()
+
+    if (!installSideDataDir) {
+        return
+    }
+
+    const legacyConfigDir = path.join(installSideDataDir, 'config')
+    if (legacyConfigDir === configDir) {
+        return
+    }
+
+    const legacyConfigFile = path.join(legacyConfigDir, 'config.json')
+    const configFile = path.join(configDir, 'config.json')
+    if (!fs.existsSync(legacyConfigFile) || fs.existsSync(configFile)) {
+        return
+    }
+
+    try {
+        fs.copySync(legacyConfigDir, configDir, {
+            overwrite: false,
+            errorOnExist: false,
+        })
+    } catch {
+        // Keep using the persistent config dir even if legacy migration fails.
+    }
 }
 
 export function getLogDir() {
