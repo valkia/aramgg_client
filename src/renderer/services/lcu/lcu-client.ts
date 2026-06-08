@@ -18,11 +18,9 @@ import { electronAPI } from '../../native/electron-api.js'
  * 通过 IPC 代理到主进程的 LCU 服务
  */
 export default class LCUService {
-  public lolDir: string
   public active: boolean = false
 
-  constructor(lolDir: string) {
-    this.lolDir = lolDir
+  constructor(_source?: string) {
   }
 
   /**

@@ -121,7 +121,7 @@ const statusLabel = computed(() => {
 
 const emptyMessage = computed(() => {
     if (!hasElectronAPI()) return 'Electron API 不可用'
-    if (recommendation.value?.reason === '游戏路径未配置') return '游戏路径未配置'
+    if (recommendation.value?.reason === 'lcu-unavailable') return '等待客户端连接'
     return '等待进入选人阶段'
 })
 

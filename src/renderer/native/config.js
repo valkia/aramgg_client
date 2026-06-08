@@ -45,7 +45,6 @@ const config = {
   },
   defaults: {
     userId: '',
-    lolDir: '',
     lolVer: '',
     appLang: 'zh-CN',
     keepOldItems: true,

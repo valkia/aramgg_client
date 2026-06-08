@@ -23,8 +23,8 @@
                             <span class="section-kicker">运行状态</span>
                             <h2>控制台</h2>
                         </div>
-                        <strong class="connection-pill" :class="{ muted: !currentLolPath }">
-                            {{ currentLolPath ? '已同步' : '未连接' }}
+                        <strong class="connection-pill">
+                            自动监听
                         </strong>
                     </div>
                     <div class="status-grid">
@@ -47,15 +47,14 @@
                             <small v-if="versionInfo?.gamePatch">LOL {{ versionInfo.gamePatch }}</small>
                         </div>
                         <div>
-                            <span>游戏路径</span>
-                            <strong>{{ currentLolPath ? '已配置' : '待配置' }}</strong>
-                            <small>{{ currentLolPath ? '可读取本地资源' : '先选择目录' }}</small>
+                            <span>LCU 连接</span>
+                            <strong>自动发现</strong>
+                            <small>运行中客户端</small>
                         </div>
                     </div>
                 </div>
 
-                <GamePathConfig @path-changed="onPathChanged" />
-                <ItemSetInstaller :lol-path="currentLolPath" />
+                <ItemSetInstaller />
                 <ChampionMonitor />
 
                 <section class="diagnostic-panel">
@@ -142,13 +141,11 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import GamePathConfig from './GamePathConfig.vue'
 import ItemSetInstaller from './ItemSetInstaller.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
 import { electronAPI } from '../native/electron-api.js'
 import { ClipboardList, Cpu, Database, Minus, Target, X } from 'lucide-vue-next'
 
-const currentLolPath = ref('')
 const testStatus = ref(null)
 const versionInfo = ref(null)
 const showQuitConfirm = ref(false)
@@ -198,11 +195,6 @@ const loadVersionInfo = async () => {
     } catch (error) {
         console.warn('Failed to load version info:', error)
     }
-}
-
-const onPathChanged = (path) => {
-    currentLolPath.value = path
-    console.log('Game path updated', path)
 }
 
 const openDownloadUrl = async () => {

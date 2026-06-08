@@ -78,10 +78,6 @@ const electronAPI = {
         getStats: () => ipcRenderer.invoke('auto-screenshot-get-stats'),
         getConfig: () => ipcRenderer.invoke('auto-screenshot-get-config'),
     },
-    dialogs: {
-        selectLolDirectory: () => ipcRenderer.invoke('select-lol-directory'),
-        validateLolDirectory: (lolPath) => ipcRenderer.invoke('validate-lol-directory', lolPath),
-    },
     itemSets: {
         getAramStatus: () => ipcRenderer.invoke('item-sets-get-aram-status'),
         installAramChampion: (payload) => ipcRenderer.invoke('item-sets-install-aram-champion', payload),

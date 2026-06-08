@@ -34,23 +34,16 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, message: s
 }
 
 const getLcuServiceFromStore = async () => {
-  const lolPath = store.get('lolPath') as string | undefined
-
-  if (!lolPath) {
-    return {
-      service: null,
-      error: '游戏路径未配置',
-    }
-  }
-
-  const service = getLCUServiceInstance(lolPath)
+  const service = getLCUServiceInstance()
   if (!service.isActive()) {
     await service.getAuthToken()
   }
 
   return {
     service,
-    error: null,
+    error: service.isActive()
+      ? null
+      : '未从运行中的客户端发现 LCU',
   }
 }
 
@@ -109,7 +102,6 @@ export function registerLCUIpcHandlers(): void {
     return {
       success: true,
       active,
-      lolPath: service.getLolPath(),
     }
   })
 
@@ -263,22 +255,8 @@ export function registerLCUIpcHandlers(): void {
    */
   ipcMain.handle('get-champion-id', async (): Promise<ChampionIdResult> => {
     try {
-      // 从 store 中获取游戏路径
-      const lolPath = store.get('lolPath') as string | undefined
-
-      if (!lolPath) {
-        logger.warn('[LCU] 未设置游戏路径')
-        return {
-          success: false,
-          championId: null,
-          error: '游戏路径未配置',
-        }
-      }
-
-      logger.debug('[LCU] game path configured')
-
       // 获取 LCU 服务实例
-      const lcuService = getLCUServiceInstance(lolPath)
+      const lcuService = getLCUServiceInstance()
 
       // 首次调用或需要刷新时获取 token
       if (!lcuService.isActive()) {
@@ -294,7 +272,7 @@ export function registerLCUIpcHandlers(): void {
           return {
             success: false,
             championId: null,
-            error: 'LCU 未激活 - 请确保游戏客户端正在运行',
+            error: '未从运行中的客户端发现 LCU',
           }
         }
       }

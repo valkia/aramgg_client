@@ -1,21 +1,11 @@
-import { readdir, readFile, rm } from 'fs/promises'
-import path from 'path'
 import logger from '../../modules/logger.ts'
-import {
-  inspectLeagueInstallDirectory,
-  normalizeLolPath,
-} from '../../modules/lol-path.ts'
 import { getLCUServiceInstance } from '../lcu/lcu-service.ts'
 import {
   loadChampionBuild,
   loadChampionName,
 } from '../../data-loader.ts'
 
-type ItemSetInstallOptions = {
-  lolPath: string
-}
-
-type SingleChampionItemSetInstallOptions = ItemSetInstallOptions & {
+type SingleChampionItemSetInstallOptions = {
   championId: string | number
   build?: any
   championName?: ChampionLike | null
@@ -62,163 +52,6 @@ const MIN_RECOMMENDATION_GAMES = 2
 const MIN_BUILD_GAMES = 300
 const MIN_CORE_SEQUENCE_GAMES = 20
 const MAX_ITEM_SETS_PER_CHAMPION = 4
-
-async function readJsonFileSafe(filePath: string): Promise<any | null> {
-  try {
-    return JSON.parse(await readFile(filePath, 'utf8'))
-  } catch {
-    return null
-  }
-}
-
-function isManagedAramggItemSet(payload: any): boolean {
-  const uid = String(payload?.uid || '')
-  const title = String(payload?.title || '')
-  const blocks = Array.isArray(payload?.blocks) ? payload.blocks : []
-
-  return (
-    uid.startsWith('aramgg-') ||
-    title.startsWith('ARAMGG ARAM ') ||
-    blocks.some((block: any) => String(block?.type || '').startsWith('ARAMGG '))
-  )
-}
-
-async function collectRecommendedJsonFiles(lolPath: string): Promise<string[]> {
-  const configRoot = path.join(lolPath, 'Game', 'Config')
-  const candidateDirs = [path.join(configRoot, 'Global', 'Recommended')]
-  const championsRoot = path.join(configRoot, 'Champions')
-
-  try {
-    const championDirs = await readdir(championsRoot, { withFileTypes: true })
-    championDirs
-      .filter((entry) => entry.isDirectory())
-      .forEach((entry) => {
-        candidateDirs.push(path.join(championsRoot, entry.name, 'Recommended'))
-      })
-  } catch {
-    // Champion-specific recommended files are optional.
-  }
-
-  const files: string[] = []
-  for (const directoryPath of candidateDirs) {
-    try {
-      const entries = await readdir(directoryPath, { withFileTypes: true })
-      entries
-        .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'))
-        .forEach((entry) => files.push(path.join(directoryPath, entry.name)))
-    } catch {
-      // Missing recommendation folders are fine.
-    }
-  }
-
-  return files
-}
-
-async function cleanupLegacyLocalItemSetFiles(lolPath: string): Promise<{
-  removedCount: number
-  removedFiles: string[]
-}> {
-  const files = await collectRecommendedJsonFiles(lolPath)
-  const removedFiles: string[] = []
-
-  for (const filePath of files) {
-    const payload = await readJsonFileSafe(filePath)
-    if (!isManagedAramggItemSet(payload)) {
-      continue
-    }
-
-    try {
-      await rm(filePath, { force: true })
-      removedFiles.push(filePath)
-    } catch (error) {
-      const err = error as Error
-      logger.warn('[item-set] failed to remove legacy local ARAMGG item set:', {
-        filePath,
-        error: err.message,
-      })
-    }
-  }
-
-  return {
-    removedCount: removedFiles.length,
-    removedFiles,
-  }
-}
-
-async function cleanupCurrentChampionRecommendedFiles(lolPath: string, championKey: string): Promise<{
-  removedCount: number
-  removedFiles: string[]
-}> {
-  const championDirName = String(championKey || '').replace(/[^a-zA-Z0-9]/g, '')
-  if (!championDirName) {
-    return {
-      removedCount: 0,
-      removedFiles: [],
-    }
-  }
-
-  const championsRoot = path.resolve(lolPath, 'Game', 'Config', 'Champions')
-  const recommendedDir = path.resolve(championsRoot, championDirName, 'Recommended')
-  if (!recommendedDir.startsWith(`${championsRoot}${path.sep}`)) {
-    return {
-      removedCount: 0,
-      removedFiles: [],
-    }
-  }
-
-  const removedFiles: string[] = []
-  try {
-    const entries = await readdir(recommendedDir, { withFileTypes: true })
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.json')) {
-        continue
-      }
-
-      const filePath = path.join(recommendedDir, entry.name)
-      try {
-        await rm(filePath, { force: true })
-        removedFiles.push(filePath)
-      } catch (error) {
-        const err = error as Error
-        logger.warn('[item-set] failed to remove current champion local item set:', {
-          filePath,
-          error: err.message,
-        })
-      }
-    }
-  } catch {
-    // Champion-specific recommendation folders are optional.
-  }
-
-  return {
-    removedCount: removedFiles.length,
-    removedFiles,
-  }
-}
-
-async function assertValidLolPath(lolPath: string): Promise<string> {
-  const normalizedPath = normalizeLolPath(lolPath)
-
-  if (!normalizedPath) {
-    throw new Error('游戏路径未配置')
-  }
-
-  const installInfo = await inspectLeagueInstallDirectory(normalizedPath)
-
-  if (!installInfo.exists) {
-    throw new Error('游戏路径不存在')
-  }
-
-  if (!installInfo.isDirectory) {
-    throw new Error('请选择英雄联盟安装目录，不要选择 exe 文件')
-  }
-
-  if (!installInfo.valid) {
-    throw new Error('未找到 LeagueClient.exe 或 LeagueClient 文件夹，请选择英雄联盟安装目录')
-  }
-
-  return installInfo.normalizedPath
-}
 
 function getChampionId(champion: ChampionLike): number {
   return Number(champion.championId ?? champion.id ?? 0)
@@ -566,7 +399,7 @@ function formatInstallError(reason: string | null | undefined): string {
   return reason || '装备推荐写入失败'
 }
 
-async function installCurrentItemSets(lolPath: string, itemSets: any[], championKey: string): Promise<{
+async function installCurrentItemSets(itemSets: any[], championKey: string): Promise<{
   success: boolean
   error: string | null
   method: string | null
@@ -579,7 +412,7 @@ async function installCurrentItemSets(lolPath: string, itemSets: any[], champion
   const managedItemSets = itemSets.map((itemSet, index) => withItemSetUid(itemSet, index))
 
   try {
-    const service = getLCUServiceInstance(lolPath)
+    const service = getLCUServiceInstance()
     logger.info('[item-set] LCU item set sync requested', {
       championKey,
       itemSetCount: managedItemSets.length,
@@ -589,30 +422,6 @@ async function installCurrentItemSets(lolPath: string, itemSets: any[], champion
       ),
     })
     const result = await service.syncItemSets(managedItemSets)
-    let localRemovedCount = 0
-
-    if (result.success) {
-      const legacyCleanupResult = await cleanupLegacyLocalItemSetFiles(lolPath)
-      const currentChampionCleanupResult = itemSets.length > 0
-        ? await cleanupCurrentChampionRecommendedFiles(lolPath, championKey)
-        : { removedCount: 0, removedFiles: [] }
-      localRemovedCount =
-        legacyCleanupResult.removedCount + currentChampionCleanupResult.removedCount
-
-      if (legacyCleanupResult.removedCount > 0) {
-        logger.info('[item-set] legacy local ARAMGG item sets removed after LCU sync', {
-          removedCount: legacyCleanupResult.removedCount,
-          removedFiles: legacyCleanupResult.removedFiles,
-        })
-      }
-      if (currentChampionCleanupResult.removedCount > 0) {
-        logger.info('[item-set] current champion local item sets removed after LCU sync', {
-          championKey,
-          removedCount: currentChampionCleanupResult.removedCount,
-          removedFiles: currentChampionCleanupResult.removedFiles,
-        })
-      }
-    }
 
     return {
       success: result.success,
@@ -621,7 +430,7 @@ async function installCurrentItemSets(lolPath: string, itemSets: any[], champion
       status: result.status || null,
       removedCount: result.removedCount ?? null,
       itemSetCount: result.itemSetCount ?? null,
-      localRemovedCount,
+      localRemovedCount: 0,
       localWrittenCount: 0,
     }
   } catch (error) {
@@ -640,7 +449,6 @@ async function installCurrentItemSets(lolPath: string, itemSets: any[], champion
 }
 
 async function installChampionItemSet(
-  lolPath: string,
   champion: ChampionLike,
   providedBuild: any = null,
   providedChampionName: ChampionLike | null = null
@@ -677,7 +485,7 @@ async function installChampionItemSet(
     }
 
     if (!buildItemSets.itemSets.length) {
-      const clearResult = await installCurrentItemSets(lolPath, [], championKey)
+      const clearResult = await installCurrentItemSets([], championKey)
       return {
         championId,
         championKey,
@@ -697,7 +505,7 @@ async function installChampionItemSet(
       }
     }
 
-    const installResult = await installCurrentItemSets(lolPath, buildItemSets.itemSets, championKey)
+    const installResult = await installCurrentItemSets(buildItemSets.itemSets, championKey)
 
     if (!installResult.success) {
       logger.warn('[item-set] item set install failed:', installResult.error)
@@ -729,9 +537,7 @@ async function installChampionItemSet(
   }
 }
 
-export async function getAramItemSetInstallStatus(options: ItemSetInstallOptions) {
-  await assertValidLolPath(options.lolPath)
-
+export async function getAramItemSetInstallStatus() {
   return {
     success: true,
     installed: false,
@@ -742,7 +548,6 @@ export async function getAramItemSetInstallStatus(options: ItemSetInstallOptions
 
 export async function installAramItemSetForChampion(options: SingleChampionItemSetInstallOptions) {
   const startedAt = Date.now()
-  const lolPath = await assertValidLolPath(options.lolPath)
   const championId = Number(options.championId)
 
   if (!Number.isFinite(championId) || championId <= 0) {
@@ -750,7 +555,6 @@ export async function installAramItemSetForChampion(options: SingleChampionItemS
   }
 
   const result = await installChampionItemSet(
-    lolPath,
     { championId },
     options.build || null,
     options.championName || null

@@ -202,8 +202,6 @@ const buildChampSelectSnapshot = (
  * LCU 服务配置选项
  */
 export interface LCUServiceOptions {
-  /** 游戏安装路径 */
-  lolPath: string
   /** Token 缓存时长（毫秒），默认 60000 */
   tokenCacheDuration?: number
   /** 连接失败后的冷却时长（毫秒），默认 10000 */
@@ -226,7 +224,6 @@ export interface GameflowPhaseSubscriptionOptions {
  * 统一的 LCU 服务类
  */
 export class LCUService {
-  private lolPath: string
   private active: boolean = false
   private url: string | null = null
   private token: string | null = null
@@ -252,7 +249,6 @@ export class LCUService {
   })
 
   constructor(options: LCUServiceOptions) {
-    this.lolPath = options.lolPath
     this.tokenCacheDuration = options.tokenCacheDuration ?? 60000
     this.failCooldown = options.failCooldown ?? 10000
   }
@@ -313,7 +309,7 @@ export class LCUService {
     }
 
     try {
-      const [token, port] = await getLcuToken(this.lolPath)
+      const [token, port] = await getLcuToken()
 
       if (!token || !port) {
         logger.debug('Unable to get LCU token; game client may not be running')
@@ -898,12 +894,6 @@ export class LCUService {
     return this.url
   }
 
-  /**
-   * 获取游戏路径
-   */
-  getLolPath(): string {
-    return this.lolPath
-  }
 }
 
 // 全局单例实例缓存
@@ -911,23 +901,21 @@ const instances = new Map<string, LCUService>()
 
 /**
  * 获取或创建 LCU 服务实例（单例模式）
- * @param lolPath - 游戏安装路径
  * @param options - 配置选项
  */
 export function getLCUServiceInstance(
-  lolPath: string,
   options?: Partial<LCUServiceOptions>
 ): LCUService {
-  if (!instances.has(lolPath)) {
+  const instanceKey = '__auto__'
+  if (!instances.has(instanceKey)) {
     instances.set(
-      lolPath,
+      instanceKey,
       new LCUService({
-        lolPath,
         ...options,
       })
     )
   }
-  return instances.get(lolPath)!
+  return instances.get(instanceKey)!
 }
 
 /**

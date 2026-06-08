@@ -9,9 +9,8 @@ export interface LcuTokenInfo {
 
 /**
  * 获取 LCU 令牌
- * @param lolDir - 游戏目录
  * @returns LCU 令牌信息或 null
  */
-export function getLcuToken(lolDir: string): Promise<LcuTokenInfo | null>;
+export function getLcuToken(): Promise<LcuTokenInfo | null>;
 
 export {};

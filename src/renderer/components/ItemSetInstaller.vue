@@ -33,13 +33,6 @@ import { onMounted, ref } from 'vue'
 import { PackageCheck } from 'lucide-vue-next'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
 
-defineProps({
-  lolPath: {
-    type: String,
-    default: '',
-  },
-})
-
 const STORE_KEY = 'itemSets.autoApplyAram'
 const enabled = ref(true)
 const saving = ref(false)

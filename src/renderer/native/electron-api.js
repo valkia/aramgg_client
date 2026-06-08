@@ -48,10 +48,6 @@ export const electronAPI = {
     getStats: (...args) => requireElectronAPI().autoScreenshot.getStats(...args),
     getConfig: (...args) => requireElectronAPI().autoScreenshot.getConfig(...args),
   },
-  dialogs: {
-    selectLolDirectory: (...args) => requireElectronAPI().dialogs.selectLolDirectory(...args),
-    validateLolDirectory: (...args) => requireElectronAPI().dialogs.validateLolDirectory(...args),
-  },
   itemSets: {
     getAramStatus: (...args) => requireElectronAPI().itemSets.getAramStatus(...args),
     installAramChampion: (...args) => requireElectronAPI().itemSets.installAramChampion(...args),

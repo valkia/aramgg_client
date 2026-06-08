@@ -61,17 +61,8 @@ async function collectVersionDiagnostics() {
     }
 }
 
-async function collectLcuDiagnostics(lolPath) {
-    if (!lolPath) {
-        return {
-            configured: false,
-            connected: false,
-            gameflowPhase: null,
-            champSelect: null,
-        }
-    }
-
-    const service = getLCUServiceInstance(lolPath)
+async function collectLcuDiagnostics() {
+    const service = getLCUServiceInstance()
     const phase = await withTimeout(service.getGameflowPhase(), 3000, null)
     const connected = await withTimeout(service.getLcuStatus(), 1500, false)
     const snapshot = await withTimeout(
@@ -81,7 +72,7 @@ async function collectLcuDiagnostics(lolPath) {
     )
 
     return {
-        configured: true,
+        discoveryMode: 'process',
         connected: Boolean(connected || phase),
         gameflowPhase: phase,
         champSelect: snapshot?.error
@@ -96,10 +87,8 @@ async function collectLcuDiagnostics(lolPath) {
     }
 }
 
-function collectConfigDiagnostics(lolPath) {
+function collectConfigDiagnostics() {
     return {
-        lolPath: lolPath || '',
-        lolPathConfigured: Boolean(lolPath),
         itemSetAutoApplyAram: getStoreBoolean('itemSets.autoApplyAram', true),
         autoScreenshotGameflowControl: getStoreBoolean('autoScreenshotGameflowControl', true),
         analyticsEnabled: getStoreBoolean('analytics.enabled', null),
@@ -152,10 +141,9 @@ function collectOcrDiagnostics() {
 }
 
 export async function collectDiagnosticSnapshot(reason = 'manual') {
-    const lolPath = store.get('lolPath') || ''
     const [version, lcu] = await Promise.all([
         collectVersionDiagnostics(),
-        collectLcuDiagnostics(lolPath),
+        collectLcuDiagnostics(),
     ])
 
     return {
@@ -172,7 +160,7 @@ export async function collectDiagnosticSnapshot(reason = 'manual') {
         },
         version,
         lcu,
-        config: collectConfigDiagnostics(lolPath),
+        config: collectConfigDiagnostics(),
         ocr: collectOcrDiagnostics(),
     }
 }

@@ -32,7 +32,6 @@ interface AuthConfig {
  * 提供与英雄联盟客户端的通信接口
  */
 export default class LCUService {
-  private lolDir: string;
   public active: boolean = false;
   public url: string | null = null;
   public token: string | null = null;
@@ -45,8 +44,7 @@ export default class LCUService {
     },
   };
 
-  constructor(lolDir: string) {
-    this.lolDir = lolDir;
+  constructor(_source?: string) {
   }
 
   /**
@@ -84,7 +82,7 @@ export default class LCUService {
    * 获取并设置 LCU 认证令牌
    */
   public getAuthToken = async (): Promise<{ token: string; port: string; url: string } | null> => {
-    const result = await getLcuToken(this.lolDir);
+    const result = await getLcuToken();
 
     if (!result) {
       console.warn('无法获取 LCU Token，游戏客户端可能未运行');

@@ -1,6 +1,5 @@
 // @ts-nocheck
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, shell } from 'electron'
-import path from 'path'
+import { app, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron'
 import { captureScreenshot } from '../screenshot.ts'
 import { analyzeScreenshot } from '../image-analyzer.ts'
 import autoScreenshotService from '../auto-screenshot-service.ts'
@@ -11,7 +10,6 @@ import {
     allowMainWindowClose,
     createPopupWindow,
     getFloatingWindow,
-    getMainWindow,
     getPopupWindow,
     toggleMainWindow,
 } from './window-manager.ts'
@@ -19,11 +17,6 @@ import logger from './logger.ts'
 import store from './app-store.ts'
 import { getAppDataDir } from './app-paths.ts'
 import { logDiagnosticSnapshot } from './diagnostic-logger.ts'
-import {
-    findLeagueInstallChildPath,
-    inspectLeagueInstallDirectory,
-    isLeagueInstallDirectory,
-} from './lol-path.ts'
 import {
     getAnalyticsStatus,
     setAnalyticsEnabled,
@@ -100,96 +93,6 @@ function assertSafeExternalUrl(url) {
     }
 
     return parsedUrl.toString()
-}
-
-async function validateLolDirectory(lolPath) {
-    const normalizedPath = typeof lolPath === 'string' ? lolPath.trim() : ''
-
-    if (!normalizedPath) {
-        return {
-            success: true,
-            valid: false,
-            reason: 'empty',
-            message: '请输入英雄联盟安装目录，或点击“浏览”选择目录。',
-        }
-    }
-
-    const installInfo = await inspectLeagueInstallDirectory(normalizedPath)
-
-    if (!installInfo.exists) {
-        return {
-            success: true,
-            valid: false,
-            reason: 'not-found',
-            message: '这个路径不存在。请检查拼写，或点击“浏览”重新选择英雄联盟安装目录。',
-        }
-    }
-
-    if (!installInfo.isDirectory) {
-        return {
-            success: true,
-            valid: false,
-            reason: 'not-directory',
-            message: '请选择文件夹路径，不要选择 exe 文件或快捷方式。',
-        }
-    }
-
-    const normalizedDirectory = path.normalize(normalizedPath)
-    const directoryName = path.basename(normalizedDirectory).toLowerCase()
-    if (directoryName === 'leagueclient' || directoryName === 'game') {
-        const parentPath = path.dirname(normalizedPath)
-        if (await isLeagueInstallDirectory(parentPath)) {
-            return {
-                success: true,
-                valid: false,
-                reason: `${directoryName}-subdirectory`,
-                message: `当前选中的是 ${path.basename(normalizedDirectory)} 子目录，请改选上一层英雄联盟安装目录：${parentPath}`,
-                suggestedPath: parentPath,
-            }
-        }
-    }
-
-    if (directoryName === 'riot client') {
-        const siblingLolPath = path.join(path.dirname(normalizedPath), 'League of Legends')
-        if (await isLeagueInstallDirectory(siblingLolPath)) {
-            return {
-                success: true,
-                valid: false,
-                reason: 'riot-client-directory',
-                message: `当前选中的是 Riot Client 目录，请选择同级的 League of Legends 游戏目录：${siblingLolPath}`,
-                suggestedPath: siblingLolPath,
-            }
-        }
-    }
-
-    if (directoryName === 'riot games' || directoryName === 'wegameapps') {
-        const childLolPath = await findLeagueInstallChildPath(normalizedPath)
-        if (childLolPath) {
-            return {
-                success: true,
-                valid: false,
-                reason: 'publisher-root-directory',
-                message: `当前选中的是上级安装目录，请选择英雄联盟游戏目录：${childLolPath}`,
-                suggestedPath: childLolPath,
-            }
-        }
-    }
-
-    if (!installInfo.valid) {
-        return {
-            success: true,
-            valid: false,
-            reason: 'missing-league-client',
-            message: '未找到 LeagueClient.exe 或 LeagueClient 文件夹。国际服请选择 C:\\Riot Games\\League of Legends 这类游戏目录；国服请选择 WeGameApps\\英雄联盟。不要选择 Riot Client、LeagueClient、Game 或 exe 文件。',
-        }
-    }
-
-    return {
-        success: true,
-        valid: true,
-        reason: 'ok',
-        message: '路径格式正确。若后续连接失败，请确认英雄联盟客户端已启动。',
-    }
 }
 
 function sampleItems(items, count) {
@@ -804,68 +707,10 @@ export function registerIpcHandlers(isDev) {
         return autoScreenshotService.getConfig()
     })
 
-    ipcMain.handle('select-lol-directory', async () => {
-        const { dialog } = await import('electron')
-        const mainWindow = getMainWindow()
-
-        try {
-            const result = await dialog.showOpenDialog(mainWindow, {
-                properties: ['openDirectory'],
-                title: '选择英雄联盟游戏目录',
-                message: '请选择英雄联盟的安装目录',
-            })
-
-            if (!result.canceled && result.filePaths.length > 0) {
-                return {
-                    success: true,
-                    path: result.filePaths[0],
-                }
-            }
-
-            return {
-                success: false,
-                path: null,
-                reason: '用户取消了选择',
-            }
-        } catch (error) {
-            logger.error('Directory selection failed:', error)
-            return {
-                success: false,
-                path: null,
-                error: error.message,
-            }
-        }
-    })
-
-    ipcMain.handle('validate-lol-directory', async (_event, lolPath) => {
-        try {
-            return await validateLolDirectory(lolPath)
-        } catch (error) {
-            logger.error('Directory validation failed:', error)
-            return {
-                success: false,
-                valid: false,
-                reason: 'validation-error',
-                message: error.message || '路径校验失败，请重试。',
-            }
-        }
-    })
-
     ipcMain.handle('item-sets-get-aram-status', async () => {
         try {
             const { getAramItemSetInstallStatus } = await import('../services/item-sets/item-set-installer.ts')
-            const lolPath = store.get('lolPath')
-
-            if (!lolPath) {
-                return {
-                    success: true,
-                    installed: false,
-                    installedCount: 0,
-                    error: '游戏路径未配置',
-                }
-            }
-
-            return await getAramItemSetInstallStatus({ lolPath })
+            return await getAramItemSetInstallStatus()
         } catch (error) {
             logger.warn('[item-set] failed to read ARAM item set status:', error.message)
             return {
@@ -880,20 +725,11 @@ export function registerIpcHandlers(isDev) {
     ipcMain.handle('item-sets-install-aram-champion', async (_event, payload) => {
         try {
             const { installAramItemSetForChampion } = await import('../services/item-sets/item-set-installer.ts')
-            const lolPath = store.get('lolPath')
             const request = payload && typeof payload === 'object'
                 ? payload
                 : { championId: payload }
 
-            if (!lolPath) {
-                return {
-                    success: false,
-                    error: '游戏路径未配置',
-                }
-            }
-
             return await installAramItemSetForChampion({
-                lolPath,
                 championId: request.championId,
                 build: request.build,
                 championName: request.championName,

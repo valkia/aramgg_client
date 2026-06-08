@@ -22,8 +22,6 @@ import logger from './logger.ts'
 import store from './app-store.ts'
 import { getAppDataDir } from './app-paths.ts'
 import { logDiagnosticSnapshot } from './diagnostic-logger.ts'
-import { getLolPathChangeMonitorAction } from './gameflow-monitor-lifecycle.ts'
-import { isLeagueInstallDirectory } from './lol-path.ts'
 
 const __dirname = import.meta.dirname
 
@@ -33,7 +31,6 @@ let lcuGameflowSubscription = null
 let lcuGameflowReconnectTimer = null
 let lcuGameflowMonitorStopping = false
 let lcuGameflowInitPromise = null
-let lolPathChangeUnsubscribe = null
 let quitCleanupCompleted = false
 let quitCleanupPromise = null
 const AUTO_SCREENSHOT_INTERVAL_MS = 200
@@ -141,7 +138,6 @@ export async function init() {
 
     // 初始化游戏流程监控（延迟初始化，避免阻塞应用启动）
     logger.info('将在后台初始化游戏流程监控...')
-    registerGameflowConfigWatchers()
     setTimeout(() => {
         void ensureGameFlowMonitor('startup-delay')
     }, 2000)
@@ -153,41 +149,6 @@ export async function init() {
     registerAppEvents()
 
     return { mainWindow, popupWindow, toggleMainWindow }
-}
-
-/**
- * 自动检测游戏目录
- */
-async function autoDetectLolPath() {
-    const driveLetters = 'CDEFGHI'.split('')
-    const driveCandidates = driveLetters.flatMap((drive) => [
-        `${drive}:\\Riot Games\\League of Legends`,
-        `${drive}:\\Games\\League of Legends`,
-        `${drive}:\\Program Files\\Riot Games\\League of Legends`,
-        `${drive}:\\Program Files\\League of Legends`,
-    ])
-
-    // 常见的游戏安装目录
-    const commonPaths = [
-        'C:\\Riot Games\\League of Legends',
-        'C:\\Program Files\\Riot Games\\League of Legends',
-        'C:\\Program Files\\League of Legends',
-        'C:\\Program Files (x86)\\WeGameApps\\英雄联盟',
-        'D:\\Program Files (x86)\\WeGameApps\\英雄联盟',
-        'D:\\Riot Games\\League of Legends',
-        'D:\\Games\\League of Legends',
-        ...driveCandidates,
-    ]
-    const uniquePaths = [...new Set(commonPaths)]
-
-    for (const checkPath of uniquePaths) {
-        if (await isLeagueInstallDirectory(checkPath)) {
-            logger.info(`自动检测到游戏目录: ${checkPath}`)
-            return checkPath
-        }
-    }
-
-    return null
 }
 
 async function startAutoScreenshotForGame(reason) {
@@ -632,15 +593,6 @@ async function autoApplyAramItemSetForChampion(championId, reason) {
         return
     }
 
-    const lolPath = store.get('lolPath')
-    if (!lolPath) {
-        logger.warn('[item-set] auto apply skipped: game path missing', {
-            championId: normalizedChampionId,
-            reason,
-        })
-        return
-    }
-
     itemSetAutoApplyInFlight = true
     logger.info('[item-set] auto apply requested for current champion', {
         championId: normalizedChampionId,
@@ -651,7 +603,6 @@ async function autoApplyAramItemSetForChampion(championId, reason) {
         const { installAramItemSetForChampion } = await import('../services/item-sets/item-set-installer.ts')
         const preloadedItemSetData = itemSetPreloadDataByChampionId.get(normalizedChampionId)
         const result = await installAramItemSetForChampion({
-            lolPath,
             championId: normalizedChampionId,
             build: preloadedItemSetData?.build || null,
             championName: preloadedItemSetData?.championName || null,
@@ -795,36 +746,6 @@ async function ensureGameFlowMonitor(reason = 'manual') {
     return Boolean(lcuPollingTimer)
 }
 
-function registerGameflowConfigWatchers() {
-    if (lolPathChangeUnsubscribe || typeof store.onDidChange !== 'function') {
-        return
-    }
-
-    lolPathChangeUnsubscribe = store.onDidChange('lolPath', (newPath, oldPath) => {
-        const action = getLolPathChangeMonitorAction({
-            newPath,
-            oldPath,
-            monitorRunning: Boolean(lcuPollingTimer),
-        })
-
-        if (action === 'ignore') {
-            return
-        }
-
-        logger.info('Game path changed; ensuring game flow monitor', {
-            hadPreviousPath: Boolean(oldPath),
-            monitorRunning: Boolean(lcuPollingTimer),
-            action,
-        })
-
-        if (action === 'restart') {
-            stopGameflowMonitorRuntime('lolPath changed')
-        }
-
-        void ensureGameFlowMonitor('lolPath changed')
-    })
-}
-
 /**
  * 简化的游戏流程监控 - 直接在主进程中实现
  * 避免与其他服务的兼容性问题
@@ -838,30 +759,12 @@ async function initGameFlowMonitor() {
 
         lcuGameflowMonitorStopping = false
 
-        // 获取游戏目录（从 store 中读取）
-        let lolPath = store.get('lolPath')
-
         logger.info('============ 初始化游戏流程监控 ============')
-        logger.debug('读取配置的游戏目录:', lolPath ? '<configured>' : null)
-
-        // 如果没有配置，尝试自动检测
-        if (!lolPath) {
-            logger.info('未设置游戏目录，正在尝试自动检测...')
-            lolPath = await autoDetectLolPath()
-
-            if (lolPath) {
-                logger.info('自动检测成功，已保存配置')
-                store.set('lolPath', lolPath)
-            } else {
-                logger.warn('无法自动检测游戏目录')
-                logger.info('请在应用设置中配置游戏目录')
-                return
-            }
-        }
+        logger.debug('LCU 认证将仅使用运行中 League Client 进程参数')
 
         // 初始化 LCU 服务（使用统一的 LCU 服务）
         logger.debug('初始化 LCU 服务...')
-        const lcuService = getLCUServiceInstance(lolPath)
+        const lcuService = getLCUServiceInstance()
         logger.debug('获取 LCU Token...')
         let currentAuth = await lcuService.getAuthToken()
         let lastAuthUrl = currentAuth?.url || lcuService.getUrl()
@@ -870,12 +773,11 @@ async function initGameFlowMonitor() {
             logger.error('LCU 连接失败！')
             logger.warn('可能的原因:')
             logger.warn('   1. 游戏客户端未运行 - 请启动 League of Legends 客户端')
-            logger.warn('   2. LeagueClientUx.log 文件不存在 - 请重启游戏客户端')
-            logger.warn('   3. 游戏目录配置错误 - 请在应用设置中检查')
+            logger.warn('   2. 未能从 LeagueClientUx.exe 启动参数发现 LCU')
+            logger.warn('   3. 当前系统权限无法读取 League Client 进程命令行')
             logger.info('调试步骤:')
-            logger.info('   1. 运行: node src/main/lcu-debug.ts "你的游戏目录"')
-            logger.info('   2. 检查输出中是否找到了 LeagueClientUx.log')
-            logger.info('   3. 检查日志中是否包含 LCU URL')
+            logger.info('   1. 确认 League Client 已启动')
+            logger.info('   2. 检查日志中是否出现 LCU process discovery 相关错误')
             logger.info('将继续低频重试 LCU 连接')
         } else {
             logger.debug('LCU Token 获取成功')
@@ -1184,11 +1086,6 @@ async function runQuitCleanup() {
     markAnalyticsAppCleanExit()
 
     stopGameflowMonitorRuntime('app will quit')
-
-    if (lolPathChangeUnsubscribe) {
-        lolPathChangeUnsubscribe()
-        lolPathChangeUnsubscribe = null
-    }
 
     if (autoScreenshotService && autoScreenshotService.isRunning) {
         autoScreenshotService.stop()
