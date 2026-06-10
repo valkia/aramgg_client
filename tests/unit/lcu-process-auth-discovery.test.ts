@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { parseLcuAuthFromCommandLine } from '../../src/main/services/lcu/process-auth-discovery.ts'
+import {
+  parseLcuAuthFromCommandLine,
+  parseLcuAuthFromLogContent,
+  parseLcuAuthFromLockfile,
+} from '../../src/main/services/lcu/process-auth-discovery.ts'
 
 describe('LCU process auth discovery', () => {
   it('extracts auth from LeagueClientUx command line arguments', () => {
@@ -37,5 +41,49 @@ describe('LCU process auth discovery', () => {
       null,
       null,
     ])
+  })
+
+  it('extracts auth from lockfile content', () => {
+    const [token, port, url] = parseLcuAuthFromLockfile(
+      'LeagueClient:1234:58123:lockfile-token:https'
+    )
+
+    expect(token).toBe('lockfile-token')
+    expect(port).toBe('58123')
+    expect(url).toBe('https://riot:lockfile-token@127.0.0.1:58123')
+  })
+
+  it('rejects malformed lockfile content', () => {
+    expect(parseLcuAuthFromLockfile('')).toEqual([null, null, null])
+    expect(parseLcuAuthFromLockfile('LeagueClient:1234:not-a-port:token:https')).toEqual([
+      null,
+      null,
+      null,
+    ])
+    expect(parseLcuAuthFromLockfile('LeagueClient:1234:58123:token:file')).toEqual([
+      null,
+      null,
+      null,
+    ])
+  })
+
+  it('extracts auth from LeagueClientUx log command line entries', () => {
+    const [token, port, url] = parseLcuAuthFromLogContent(
+      '000000.000| OKAY| Command line arguments: --remoting-auth-token=log-token --app-port=58124 --app-name=LeagueClient'
+    )
+
+    expect(token).toBe('log-token')
+    expect(port).toBe('58124')
+    expect(url).toBe('https://riot:log-token@127.0.0.1:58124')
+  })
+
+  it('extracts auth from LeagueClientUx log bootstrap URLs', () => {
+    const [token, port, url] = parseLcuAuthFromLogContent(
+      'Creating ux window with url https://riot:url-token@127.0.0.1:58125/bootstrap.html.'
+    )
+
+    expect(token).toBe('url-token')
+    expect(port).toBe('58125')
+    expect(url).toBe('https://riot:url-token@127.0.0.1:58125')
   })
 })

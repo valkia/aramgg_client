@@ -1,6 +1,6 @@
 /**
  * LCU Token 加载器
- * 仅从运行中的 League Client 进程启动参数提取 LCU 认证信息。
+ * 优先从运行中的 League Client 进程启动参数提取 LCU 认证信息。
  */
 
 import logger from '../../modules/logger.ts'
@@ -9,7 +9,7 @@ import { TokenLoadResult } from './types.ts'
 
 /**
  * 从 LeagueClientUx/LeagueClient 进程参数中提取 LCU Token。
- * 不再读取游戏目录、lockfile 或 LeagueClientUx.log。
+ * 如果 Windows 不暴露进程命令行，则从进程路径旁的 lockfile 或 LeagueClientUx 日志兜底读取。
  */
 export async function getLcuToken(_dirPath?: string | null): Promise<TokenLoadResult> {
   try {
