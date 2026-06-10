@@ -5,12 +5,15 @@ import { analyzeScreenshot } from '../image-analyzer.ts'
 import autoScreenshotService from '../auto-screenshot-service.ts'
 import { registerLCUIpcHandlers } from '../services/lcu/ipc-handlers.ts'
 import {
+    applyAugmentSidePanelWindowLayout,
     applyFloatingWindowLayout,
     applyPopupWindowLayout,
+    getAugmentSidePanelWindow,
     allowMainWindowClose,
     createPopupWindow,
     getFloatingWindow,
     getPopupWindow,
+    setPopupWindowAlwaysOnTop,
     toggleMainWindow,
 } from './window-manager.ts'
 import logger from './logger.ts'
@@ -22,6 +25,10 @@ import {
     setAnalyticsEnabled,
     trackAnalyticsEvent,
 } from '../services/analytics-service.ts'
+import {
+    shouldShowAugmentSidePanel,
+    shouldShowAugmentTopOverlay,
+} from './user-preferences.ts'
 
 const TEST_AUGMENT_COUNT = 3
 const TEST_BENCH_CHAMPION_COUNT = 8
@@ -269,6 +276,7 @@ export function registerIpcHandlers(isDev) {
         }
 
         applyPopupWindowLayout()
+        setPopupWindowAlwaysOnTop(true)
         popupWindow.show()
         popupWindow.webContents.send('for-popup', {
             championId: data.championId,
@@ -300,22 +308,42 @@ export function registerIpcHandlers(isDev) {
         }
     })
 
+    ipcMain.on('hide-augment-side-panel', async () => {
+        const sidePanelWindow = getAugmentSidePanelWindow()
+        if (sidePanelWindow && !sidePanelWindow.isDestroyed() && sidePanelWindow.isVisible()) {
+            sidePanelWindow.hide()
+            logger.info('Augment side panel window hidden')
+        }
+    })
+
     ipcMain.handle('test-show-floating', async (_event, data) => {
         try {
             const floatingWindow = getFloatingWindow()
+            const sidePanelWindow = getAugmentSidePanelWindow()
 
-            if (!floatingWindow || floatingWindow.isDestroyed()) {
-                logger.error('Floating window does not exist')
-                return { success: false, error: 'Floating window does not exist' }
+            if ((!floatingWindow || floatingWindow.isDestroyed()) && (!sidePanelWindow || sidePanelWindow.isDestroyed())) {
+                logger.error('Augment overlay windows do not exist')
+                return { success: false, error: 'Augment overlay windows do not exist' }
             }
 
-            applyFloatingWindowLayout()
-            if (!floatingWindow.isVisible()) {
-                floatingWindow.show()
-                logger.info('Floating window shown for test')
+            if (floatingWindow && !floatingWindow.isDestroyed() && shouldShowAugmentTopOverlay()) {
+                applyFloatingWindowLayout()
+                if (!floatingWindow.isVisible()) {
+                    floatingWindow.show()
+                    logger.info('Floating window shown for test')
+                }
+                floatingWindow.webContents.send('augment-detected', data)
             }
 
-            floatingWindow.webContents.send('augment-detected', data)
+            if (sidePanelWindow && !sidePanelWindow.isDestroyed() && shouldShowAugmentSidePanel()) {
+                applyAugmentSidePanelWindowLayout()
+                if (!sidePanelWindow.isVisible()) {
+                    sidePanelWindow.show()
+                    logger.info('Augment side panel window shown for test')
+                }
+                sidePanelWindow.webContents.send('augment-detected', data)
+            }
+
             logger.info('Test data sent to floating window')
 
             return { success: true }
@@ -331,19 +359,31 @@ export function registerIpcHandlers(isDev) {
             logger.info('[diagnostics] random floating test requested')
             const data = await buildRandomAugmentPreviewData('random-floating-test')
             const floatingWindow = getFloatingWindow()
+            const sidePanelWindow = getAugmentSidePanelWindow()
 
-            if (!floatingWindow || floatingWindow.isDestroyed()) {
-                logger.error('Floating window does not exist')
-                return { success: false, error: 'Floating window does not exist' }
+            if ((!floatingWindow || floatingWindow.isDestroyed()) && (!sidePanelWindow || sidePanelWindow.isDestroyed())) {
+                logger.error('Augment overlay windows do not exist')
+                return { success: false, error: 'Augment overlay windows do not exist' }
             }
 
-            applyFloatingWindowLayout()
-            if (!floatingWindow.isVisible()) {
-                floatingWindow.show()
-                logger.info('Floating window shown for random test')
+            if (floatingWindow && !floatingWindow.isDestroyed() && shouldShowAugmentTopOverlay()) {
+                applyFloatingWindowLayout()
+                if (!floatingWindow.isVisible()) {
+                    floatingWindow.show()
+                    logger.info('Floating window shown for random test')
+                }
+                floatingWindow.webContents.send('augment-detected', data)
             }
 
-            floatingWindow.webContents.send('augment-detected', data)
+            if (sidePanelWindow && !sidePanelWindow.isDestroyed() && shouldShowAugmentSidePanel()) {
+                applyAugmentSidePanelWindowLayout()
+                if (!sidePanelWindow.isVisible()) {
+                    sidePanelWindow.show()
+                    logger.info('Augment side panel window shown for random test')
+                }
+                sidePanelWindow.webContents.send('augment-detected', data)
+            }
+
             logger.info('Random test data sent to floating window', {
                 championId: data.championId,
                 augmentIds: data.augments.map((augment) => augment.id),

@@ -4,14 +4,18 @@ import { captureScreenshot, getLolGameStatus } from '../screenshot.ts'
 import { analyzeScreenshot } from '../image-analyzer.ts'
 import { registerIpcHandlers } from './ipc-handlers.ts'
 import {
+    applyAugmentSidePanelWindowLayout,
     applyFloatingWindowLayout,
     applyPopupWindowLayout,
+    createAugmentSidePanelWindow,
     createMainWindow,
     createPopupWindow,
     createFloatingWindow,
     toggleMainWindow,
+    getAugmentSidePanelWindow,
     getFloatingWindow,
     getPopupWindow,
+    setPopupWindowAlwaysOnTop,
 } from './window-manager.ts'
 import autoScreenshotService from '../auto-screenshot-service.ts'
 import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
@@ -22,6 +26,11 @@ import logger from './logger.ts'
 import store from './app-store.ts'
 import { getAppDataDir } from './app-paths.ts'
 import { logDiagnosticSnapshot } from './diagnostic-logger.ts'
+import {
+    shouldHideChampionInsightOnGameStart,
+    shouldShowAugmentSidePanel,
+    shouldShowAugmentTopOverlay,
+} from './user-preferences.ts'
 
 const __dirname = import.meta.dirname
 
@@ -120,10 +129,12 @@ export async function init() {
     const mainWindow = await createMainWindow(isDev, devServerUrl)
     const popupWindow = await createPopupWindow(isDev, devServerUrl)
     const floatingWindow = await createFloatingWindow(isDev, devServerUrl)
+    const augmentSidePanelWindow = await createAugmentSidePanelWindow(isDev, devServerUrl)
     logger.info('窗口已创建:', {
         main: !!mainWindow,
         popup: !!popupWindow,
-        floating: !!floatingWindow
+        floating: !!floatingWindow,
+        augmentSidePanel: !!augmentSidePanelWindow
     })
 
     setTimeout(() => {
@@ -209,7 +220,21 @@ function clearAugmentOverlayForPhase(phase) {
         return
     }
 
+    if (phase === 'GameStart' && !shouldHideChampionInsightOnGameStart()) {
+        logger.info('Champion insight retained on game start by user preference')
+        return
+    }
+
     autoScreenshotService.clearAugmentState(`LCU phase ${phase}`)
+}
+
+function allowChampionInsightInBackground(reason) {
+    if (shouldHideChampionInsightOnGameStart()) {
+        return
+    }
+
+    setPopupWindowAlwaysOnTop(false)
+    logger.info('Champion insight can move behind game window by user preference', { reason })
 }
 
 function getDiagnosticType(value) {
@@ -816,6 +841,7 @@ async function initGameFlowMonitor() {
                         break
                     case 'ChampSelect':
                         logger.info('进入选人阶段 - 暂停游戏内海克斯 OCR')
+                        setPopupWindowAlwaysOnTop(true)
                         lastAutoAppliedItemSetChampionId = null
                         resetChampSelectItemSetState(`LCU phase ${phase}`)
                         notifyAllWindows('champ-select-start', {})
@@ -824,12 +850,14 @@ async function initGameFlowMonitor() {
                         break
                     case 'GameStart':
                         logger.info('游戏开始加载')
+                        allowChampionInsightInBackground('LCU phase GameStart')
                         notifyAllWindows('game-started', {})
                         resetChampSelectItemSetState('LCU phase GameStart')
                         stopAutoScreenshotForGame('LCU phase GameStart')
                         break
                     case 'InProgress':
                         logger.info('游戏进行中 - 启动自动截图来检测海克斯选择')
+                        allowChampionInsightInBackground('LCU phase InProgress')
                         notifyAllWindows('game-in-progress', {})
                         resetChampSelectItemSetState('LCU phase InProgress')
                         await startAutoScreenshotForGame('LCU phase InProgress')
@@ -1144,8 +1172,10 @@ async function notifyAllWindows(channel, data) {
     // 如果是海克斯检测事件，找到并显示浮动窗口
     if (channel === 'augment-detected') {
         const floatingWin = getFloatingWindow()
+        const sidePanelWin = getAugmentSidePanelWindow()
+        let sentToOverlay = false
 
-        if (floatingWin && !floatingWin.isDestroyed()) {
+        if (floatingWin && !floatingWin.isDestroyed() && shouldShowAugmentTopOverlay()) {
             applyFloatingWindowLayout()
             // 显示浮动窗口
             if (!floatingWin.isVisible()) {
@@ -1154,9 +1184,27 @@ async function notifyAllWindows(channel, data) {
             }
             // 发送数据到浮动窗口
             floatingWin.webContents.send(channel, data)
+            sentToOverlay = true
+        } else if (floatingWin && !floatingWin.isDestroyed() && floatingWin.isVisible() && !shouldShowAugmentTopOverlay()) {
+            floatingWin.hide()
+        }
+
+        if (sidePanelWin && !sidePanelWin.isDestroyed() && shouldShowAugmentSidePanel()) {
+            applyAugmentSidePanelWindowLayout()
+            if (!sidePanelWin.isVisible()) {
+                sidePanelWin.show()
+                logger.info('✨ 显示海克斯右侧推荐列表')
+            }
+            sidePanelWin.webContents.send(channel, data)
+            sentToOverlay = true
+        } else if (sidePanelWin && !sidePanelWin.isDestroyed() && sidePanelWin.isVisible() && !shouldShowAugmentSidePanel()) {
+            sidePanelWin.hide()
+        }
+
+        if (sentToOverlay) {
             return
         } else {
-            logger.warn('⚠️ 浮动窗口不存在或已销毁')
+            logger.warn('⚠️ 海克斯浮窗均未显示或不可用')
         }
     }
 

@@ -55,6 +55,7 @@
                 </div>
 
                 <ItemSetInstaller />
+                <OverlayPreferences />
                 <ChampionMonitor />
 
                 <section class="diagnostic-panel">
@@ -142,6 +143,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import ItemSetInstaller from './ItemSetInstaller.vue'
+import OverlayPreferences from './OverlayPreferences.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
 import { electronAPI } from '../native/electron-api.js'
 import { ClipboardList, Cpu, Database, Minus, Target, X } from 'lucide-vue-next'

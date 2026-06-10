@@ -14,10 +14,18 @@ import { BrowserWindow } from 'electron'
 import fs from 'fs-extra'
 import path from 'path'
 import logger from './modules/logger.ts'
-import { applyFloatingWindowLayout } from './modules/window-manager.ts'
+import {
+    applyAugmentSidePanelWindowLayout,
+    applyFloatingWindowLayout,
+} from './modules/window-manager.ts'
 import store from './modules/app-store.ts'
 import { getPartialOcrScreenshotDir } from './modules/app-paths.ts'
 import { getAugmentIds, mergePartialAugments } from './augment-partial-merge.ts'
+import {
+    shouldHideChampionInsightOnGameStart,
+    shouldShowAugmentSidePanel,
+    shouldShowAugmentTopOverlay,
+} from './modules/user-preferences.ts'
 
 const AUTO_SCREENSHOT_SUMMARY_INTERVAL_MS = 30000
 const ANALYSIS_MISS_LOG_INTERVAL_MS = 10000
@@ -298,7 +306,9 @@ class AutoScreenshotService {
         if (phase && phase !== 'InProgress' && phase !== 'None') {
             this.pendingAnalysisBuffer = null
             if (this.lastDetectedAugmentIds.length > 0) {
-                this.clearAugmentState(`gameflow-${phase}`)
+                this.clearAugmentState(`gameflow-${phase}`, {
+                    hidePopup: phase !== 'GameStart' || shouldHideChampionInsightOnGameStart(),
+                })
             }
         }
     }
@@ -307,7 +317,7 @@ class AutoScreenshotService {
         return !this.gameflowPhase || this.gameflowPhase === 'InProgress' || this.gameflowPhase === 'None'
     }
 
-    clearAugmentState(reason = 'gameflow-cleared') {
+    clearAugmentState(reason = 'gameflow-cleared', options = {}) {
         const previousIds = this.lastDetectedAugmentIds
         const ageMs = this.lastDetectedAugmentAt ? Date.now() - this.lastDetectedAugmentAt : null
         this.lastDetectedAugmentIds = []
@@ -323,7 +333,7 @@ class AutoScreenshotService {
             previousIds,
             ageMs,
         })
-        this._notifyAugmentCleared(reason)
+        this._notifyAugmentCleared(reason, options)
     }
 
     /**
@@ -919,8 +929,13 @@ class AutoScreenshotService {
                 const url = win.webContents.getURL()
                 return url.includes('floating-overlay')
             })
+            const sidePanelWindow = windows.find(win => {
+                const url = win.webContents.getURL()
+                return url.includes('augment-side-panel')
+            })
+            let sentToOverlay = false
 
-            if (floatingWindow && !floatingWindow.isDestroyed()) {
+            if (floatingWindow && !floatingWindow.isDestroyed() && shouldShowAugmentTopOverlay()) {
                 applyFloatingWindowLayout()
                 // 显示浮动窗口
                 if (!floatingWindow.isVisible()) {
@@ -929,8 +944,25 @@ class AutoScreenshotService {
                 }
                 // 发送数据到浮动窗口
                 floatingWindow.webContents.send('augment-detected', winrateData)
-            } else {
-                logger.warn('⚠️ 未找到浮动窗口，将数据发送给所有窗口')
+                sentToOverlay = true
+            } else if (floatingWindow && !floatingWindow.isDestroyed() && floatingWindow.isVisible() && !shouldShowAugmentTopOverlay()) {
+                floatingWindow.hide()
+            }
+
+            if (sidePanelWindow && !sidePanelWindow.isDestroyed() && shouldShowAugmentSidePanel()) {
+                applyAugmentSidePanelWindowLayout()
+                if (!sidePanelWindow.isVisible()) {
+                    sidePanelWindow.show()
+                    logger.info('✨ 显示海克斯右侧推荐列表')
+                }
+                sidePanelWindow.webContents.send('augment-detected', winrateData)
+                sentToOverlay = true
+            } else if (sidePanelWindow && !sidePanelWindow.isDestroyed() && sidePanelWindow.isVisible() && !shouldShowAugmentSidePanel()) {
+                sidePanelWindow.hide()
+            }
+
+            if (!sentToOverlay && shouldShowAugmentTopOverlay()) {
+                logger.warn('⚠️ 未找到可用海克斯浮窗，将数据发送给所有窗口')
                 // 如果找不到浮动窗口，发送给所有窗口
                 windows.forEach(window => {
                     if (!window.isDestroyed()) {
@@ -1038,9 +1070,10 @@ class AutoScreenshotService {
      * Notify renderers that the augment selection has disappeared.
      * @private
      */
-    _notifyAugmentCleared(reason = 'unknown') {
+    _notifyAugmentCleared(reason = 'unknown', options = {}) {
         try {
             const windows = BrowserWindow.getAllWindows()
+            const hidePopup = options.hidePopup !== false
             const payload = {
                 success: true,
                 gamePhase: 'augment-cleared',
@@ -1051,6 +1084,10 @@ class AutoScreenshotService {
 
             windows.forEach(window => {
                 if (!window.isDestroyed()) {
+                    const url = window.webContents.getURL()
+                    if (!hidePopup && url.includes('augment-overlay')) {
+                        return
+                    }
                     window.webContents.send('augment-cleared', payload)
                 }
             })
@@ -1065,12 +1102,22 @@ class AutoScreenshotService {
                 logger.info('Hidden augment floating window after selection disappeared')
             }
 
+            const sidePanelWindow = windows.find(win => {
+                const url = win.webContents.getURL()
+                return url.includes('augment-side-panel')
+            })
+            const wasSidePanelWindowVisible = !!sidePanelWindow && !sidePanelWindow.isDestroyed() && sidePanelWindow.isVisible()
+            if (wasSidePanelWindowVisible) {
+                sidePanelWindow.hide()
+                logger.info('Hidden augment side panel window after selection disappeared')
+            }
+
             const popupWindow = windows.find(win => {
                 const url = win.webContents.getURL()
                 return url.includes('augment-overlay')
             })
             const wasPopupWindowVisible = !!popupWindow && !popupWindow.isDestroyed() && popupWindow.isVisible()
-            if (wasPopupWindowVisible) {
+            if (wasPopupWindowVisible && hidePopup) {
                 popupWindow.hide()
                 logger.info('Hidden augment popup window after selection disappeared')
             }
@@ -1079,7 +1126,9 @@ class AutoScreenshotService {
                 reason,
                 windowCount: windows.length,
                 floatingWindowWasVisible: wasFloatingWindowVisible,
+                sidePanelWindowWasVisible: wasSidePanelWindowVisible,
                 popupWindowWasVisible: wasPopupWindowVisible,
+                popupHidden: wasPopupWindowVisible && hidePopup,
             })
         } catch (error) {
             logger.error('Failed to notify augment cleared:', error)

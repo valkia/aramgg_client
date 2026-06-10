@@ -12,12 +12,14 @@ const __dirname = path.dirname(__filename)
 let mainWindow = null
 let popupWindow = null
 let floatingWindow = null
+let augmentSidePanelWindow = null
 let mainWindowCloseAllowed = false
 let rendererServerPromise = null
 
 const MAIN_WINDOW_SIZE = { width: 380, height: 620 }
 const POPUP_WINDOW_SIZE = { width: 360, height: 640 }
 const FLOATING_WINDOW_SIZE = { width: 760, height: 170 }
+const AUGMENT_SIDE_PANEL_WINDOW_SIZE = { width: 360, height: 640 }
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
@@ -86,6 +88,20 @@ function getFloatingBounds() {
     }
 }
 
+function getAugmentSidePanelBounds() {
+    const display = screen.getPrimaryDisplay()
+    const area = display.workArea || display.bounds
+    const width = Math.min(AUGMENT_SIDE_PANEL_WINDOW_SIZE.width, area.width)
+    const height = Math.min(AUGMENT_SIDE_PANEL_WINDOW_SIZE.height, area.height)
+
+    return {
+        width,
+        height,
+        x: area.x + area.width - width - 16,
+        y: area.y + Math.max(16, Math.round((area.height - height) / 2)),
+    }
+}
+
 export function applyPopupWindowLayout() {
     if (popupWindow && !popupWindow.isDestroyed()) {
         popupWindow.setBounds(getPopupBounds())
@@ -95,6 +111,18 @@ export function applyPopupWindowLayout() {
 export function applyFloatingWindowLayout() {
     if (floatingWindow && !floatingWindow.isDestroyed()) {
         floatingWindow.setBounds(getFloatingBounds())
+    }
+}
+
+export function applyAugmentSidePanelWindowLayout() {
+    if (augmentSidePanelWindow && !augmentSidePanelWindow.isDestroyed()) {
+        augmentSidePanelWindow.setBounds(getAugmentSidePanelBounds())
+    }
+}
+
+export function setPopupWindowAlwaysOnTop(alwaysOnTop) {
+    if (popupWindow && !popupWindow.isDestroyed()) {
+        popupWindow.setAlwaysOnTop(Boolean(alwaysOnTop))
     }
 }
 
@@ -353,6 +381,10 @@ export const createMainWindow = async (isDev, devServerUrl) => {
             logger.info('Closing floating window...')
             floatingWindow.close()
         }
+        if (augmentSidePanelWindow && !augmentSidePanelWindow.isDestroyed()) {
+            logger.info('Closing augment side panel window...')
+            augmentSidePanelWindow.close()
+        }
     })
 
     mainWindow.on('closed', () => {
@@ -403,6 +435,53 @@ export const createPopupWindow = async (isDev, devServerUrl) => {
     logger.info('Popup window loaded', popupWindow.webContents.getURL())
 
     return popupWindow
+}
+
+/**
+ * 创建游戏右侧海克斯推荐列表窗口
+ */
+export const createAugmentSidePanelWindow = async (isDev, devServerUrl) => {
+    const webPreferences = getOverlayWebPreferences(isDev)
+    const bounds = getAugmentSidePanelBounds()
+
+    augmentSidePanelWindow = new BrowserWindow({
+        show: false,
+        frame: false,
+        transparent: true,
+        skipTaskbar: true,
+        resizable: isDev || false,
+        fullscreenable: false,
+        alwaysOnTop: true,
+        focusable: false,
+        ...bounds,
+        webPreferences,
+    })
+    attachWindowDiagnostics('augment-side-panel', augmentSidePanelWindow)
+
+    augmentSidePanelWindow.on('closed', () => {
+        logger.info('Augment side panel window closed')
+        augmentSidePanelWindow = undefined
+    })
+
+    await loadRendererRoute(
+        augmentSidePanelWindow,
+        'augment-side-panel',
+        isDev,
+        devServerUrl,
+        '/augment-side-panel',
+        webPreferences.preload
+    )
+
+    if (isDev) {
+        augmentSidePanelWindow.webContents.openDevTools({ mode: 'detach' })
+    }
+
+    logger.info('海克斯右侧推荐列表窗口已创建', {
+        ...bounds,
+        url: augmentSidePanelWindow.webContents.getURL(),
+    })
+
+    return augmentSidePanelWindow
 }
 
 /**
@@ -464,6 +543,8 @@ export const getPopupWindow = () => popupWindow
  * 获取浮动窗口实例
  */
 export const getFloatingWindow = () => floatingWindow
+
+export const getAugmentSidePanelWindow = () => augmentSidePanelWindow
 
 export const allowMainWindowClose = () => {
     mainWindowCloseAllowed = true

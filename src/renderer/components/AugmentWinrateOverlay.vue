@@ -1,8 +1,12 @@
 <template>
   <transition name="overlay-fade">
-    <div v-if="visible" class="augment-overlay">
+    <div
+      v-if="visible"
+      class="augment-overlay"
+      :class="{ 'side-panel-mode': isSidePanel }"
+    >
       <header class="insight-titlebar">
-        <h1>英雄详情</h1>
+        <h1>{{ isSidePanel ? '海克斯推荐' : '英雄详情' }}</h1>
         <div class="window-controls">
           <button class="window-control" type="button" aria-label="最小化" @click="closeOverlay">
             <Minus class="window-icon" />
@@ -37,15 +41,15 @@
           </div>
         </transition>
 
-        <section class="bench-inline">
-          <AramBenchRecommendation
-            compact
-            :preview-recommendation="benchPreviewRecommendation"
-          />
-        </section>
-
         <div class="insight-scroll">
-          <section class="champion-hero">
+          <section v-if="!isSidePanel" class="bench-inline">
+            <AramBenchRecommendation
+              compact
+              :preview-recommendation="benchPreviewRecommendation"
+            />
+          </section>
+
+          <section v-if="!isSidePanel" class="champion-hero">
             <img
               v-if="championId"
               :src="getChampionIconUrl(championId)"
@@ -85,7 +89,7 @@
             </div>
           </section>
 
-          <section class="stat-strip">
+          <section v-if="!isSidePanel" class="stat-strip">
             <div class="stat-box">
               <span>胜率</span>
               <strong :class="getWinRateClass(championStats?.winRate)">
@@ -102,7 +106,7 @@
             </div>
           </section>
 
-          <section v-if="championBlogs.length" class="related-blogs">
+          <section v-if="!isSidePanel && championBlogs.length" class="related-blogs">
             <div class="section-title-row compact">
               <h3>相关攻略</h3>
               <span>{{ championBlogs.length }} 篇</span>
@@ -263,7 +267,7 @@
           </div>
         </div>
 
-        <div v-if="championId" class="item-set-actions">
+        <div v-if="!isSidePanel && championId" class="item-set-actions">
           <button
             class="item-set-btn"
             type="button"
@@ -292,6 +296,13 @@ import { electronAPI } from '../native/electron-api.js'
 import { sortAugmentsByDetectedOrder } from '../service/augment-order.js'
 import AramBenchRecommendation from './AramBenchRecommendation.vue'
 
+const props = defineProps({
+  variant: {
+    type: String,
+    default: 'popup',
+  },
+})
+
 const visible = ref(false)
 const loading = ref(false)
 const championDataLoading = ref(false)
@@ -317,8 +328,10 @@ const benchPreviewRecommendation = ref(null)
 const unsubscribeEvents = []
 const itemSetApplying = ref(false)
 const itemSetAutoEnabled = ref(true)
+const hideChampionInsightOnGameStart = ref(true)
 const itemSetToast = ref({ type: '', message: '' })
 const ITEM_SET_AUTO_KEY = 'itemSets.autoApplyAram'
+const HIDE_CHAMPION_INSIGHT_ON_GAME_START_KEY = 'championInsight.hideOnGameStart'
 const CHAMPION_DATA_CACHE_TTL_MS = 15000
 let itemSetToastTimer = null
 let championLoadSequence = 0
@@ -326,6 +339,7 @@ let championDataRequest = null
 let championDataCache = null
 
 const contentVisible = computed(() => champSelectMode.value || !!championId.value || !!championStats.value)
+const isSidePanel = computed(() => props.variant === 'side-panel')
 const itemSetButtonLabel = computed(() => {
   if (itemSetApplying.value) {
     return '配置中'
@@ -401,6 +415,21 @@ const loadItemSetAutoPreference = async () => {
     itemSetAutoEnabled.value = Boolean(storedValue)
   } catch (err) {
     console.warn('Failed to load item set preference:', err)
+  }
+}
+
+const loadChampionInsightPreference = async () => {
+  try {
+    const storedValue = await electronAPI.store.get(HIDE_CHAMPION_INSIGHT_ON_GAME_START_KEY)
+    if (storedValue == null) {
+      await electronAPI.store.set(HIDE_CHAMPION_INSIGHT_ON_GAME_START_KEY, true)
+      hideChampionInsightOnGameStart.value = true
+      return
+    }
+
+    hideChampionInsightOnGameStart.value = Boolean(storedValue)
+  } catch (err) {
+    console.warn('Failed to load champion insight preference:', err)
   }
 }
 
@@ -868,7 +897,11 @@ const closeOverlay = () => {
   championLinks.value = {}
   displayAugments.value = []
 
-  electronAPI.windows.hidePopup()
+  if (isSidePanel.value) {
+    electronAPI.windows.hideAugmentSidePanel()
+  } else {
+    electronAPI.windows.hidePopup()
+  }
 }
 
 const withClientUtm = (url) => {
@@ -975,6 +1008,7 @@ const handleImageError = (e) => {
  */
 onMounted(() => {
   logOverlayInfo('component mounted')
+  void loadChampionInsightPreference()
 
   unsubscribeEvents.push(electronAPI.events.on('for-popup', (data) => {
     logOverlayInfo('for-popup received', {
@@ -1004,13 +1038,23 @@ onMounted(() => {
   }))
 
   unsubscribeEvents.push(electronAPI.events.on('game-started', () => {
-    console.log('🎮 游戏开始，隐藏弹窗')
-    closeOverlay()
+    if (hideChampionInsightOnGameStart.value || isSidePanel.value) {
+      console.log('🎮 游戏开始，隐藏弹窗')
+      closeOverlay()
+      return
+    }
+
+    logOverlayInfo('game-started received; champion insight retained by preference')
   }))
 
   unsubscribeEvents.push(electronAPI.events.on('game-in-progress', () => {
-    console.log('🎮 游戏进行中，隐藏弹窗')
-    closeOverlay()
+    if (hideChampionInsightOnGameStart.value || isSidePanel.value) {
+      console.log('🎮 游戏进行中，隐藏弹窗')
+      closeOverlay()
+      return
+    }
+
+    logOverlayInfo('game-in-progress received; champion insight retained by preference')
   }))
 
   unsubscribeEvents.push(electronAPI.events.on('item-set-auto-apply-completed', (data) => {
@@ -1687,6 +1731,27 @@ defineExpose({
   font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
 }
 
+.augment-overlay.side-panel-mode {
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  max-height: none;
+  transform: none;
+  background:
+    linear-gradient(180deg, rgba(42, 54, 64, 0.68), rgba(12, 20, 27, 0.74)),
+    rgba(8, 21, 30, 0.42);
+  border-color: rgba(226, 195, 132, 0.2);
+  box-shadow: 0 20px 58px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(3px);
+}
+
+.augment-overlay.side-panel-mode.overlay-fade-enter-from,
+.augment-overlay.side-panel-mode.overlay-fade-leave-to {
+  opacity: 0;
+  transform: translateX(16px);
+}
+
 .insight-titlebar {
   flex: 0 0 auto;
   display: flex;
@@ -1698,6 +1763,11 @@ defineExpose({
   border-bottom: 1px solid rgba(226, 192, 143, 0.28);
   box-shadow: inset 0 0 15px rgba(194, 156, 109, 0.18);
   -webkit-app-region: drag;
+}
+
+.side-panel-mode .insight-titlebar {
+  background: rgba(31, 43, 53, 0.54);
+  box-shadow: inset 0 0 12px rgba(194, 156, 109, 0.1);
 }
 
 .insight-titlebar h1 {
@@ -1760,6 +1830,12 @@ defineExpose({
   background:
     radial-gradient(ellipse at top, rgba(194, 156, 109, 0.07), transparent 54%),
     rgba(42, 54, 64, 0.84);
+}
+
+.side-panel-mode .overlay-content {
+  background:
+    radial-gradient(ellipse at top, rgba(194, 156, 109, 0.06), transparent 48%),
+    rgba(17, 29, 38, 0.34);
 }
 
 .bench-inline {
@@ -2136,6 +2212,10 @@ defineExpose({
   border-bottom: 0;
 }
 
+.side-panel-mode .tabs-list {
+  padding-top: 12px;
+}
+
 .tab-btn {
   justify-content: center;
   border: 1px solid rgba(60, 74, 71, 0.44);
@@ -2165,6 +2245,10 @@ defineExpose({
   margin-top: 0;
   padding: 16px 18px 18px;
   overflow: visible;
+}
+
+.side-panel-mode .tab-content {
+  padding-bottom: 16px;
 }
 
 .section-title-row {
@@ -2224,6 +2308,13 @@ defineExpose({
   border-left: 0;
   background: rgba(17, 29, 38, 0.72);
   box-shadow: inset 0 0 10px rgba(194, 156, 109, 0.08);
+}
+
+.side-panel-mode .augment-card,
+.side-panel-mode .build-tile,
+.side-panel-mode .item-section,
+.side-panel-mode .starter-row {
+  background: rgba(17, 29, 38, 0.48);
 }
 
 .augment-card:hover {
@@ -2386,6 +2477,10 @@ defineExpose({
   background: rgba(17, 29, 38, 0.7);
   border-top: 1px solid rgba(60, 74, 71, 0.44);
   color: #859491;
+}
+
+.side-panel-mode .overlay-footer {
+  background: rgba(17, 29, 38, 0.34);
 }
 
 .insight-scroll::-webkit-scrollbar {

@@ -2,7 +2,7 @@
 
 ## 功能概述
 
-应用会在实际对局阶段自动截图并识别海克斯选择界面，然后在浮窗中展示海克斯胜率和推荐度。识别到三张海克斯时会优先按左、中、右卡片区域确定顺序，避免 OCR 文本流乱序导致推荐顺序错位。手动 F1 截图仍保留，用于补救自动识别失败或临时检查。
+应用会在实际对局阶段自动截图并识别海克斯选择界面，然后按窗口偏好在顶部浮窗和右侧推荐列表中展示海克斯胜率和推荐度。识别到三张海克斯时会优先按左、中、右卡片区域确定顺序，避免 OCR 文本流乱序导致推荐顺序错位。手动 F1 截图仍保留，用于补救自动识别失败或临时检查。
 
 自动识别只在 LCU gameflow 的 `InProgress` 阶段允许运行。选人阶段 `ChampSelect` 会打开英雄详情并在顶部展示 ARAM bench 建议，不运行游戏内海克斯 OCR。
 
@@ -13,7 +13,7 @@
 3. 启动 League Client 并进入对局。
 4. 进入 `InProgress` 后，应用按 gameflow 控制自动截图服务。
 5. 出现海克斯选择界面时，应用识别 3 张卡片并展示推荐。
-6. 离开实际对局阶段后，应用会暂停或清空游戏内海克斯浮窗，避免过期结果残留。
+6. 离开实际对局阶段后，应用会暂停或清空游戏内海克斯顶部浮窗和右侧推荐列表，避免过期结果残留。
 
 ## 两种使用方式
 
@@ -21,7 +21,7 @@
 
 - 进入实际对局后自动启动。
 - 海克斯出现时自动识别。
-- 结果通过海克斯浮窗展示。
+- 结果通过海克斯顶部浮窗和右侧推荐列表展示；两者都可在主界面「窗口偏好」中单独关闭。
 
 ### 手动触发
 
@@ -56,6 +56,14 @@
 PaddleOCR 模型随应用打包在 `resources/paddleocr/`。提交海克斯 OCR、裁剪区域或名称匹配改动前，应运行 `npm run test:augment-ocr` 检查仓库内固定样本。
 
 ## 配置和状态
+
+主界面「窗口偏好」会写入 electron-store：
+
+| 配置 | 默认 | 说明 |
+|------|------|------|
+| 进游戏关闭英雄详情页 | 开启 | 开启时沿用原逻辑，`GameStart` / `InProgress` 关闭英雄详情；关闭后保留英雄详情并解除置顶，允许切到后台 |
+| 展示海克斯顶部浮窗 | 开启 | 控制 `/floating-overlay` 顶部三卡浮窗 |
+| 展示海克斯右侧推荐列表 | 开启 | 控制 `/augment-side-panel` 右侧列表，复用英雄详情的海克斯和出装内容 |
 
 Renderer 只能通过 preload 暴露的业务 API 调用截图服务：
 
@@ -102,6 +110,7 @@ await electronAPI.autoScreenshot.setConfig({
 - `gameflowPhase` 是否为 `InProgress`。
 - `analysisPausedByGameflow` 是否为 `false`。
 - 是否手动关闭了 `enableAnalysis`。
+- 主界面「窗口偏好」是否关闭了顶部浮窗和右侧推荐列表。
 - 日志中是否有截图或 OCR 失败信息。
 
 ### 第一局正常、第二局不识别
@@ -124,7 +133,7 @@ await electronAPI.autoScreenshot.setConfig({
 
 ### 为什么浮窗自动消失
 
-阶段切换到 `ChampSelect`、`Lobby`、`EndOfGame` 等非实际对局阶段，或 OCR 长时间检测不到海克斯卡片时，会清空旧结果。短暂只读到部分卡位时，浮窗会保留三卡位布局，未读到的位置显示为空槽。
+阶段切换到 `ChampSelect`、`Lobby`、`EndOfGame` 等非实际对局阶段，或 OCR 长时间检测不到海克斯卡片时，会清空旧结果。短暂只读到部分卡位时，浮窗和右侧推荐列表会保留三卡位布局，未读到的位置显示为空槽。
 
 ## 相关文件
 
@@ -132,5 +141,7 @@ await electronAPI.autoScreenshot.setConfig({
 - 图像分析：`src/main/image-analyzer.ts`
 - 主进程 gameflow 监控：`src/main/modules/app-config.ts`
 - 海克斯浮窗：`src/renderer/components/AugmentFloatingOverlay.vue`
+- 海克斯右侧推荐列表：`src/renderer/components/AugmentSidePanelView.vue`
+- 窗口偏好：`src/renderer/components/OverlayPreferences.vue`、`src/main/modules/user-preferences.ts`
 - 英雄详情窗口：`src/renderer/components/AugmentWinrateOverlay.vue`
 - ARAM 选人建议组件：`src/renderer/components/AramBenchRecommendation.vue`

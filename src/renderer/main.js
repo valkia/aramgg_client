@@ -7,6 +7,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import Display from './components/Display.vue'
 import PopupAugmentView from './components/PopupAugmentView.vue'
 import FloatingView from './components/FloatingView.vue'
+import AugmentSidePanelView from './components/AugmentSidePanelView.vue'
 import { electronAPI, hasElectronAPI } from './native/electron-api.js'
 import { initRendererAnalytics, trackErrorEvent, trackPageView, trackAnalyticsEvent } from './services/analytics.ts'
 
@@ -172,6 +173,7 @@ const router = createRouter({
     { path: '/display', name: 'Display', component: Display },
     { path: '/augment-overlay', name: 'AugmentOverlay', component: PopupAugmentView },
     { path: '/floating-overlay', name: 'FloatingOverlay', component: FloatingView },
+    { path: '/augment-side-panel', name: 'AugmentSidePanel', component: AugmentSidePanelView },
   ],
 })
 

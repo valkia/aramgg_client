@@ -25,8 +25,8 @@ GET /lol-gameflow/v1/gameflow-phase
 | `Matchmaking` | 匹配中 | 停止 gameflow 管理的自动截图 |
 | `ReadyCheck` | 准备确认 | 停止 gameflow 管理的自动截图 |
 | `ChampSelect` | 选人阶段 | 显示英雄详情并在顶部展示 ARAM 席位推荐，暂停海克斯 OCR |
-| `GameStart` | 游戏加载 | 清空选人/海克斯过期状态 |
-| `InProgress` | 实际对局中 | 允许自动截图和海克斯 OCR |
+| `GameStart` | 游戏加载 | 清空海克斯过期状态；默认关闭英雄详情，关闭「进游戏关闭英雄详情页」后保留并允许切到后台 |
+| `InProgress` | 实际对局中 | 允许自动截图和海克斯 OCR；按窗口偏好展示顶部浮窗和右侧推荐列表 |
 | `WaitingForStats` | 等待结算 | 停止自动截图，清空海克斯浮窗 |
 | `PreEndOfGame` | 结算前 | 停止自动截图 |
 | `EndOfGame` | 对局结束 | 停止自动截图，清空海克斯浮窗 |
@@ -41,6 +41,9 @@ GET /lol-gameflow/v1/gameflow-phase
 - LCU IPC：`src/main/services/lcu/ipc-handlers.ts`
 - 自动截图服务：`src/main/auto-screenshot-service.ts`
 - 英雄详情窗口：`src/main/modules/window-manager.ts` 的 `createPopupWindow()` 和 renderer 路由 `/augment-overlay`
+- 海克斯顶部浮窗：`src/main/modules/window-manager.ts` 的 `createFloatingWindow()` 和 renderer 路由 `/floating-overlay`
+- 海克斯右侧推荐列表：`src/main/modules/window-manager.ts` 的 `createAugmentSidePanelWindow()` 和 renderer 路由 `/augment-side-panel`
+- 窗口偏好：主界面 `OverlayPreferences` 写入 electron-store，由 `src/main/modules/user-preferences.ts` 读取
 - 席位推荐组件：`src/renderer/components/AramBenchRecommendation.vue`
 - Renderer 事件监听：`src/preload/preload.js`、`src/renderer/native/electron-api.js`
 
@@ -66,7 +69,8 @@ console.log(snapshotResult.snapshot)
 4. 查看日志中是否出现 `LCU OnJsonApiEvent WebSocket 已订阅 gameflow phase`、`游戏阶段变化(websocket)` 或兜底 `游戏阶段变化(poll)`。
 5. 在 `ChampSelect` 确认英雄详情窗口显示，顶部 ARAM 席位推荐更新完整候选列表。
 6. 在实际对局 `InProgress` 确认自动截图和海克斯 OCR 允许运行。
-7. 离开实际对局后确认过期海克斯浮窗被清空。
+7. 按「窗口偏好」确认顶部浮窗和右侧推荐列表分别显示或隐藏。
+8. 离开实际对局后确认过期海克斯浮窗和右侧推荐列表被清空。
 
 LCU/API 结构探索和阶段诊断内容写入当天主日志 `logs/app-YYYY-MM-DD.log`。
 
@@ -89,6 +93,7 @@ LCU/API 结构探索和阶段诊断内容写入当天主日志 `logs/app-YYYY-MM
 
 - `gameflowPhase` 是否为 `ChampSelect`。
 - 英雄详情窗口是否已显示；如果手动隐藏，下一次进入 `ChampSelect` 会重新显示。
+- 「进游戏关闭英雄详情页」关闭时，`GameStart` / `InProgress` 不会主动关闭英雄详情，但会解除置顶，让窗口可以切到后台。
 - `lcu-get-champ-select-snapshot` 是否返回 `status: "ready"`。
 - `snapshot.selfChampionId` 和 `snapshot.benchChampions` 是否有值。
 - 远端英雄统计是否可用；数据缺失时 UI 会降级展示。
@@ -100,4 +105,5 @@ LCU/API 结构探索和阶段诊断内容写入当天主日志 `logs/app-YYYY-MM
 - `gameflowPhase` 是否为 `InProgress`。
 - `autoScreenshot.getConfig()` 中 `analysisPausedByGameflow` 是否为 `false`。
 - 手动配置是否关闭了分析。
+- 主界面「窗口偏好」是否关闭了顶部浮窗或右侧推荐列表。
 - 日志中是否有截图或 OCR 分析失败信息。

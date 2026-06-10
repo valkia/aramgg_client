@@ -50,6 +50,7 @@ const electronAPI = {
         showPopup: (data) => ipcRenderer.send('show-popup', data),
         hidePopup: () => ipcRenderer.send('hide-popup'),
         hideFloating: () => ipcRenderer.send('hide-floating'),
+        hideAugmentSidePanel: () => ipcRenderer.send('hide-augment-side-panel'),
         toggleMain: () => ipcRenderer.send('toggle-main-window'),
         confirmQuit: () => ipcRenderer.invoke('confirm-quit-app'),
         restart: () => ipcRenderer.send('restart-app'),
