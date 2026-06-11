@@ -176,11 +176,9 @@
                   </div>
                   <div class="augment-main">
                     <div class="augment-name">{{ augment.name }}</div>
-                    <p>{{ getRecommendLabel(augment.recommendScore) }}</p>
                   </div>
                   <div class="augment-rate">
                     <strong>{{ formatPercent(augment.winRate) }}</strong>
-                    <span>胜率</span>
                   </div>
                 </div>
               </div>
@@ -942,18 +940,6 @@ const formatPercent = (value) => {
 }
 
 /**
- * 获取推荐标签
- */
-const getRecommendLabel = (score) => {
-  if (score == null || isNaN(score)) return '--'
-  if (score >= 0.6) return '必选 🔥'
-  if (score >= 0.5) return '推荐 📈'
-  if (score >= 0.4) return '可选 👍'
-  if (score >= 0.3) return '一般 ✓'
-  return '冷门 ❄️'
-}
-
-/**
  * 获取胜率样式类
  */
 const getWinRateClass = (winRate) => {
@@ -1362,19 +1348,19 @@ defineExpose({
 /* 过滤栏 */
 .filter-bar {
   display: flex;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 6px;
+  margin-bottom: 8px;
   flex-wrap: wrap;
 }
 
 .filter-chip {
-  padding: 7px 12px;
+  padding: 5px 9px;
   background: rgba(244, 236, 220, 0.05);
   border: 1px solid var(--lol-border-soft);
   color: var(--lol-muted);
   border-radius: 4px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
   transition: all 0.2s;
 }
 
@@ -1410,14 +1396,15 @@ defineExpose({
 .augments-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .augment-card {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: 8px;
+  min-height: 46px;
+  padding: 6px 8px;
   background:
     linear-gradient(90deg, rgba(244, 236, 220, 0.025), transparent),
     rgba(7, 10, 13, 0.34);
@@ -1468,8 +1455,8 @@ defineExpose({
 }
 
 .augment-icon {
-  width: 42px;
-  height: 42px;
+  width: 32px;
+  height: 32px;
   border-radius: 4px;
   border: 1px solid var(--lol-border-soft);
   object-fit: cover;
@@ -1480,11 +1467,12 @@ defineExpose({
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  justify-content: center;
+  gap: 0;
 }
 
 .augment-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 900;
   color: var(--lol-ivory);
   white-space: nowrap;
@@ -2254,14 +2242,14 @@ defineExpose({
 .section-title-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .section-title-row h3 {
   margin: 0;
   color: #d7e4f1;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 900;
 }
 
@@ -2272,12 +2260,12 @@ defineExpose({
 }
 
 .filter-bar {
-  gap: 6px;
-  margin-bottom: 12px;
+  gap: 5px;
+  margin-bottom: 8px;
 }
 
 .filter-chip {
-  padding: 6px 9px;
+  padding: 5px 8px;
   border-radius: 4px;
   background: rgba(17, 29, 38, 0.64);
   border-color: rgba(60, 74, 71, 0.48);
@@ -2293,16 +2281,16 @@ defineExpose({
 }
 
 .augments-list {
-  gap: 8px;
+  gap: 6px;
 }
 
 .augment-card {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) auto;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  min-height: 74px;
-  padding: 10px 12px;
+  gap: 8px;
+  min-height: 46px;
+  padding: 6px 8px;
   border: 1px solid rgba(60, 74, 71, 0.44);
   border-radius: 0;
   border-left: 0;
@@ -2324,8 +2312,8 @@ defineExpose({
 }
 
 .augment-icon-wrapper {
-  width: 48px;
-  height: 48px;
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2333,7 +2321,7 @@ defineExpose({
   border-radius: 4px;
   background: rgba(8, 21, 30, 0.84);
   color: #e2c08f;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 900;
   overflow: hidden;
 }
@@ -2347,15 +2335,12 @@ defineExpose({
 
 .augment-name {
   color: #d7e4f1;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 900;
 }
 
-.augment-main p {
-  margin: 3px 0 0;
-  color: #bacac6;
-  font-size: 10px;
-  font-weight: 800;
+.augment-main {
+  justify-content: center;
 }
 
 .augment-rate {
@@ -2365,15 +2350,7 @@ defineExpose({
 .augment-rate strong {
   display: block;
   color: #e2c08f;
-  font-size: 14px;
-  font-weight: 900;
-}
-
-.augment-rate span {
-  display: block;
-  margin-top: 3px;
-  color: #bacac6;
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 900;
 }
 

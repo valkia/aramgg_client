@@ -1,5 +1,6 @@
 // @ts-nocheck
-import { app, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, shell } from 'electron'
+import path from 'path'
 import { captureScreenshot } from '../screenshot.ts'
 import { analyzeScreenshot } from '../image-analyzer.ts'
 import autoScreenshotService from '../auto-screenshot-service.ts'
@@ -12,6 +13,7 @@ import {
     allowMainWindowClose,
     createPopupWindow,
     getFloatingWindow,
+    getMainWindow,
     getPopupWindow,
     setPopupWindowAlwaysOnTop,
     toggleMainWindow,
@@ -29,9 +31,15 @@ import {
     shouldShowAugmentSidePanel,
     shouldShowAugmentTopOverlay,
 } from './user-preferences.ts'
+import {
+    findLeagueInstallChildPath,
+    inspectLeagueInstallDirectory,
+    isLeagueInstallDirectory,
+} from './lol-path.ts'
 
 const TEST_AUGMENT_COUNT = 3
 const TEST_BENCH_CHAMPION_COUNT = 8
+const LCU_MANUAL_LEAGUE_PATH_KEY = 'lolPath'
 const BROADCAST_CHANNELS = new Set([
     'fromMain',
     'for-popup',
@@ -100,6 +108,113 @@ function assertSafeExternalUrl(url) {
     }
 
     return parsedUrl.toString()
+}
+
+async function validateLolDirectory(lolPath) {
+    const normalizedInput = typeof lolPath === 'string' ? lolPath.trim() : ''
+
+    if (!normalizedInput) {
+        return {
+            success: true,
+            valid: false,
+            reason: 'empty',
+            message: '请输入英雄联盟安装目录，或点击浏览选择目录。',
+            path: '',
+            normalizedPath: '',
+        }
+    }
+
+    const installInfo = await inspectLeagueInstallDirectory(normalizedInput)
+
+    if (!installInfo.exists) {
+        return {
+            success: true,
+            valid: false,
+            reason: 'not-found',
+            message: '这个路径不存在。请检查拼写，或点击浏览重新选择。',
+            path: normalizedInput,
+            normalizedPath: installInfo.normalizedPath,
+        }
+    }
+
+    if (!installInfo.isDirectory) {
+        return {
+            success: true,
+            valid: false,
+            reason: 'not-directory',
+            message: '请选择文件夹路径，不要选择 exe 文件或快捷方式。',
+            path: normalizedInput,
+            normalizedPath: installInfo.normalizedPath,
+        }
+    }
+
+    const normalizedDirectory = path.normalize(installInfo.normalizedPath)
+    const directoryName = path.basename(normalizedDirectory).toLowerCase()
+    if (directoryName === 'leagueclient' || directoryName === 'game') {
+        const parentPath = path.dirname(installInfo.normalizedPath)
+        if (await isLeagueInstallDirectory(parentPath)) {
+            return {
+                success: true,
+                valid: false,
+                reason: `${directoryName}-subdirectory`,
+                message: `当前选中的是 ${path.basename(normalizedDirectory)} 子目录，请改选上一层英雄联盟安装目录。`,
+                path: normalizedInput,
+                normalizedPath: installInfo.normalizedPath,
+                suggestedPath: parentPath,
+            }
+        }
+    }
+
+    if (directoryName === 'riot client') {
+        const siblingLolPath = path.join(path.dirname(installInfo.normalizedPath), 'League of Legends')
+        if (await isLeagueInstallDirectory(siblingLolPath)) {
+            return {
+                success: true,
+                valid: false,
+                reason: 'riot-client-directory',
+                message: '当前选中的是 Riot Client 目录，请选择同级的 League of Legends 游戏目录。',
+                path: normalizedInput,
+                normalizedPath: installInfo.normalizedPath,
+                suggestedPath: siblingLolPath,
+            }
+        }
+    }
+
+    if (directoryName === 'riot games' || directoryName === 'wegameapps') {
+        const childLolPath = await findLeagueInstallChildPath(installInfo.normalizedPath)
+        if (childLolPath) {
+            return {
+                success: true,
+                valid: false,
+                reason: 'publisher-root-directory',
+                message: '当前选中的是上级安装目录，请选择英雄联盟游戏目录。',
+                path: normalizedInput,
+                normalizedPath: installInfo.normalizedPath,
+                suggestedPath: childLolPath,
+            }
+        }
+    }
+
+    if (!installInfo.valid) {
+        return {
+            success: true,
+            valid: false,
+            reason: 'missing-league-client',
+            message: '未找到 LeagueClient.exe 或 LeagueClient 文件夹，请选择英雄联盟安装目录。',
+            path: normalizedInput,
+            normalizedPath: installInfo.normalizedPath,
+        }
+    }
+
+    return {
+        success: true,
+        valid: true,
+        reason: 'ok',
+        message: '目录可用。自动发现失败时会用它读取 lockfile 或客户端日志。',
+        path: installInfo.normalizedPath,
+        normalizedPath: installInfo.normalizedPath,
+        layout: installInfo.layout,
+    }
 }
 
 function sampleItems(items, count) {
@@ -543,6 +658,142 @@ export function registerIpcHandlers(isDev) {
             }
         } catch (error) {
             logger.warn('Failed to open log directory:', error.message)
+            return {
+                success: false,
+                error: error.message,
+            }
+        }
+    })
+
+    ipcMain.handle('lcu-get-manual-league-path', async () => {
+        try {
+            const configuredPath = store.get(LCU_MANUAL_LEAGUE_PATH_KEY) || ''
+            if (!configuredPath) {
+                return {
+                    success: true,
+                    path: '',
+                    valid: false,
+                    reason: 'empty',
+                }
+            }
+
+            const validation = await validateLolDirectory(configuredPath)
+            return {
+                ...validation,
+                path: configuredPath,
+                configuredPath,
+            }
+        } catch (error) {
+            logger.warn('[lcu] failed to read manual League path:', error.message)
+            return {
+                success: false,
+                path: '',
+                valid: false,
+                error: error.message,
+            }
+        }
+    })
+
+    ipcMain.handle('lcu-select-manual-league-path', async () => {
+        try {
+            const mainWindow = getMainWindow()
+            const dialogOptions = {
+                properties: ['openDirectory'],
+                title: '选择英雄联盟游戏目录',
+                message: '请选择英雄联盟安装目录',
+            }
+            const result = mainWindow && !mainWindow.isDestroyed()
+                ? await dialog.showOpenDialog(mainWindow, dialogOptions)
+                : await dialog.showOpenDialog(dialogOptions)
+
+            if (result.canceled || result.filePaths.length === 0) {
+                return {
+                    success: false,
+                    path: '',
+                    valid: false,
+                    reason: 'cancelled',
+                }
+            }
+
+            return validateLolDirectory(result.filePaths[0])
+        } catch (error) {
+            logger.warn('[lcu] manual League path selection failed:', error.message)
+            return {
+                success: false,
+                path: '',
+                valid: false,
+                error: error.message,
+            }
+        }
+    })
+
+    ipcMain.handle('lcu-validate-manual-league-path', async (_event, lolPath) => {
+        try {
+            return await validateLolDirectory(lolPath)
+        } catch (error) {
+            logger.warn('[lcu] manual League path validation failed:', error.message)
+            return {
+                success: false,
+                valid: false,
+                reason: 'validation-error',
+                message: error.message || '目录校验失败，请重试。',
+                error: error.message,
+            }
+        }
+    })
+
+    ipcMain.handle('lcu-set-manual-league-path', async (_event, lolPath) => {
+        try {
+            const validation = await validateLolDirectory(lolPath)
+            if (!validation.valid) {
+                return validation
+            }
+
+            store.set(LCU_MANUAL_LEAGUE_PATH_KEY, validation.normalizedPath)
+
+            let connected = false
+            try {
+                const { getLCUServiceInstance } = await import('../services/lcu/lcu-service.ts')
+                const auth = await getLCUServiceInstance().getAuthToken(true)
+                connected = Boolean(auth)
+            } catch (error) {
+                logger.debug('[lcu] manual League path saved but auth refresh failed:', error.message)
+            }
+
+            logger.info('[lcu] manual League path fallback saved', {
+                layout: validation.layout || null,
+                connected,
+            })
+
+            return {
+                ...validation,
+                path: validation.normalizedPath,
+                configuredPath: validation.normalizedPath,
+                connected,
+            }
+        } catch (error) {
+            logger.warn('[lcu] failed to save manual League path:', error.message)
+            return {
+                success: false,
+                valid: false,
+                error: error.message,
+                message: error.message || '保存目录失败',
+            }
+        }
+    })
+
+    ipcMain.handle('lcu-clear-manual-league-path', async () => {
+        try {
+            store.delete(LCU_MANUAL_LEAGUE_PATH_KEY)
+            logger.info('[lcu] manual League path fallback cleared')
+            return {
+                success: true,
+                path: '',
+                valid: false,
+                reason: 'cleared',
+            }
+        } catch (error) {
+            logger.warn('[lcu] failed to clear manual League path:', error.message)
             return {
                 success: false,
                 error: error.message,

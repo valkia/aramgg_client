@@ -46,11 +46,79 @@
                             <strong>{{ dataVersionLabel }}</strong>
                             <small v-if="versionInfo?.gamePatch">LOL {{ versionInfo.gamePatch }}</small>
                         </div>
-                        <div>
+                        <div class="lcu-status-card">
                             <span>LCU 连接</span>
                             <strong>自动发现</strong>
-                            <small>运行中客户端</small>
+                            <small>{{ manualLolPath ? '运行中客户端 + 手动兜底' : '运行中客户端' }}</small>
                         </div>
+                    </div>
+
+                    <button
+                        class="game-directory-toggle"
+                        type="button"
+                        :aria-expanded="showAdvancedLcuConfig"
+                        @click="toggleAdvancedLcuConfig"
+                    >
+                        <span>游戏目录</span>
+                        <ChevronRight
+                            class="game-directory-arrow"
+                            :class="{ open: showAdvancedLcuConfig }"
+                        />
+                    </button>
+
+                    <section v-if="showAdvancedLcuConfig" class="advanced-lcu-panel">
+                        <div class="manual-path-row">
+                            <input
+                                v-model="manualLolPath"
+                                class="manual-path-input"
+                                type="text"
+                                spellcheck="false"
+                                placeholder="C:\Riot Games\League of Legends"
+                                @blur="validateManualLolPath"
+                            />
+                            <button
+                                class="manual-path-button"
+                                type="button"
+                                title="浏览目录"
+                                :disabled="manualPathLoading"
+                                @click="browseManualLolPath"
+                            >
+                                <FolderSearch class="manual-path-icon" />
+                            </button>
+                            <button
+                                class="manual-path-button accent"
+                                type="button"
+                                title="保存目录"
+                                :disabled="manualPathLoading"
+                                @click="saveManualLolPath"
+                            >
+                                <Save class="manual-path-icon" />
+                            </button>
+                            <button
+                                class="manual-path-button danger"
+                                type="button"
+                                title="清除目录"
+                                :disabled="manualPathLoading || !manualLolPath"
+                                @click="clearManualLolPath"
+                            >
+                                <Trash2 class="manual-path-icon" />
+                            </button>
+                        </div>
+                    </section>
+                    <div
+                        v-if="manualPathStatus"
+                        class="manual-path-status"
+                        :class="manualPathStatus.type"
+                    >
+                        {{ manualPathStatus.message }}
+                        <button
+                            v-if="manualPathStatus.suggestedPath"
+                            class="manual-path-suggestion"
+                            type="button"
+                            @click="applyManualPathSuggestion"
+                        >
+                            使用建议目录
+                        </button>
                     </div>
                 </div>
 
@@ -146,11 +214,26 @@ import ItemSetInstaller from './ItemSetInstaller.vue'
 import OverlayPreferences from './OverlayPreferences.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
 import { electronAPI } from '../native/electron-api.js'
-import { ClipboardList, Cpu, Database, Minus, Target, X } from 'lucide-vue-next'
+import {
+    ChevronRight,
+    ClipboardList,
+    Cpu,
+    Database,
+    FolderSearch,
+    Minus,
+    Save,
+    Target,
+    Trash2,
+    X,
+} from 'lucide-vue-next'
 
 const testStatus = ref(null)
 const versionInfo = ref(null)
 const showQuitConfirm = ref(false)
+const showAdvancedLcuConfig = ref(false)
+const manualLolPath = ref('')
+const manualPathStatus = ref(null)
+const manualPathLoading = ref(false)
 const ARAMGG_HOME_URL = 'https://aramgg.com'
 const ARAMGG_HOME_LABEL = 'aramgg.com'
 const FEEDBACK_EMAIL = 'djlinguge@gmail.com'
@@ -197,6 +280,146 @@ const loadVersionInfo = async () => {
     } catch (error) {
         console.warn('Failed to load version info:', error)
     }
+}
+
+const setManualPathStatus = (type, message, extra = {}) => {
+    manualPathStatus.value = {
+        type,
+        message,
+        ...extra,
+    }
+}
+
+const loadManualLolPath = async () => {
+    try {
+        const result = await electronAPI.lcu.getManualLeaguePath()
+        if (result?.success) {
+            manualLolPath.value = result.path || result.configuredPath || ''
+            if (result.path && result.valid === false) {
+                setManualPathStatus('error', result.message || '已保存的目录不可用', {
+                    suggestedPath: result.suggestedPath || '',
+                })
+            }
+        }
+    } catch (error) {
+        console.warn('Failed to load manual League path:', error)
+    }
+}
+
+const toggleAdvancedLcuConfig = async () => {
+    showAdvancedLcuConfig.value = !showAdvancedLcuConfig.value
+    if (showAdvancedLcuConfig.value) {
+        await loadManualLolPath()
+    }
+}
+
+const validateManualLolPath = async () => {
+    const path = manualLolPath.value.trim()
+    if (!path) {
+        manualPathStatus.value = null
+        return false
+    }
+
+    try {
+        const result = await electronAPI.lcu.validateManualLeaguePath(path)
+        if (!result?.success) {
+            throw new Error(result?.message || result?.error || '目录校验失败')
+        }
+
+        if (result.valid) {
+            setManualPathStatus('success', result.message || '目录可用')
+            return true
+        }
+
+        setManualPathStatus('error', result.message || '目录不可用', {
+            suggestedPath: result.suggestedPath || '',
+        })
+        return false
+    } catch (error) {
+        setManualPathStatus('error', error.message || '目录校验失败')
+        return false
+    }
+}
+
+const browseManualLolPath = async () => {
+    manualPathLoading.value = true
+    try {
+        const result = await electronAPI.lcu.selectManualLeaguePath()
+        if (!result?.success) {
+            if (result?.reason !== 'cancelled') {
+                throw new Error(result?.message || result?.error || '目录选择失败')
+            }
+            return
+        }
+
+        manualLolPath.value = result.path || result.normalizedPath || ''
+        if (result.valid) {
+            setManualPathStatus('success', result.message || '目录可用，保存后启用')
+        } else {
+            setManualPathStatus('error', result.message || '目录不可用', {
+                suggestedPath: result.suggestedPath || '',
+            })
+        }
+    } catch (error) {
+        setManualPathStatus('error', error.message || '目录选择失败')
+    } finally {
+        manualPathLoading.value = false
+    }
+}
+
+const saveManualLolPath = async () => {
+    const path = manualLolPath.value.trim()
+    if (!path) {
+        setManualPathStatus('error', '请输入或选择英雄联盟安装目录')
+        return
+    }
+
+    manualPathLoading.value = true
+    try {
+        const result = await electronAPI.lcu.setManualLeaguePath(path)
+        if (!result?.success || !result.valid) {
+            setManualPathStatus('error', result?.message || result?.error || '目录不可用', {
+                suggestedPath: result?.suggestedPath || '',
+            })
+            return
+        }
+
+        manualLolPath.value = result.path || result.configuredPath || path
+        setManualPathStatus(
+            'success',
+            result.connected ? '兜底目录已保存，LCU 已连接' : '兜底目录已保存，等待客户端启动'
+        )
+    } catch (error) {
+        setManualPathStatus('error', error.message || '保存目录失败')
+    } finally {
+        manualPathLoading.value = false
+    }
+}
+
+const clearManualLolPath = async () => {
+    manualPathLoading.value = true
+    try {
+        const result = await electronAPI.lcu.clearManualLeaguePath()
+        if (!result?.success) {
+            throw new Error(result?.error || '清除目录失败')
+        }
+
+        manualLolPath.value = ''
+        setManualPathStatus('info', '已清除手动兜底目录')
+    } catch (error) {
+        setManualPathStatus('error', error.message || '清除目录失败')
+    } finally {
+        manualPathLoading.value = false
+    }
+}
+
+const applyManualPathSuggestion = async () => {
+    if (!manualPathStatus.value?.suggestedPath) {
+        return
+    }
+
+    manualLolPath.value = manualPathStatus.value.suggestedPath
+    await validateManualLolPath()
 }
 
 const openDownloadUrl = async () => {
@@ -359,6 +582,7 @@ const quitApp = async () => {
 
 onMounted(() => {
     loadVersionInfo()
+    loadManualLolPath()
     removeQuitConfirmListener = electronAPI.events.on('quit-confirm-requested', confirmQuitApp)
 })
 
@@ -641,6 +865,168 @@ onBeforeUnmount(() => {
 .version-download:hover {
     border-color: rgba(226, 192, 143, 0.58);
     background: rgba(194, 156, 109, 0.2);
+}
+
+.lcu-status-card {
+    position: relative;
+}
+
+.game-directory-toggle {
+    width: 100%;
+    min-height: 36px;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid rgba(226, 192, 143, 0.22);
+    border-radius: 4px;
+    background: rgba(4, 15, 24, 0.46);
+    color: #d7e4f1;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 900;
+    text-align: left;
+}
+
+.game-directory-toggle:hover {
+    border-color: rgba(226, 192, 143, 0.42);
+    background: rgba(194, 156, 109, 0.1);
+}
+
+.game-directory-arrow {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    color: #e2c08f;
+    transition: transform 0.18s ease;
+}
+
+.game-directory-arrow.open {
+    transform: rotate(90deg);
+}
+
+.advanced-lcu-panel {
+    margin-top: 6px;
+    padding: 10px;
+    border: 1px solid rgba(244, 236, 220, 0.07);
+    border-radius: 4px;
+    background: rgba(4, 15, 24, 0.38);
+}
+
+.manual-path-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 34px 34px 34px;
+    gap: 6px;
+    align-items: center;
+}
+
+.manual-path-input {
+    width: 100%;
+    min-width: 0;
+    height: 34px;
+    padding: 0 9px;
+    border: 1px solid rgba(244, 236, 220, 0.1);
+    border-radius: 4px;
+    background: rgba(7, 10, 13, 0.52);
+    color: var(--lol-ivory);
+    font-size: 12px;
+    outline: none;
+}
+
+.manual-path-input::placeholder {
+    color: #5f6f70;
+}
+
+.manual-path-input:focus {
+    border-color: rgba(226, 192, 143, 0.42);
+    box-shadow: 0 0 0 2px rgba(226, 192, 143, 0.1);
+}
+
+.manual-path-button {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(244, 236, 220, 0.1);
+    border-radius: 4px;
+    background: rgba(17, 29, 38, 0.72);
+    color: #d7e4f1;
+    cursor: pointer;
+}
+
+.manual-path-button:hover:not(:disabled) {
+    border-color: rgba(226, 192, 143, 0.38);
+    color: #e2c08f;
+}
+
+.manual-path-button.accent {
+    color: #e2c08f;
+    background: rgba(194, 156, 109, 0.1);
+}
+
+.manual-path-button.danger {
+    color: #ffb4ab;
+    background: rgba(68, 14, 20, 0.26);
+}
+
+.manual-path-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+}
+
+.manual-path-icon {
+    width: 15px;
+    height: 15px;
+}
+
+.manual-path-status {
+    margin-top: 8px;
+    padding: 8px 9px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.manual-path-status.info {
+    background: rgba(226, 192, 143, 0.08);
+    color: #e2c08f;
+    border: 1px solid rgba(226, 192, 143, 0.18);
+}
+
+.manual-path-status.success {
+    background: rgba(84, 216, 132, 0.08);
+    color: #54d884;
+    border: 1px solid rgba(84, 216, 132, 0.2);
+}
+
+.manual-path-status.error {
+    background: rgba(255, 180, 171, 0.08);
+    color: #ffb4ab;
+    border: 1px solid rgba(255, 180, 171, 0.22);
+}
+
+.manual-path-suggestion {
+    margin-left: auto;
+    flex: 0 0 auto;
+    padding: 3px 6px;
+    border: 1px solid rgba(255, 180, 171, 0.26);
+    border-radius: 4px;
+    background: rgba(255, 180, 171, 0.08);
+    color: #ffcec8;
+    font-size: 10px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.manual-path-suggestion:hover {
+    border-color: rgba(255, 180, 171, 0.48);
+    background: rgba(255, 180, 171, 0.14);
 }
 
 .diagnostic-panel {
