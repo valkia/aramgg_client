@@ -1,6 +1,6 @@
 # LOL Tips Client 需求规格文档
 
-维护状态：本文保留产品需求和识别算法背景，部分 UI 与流程描述早于 2026-05-25 的席位推荐独立浮窗、electron-vite 目录迁移和自动截图策略调整。实现细节以 `README.md`、`COMPLETE_ARCHITECTURE.md`、`docs/GAMEFLOW_DETECTION_GUIDE.md`、`docs/USER_GUIDE_AUTO_AUGMENT.md` 和源码为准。
+维护状态：本文保留产品需求和识别算法背景，部分 UI 与流程描述早于 2026-05-25 的席位推荐独立浮窗、electron-vite 目录迁移和自动截图策略调整。LCU 凭据发现当前为进程优先，主界面「游戏目录」仅为高级兜底。实现细节以 `README.md`、`COMPLETE_ARCHITECTURE.md`、`docs/GAMEFLOW_DETECTION_GUIDE.md`、`docs/USER_GUIDE_AUTO_AUGMENT.md` 和源码为准。
 
 ## 1. 概述
 
@@ -25,12 +25,12 @@ LOL Tips Client 是一款英雄联盟ARAM（极地大乱斗）模式的辅助工
          │
          ▼
 ┌─────────────────┐     ┌─────────────────┐
-│ 检查游戏路径配置 │──否──▶│ 引导用户配置路径 │
+│ 自动发现LCU凭据  │──否──▶│ 可选游戏目录兜底 │
 └────────┬────────┘     └────────┬────────┘
          │是                      │
          ▼                        ▼
 ┌─────────────────┐     ┌─────────────────┐
-│ 启动监控服务    │◀─────│   配置完成      │
+│ 启动监控服务    │◀─────│  兜底目录已保存  │
 └────────┬────────┘     └─────────────────┘
          │
     ┌────┴────┐
@@ -275,7 +275,7 @@ score = winRate * 0.6 + pickRate * 0.2 + min(numGames/1000, 1) * 0.2
 
 ##### 2.4.1.1 LCU API 调用
 - 接口：`/lol-champ-select/v1/session`
-- 认证：从游戏目录的 lockfile 获取
+- 认证：优先从运行中的 League Client 进程发现，失败后可从手动「游戏目录」兜底读取 lockfile / 日志
 - 返回数据：包含 `myTeam` 数组，其中包含英雄ID
 
 #### 2.4.2 游戏窗口监控
@@ -321,9 +321,9 @@ score = winRate * 0.6 + pickRate * 0.2 + min(numGames/1000, 1) * 0.2
 
 | 配置项 | 说明 | 存储位置 |
 |--------|------|----------|
-| lolPath | 英雄联盟安装路径 | localStorage |
-| overlayPosition | 浮窗位置 | localStorage |
-| overlayOpacity | 浮窗透明度 | localStorage |
+| lolPath | 英雄联盟安装路径，仅作为 LCU 自动发现失败后的高级兜底 | electron-store |
+| overlayPosition | 浮窗位置（旧需求项，当前以窗口管理和窗口偏好实现为准） | electron-store / 主进程窗口状态 |
+| overlayOpacity | 浮窗透明度（旧需求项，当前 UI 未作为核心配置暴露） | electron-store / 运行时状态 |
 
 ---
 
@@ -355,7 +355,7 @@ score = winRate * 0.6 + pickRate * 0.2 + min(numGames/1000, 1) * 0.2
 ## 5. 用户界面
 
 ### 5.1 主界面
-- 游戏路径配置卡片
+- 游戏目录高级兜底折叠项
 - 英雄监控卡片（状态、启停按钮）
 - 当前英雄信息展示
 - 海克斯胜率总览入口
@@ -456,7 +456,7 @@ IDLE ──配置路径──▶ CONFIGURED ──启动监控──▶ MONITORI
 | 场景 | 处理方式 |
 |------|----------|
 | LCU 未启动 | 显示提示，等待用户启动游戏客户端 |
-| 游戏路径无效 | 提示用户重新配置 |
+| 手动游戏目录兜底无效 | 提示用户重新配置 |
 | OCR 识别失败 | 静默重试，不显示错误浮窗 |
 | 网络问题 | 使用本地缓存数据 |
 | 多开游戏 | 只监控第一个实例 |

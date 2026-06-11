@@ -69,6 +69,7 @@ node tests/electron/test-augment-ocr-fixtures.js
 
 - `/lol-gameflow/v1/gameflow-phase` 的 `ChampSelect` 表示选人阶段。
 - `/lol-gameflow/v1/gameflow-phase` 的 `InProgress` 表示实际对局阶段，不是 champ-select session 内部 timer 状态。
+- LCU 凭据发现优先走运行中的 League Client 进程；`lolPath` / 主界面「游戏目录」只是高级手动兜底，不要把它重新做成必填配置或推荐链路前置条件。
 - 自动截图/OCR 只应在实际对局 `InProgress` 阶段运行；`ChampSelect`、`Lobby`、`EndOfGame` 等阶段要避免展示过期海克斯结果。
 - 只读选人快照入口是 `LCUService.getChampSelectSnapshot()` 和 IPC `lcu-get-champ-select-snapshot`。
 - ARAM bench 推荐入口是 IPC `lcu-get-aram-bench-recommendation`，结果只包含展示字段，不包含动作字段。

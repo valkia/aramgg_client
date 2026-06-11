@@ -106,6 +106,7 @@ npm run release:push
 - 界面文案默认使用简体中文；后续新增 UI 文案也应优先补齐简体中文。
 - 主窗口默认按主显示器工作区靠右展示，英雄详情窗口、海克斯顶部浮窗和右侧推荐列表仍由主进程统一布局。
 - 主界面「窗口偏好」可控制进游戏是否关闭英雄详情页、是否展示海克斯顶部浮窗、是否展示海克斯右侧推荐列表。
+- LCU 凭据默认从运行中的 League Client 进程自动发现；主界面「游戏目录」是自动发现失败时的高级兜底，只用于读取 LCU lockfile / 日志。
 - Windows 安装包使用 NSIS 引导式安装，可在安装时选择安装目录；安装器会把用户选择的父目录归一化到 `...\aramgg_client` 应用子目录。
 - 运行时可变数据统一通过 `src/main/modules/app-paths.ts` 管理：安装版优先写入安装目录旁的 `aramgg_client-data/`，不可写时回退到 Electron `userData`。
 - 子目录约定：`config/` 存储 electron-store 配置，`logs/` 存储应用日志，`remote-data-cache/` 存储远端数据缓存，`ocr-partial-screenshots/` 存储 OCR 调试截图。

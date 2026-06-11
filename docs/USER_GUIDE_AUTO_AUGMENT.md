@@ -9,11 +9,13 @@
 ## 使用流程
 
 1. 启动应用。
-2. 在应用中配置英雄联盟安装目录，或等待自动检测。
-3. 启动 League Client 并进入对局。
+2. 启动 League Client 并进入主界面；应用会优先从运行中的客户端自动发现 LCU。
+3. 进入对局。
 4. 进入 `InProgress` 后，应用按 gameflow 控制自动截图服务。
 5. 出现海克斯选择界面时，应用识别 3 张卡片并展示推荐。
 6. 离开实际对局阶段后，应用会暂停或清空游戏内海克斯顶部浮窗和右侧推荐列表，避免过期结果残留。
+
+如果自动发现失败，展开主界面「游戏目录」并选择英雄联盟安装目录作为高级兜底。该目录只用于读取 LCU lockfile / 日志，不是正常启动的必填项。
 
 ## 两种使用方式
 
@@ -56,6 +58,12 @@
 PaddleOCR 模型随应用打包在 `resources/paddleocr/`。提交海克斯 OCR、裁剪区域或名称匹配改动前，应运行 `npm run test:augment-ocr` 检查仓库内固定样本。
 
 ## 配置和状态
+
+### LCU 发现与游戏目录兜底
+
+LCU token 和端口默认从运行中的 League Client / LeagueClientUx 进程发现。进程信息不可见时，主进程会尝试从进程路径旁的 `lockfile` 和 League Client 日志兜底。
+
+主界面「游戏目录」是可折叠的高级兜底，只在自动发现失败后生效。保存后会写入 electron-store 的 `lolPath`，并用于查找安装目录下的 `lockfile`、`LeagueClient/` 和 `Logs/`。
 
 主界面「窗口偏好」会写入 electron-store：
 
@@ -107,6 +115,7 @@ await electronAPI.autoScreenshot.setConfig({
 检查：
 
 - LCU 是否连接成功。
+- 如果日志出现 `[LCU discovery] process query failed` 或 `[LCU discovery] no process auth found`，展开主界面「游戏目录」配置手动兜底。
 - `gameflowPhase` 是否为 `InProgress`。
 - `analysisPausedByGameflow` 是否为 `false`。
 - 是否手动关闭了 `enableAnalysis`。

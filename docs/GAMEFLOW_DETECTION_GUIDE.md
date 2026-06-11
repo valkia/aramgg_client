@@ -64,7 +64,7 @@ console.log(snapshotResult.snapshot)
 ## 验证方式
 
 1. 启动 League Client。
-2. 在应用中配置或自动检测游戏路径。
+2. 默认等待应用自动发现运行中的 League Client；如果失败，展开主界面「游戏目录」选择英雄联盟安装目录作为高级兜底。
 3. 进入大厅、选人、加载、实际对局、结算阶段。
 4. 查看日志中是否出现 `LCU OnJsonApiEvent WebSocket 已订阅 gameflow phase`、`游戏阶段变化(websocket)` 或兜底 `游戏阶段变化(poll)`。
 5. 在 `ChampSelect` 确认英雄详情窗口显示，顶部 ARAM 席位推荐更新完整候选列表。
@@ -81,11 +81,12 @@ LCU/API 结构探索和阶段诊断内容写入当天主日志 `logs/app-YYYY-MM
 可能原因：
 
 - League Client 未运行。
-- 游戏路径未配置或配置错误。
+- 系统权限、WMI 或 PowerShell 限制导致进程命令行/路径不可见。
+- 手动「游戏目录」兜底未配置，或配置到了 Riot Client、`Game` 子目录、项目目录等错误位置。
 - LCU token 暂时不可用。
-- 客户端刚启动，`LeagueClientUx.log` 尚未写入 token。
+- 客户端刚启动，`lockfile` 或 `LeagueClientUx.log` 尚未写入 token。
 
-先按 [LCU 排障指南](./LCU_TROUBLESHOOTING.md) 检查 token 和日志。
+先按 [LCU 排障指南](./LCU_TROUBLESHOOTING.md) 检查进程发现、手动兜底和日志。
 
 ### 选人阶段没有推荐
 

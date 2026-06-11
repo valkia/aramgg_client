@@ -36,6 +36,12 @@ Renderer 不直接访问 Node API。所有主进程能力都必须经由 preload
 | Preload API | `src/preload/preload.js` | 暴露 `store`、`windows`、`screenshot`、`winrate`、`lcu` 等业务 API |
 | Renderer API 代理 | `src/renderer/native/electron-api.js` | Renderer 侧统一调用入口 |
 
+## LCU 凭据发现
+
+LCU token 和端口优先从运行中的 League Client / LeagueClientUx 进程发现。主进程先解析进程命令行；如果系统不暴露命令行或可执行路径，再尝试读取进程路径旁的 `lockfile` 和 League Client 日志。
+
+主界面「游戏目录」保存的 `lolPath` 只是高级手动兜底。只有进程发现失败后，`token-loader.ts` 才会读取该目录，并继续从安装目录下的 `lockfile`、`LeagueClient/` 和 `Logs/` 中查找 LCU 凭据。这个目录不是启动或推荐展示的必填配置。
+
 ## 运行时数据目录
 
 可变运行时数据由 `src/main/modules/app-paths.ts` 统一解析，避免写入打包资源或生成产物目录。
