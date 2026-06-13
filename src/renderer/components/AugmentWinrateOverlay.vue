@@ -131,7 +131,7 @@
                 :key="tab.key"
                 class="tab-btn"
                 :class="{ active: activeTab === tab.key }"
-                @click="activeTab = tab.key"
+                @click="setActiveTab(tab.key)"
               >
                 <span class="tab-text">{{ tab.label }}</span>
               </button>
@@ -152,7 +152,7 @@
                   :key="rarity.key"
                   class="filter-chip"
                   :class="{ active: selectedRarity === rarity.key, [rarity.key]: true }"
-                  @click="selectedRarity = rarity.key"
+                  @click="selectRarity(rarity.key)"
                 >
                   {{ rarity.label }}
                 </button>
@@ -165,7 +165,16 @@
                   class="augment-card"
                   :class="`rarity-${augment.rarity}`"
                 >
-                  <div class="augment-icon-wrapper">
+                  <div
+                    class="augment-icon-wrapper"
+                    tabindex="0"
+                    :aria-label="`${augment.name}说明`"
+                    @mouseenter="showAugmentTooltip($event, augment)"
+                    @mousemove="moveAugmentTooltip($event)"
+                    @mouseleave="hideAugmentTooltip"
+                    @focus="showAugmentTooltip($event, augment)"
+                    @blur="hideAugmentTooltip"
+                  >
                     <img
                       v-if="augment.iconPath"
                       :src="getAugmentIconUrl(augment.iconPath)"
@@ -191,66 +200,111 @@
             <div v-if="activeTab === 'builds'" class="tab-panel">
               <div class="section-title-row">
                 <h3>出装路线</h3>
-                <span></span>
+                <span>{{ buildRoutes.length ? `${buildRoutes.length} 套` : '' }}</span>
               </div>
 
-              <div v-if="buildData && (coreItems.length > 0 || situationalItems.length > 0 || startingItems.length > 0)" class="build-content">
-                <div v-if="coreItems.length > 0" class="build-grid">
-                  <div
-                    v-for="(build, idx) in coreItems.slice(0, 6)"
-                    :key="idx"
-                    class="build-tile"
+              <div v-if="hasBuildRecommendations" class="build-content">
+                <div v-if="buildRoutes.length > 1" class="build-route-tabs">
+                  <button
+                    v-for="(route, idx) in buildRoutes"
+                    :key="`${route.key}-tab`"
+                    type="button"
+                    class="build-route-tab"
+                    :class="{ active: selectedBuildRoute?.key === route.key }"
+                    @click="selectBuildRoute(idx)"
                   >
-                    <div class="item-icons">
-                      <img
-                        v-for="itemId in build.items.slice(0, 6)"
-                        :key="itemId"
-                        :src="getItemIconUrl(itemId)"
-                        class="item-icon"
-                        :alt="itemId"
-                      />
-                    </div>
-                    <div class="build-stats">
-                      <span>{{ formatPercent(build.winRate) }}</span>
-                      <small>{{ formatNumber(build.games) }} 场</small>
-                    </div>
-                  </div>
+                    <span>{{ route.title }}</span>
+                    <small>{{ formatPercent(route.winRate) }} · {{ formatNumber(route.games) }} 场</small>
+                  </button>
                 </div>
 
-                <section v-if="situationalItems.length > 0" class="item-section">
-                  <h4>备选装备</h4>
-                  <div class="situational-grid">
-                    <img
-                      v-for="(item, idx) in situationalItems"
-                      :key="idx"
-                      :src="getItemIconUrl(item.itemId)"
-                      class="item-icon small"
-                      :alt="'item-' + item.itemId"
-                    />
-                  </div>
-                </section>
+                <article
+                  v-if="selectedBuildRoute"
+                  :key="selectedBuildRoute.key"
+                  class="build-route"
+                >
+                  <header class="build-route-header">
+                    <div class="build-route-title">
+                      <h4>{{ selectedBuildRoute.title }}</h4>
+                      <small v-if="selectedBuildRoute.subtitle">{{ selectedBuildRoute.subtitle }}</small>
+                    </div>
+                    <div class="build-route-stats">
+                      <strong>{{ formatPercent(selectedBuildRoute.winRate) }}</strong>
+                      <small>{{ formatNumber(selectedBuildRoute.games) }} 场</small>
+                    </div>
+                  </header>
 
-                <section v-if="startingItems.length > 0" class="item-section">
-                  <h4>出门装</h4>
-                  <div class="starter-list">
+                  <section v-if="selectedBuildRoute.startingItems.length > 0" class="item-section starter-section">
+                    <h4>出门装</h4>
+                    <div class="starter-list">
+                      <div
+                        v-for="(build, idx) in selectedBuildRoute.startingItems.slice(0, 2)"
+                        :key="`${selectedBuildRoute.key}-starter-${idx}`"
+                        class="starter-row"
+                      >
+                        <div class="item-icons">
+                          <img
+                            v-for="itemId in build.items"
+                            :key="itemId"
+                            :src="getItemIconUrl(itemId)"
+                            class="item-icon small"
+                            :alt="getItemName(itemId)"
+                          />
+                        </div>
+                        <span>{{ formatPercent(build.winRate) }}</span>
+                      </div>
+                    </div>
+                  </section>
+
+                  <div v-if="selectedBuildRoute.coreItems.length > 0" class="build-grid">
                     <div
-                      v-for="(build, idx) in startingItems.slice(0, 3)"
-                      :key="idx"
-                      class="starter-row"
+                      v-for="(build, idx) in selectedBuildRoute.coreItems.slice(0, 4)"
+                      :key="`${selectedBuildRoute.key}-core-${idx}`"
+                      class="build-tile"
                     >
+                      <div class="build-tile-label">核心 {{ idx + 1 }}</div>
                       <div class="item-icons">
                         <img
-                          v-for="itemId in build.items"
+                          v-for="itemId in build.items.slice(0, 6)"
                           :key="itemId"
                           :src="getItemIconUrl(itemId)"
-                          class="item-icon small"
-                          :alt="itemId"
+                          class="item-icon"
+                          :alt="getItemName(itemId)"
                         />
                       </div>
-                      <span>{{ formatPercent(build.winRate) }}</span>
+                      <div class="build-stats">
+                        <span>{{ formatPercent(build.winRate) }}</span>
+                        <small>{{ formatNumber(build.games) }} 场</small>
+                      </div>
                     </div>
                   </div>
-                </section>
+
+                  <section v-if="selectedBuildRoute.itemExtensions.length > 0" class="item-section">
+                    <h4>后续装备</h4>
+                    <div class="situational-grid">
+                      <img
+                        v-for="item in selectedBuildRoute.itemExtensions.slice(0, 12)"
+                        :key="`${selectedBuildRoute.key}-next-${item.itemId}`"
+                        :src="getItemIconUrl(item.itemId)"
+                        class="item-icon small"
+                        :alt="getItemName(item.itemId)"
+                      />
+                    </div>
+                  </section>
+
+                  <section v-if="selectedBuildRoute.situationalItems.length > 0" class="item-section">
+                    <h4>备选装备</h4>
+                    <div class="situational-grid">
+                      <img
+                        v-for="item in selectedBuildRoute.situationalItems.slice(0, 12)"
+                        :key="`${selectedBuildRoute.key}-situational-${item.itemId}`"
+                        :src="getItemIconUrl(item.itemId)"
+                        class="item-icon small"
+                        :alt="getItemName(item.itemId)"
+                      />
+                    </div>
+                  </section>
+                </article>
               </div>
               <div v-else class="empty-state">
                 <p>暂无出装数据</p>
@@ -269,12 +323,33 @@
           <button
             class="item-set-btn"
             type="button"
-            :disabled="itemSetApplying || !buildData"
+            :disabled="itemSetApplying || !hasBuildRecommendations"
             @click="configureCurrentChampionItems(false)"
           >
             <PackagePlus class="item-set-icon" />
             {{ itemSetButtonLabel }}
           </button>
+        </div>
+
+        <div
+          v-if="augmentTooltipDetail"
+          class="augment-tooltip"
+          role="tooltip"
+          :style="augmentTooltipStyle"
+        >
+          <div class="augment-tooltip-header">
+            <img
+              v-if="augmentTooltipDetail.iconUrl"
+              :src="augmentTooltipDetail.iconUrl"
+              :alt="augmentTooltipDetail.name"
+            />
+            <div>
+              <strong>{{ augmentTooltipDetail.name }}</strong>
+              <span v-if="augmentTooltipDetail.rarityLabel">{{ augmentTooltipDetail.rarityLabel }}</span>
+            </div>
+          </div>
+          <p v-if="augmentTooltipDetail.description">{{ augmentTooltipDetail.description }}</p>
+          <p v-else>暂无说明</p>
         </div>
       </div>
 
@@ -289,7 +364,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ExternalLink, Minus, PackageCheck, PackagePlus, X } from 'lucide-vue-next'
-import { getChampionIconUrl, getChampionSquareIconUrl, getAugmentIconUrl, getItemIconUrl } from '../service/cdn'
+import { getChampionIconUrl, getChampionSquareIconUrl, getAugmentIconUrl, getItemIconUrl as getFallbackItemIconUrl } from '../service/cdn'
 import { electronAPI } from '../native/electron-api.js'
 import { sortAugmentsByDetectedOrder } from '../service/augment-order.js'
 import AramBenchRecommendation from './AramBenchRecommendation.vue'
@@ -309,6 +384,7 @@ const championId = ref(null)
 const championName = ref('')
 const championNameData = ref(null)
 const activeTab = ref('augments')
+const selectedBuildRouteIndex = ref(0)
 const selectedRarity = ref('all')
 const dataSource = ref('local')
 const timestamp = ref(null)
@@ -328,9 +404,11 @@ const itemSetApplying = ref(false)
 const itemSetAutoEnabled = ref(true)
 const hideChampionInsightOnGameStart = ref(true)
 const itemSetToast = ref({ type: '', message: '' })
+const augmentTooltip = ref({ visible: false, augment: null, x: 0, y: 0 })
 const ITEM_SET_AUTO_KEY = 'itemSets.autoApplyAram'
 const HIDE_CHAMPION_INSIGHT_ON_GAME_START_KEY = 'championInsight.hideOnGameStart'
 const CHAMPION_DATA_CACHE_TTL_MS = 15000
+const MAX_ITEM_SET_BUILDS = 4
 let itemSetToastTimer = null
 let championLoadSequence = 0
 let championDataRequest = null
@@ -343,11 +421,14 @@ const itemSetButtonLabel = computed(() => {
     return '配置中'
   }
 
-  if (!buildData.value) {
+  if (!hasBuildRecommendations.value) {
     return '等待出装数据'
   }
 
-  return itemSetAutoEnabled.value ? '重新配置装备' : '配置当前英雄装备'
+  const count = Math.min(buildRoutes.value.length, MAX_ITEM_SET_BUILDS)
+  const target = count > 1 ? `${count} 套装备` : '当前英雄装备'
+
+  return itemSetAutoEnabled.value ? `重新配置 ${target}` : `配置 ${target}`
 })
 
 const championBlogUrl = computed(() => {
@@ -493,8 +574,17 @@ const showItemSetToast = (type, message) => {
   }, 2600)
 }
 
+const formatItemSetSuccessMessage = (automatic, result = {}) => {
+  const count = Number(result?.writtenItemSetCount)
+  if (Number.isFinite(count) && count > 0) {
+    return automatic ? `已自动写入 ${count} 套游戏推荐` : `已写入 ${count} 套游戏推荐`
+  }
+
+  return automatic ? '已自动写入游戏推荐' : '已写入游戏推荐'
+}
+
 const configureCurrentChampionItems = async (automatic = false) => {
-  if (!championId.value || itemSetApplying.value || !buildData.value) {
+  if (!championId.value || itemSetApplying.value || !hasBuildRecommendations.value) {
     return
   }
 
@@ -504,14 +594,14 @@ const configureCurrentChampionItems = async (automatic = false) => {
   try {
     const result = await electronAPI.itemSets.installAramChampion({
       championId: championId.value,
-      build: buildData.value,
+      builds: buildRoutes.value.map(route => route.rawBuild).slice(0, MAX_ITEM_SET_BUILDS),
       championName: championNameData.value || { nameCN: championName.value },
     })
     if (!result?.success) {
       throw new Error(result?.error || '装备配置失败')
     }
 
-    showItemSetToast('success', automatic ? '已自动写入游戏推荐' : '已写入游戏推荐')
+    showItemSetToast('success', formatItemSetSuccessMessage(automatic, result))
   } catch (err) {
     showItemSetToast('error', err?.message || '装备配置失败')
   } finally {
@@ -533,16 +623,30 @@ const rarityOptions = [
   { key: 'kPrismatic', label: '棱彩' }
 ]
 
+const setActiveTab = (key) => {
+  activeTab.value = key
+  hideAugmentTooltip()
+}
+
+const selectRarity = (key) => {
+  selectedRarity.value = key
+  hideAugmentTooltip()
+}
+
 const mapIncomingAugmentsForFallback = (augments = []) => augments.map(aug => ({
   augmentId: aug.augmentId || aug.id,
   id: aug.id || aug.augmentId,
   name: aug.name || '未知海克斯',
   rarity: aug.rarity || 'unknown',
+  rarityName: aug.rarityName || null,
+  rarityDisplayName: aug.rarityDisplayName || null,
   winRate: aug.winRate ?? null,
   pickRate: aug.pickRate ?? null,
   playCount: aug.playCount ?? 0,
   recommendScore: aug.recommendScore ?? null,
-  iconPath: aug.iconPath || aug.iconUrl || null
+  iconPath: aug.iconPath || aug.iconUrl || null,
+  description: aug.description || null,
+  tooltip: aug.tooltip || null,
 }))
 
 const mapChampionAugmentRows = (augments = [], statsById = {}) => {
@@ -567,7 +671,9 @@ const mapChampionAugmentRows = (augments = [], statsById = {}) => {
         playCount: games,
         winCount: Number(stats.num_win_games) || 0,
         recommendScore: winRate * 0.6 + pickRate * 0.2 + Math.min(games / 1000, 1) * 0.2,
-        iconPath: augment.iconPath || augment.iconUrl || null
+        iconPath: augment.iconPath || augment.iconUrl || null,
+        description: augment.description || null,
+        tooltip: augment.tooltip || null,
       }
     })
     .filter(Boolean)
@@ -604,55 +710,383 @@ const filteredAugments = computed(() => {
   return displayAugments.value.filter(a => a.rarity === selectedRarity.value)
 })
 
-// 解析核心出装
+const toFiniteNumber = (value, fallback = 0) => {
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) ? numberValue : fallback
+}
+
+const normalizeRateValue = (value) => {
+  const numberValue = Number(value)
+  if (!Number.isFinite(numberValue) || numberValue <= 0) {
+    return null
+  }
+
+  return numberValue > 1 ? numberValue / 100 : numberValue
+}
+
 const normalizeItemIds = (itemIds) => {
   if (Array.isArray(itemIds)) {
     return itemIds.map(id => String(id).trim()).filter(Boolean)
   }
 
+  if (itemIds != null && itemIds !== '') {
+    return [String(itemIds).trim()].filter(Boolean)
+  }
+
   return []
 }
 
-const coreItems = computed(() => {
-  if (!buildData.value || !buildData.value.coreItems) {
+const getRecordItemIds = (record = {}) => normalizeItemIds(
+  record.itemIds ?? record.items ?? record.itemId ?? record.id
+)
+
+const normalizeBuildRecord = (record = {}) => {
+  const stats = record.stats || {}
+  const items = getRecordItemIds(record)
+  const games = toFiniteNumber(record.games ?? record.num_games ?? stats.games ?? stats.num_games)
+  const wins = toFiniteNumber(record.wins ?? record.num_win_games ?? stats.wins ?? stats.num_win_games)
+  const winRate = normalizeRateValue(record.winRate ?? record.win_rate ?? stats.winRate ?? stats.win_rate)
+    ?? (games > 0 ? wins / games : null)
+
+  return {
+    ...record,
+    items,
+    itemId: items[0] || '',
+    games,
+    wins,
+    pickRate: normalizeRateValue(record.pickRate ?? record.pick_rate ?? stats.pickRate ?? stats.pick_rate) ?? 0,
+    winRate,
+    distinctiveScore: toFiniteNumber(record.distinctiveScore ?? record.distinctive_score),
+  }
+}
+
+const compareBuildRecords = (left, right) => {
+  const gamesDiff = toFiniteNumber(right.games) - toFiniteNumber(left.games)
+  if (gamesDiff !== 0) {
+    return gamesDiff
+  }
+
+  const pickDiff = toFiniteNumber(right.pickRate) - toFiniteNumber(left.pickRate)
+  if (pickDiff !== 0) {
+    return pickDiff
+  }
+
+  return toFiniteNumber(right.winRate) - toFiniteNumber(left.winRate)
+}
+
+const normalizeBuildRecords = (records = [], singleItem = false) => {
+  if (!Array.isArray(records)) {
     return []
   }
 
-  return buildData.value.coreItems.map(rec => {
-    const itemIds = normalizeItemIds(rec.itemIds)
+  return records
+    .map(normalizeBuildRecord)
+    .filter(record => singleItem ? record.itemId : record.items.length > 0)
+    .sort(compareBuildRecords)
+}
+
+const getBuildTags = (build = {}) => {
+  const rawTagValues = build.tags && typeof build.tags === 'object'
+    ? Object.values(build.tags)
+    : []
+  const values = [
+    build.buildTags,
+    ...rawTagValues,
+  ]
+  const seen = new Set()
+
+  return values
+    .flatMap(value => String(value || '').split(','))
+    .map(value => value.trim())
+    .filter(value => {
+      if (!value) {
+        return false
+      }
+
+      const key = value.toLowerCase()
+      if (seen.has(key)) {
+        return false
+      }
+
+      seen.add(key)
+      return true
+    })
+}
+
+const getBuildTitle = (build, index) => {
+  const tags = getBuildTags(build)
+  if (tags.length) {
+    return tags.join(' / ')
+  }
+
+  return build?.tier || build?.role || `路线 ${index + 1}`
+}
+
+const collectBuildRoutes = (build) => {
+  if (!build || (typeof build !== 'object' && !Array.isArray(build))) {
+    return []
+  }
+
+  const builds = Array.isArray(build)
+    ? build
+    : Array.isArray(build.builds)
+      ? build.builds
+      : []
+  const seen = new Set()
+
+  return builds
+    .filter(route => route && typeof route === 'object' && !Array.isArray(route))
+    .filter((route) => {
+      const coreKey = Array.isArray(route.coreItems)
+        ? route.coreItems
+          .slice(0, 3)
+          .map(record => getRecordItemIds(record).join('-'))
+          .join('|')
+        : ''
+      const key = `${getBuildTags(route).join('|')}:${coreKey}:${route.role || ''}:${route.tier || ''}`
+      if (seen.has(key)) {
+        return false
+      }
+
+      seen.add(key)
+      return true
+    })
+}
+
+const getBuildStats = (build = {}) => {
+  const stats = build.stats || {}
+  return {
+    games: toFiniteNumber(build.games ?? stats.games ?? stats.num_games),
+    winRate: normalizeRateValue(build.winRate ?? build.win_rate ?? stats.winRate ?? stats.win_rate),
+    pickRate: normalizeRateValue(build.pickRate ?? build.pick_rate ?? stats.pickRate ?? stats.pick_rate),
+  }
+}
+
+const buildRoutes = computed(() => collectBuildRoutes(buildData.value)
+  .map((build, index) => {
+    const stats = getBuildStats(build)
+    const startingItems = normalizeBuildRecords(build.startingItems || [])
+    const coreItems = normalizeBuildRecords(build.coreItems || build.recommended || [])
+    const itemExtensions = normalizeBuildRecords(build.itemExtensions || [], true)
+    const situationalItems = normalizeBuildRecords(build.situationalItems || [], true)
+      .sort((left, right) => {
+        const scoreDiff = toFiniteNumber(right.distinctiveScore) - toFiniteNumber(left.distinctiveScore)
+        return scoreDiff !== 0 ? scoreDiff : compareBuildRecords(left, right)
+      })
+    const hasAnyItems = startingItems.length > 0 ||
+      coreItems.length > 0 ||
+      itemExtensions.length > 0 ||
+      situationalItems.length > 0
+
     return {
-      items: itemIds,
-      games: parseInt(rec.games) || 0,
-      wins: parseInt(rec.wins) || 0,
-      pickRate: parseFloat(rec.pick_rate) || 0,
-      winRate: (parseInt(rec.wins) / parseInt(rec.games)) || 0
+      key: `${index}-${getBuildTitle(build, index)}`,
+      rawBuild: build,
+      title: getBuildTitle(build, index),
+      subtitle: build.patch ? `版本 ${build.patch}` : '',
+      winRate: stats.winRate,
+      pickRate: stats.pickRate,
+      games: stats.games,
+      startingItems,
+      coreItems,
+      itemExtensions,
+      situationalItems,
+      hasAnyItems,
     }
-  }).sort((a, b) => b.games - a.games)
-})
+  })
+  .filter(route => route.hasAnyItems))
 
-// 情境装备
-const situationalItems = computed(() => {
-  if (!buildData.value || !buildData.value.situationalItems) return []
-  return buildData.value.situationalItems
-    .slice()
-    .sort((a, b) => parseFloat(b.distinctive_score || 0) - parseFloat(a.distinctive_score || 0))
-    .slice(0, 12)
-})
+const hasBuildRecommendations = computed(() => buildRoutes.value.length > 0)
 
-// 出门装
-const startingItems = computed(() => {
-  if (!buildData.value || !buildData.value.startingItems) {
-    return []
+const selectedBuildRoute = computed(() => {
+  if (!buildRoutes.value.length) {
+    return null
   }
 
-  return buildData.value.startingItems.map(rec => ({
-    items: normalizeItemIds(rec.itemIds),
-    games: parseInt(rec.games) || 0,
-    wins: parseInt(rec.wins) || 0,
-    pickRate: parseFloat(rec.pick_rate) || 0,
-    winRate: (parseInt(rec.wins) / parseInt(rec.games)) || 0
-  })).sort((a, b) => b.games - a.games)
+  const index = Math.min(
+    Math.max(Number(selectedBuildRouteIndex.value) || 0, 0),
+    buildRoutes.value.length - 1,
+  )
+
+  return buildRoutes.value[index] || buildRoutes.value[0] || null
 })
+
+const selectBuildRoute = (index) => {
+  selectedBuildRouteIndex.value = index
+  hideAugmentTooltip()
+}
+
+const getLocalizedText = (value) => {
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (!value || typeof value !== 'object') {
+    return ''
+  }
+
+  return value.zh_CN || value.zh_cn || value.en_us || value.en_US || ''
+}
+
+const normalizeTooltipText = (value) => {
+  const raw = getLocalizedText(value)
+  if (!raw) {
+    return ''
+  }
+
+  return raw
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+}
+
+const itemNameById = computed(() => {
+  const records = Array.isArray(itemsData.value)
+    ? itemsData.value
+    : Object.values(itemsData.value || {})
+  const map = new Map()
+
+  records.forEach(item => {
+    const id = String(item?.id ?? item?.itemId ?? '')
+    if (!id) {
+      return
+    }
+
+    const name = getLocalizedText(item.name)
+    map.set(id, name || `装备 ${id}`)
+  })
+
+  return map
+})
+
+const itemIconById = computed(() => {
+  const records = Array.isArray(itemsData.value)
+    ? itemsData.value
+    : Object.values(itemsData.value || {})
+  const map = new Map()
+
+  records.forEach(item => {
+    const id = String(item?.id ?? item?.itemId ?? '')
+    const iconUrl = item?.iconUrl || item?.iconPath || item?.image?.full || ''
+    if (id && /^https?:\/\//i.test(String(iconUrl))) {
+      map.set(id, iconUrl)
+    }
+  })
+
+  return map
+})
+
+const getItemName = (itemId) => itemNameById.value.get(String(itemId)) || `装备 ${itemId}`
+const getItemIconUrl = (itemId) => itemIconById.value.get(String(itemId)) || getFallbackItemIconUrl(itemId)
+
+const getTooltipPoint = (event) => {
+  const clientX = Number(event?.clientX)
+  const clientY = Number(event?.clientY)
+  if (event?.type !== 'focus' && Number.isFinite(clientX) && Number.isFinite(clientY)) {
+    return { x: clientX, y: clientY }
+  }
+
+  const rect = event?.currentTarget?.getBoundingClientRect?.()
+  if (rect) {
+    return { x: rect.right, y: rect.top }
+  }
+
+  return { x: 0, y: 0 }
+}
+
+const getAugmentTooltipText = (augment = {}) => {
+  return normalizeTooltipText(augment.description) ||
+    normalizeTooltipText(augment.tooltip) ||
+    normalizeTooltipText(augment.shortDesc) ||
+    normalizeTooltipText(augment.shortDescription)
+}
+
+const getAugmentRarityLabel = (augment = {}) => {
+  return augment.rarityDisplayName ||
+    augment.rarityName ||
+    rarityOptions.find(option => option.key === augment.rarity)?.label ||
+    ''
+}
+
+const augmentTooltipDetail = computed(() => {
+  if (!augmentTooltip.value.visible || !augmentTooltip.value.augment) {
+    return null
+  }
+
+  const augment = augmentTooltip.value.augment
+  const iconPath = augment.iconPath || augment.iconUrl || ''
+
+  return {
+    id: augment.augmentId || augment.id || '',
+    name: augment.name || '未知海克斯',
+    rarityLabel: getAugmentRarityLabel(augment),
+    iconUrl: iconPath ? getAugmentIconUrl(iconPath) : '',
+    description: getAugmentTooltipText(augment),
+  }
+})
+
+const augmentTooltipStyle = computed(() => {
+  const width = 300
+  const estimatedHeight = 220
+  const margin = 12
+  const offset = 14
+  let left = augmentTooltip.value.x + offset
+  let top = augmentTooltip.value.y + offset
+
+  if (typeof window !== 'undefined') {
+    if (left + width > window.innerWidth - margin) {
+      left = augmentTooltip.value.x - width - offset
+    }
+
+    if (top + estimatedHeight > window.innerHeight - margin) {
+      top = window.innerHeight - estimatedHeight - margin
+    }
+  }
+
+  return {
+    left: `${Math.max(margin, left)}px`,
+    top: `${Math.max(margin, top)}px`,
+  }
+})
+
+const showAugmentTooltip = (event, augment) => {
+  const point = getTooltipPoint(event)
+  augmentTooltip.value = {
+    visible: true,
+    augment,
+    x: point.x,
+    y: point.y,
+  }
+}
+
+const moveAugmentTooltip = (event) => {
+  if (!augmentTooltip.value.visible) {
+    return
+  }
+
+  const point = getTooltipPoint(event)
+  augmentTooltip.value = {
+    ...augmentTooltip.value,
+    x: point.x,
+    y: point.y,
+  }
+}
+
+const hideAugmentTooltip = () => {
+  augmentTooltip.value = {
+    ...augmentTooltip.value,
+    visible: false,
+  }
+}
 
 /**
  * 显示浮窗
@@ -677,6 +1111,8 @@ const showOverlay = async (data) => {
   itemsData.value = {}
   championLinks.value = {}
   displayAugments.value = []
+  selectedBuildRouteIndex.value = 0
+  hideAugmentTooltip()
   benchPreviewRecommendation.value = data?.benchRecommendation || null
   championNameData.value = null
   itemSetToast.value = { type: '', message: '' }
@@ -721,6 +1157,7 @@ const showOverlay = async (data) => {
       dataSource.value = data?.dataSource || 'champ-select'
       timestamp.value = data?.timestamp || Date.now()
       activeTab.value = 'augments'
+      selectedBuildRouteIndex.value = 0
       selectedRarity.value = 'all'
       logOverlayInfo('champion detail shown without selected champion', {
         champSelectMode: champSelectMode.value,
@@ -736,6 +1173,7 @@ const showOverlay = async (data) => {
     dataSource.value = data.dataSource || 'local'
     timestamp.value = data.timestamp || Date.now()
     activeTab.value = 'augments'
+    selectedBuildRouteIndex.value = 0
     selectedRarity.value = 'all'
     await loadItemSetAutoPreference()
     if (itemSetAutoEnabled.value) {
@@ -771,7 +1209,7 @@ const showOverlay = async (data) => {
         stats,
         augments,
         augmentStats: augStats,
-        build,
+        builds,
         items,
         championName: nameData,
         championLinks: linksData,
@@ -779,7 +1217,7 @@ const showOverlay = async (data) => {
       championStats.value = stats
       augmentBase.value = augments
       augmentStats.value = augStats
-      buildData.value = build
+      buildData.value = { builds: Array.isArray(builds) ? builds : [] }
       itemsData.value = items
       championNameData.value = nameData || null
       championLinks.value = linksData || {}
@@ -794,7 +1232,8 @@ const showOverlay = async (data) => {
         source: championDataSource,
         durationMs: Date.now() - championLoadStartedAt,
         augmentCount: augStats ? Object.keys(augStats).length : 0,
-        hasBuild: !!build,
+        hasBuilds: Array.isArray(builds) && builds.length > 0,
+        buildCount: Array.isArray(builds) ? builds.length : 0,
       })
 
       const championAugmentRows = mapChampionAugmentRows(augments, augStats)
@@ -894,6 +1333,8 @@ const closeOverlay = () => {
   itemsData.value = {}
   championLinks.value = {}
   displayAugments.value = []
+  selectedBuildRouteIndex.value = 0
+  hideAugmentTooltip()
 
   if (isSidePanel.value) {
     electronAPI.windows.hideAugmentSidePanel()
@@ -935,17 +1376,19 @@ const openChampionBlog = async (url) => {
  * 格式化百分比（带空值保护）
  */
 const formatPercent = (value) => {
-  if (value == null || isNaN(value)) return '--'
-  return `${(value * 100).toFixed(1)}%`
+  const normalized = normalizeRateValue(value)
+  if (normalized == null) return '--'
+  return `${(normalized * 100).toFixed(1)}%`
 }
 
 /**
  * 获取胜率样式类
  */
 const getWinRateClass = (winRate) => {
-  if (!winRate) return ''
-  if (winRate >= 0.55) return 'high'
-  if (winRate >= 0.50) return 'medium'
+  const normalized = normalizeRateValue(winRate)
+  if (!normalized) return ''
+  if (normalized >= 0.55) return 'high'
+  if (normalized >= 0.50) return 'medium'
   return 'low'
 }
 
@@ -1050,7 +1493,7 @@ onMounted(() => {
     }
 
     if (data?.success) {
-      showItemSetToast('success', '已写入游戏推荐')
+      showItemSetToast('success', formatItemSetSuccessMessage(true, data))
       return
     }
 
@@ -2254,8 +2697,22 @@ defineExpose({
 }
 
 .section-title-row span {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #859491;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.section-title-row span::before {
+  content: "";
   height: 1px;
   flex: 1;
+  min-width: 24px;
   background: linear-gradient(90deg, rgba(226, 192, 143, 0.72), transparent);
 }
 
@@ -2323,7 +2780,13 @@ defineExpose({
   color: #e2c08f;
   font-size: 14px;
   font-weight: 900;
+  cursor: help;
   overflow: hidden;
+}
+
+.augment-icon-wrapper:focus-visible {
+  outline: 2px solid rgba(226, 192, 143, 0.82);
+  outline-offset: 2px;
 }
 
 .augment-icon {
@@ -2358,6 +2821,134 @@ defineExpose({
   gap: 14px;
 }
 
+.build-route-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.build-route-tab {
+  flex: 1 0 112px;
+  min-width: 112px;
+  min-height: 52px;
+  padding: 8px 10px;
+  border: 1px solid rgba(60, 74, 71, 0.48);
+  border-radius: 4px;
+  background: rgba(17, 29, 38, 0.64);
+  color: #bacac6;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.build-route-tab:hover,
+.build-route-tab.active {
+  border-color: rgba(226, 192, 143, 0.62);
+  background: rgba(226, 192, 143, 0.14);
+  color: #e2c08f;
+}
+
+.build-route-tab:focus-visible {
+  outline: 2px solid rgba(226, 192, 143, 0.78);
+  outline-offset: 2px;
+}
+
+.build-route-tab span {
+  display: block;
+  overflow: hidden;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.build-route-tab small {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  color: #859491;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.build-route-tab.active small,
+.build-route-tab:hover small {
+  color: #d7e4f1;
+}
+
+.build-route {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.build-route + .build-route {
+  padding-top: 14px;
+  border-top: 1px solid rgba(226, 192, 143, 0.18);
+}
+
+.build-route-header {
+  min-height: 38px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.build-route-title {
+  min-width: 0;
+}
+
+.build-route-title h4 {
+  margin: 0;
+  color: #e2c08f;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.build-route-title small {
+  display: block;
+  margin-top: 2px;
+  color: #859491;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.build-route-stats {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.build-route-stats strong {
+  display: block;
+  color: #e2c08f;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.build-route-stats small {
+  display: block;
+  margin-top: 2px;
+  color: #bacac6;
+  font-size: 10px;
+  font-weight: 800;
+}
+
 .build-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2378,6 +2969,14 @@ defineExpose({
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  gap: 8px;
+}
+
+.build-tile-label {
+  color: #859491;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .item-icons {
@@ -2441,6 +3040,60 @@ defineExpose({
   justify-content: space-between;
   gap: 10px;
   padding: 9px;
+}
+
+.augment-tooltip {
+  position: fixed;
+  z-index: 10000;
+  width: min(300px, calc(100vw - 24px));
+  max-height: min(320px, calc(100vh - 24px));
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid rgba(226, 192, 143, 0.48);
+  border-radius: 6px;
+  background: rgba(5, 14, 21, 0.96);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.44);
+  color: #d7e4f1;
+  pointer-events: none;
+}
+
+.augment-tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.augment-tooltip-header img {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(226, 192, 143, 0.34);
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.augment-tooltip-header strong {
+  display: block;
+  color: #e2c08f;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.augment-tooltip-header span {
+  display: block;
+  margin-top: 2px;
+  color: #859491;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.augment-tooltip p {
+  margin: 10px 0 0;
+  color: #bacac6;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-line;
 }
 
 .empty-state {

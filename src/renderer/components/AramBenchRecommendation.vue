@@ -142,10 +142,14 @@ const applyPreviewRecommendation = (data) => {
         return
     }
 
-    previewMode.value = true
+    previewMode.value = data.refreshable !== true
     recommendation.value = data
     error.value = ''
     loading.value = false
+
+    if (data.refreshable === true && mounted) {
+        refresh(false)
+    }
 }
 
 const refresh = async (showLoading = true) => {

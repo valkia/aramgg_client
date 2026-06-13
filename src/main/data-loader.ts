@@ -743,11 +743,19 @@ async function loadItemsPayload(): Promise<any> {
   return loadDataFile('items.json')
 }
 
-async function loadChampionShardIndex(): Promise<any | null> {
+async function loadChampionShardIndexForDataSet(
+  dataSet: ActiveDataSet,
+  options: FetchJsonOptions = {}
+): Promise<any | null> {
   try {
-    return loadDataFile('champion-shards/index.json')
+    return fetchVersionedDataFile(
+      dataSet.dataVersion,
+      'champion-shards/index.json',
+      findManifestPath(dataSet.manifest, 'champion-shards/index.json'),
+      options
+    )
   } catch (error: any) {
-    logger.warn('Failed to load champion shard index:', error.message)
+    logger.warn(`Failed to load champion shard index for ${dataSet.dataVersion}:`, error.message)
     return null
   }
 }
@@ -785,14 +793,16 @@ async function loadChampionDetailFromShard(
   dataSet: ActiveDataSet,
   championId: string | number,
   shardPath: string,
-  source: 'cached' | 'remote'
+  source: 'cached' | 'remote',
+  options: FetchJsonOptions = {}
 ): Promise<any | null> {
   const shardPayload = source === 'cached'
     ? cache.get(`${dataSet.dataVersion}:${shardPath}`)?.data || await readDataFileFromDisk(dataSet.dataVersion, shardPath)
     : await fetchVersionedDataFile(
       dataSet.dataVersion,
       shardPath,
-      findManifestPath(dataSet.manifest, shardPath)
+      findManifestPath(dataSet.manifest, shardPath),
+      options
     )
   const shardData = shardPayload ? unwrapEnvelope(shardPayload) : null
   const champions = shardData?.champions || shardPayload?.champions || {}
@@ -806,8 +816,156 @@ async function loadChampionDetailFromShard(
   return detail
 }
 
+async function loadSingleChampionDetailFromDataSet(
+  dataSet: ActiveDataSet,
+  championId: string | number,
+  options: FetchJsonOptions = {}
+): Promise<any | null> {
+  const singleChampionPath = `champions/${championId}.json`
+  const manifestSingleChampionPath = findManifestPathIfExists(dataSet.manifest, singleChampionPath)
+  if (!manifestSingleChampionPath) {
+    logger.debug('[data-loader] champion detail single fetch skipped', {
+      dataVersion: dataSet.dataVersion,
+      championId,
+      path: singleChampionPath,
+      reason: 'not-in-manifest',
+    })
+    return null
+  }
+
+  logger.debug('[data-loader] champion detail single fetch start', {
+    dataVersion: dataSet.dataVersion,
+    championId,
+    path: manifestSingleChampionPath,
+  })
+  const payload = await fetchVersionedDataFile(
+    dataSet.dataVersion,
+    singleChampionPath,
+    manifestSingleChampionPath,
+    options
+  )
+  const detail = unwrapEnvelope(payload)
+  detailCache.set(`${dataSet.dataVersion}:champion:${championId}`, detail)
+  logger.debug('[data-loader] champion detail single fetch completed', {
+    dataVersion: dataSet.dataVersion,
+    championId,
+  })
+  return detail
+}
+
+async function loadLatestChampionDetailPayload(
+  championId: string | number,
+  activeDataSet: ActiveDataSet,
+  activeShardPath: string | null
+): Promise<any | null> {
+  try {
+    const config = await loadDataApiConfig({ timeoutMs: CHAMPION_DETAIL_FETCH_TIMEOUT_MS })
+    const dataVersion = String(config?.dataVersion || '')
+    if (!dataVersion || dataVersion === activeDataSet.dataVersion) {
+      return null
+    }
+
+    const cacheKey = `${dataVersion}:champion:${championId}`
+    if (detailCache.has(cacheKey)) {
+      logger.debug('[data-loader] champion detail newer-version memory cache hit', {
+        activeDataVersion: activeDataSet.dataVersion,
+        dataVersion,
+        championId,
+      })
+      return detailCache.get(cacheKey)
+    }
+
+    const manifest = await fetchVersionedDataFile(
+      dataVersion,
+      'manifest.json',
+      config.manifest || `${getVersionDataPrefix(dataVersion)}/manifest.json`,
+      { timeoutMs: CHAMPION_DETAIL_FETCH_TIMEOUT_MS }
+    )
+    const latestDataSet: ActiveDataSet = { config, dataVersion, manifest }
+    const triedShardPaths = new Set<string>()
+    const loadCachedShard = async (shardPath: string): Promise<any | null> => {
+      triedShardPaths.add(shardPath)
+      const cachedShardDetail = await loadChampionDetailFromShard(latestDataSet, championId, shardPath, 'cached')
+      if (cachedShardDetail) {
+        logger.info('[data-loader] champion detail loaded from newer local shard', {
+          activeDataVersion: activeDataSet.dataVersion,
+          dataVersion,
+          championId,
+          shardPath,
+        })
+        return cachedShardDetail
+      }
+
+      return null
+    }
+
+    if (activeShardPath) {
+      const activePathDetail = await loadCachedShard(activeShardPath)
+      if (activePathDetail) {
+        return activePathDetail
+      }
+    }
+
+    const latestShardIndex = await loadChampionShardIndexForDataSet(latestDataSet, {
+      timeoutMs: CHAMPION_DETAIL_FETCH_TIMEOUT_MS,
+    })
+    const latestShardPath = latestShardIndex ? findShardPathForChampion(latestShardIndex, championId) : null
+    const shardPath = latestShardPath || activeShardPath
+
+    if (shardPath && !triedShardPaths.has(shardPath)) {
+      const cachedShardDetail = await loadCachedShard(shardPath)
+      if (cachedShardDetail) {
+        return cachedShardDetail
+      }
+    }
+
+    const singleChampionDetail = await loadSingleChampionDetailFromDataSet(latestDataSet, championId, {
+      timeoutMs: CHAMPION_DETAIL_FETCH_TIMEOUT_MS,
+    })
+    if (singleChampionDetail) {
+      logger.info('[data-loader] champion detail loaded from newer single detail', {
+        activeDataVersion: activeDataSet.dataVersion,
+        dataVersion,
+        championId,
+      })
+      return singleChampionDetail
+    }
+
+    if (shardPath) {
+      const remoteShardDetail = await loadChampionDetailFromShard(
+        latestDataSet,
+        championId,
+        shardPath,
+        'remote',
+        { timeoutMs: CHAMPION_DETAIL_FETCH_TIMEOUT_MS }
+      )
+      if (remoteShardDetail) {
+        logger.info('[data-loader] champion detail loaded from newer remote shard', {
+          activeDataVersion: activeDataSet.dataVersion,
+          dataVersion,
+          championId,
+          shardPath,
+        })
+        return remoteShardDetail
+      }
+    }
+  } catch (error: any) {
+    logger.warn(`Failed to load newer champion detail ${championId}; using active data version:`, error.message)
+  }
+
+  return null
+}
+
 async function loadChampionDetailPayload(championId: string | number): Promise<any | null> {
   const dataSet = await getActiveDataSet()
+  const shardIndex = await loadChampionShardIndexForDataSet(dataSet)
+  const shardPath = shardIndex ? findShardPathForChampion(shardIndex, championId) : null
+
+  const latestDetail = await loadLatestChampionDetailPayload(championId, dataSet, shardPath)
+  if (latestDetail) {
+    return latestDetail
+  }
+
   const cacheKey = `${dataSet.dataVersion}:champion:${championId}`
   if (detailCache.has(cacheKey)) {
     logger.debug('[data-loader] champion detail memory cache hit', {
@@ -816,9 +974,6 @@ async function loadChampionDetailPayload(championId: string | number): Promise<a
     })
     return detailCache.get(cacheKey)
   }
-
-  const shardIndex = await loadChampionShardIndex()
-  const shardPath = shardIndex ? findShardPathForChampion(shardIndex, championId) : null
 
   if (shardPath) {
     const cachedShardDetail = await loadChampionDetailFromShard(dataSet, championId, shardPath, 'cached')
@@ -832,38 +987,15 @@ async function loadChampionDetailPayload(championId: string | number): Promise<a
     }
   }
 
-  const singleChampionPath = `champions/${championId}.json`
-  const manifestSingleChampionPath = findManifestPathIfExists(dataSet.manifest, singleChampionPath)
-  if (manifestSingleChampionPath) {
-    try {
-      logger.debug('[data-loader] champion detail single fetch start', {
-        dataVersion: dataSet.dataVersion,
-        championId,
-        path: manifestSingleChampionPath,
-      })
-      const payload = await fetchVersionedDataFile(
-        dataSet.dataVersion,
-        singleChampionPath,
-        manifestSingleChampionPath,
-        { timeoutMs: CHAMPION_DETAIL_FETCH_TIMEOUT_MS }
-      )
-      const detail = unwrapEnvelope(payload)
-      detailCache.set(cacheKey, detail)
-      logger.debug('[data-loader] champion detail single fetch completed', {
-        dataVersion: dataSet.dataVersion,
-        championId,
-      })
-      return detail
-    } catch (error: any) {
-      logger.warn(`Failed to load single champion detail ${championId}; trying shard fallback:`, error.message)
-    }
-  } else {
-    logger.debug('[data-loader] champion detail single fetch skipped', {
-      dataVersion: dataSet.dataVersion,
-      championId,
-      path: singleChampionPath,
-      reason: 'not-in-manifest',
+  try {
+    const detail = await loadSingleChampionDetailFromDataSet(dataSet, championId, {
+      timeoutMs: CHAMPION_DETAIL_FETCH_TIMEOUT_MS,
     })
+    if (detail) {
+      return detail
+    }
+  } catch (error: any) {
+    logger.warn(`Failed to load single champion detail ${championId}; trying shard fallback:`, error.message)
   }
 
   if (shardPath) {
@@ -927,6 +1059,10 @@ function normalizeItemIds(itemIds: any): string[] {
   }
 
   return []
+}
+
+function hasItemSequence(record: any): boolean {
+  return Array.isArray(record?.itemIds) || Array.isArray(record?.items)
 }
 
 function mapAugmentWithBase(augmentId: any, augmentBaseById: Record<string, any> = {}): any {
@@ -1099,7 +1235,7 @@ function mapPublicAugmentRecommendation(
 
 function mapBuildSet(record: any): any {
   const stats = record?.stats || record || {}
-  const ids = normalizeItemIds(record?.itemIds)
+  const ids = normalizeItemIds(record?.itemIds ?? record?.items ?? record?.itemId ?? record?.id)
 
   return {
     ...record,
@@ -1115,7 +1251,7 @@ function mapBuildSet(record: any): any {
 
 function mapSituationalItem(record: any): any {
   const stats = record?.stats || record || {}
-  const itemId = normalizeItemIds(record?.itemIds ?? record?.itemId ?? record?.id)[0]
+  const itemId = normalizeItemIds(record?.itemIds ?? record?.items ?? record?.itemId ?? record?.id)[0]
 
   return {
     ...record,
@@ -1159,18 +1295,18 @@ function mapPublicBuild(publicBuild: any, championId: string | number): any {
   }
 
   const coreItems = (publicBuild.coreItems || [])
-    .filter((record: any) => Array.isArray(record?.itemIds))
+    .filter((record: any) => hasItemSequence(record))
     .map((record: any) => mapBuildSet(record))
   const startingItems = (publicBuild.startingItems || [])
-    .filter((record: any) => Array.isArray(record?.itemIds))
+    .filter((record: any) => hasItemSequence(record))
     .map((record: any) => mapBuildSet(record))
   const situationalItems = (publicBuild.situationalItems || [])
     .filter((record: any) =>
-      Array.isArray(record?.itemIds) || record?.itemId != null || record?.id != null
+      hasItemSequence(record) || record?.itemId != null || record?.id != null
     )
     .map(mapSituationalItem)
   const itemExtensions = (publicBuild.itemExtensions || [])
-    .filter((record: any) => Array.isArray(record?.itemIds))
+    .filter((record: any) => hasItemSequence(record))
     .map((record: any) => mapBuildSet(record))
 
   return {
@@ -1193,7 +1329,6 @@ function mapPublicBuild(publicBuild: any, championId: string | number): any {
     wins: toNumber(publicBuild.stats?.wins),
     pickRate: toNumber(publicBuild.stats?.pickRate),
     winRate: toNumber(publicBuild.stats?.winRate),
-    allBuilds: [],
   }
 }
 
@@ -1211,20 +1346,13 @@ function collectPublicBuildCandidates(detail: any): any[] {
   }
 
   addBuilds(detail?.builds)
-  addBuilds(detail?.allBuilds)
-  addBuilds(detail?.buildVariants)
-  addBuilds(detail?.buildOptions)
-  addBuilds(detail?.build?.builds)
-  addBuilds(detail?.build?.allBuilds)
-  addBuilds(detail?.build?.variants)
-  addBuild(detail?.build)
 
   const seen = new Set<string>()
   return candidates.filter((build) => {
     const coreKey = Array.isArray(build?.coreItems)
       ? build.coreItems
         .slice(0, 3)
-        .map((record: any) => normalizeItemIds(record?.itemIds).join('-'))
+        .map((record: any) => normalizeItemIds(record?.itemIds ?? record?.items).join('-'))
         .join('|')
       : ''
     const tagKey = JSON.stringify(build?.tags || {})
@@ -1238,7 +1366,7 @@ function collectPublicBuildCandidates(detail: any): any[] {
   })
 }
 
-function mapChampionBuilds(detail: any, championId: string | number): any {
+export function mapChampionBuilds(detail: any, championId: string | number): any {
   const builds = collectPublicBuildCandidates(detail)
     .map((build) => mapPublicBuild(build, championId))
     .filter(Boolean)
@@ -1249,7 +1377,7 @@ function mapChampionBuilds(detail: any, championId: string | number): any {
 
   return {
     ...builds[0],
-    allBuilds: builds,
+    builds,
   }
 }
 
@@ -1424,7 +1552,7 @@ export async function loadChampionRoster(): Promise<any[]> {
 }
 
 export async function getChampionDetailData(championId: string | number): Promise<any> {
-  const [stats, augmentBase, augmentDetail, augments, augmentTrios, build, items, championName, championLinks] =
+  const [stats, augmentBase, augmentDetail, augments, augmentTrios, buildData, items, championName, championLinks] =
     await Promise.all([
       loadChampionStats(championId),
       loadAugmentBase(),
@@ -1446,7 +1574,7 @@ export async function getChampionDetailData(championId: string | number): Promis
     augmentDetail,
     augments,
     augmentTrios,
-    build,
+    builds: Array.isArray(buildData?.builds) ? buildData.builds : [],
     items,
     championName: {
       ...championName,

@@ -20,6 +20,7 @@ const MAIN_WINDOW_SIZE = { width: 380, height: 620 }
 const POPUP_WINDOW_SIZE = { width: 360, height: 640 }
 const FLOATING_WINDOW_SIZE = { width: 760, height: 170 }
 const AUGMENT_SIDE_PANEL_WINDOW_SIZE = { width: 360, height: 640 }
+const OVERLAY_ALWAYS_ON_TOP_LEVEL = process.platform === 'win32' ? 'screen-saver' : 'floating'
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
@@ -122,7 +123,42 @@ export function applyAugmentSidePanelWindowLayout() {
 
 export function setPopupWindowAlwaysOnTop(alwaysOnTop) {
     if (popupWindow && !popupWindow.isDestroyed()) {
-        popupWindow.setAlwaysOnTop(Boolean(alwaysOnTop))
+        setOverlayAlwaysOnTop(popupWindow, Boolean(alwaysOnTop), 'popup')
+    }
+}
+
+function setOverlayAlwaysOnTop(window, alwaysOnTop = true, name = 'overlay') {
+    if (!window || window.isDestroyed()) {
+        return
+    }
+
+    try {
+        window.setAlwaysOnTop(Boolean(alwaysOnTop), OVERLAY_ALWAYS_ON_TOP_LEVEL)
+    } catch (error) {
+        logger.debug(`[window:${name}] failed to apply high always-on-top level:`, error.message)
+        window.setAlwaysOnTop(Boolean(alwaysOnTop))
+    }
+}
+
+export function raiseOverlayWindow(window, name = 'overlay') {
+    if (!window || window.isDestroyed()) {
+        return
+    }
+
+    setOverlayAlwaysOnTop(window, true, name)
+
+    if (window.isMinimized()) {
+        window.restore()
+    }
+
+    if (typeof window.showInactive === 'function') {
+        window.showInactive()
+    } else {
+        window.show()
+    }
+
+    if (typeof window.moveTop === 'function') {
+        window.moveTop()
     }
 }
 
@@ -419,6 +455,7 @@ export const createPopupWindow = async (isDev, devServerUrl) => {
         ...bounds,
         webPreferences,
     })
+    setOverlayAlwaysOnTop(popupWindow, true, 'popup')
     attachWindowDiagnostics('popup', popupWindow)
 
     popupWindow.on('closed', () => {
@@ -456,6 +493,7 @@ export const createAugmentSidePanelWindow = async (isDev, devServerUrl) => {
         ...bounds,
         webPreferences,
     })
+    setOverlayAlwaysOnTop(augmentSidePanelWindow, true, 'augment-side-panel')
     attachWindowDiagnostics('augment-side-panel', augmentSidePanelWindow)
 
     augmentSidePanelWindow.on('closed', () => {
@@ -504,6 +542,7 @@ export const createFloatingWindow = async (isDev, devServerUrl) => {
         ...bounds,
         webPreferences,
     })
+    setOverlayAlwaysOnTop(floatingWindow, true, 'floating')
     attachWindowDiagnostics('floating', floatingWindow)
 
     // 设置窗口忽略鼠标事件（透传点击）

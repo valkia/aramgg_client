@@ -15,13 +15,17 @@ import {
     getAugmentSidePanelWindow,
     getFloatingWindow,
     getPopupWindow,
+    raiseOverlayWindow,
     setPopupWindowAlwaysOnTop,
 } from './window-manager.ts'
 import autoScreenshotService from '../auto-screenshot-service.ts'
 import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
 import { checkForClientUpdate } from '../version-checker.ts'
 import { initAnalyticsService, markAnalyticsAppCleanExit } from '../services/analytics-service.ts'
-import { collectAramCandidateChampionIds } from '../services/aram/bench-recommendation.ts'
+import {
+    collectAramCandidateChampionIds,
+    getAramBenchRecommendation,
+} from '../services/aram/bench-recommendation.ts'
 import logger from './logger.ts'
 import store from './app-store.ts'
 import { getAppDataDir } from './app-paths.ts'
@@ -42,8 +46,8 @@ let lcuGameflowMonitorStopping = false
 let lcuGameflowInitPromise = null
 let quitCleanupCompleted = false
 let quitCleanupPromise = null
-const AUTO_SCREENSHOT_INTERVAL_MS = 200
-const AUTO_SCREENSHOT_STABLE_INTERVAL_MS = 800
+const AUTO_SCREENSHOT_INTERVAL_MS = 500
+const AUTO_SCREENSHOT_STABLE_INTERVAL_MS = 1200
 const AUTO_SCREENSHOT_MAX_CAPTURES = 100
 const GAME_WINDOW_STATUS_LOG_INTERVAL_MS = 30000
 const GAMEFLOW_AUGMENT_ANALYSIS_PHASE = 'InProgress'
@@ -53,6 +57,7 @@ const GAMEFLOW_WS_STALE_MS = 15000
 const GAMEFLOW_WS_RECONNECT_BASE_MS = 2000
 const GAMEFLOW_WS_RECONNECT_MAX_MS = 30000
 const GAME_API_DIAGNOSTIC_INTERVAL_MS = 15000
+const IN_PROGRESS_CHAMPION_RECOVERY_RETRY_MS = 10000
 const GAME_API_DIAGNOSTIC_HEARTBEAT_ENABLED_KEY = 'diagnostics.lcuHeartbeat'
 const GAME_API_DIAGNOSTIC_MAX_PATHS = 40
 const GAME_API_DIAGNOSTIC_KEYWORDS = [
@@ -86,6 +91,9 @@ let pendingAutoApplyChampionId = null
 let pendingAutoApplyReason = null
 let lastAutoAppliedItemSetChampionId = null
 let lastChampSelectInsightChampionId = null
+let lastInProgressInsightChampionId = null
+let lastInProgressChampionRecoveryAttemptAt = 0
+let inProgressChampionRecoveryInFlight = false
 let champSelectSnapshotPollInFlight = false
 let itemSetPreloadGeneration = 0
 let itemSetPreloadActiveCount = 0
@@ -388,12 +396,175 @@ function normalizeChampionId(value) {
     return Number.isFinite(championId) && championId > 0 ? championId : null
 }
 
+function normalizeIdentityText(value) {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/\s+/g, '')
+        .trim()
+}
+
+function normalizeChampionLookupText(value) {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/^game_character_displayname_/i, '')
+        .replace(/['’.\s_-]+/g, '')
+        .trim()
+}
+
+function getNestedValue(source, path) {
+    return path.reduce((current, key) => current?.[key], source)
+}
+
+function collectChampionIdsFromValue(value, results = []) {
+    const championId = normalizeChampionId(value)
+    if (championId) {
+        results.push(championId)
+        return results
+    }
+
+    if (!value || typeof value !== 'object') {
+        return results
+    }
+
+    if (Array.isArray(value)) {
+        value.forEach(item => collectChampionIdsFromValue(item, results))
+        return results
+    }
+
+    for (const [key, child] of Object.entries(value)) {
+        if (/champion/i.test(key)) {
+            collectChampionIdsFromValue(child, results)
+        }
+    }
+
+    return results
+}
+
+function getLikelyChampionIdFromGameflowSession(session) {
+    const directPaths = [
+        ['gameData', 'playerChampionSelection', 'championId'],
+        ['gameData', 'playerChampionSelection', 'selectedChampionId'],
+        ['gameData', 'selectedChampionId'],
+        ['gameData', 'championId'],
+        ['playerChampionSelection', 'championId'],
+        ['playerChampionSelection', 'selectedChampionId'],
+    ]
+
+    for (const path of directPaths) {
+        const championId = normalizeChampionId(getNestedValue(session, path))
+        if (championId) {
+            return championId
+        }
+    }
+
+    const selections = session?.gameData?.playerChampionSelections
+    if (Array.isArray(selections) && selections.length === 1) {
+        return collectChampionIdsFromValue(selections[0])[0] || null
+    }
+
+    return null
+}
+
+async function resolveChampionIdFromLiveClientData(liveClientData, currentSummoner) {
+    const data = liveClientData && typeof liveClientData === 'object' ? liveClientData : {}
+    const activePlayer = data.activePlayer || {}
+    const allPlayers = Array.isArray(data.allPlayers) ? data.allPlayers : []
+
+    const directChampionId = normalizeChampionId(activePlayer.championId ?? activePlayer.championID)
+    if (directChampionId) {
+        return {
+            championId: directChampionId,
+            source: 'liveclient-active-player-id',
+            matchedPlayer: activePlayer.summonerName || activePlayer.riotId || null,
+        }
+    }
+
+    const currentIdentityCandidates = [
+        currentSummoner?.displayName,
+        currentSummoner?.gameName,
+        currentSummoner?.internalName,
+        currentSummoner?.name,
+        currentSummoner?.puuid,
+        activePlayer?.summonerName,
+        activePlayer?.riotId,
+        activePlayer?.riotIdGameName,
+        activePlayer?.riotIdTagLine ? `${activePlayer?.riotIdGameName || activePlayer?.summonerName || ''}#${activePlayer.riotIdTagLine}` : '',
+    ]
+        .map(normalizeIdentityText)
+        .filter(Boolean)
+
+    const matchedPlayer = allPlayers.find(player => {
+        const playerIdentityCandidates = [
+            player?.summonerName,
+            player?.riotId,
+            player?.riotIdGameName,
+            player?.riotIdTagLine ? `${player?.riotIdGameName || player?.summonerName || ''}#${player.riotIdTagLine}` : '',
+            player?.puuid,
+        ]
+            .map(normalizeIdentityText)
+            .filter(Boolean)
+
+        return playerIdentityCandidates.some(candidate => currentIdentityCandidates.includes(candidate))
+    }) || (allPlayers.length === 1 ? allPlayers[0] : null)
+
+    const matchedChampionId = normalizeChampionId(matchedPlayer?.championId ?? matchedPlayer?.championID)
+    if (matchedChampionId) {
+        return {
+            championId: matchedChampionId,
+            source: 'liveclient-matched-player-id',
+            matchedPlayer: matchedPlayer?.summonerName || matchedPlayer?.riotId || null,
+        }
+    }
+
+    const championName = matchedPlayer?.rawChampionName ||
+        matchedPlayer?.championName ||
+        activePlayer?.rawChampionName ||
+        activePlayer?.championName ||
+        ''
+    if (!championName) {
+        return null
+    }
+
+    const { loadChampionRoster } = await import('../data-loader.ts')
+    const roster = await loadChampionRoster()
+    const championByName = new Map()
+
+    for (const champion of roster) {
+        const championId = normalizeChampionId(champion?.championId ?? champion?.id)
+        if (!championId) {
+            continue
+        }
+
+        const keys = [
+            champion?.alias,
+            champion?.nameEN,
+            champion?.nameCN,
+        ]
+            .map(normalizeChampionLookupText)
+            .filter(Boolean)
+
+        keys.forEach(key => championByName.set(key, championId))
+    }
+
+    const championId = championByName.get(normalizeChampionLookupText(championName)) || null
+    return championId
+        ? {
+            championId,
+            source: 'liveclient-champion-name',
+            matchedPlayer: matchedPlayer?.summonerName || matchedPlayer?.riotId || null,
+            championName,
+        }
+        : null
+}
+
 function isAramItemSetAutoApplyEnabled() {
     return store.get(ITEM_SET_AUTO_APPLY_KEY) !== false
 }
 
 function resetChampSelectItemSetState(reason) {
     lastChampSelectInsightChampionId = null
+    lastInProgressInsightChampionId = null
+    lastInProgressChampionRecoveryAttemptAt = 0
     pendingAutoApplyChampionId = null
     pendingAutoApplyReason = null
     champSelectSnapshotPollInFlight = false
@@ -464,11 +635,12 @@ async function preloadChampSelectItemSetData(championId, reason, generation) {
             return
         }
 
-        const hasBuild = build && typeof build === 'object'
+        const builds = Array.isArray(build?.builds) ? build.builds : []
+        const hasBuilds = builds.length > 0
         const hasChampionName = championName && typeof championName === 'object'
-        if (hasBuild || hasChampionName) {
+        if (hasBuilds || hasChampionName) {
             itemSetPreloadDataByChampionId.set(championId, {
-                build: hasBuild ? build : null,
+                builds: hasBuilds ? builds : null,
                 championName: hasChampionName ? championName : null,
             })
         }
@@ -476,7 +648,8 @@ async function preloadChampSelectItemSetData(championId, reason, generation) {
         logger.info('[item-set] champ-select item set data preloaded', {
             championId,
             reason,
-            hasBuild,
+            hasBuilds,
+            buildCount: builds.length,
             hasChampionName,
             durationMs: Date.now() - startedAt,
         })
@@ -506,6 +679,17 @@ function preloadAramItemSetDataForChampSelect(snapshot, reason) {
     championIds.forEach((championId) => queueChampSelectItemSetPreload(championId, reason))
 }
 
+function buildRefreshableBenchRecommendation(snapshot) {
+    if (!snapshot || snapshot.gameflowPhase !== 'ChampSelect') {
+        return null
+    }
+
+    return {
+        ...getAramBenchRecommendation(snapshot, {}),
+        refreshable: true,
+    }
+}
+
 async function showChampionInsightSnapshot(snapshot, reason) {
     const popupWindow = getPopupWindow()
     if (!popupWindow || popupWindow.isDestroyed()) {
@@ -526,6 +710,7 @@ async function showChampionInsightSnapshot(snapshot, reason) {
     popupWindow.webContents.send('for-popup', {
         championId,
         augments: [],
+        benchRecommendation: buildRefreshableBenchRecommendation(snapshot),
         champSelect: true,
         dataSource: 'champ-select',
         timestamp: Date.now(),
@@ -534,6 +719,7 @@ async function showChampionInsightSnapshot(snapshot, reason) {
     logger.info('显示英雄详情选人视图', {
         championId,
         benchCount: snapshot?.benchChampions?.length || 0,
+        benchCandidateCount: collectAramCandidateChampionIds(snapshot).length,
         snapshotStatus: snapshot?.status || 'unavailable',
         reason,
     })
@@ -584,6 +770,123 @@ async function showChampionInsightForChampSelect(lcuService) {
     await pollChampSelectSnapshot(lcuService, 'champ-select-insight', true)
 }
 
+async function resolveInProgressChampion(lcuService) {
+    const gameflowSession = await lcuService.getReadOnlyJsonEndpoint('/lol-gameflow/v1/session')
+    const sessionChampionId = getLikelyChampionIdFromGameflowSession(gameflowSession?.data)
+    if (sessionChampionId) {
+        return {
+            championId: sessionChampionId,
+            source: 'gameflow-session',
+            status: gameflowSession?.status || null,
+        }
+    }
+
+    const liveClientData = await lcuService.getLiveClientAllGameData()
+    let liveClientChampion = await resolveChampionIdFromLiveClientData(liveClientData?.data, null)
+    if (!liveClientChampion && liveClientData?.data) {
+        const currentSummoner = await lcuService.getCurrentSummoner()
+        liveClientChampion = await resolveChampionIdFromLiveClientData(liveClientData.data, currentSummoner)
+    }
+
+    return liveClientChampion
+        ? {
+            ...liveClientChampion,
+            status: liveClientData?.status || null,
+        }
+        : null
+}
+
+async function recoverChampionInsightForInProgress(lcuService, reason) {
+    if (inProgressChampionRecoveryInFlight) {
+        return
+    }
+
+    const now = Date.now()
+    if (
+        lastInProgressInsightChampionId == null &&
+        lastInProgressChampionRecoveryAttemptAt &&
+        now - lastInProgressChampionRecoveryAttemptAt < IN_PROGRESS_CHAMPION_RECOVERY_RETRY_MS
+    ) {
+        return
+    }
+
+    lastInProgressChampionRecoveryAttemptAt = now
+    inProgressChampionRecoveryInFlight = true
+    const startedAt = now
+
+    try {
+        const resolved = await resolveInProgressChampion(lcuService)
+        const championId = normalizeChampionId(resolved?.championId)
+        if (!championId) {
+            logger.warn('Unable to recover current champion while game is in progress', {
+                reason,
+                durationMs: Date.now() - startedAt,
+            })
+            return
+        }
+
+        store.set('lastSelectedChampionId', championId)
+        logger.info('Recovered current champion while game is in progress', {
+            championId,
+            reason,
+            source: resolved?.source || null,
+            matchedPlayer: resolved?.matchedPlayer || null,
+            championName: resolved?.championName || null,
+            status: resolved?.status || null,
+            durationMs: Date.now() - startedAt,
+        })
+
+        if (lastInProgressInsightChampionId === championId) {
+            return
+        }
+
+        lastInProgressInsightChampionId = championId
+        if (shouldHideChampionInsightOnGameStart()) {
+            logger.info('Champion insight popup hidden during in-progress recovery by user preference', {
+                championId,
+                reason,
+            })
+            return
+        }
+
+        const popupWindow = getPopupWindow()
+        if (!popupWindow || popupWindow.isDestroyed()) {
+            logger.warn('Champion insight window is unavailable for in-progress recovery', {
+                championId,
+                reason,
+            })
+            return
+        }
+
+        applyPopupWindowLayout()
+        if (!popupWindow.isVisible()) {
+            popupWindow.show()
+        }
+
+        popupWindow.webContents.send('for-popup', {
+            championId,
+            augments: [],
+            benchRecommendation: null,
+            champSelect: false,
+            dataSource: 'in-progress',
+            timestamp: Date.now(),
+        })
+        logger.info('显示英雄详情游戏中视图', {
+            championId,
+            reason,
+            source: resolved?.source || null,
+        })
+    } catch (error) {
+        logger.warn('Failed to recover current champion while game is in progress:', {
+            reason,
+            error: error.message,
+            durationMs: Date.now() - startedAt,
+        })
+    } finally {
+        inProgressChampionRecoveryInFlight = false
+    }
+}
+
 async function autoApplyAramItemSetForChampion(championId, reason) {
     const normalizedChampionId = Number(championId)
     if (!Number.isFinite(normalizedChampionId) || normalizedChampionId <= 0) {
@@ -629,7 +932,7 @@ async function autoApplyAramItemSetForChampion(championId, reason) {
         const preloadedItemSetData = itemSetPreloadDataByChampionId.get(normalizedChampionId)
         const result = await installAramItemSetForChampion({
             championId: normalizedChampionId,
-            build: preloadedItemSetData?.build || null,
+            builds: preloadedItemSetData?.builds || null,
             championName: preloadedItemSetData?.championName || null,
         })
 
@@ -646,6 +949,7 @@ async function autoApplyAramItemSetForChampion(championId, reason) {
             localWrittenCount: result?.localWrittenCount ?? null,
             lcuRemovedCount: result?.lcuRemovedCount ?? null,
             lcuItemSetCount: result?.lcuItemSetCount ?? null,
+            writtenItemSetCount: result?.writtenItemSetCount ?? null,
             usedPreloadedData: !!preloadedItemSetData,
             durationMs: result?.durationMs ?? null,
         })
@@ -655,6 +959,7 @@ async function autoApplyAramItemSetForChampion(championId, reason) {
             success: result?.success || false,
             skipped: result?.skipped || false,
             error: result?.error || null,
+            writtenItemSetCount: result?.writtenItemSetCount ?? null,
             durationMs: result?.durationMs ?? null,
         })
     } catch (error) {
@@ -669,6 +974,7 @@ async function autoApplyAramItemSetForChampion(championId, reason) {
             success: false,
             skipped: false,
             error: error.message || '装备推荐写入失败',
+            writtenItemSetCount: 0,
             durationMs: null,
         })
     } finally {
@@ -860,6 +1166,7 @@ async function initGameFlowMonitor() {
                         allowChampionInsightInBackground('LCU phase InProgress')
                         notifyAllWindows('game-in-progress', {})
                         resetChampSelectItemSetState('LCU phase InProgress')
+                        void recoverChampionInsightForInProgress(lcuService, 'LCU phase InProgress')
                         await startAutoScreenshotForGame('LCU phase InProgress')
                         break
                     case 'WaitingForStats':
@@ -884,6 +1191,9 @@ async function initGameFlowMonitor() {
 
             if (phase === GAMEFLOW_AUGMENT_ANALYSIS_PHASE) {
                 void logReadOnlyGameApiDiagnostics(lcuService, phase, `heartbeat:${source}`)
+                if (lastInProgressInsightChampionId == null) {
+                    void recoverChampionInsightForInProgress(lcuService, 'LCU phase InProgress heartbeat')
+                }
                 await startAutoScreenshotForGame('LCU phase InProgress')
             } else if (phase === 'None') {
                 await reconcileAutoScreenshotWithLolWindow(phase)
@@ -1179,9 +1489,9 @@ async function notifyAllWindows(channel, data) {
             applyFloatingWindowLayout()
             // 显示浮动窗口
             if (!floatingWin.isVisible()) {
-                floatingWin.show()
                 logger.info('✨ 显示海克斯浮动窗口')
             }
+            raiseOverlayWindow(floatingWin, 'floating')
             // 发送数据到浮动窗口
             floatingWin.webContents.send(channel, data)
             sentToOverlay = true
@@ -1192,9 +1502,9 @@ async function notifyAllWindows(channel, data) {
         if (sidePanelWin && !sidePanelWin.isDestroyed() && shouldShowAugmentSidePanel()) {
             applyAugmentSidePanelWindowLayout()
             if (!sidePanelWin.isVisible()) {
-                sidePanelWin.show()
                 logger.info('✨ 显示海克斯右侧推荐列表')
             }
+            raiseOverlayWindow(sidePanelWin, 'augment-side-panel')
             sidePanelWin.webContents.send(channel, data)
             sentToOverlay = true
         } else if (sidePanelWin && !sidePanelWin.isDestroyed() && sidePanelWin.isVisible() && !shouldShowAugmentSidePanel()) {

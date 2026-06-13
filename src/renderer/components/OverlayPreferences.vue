@@ -5,6 +5,14 @@
       <h3 class="card-title">窗口偏好</h3>
     </div>
 
+    <div class="overlay-mode-hint">
+      <AlertTriangle class="hint-icon" />
+      <div class="hint-copy">
+        <strong>全屏显示说明</strong>
+        <span>海克斯浮窗是桌面置顶窗口，独占全屏可能会遮挡它；需要显示浮窗时，请将英雄联盟视频设置切换为无边框或窗口化。</span>
+      </div>
+    </div>
+
     <div class="card-content">
       <div
         v-for="item in preferenceItems"
@@ -34,7 +42,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Settings } from 'lucide-vue-next'
+import { AlertTriangle, Settings } from 'lucide-vue-next'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
 
 const preferenceItems = [
@@ -174,6 +182,49 @@ onMounted(loadPreferences)
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.overlay-mode-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 0 14px;
+  padding: 9px 10px;
+  border: 1px solid rgba(226, 192, 143, 0.18);
+  border-radius: 4px;
+  background: rgba(226, 192, 143, 0.08);
+}
+
+.hint-icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #e2c08f;
+}
+
+.hint-copy {
+  min-width: 0;
+}
+
+.hint-copy strong,
+.hint-copy span {
+  display: block;
+}
+
+.hint-copy strong {
+  color: #e2c08f;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.hint-copy span {
+  margin-top: 4px;
+  color: var(--lol-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .setting-row {

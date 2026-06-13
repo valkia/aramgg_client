@@ -43,7 +43,7 @@ export function getItemIconUrl(itemId) {
     return itemId;
   }
 
-  return `https://ddragon.leagueoflegends.com/cdn/14.24.1/img/item/${itemId}.png`;
+  return `https://cdn.dtodo.cn/hextech/item-icons/${itemId}.png`;
 }
 
 /**

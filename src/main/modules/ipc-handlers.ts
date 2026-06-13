@@ -15,6 +15,7 @@ import {
     getFloatingWindow,
     getMainWindow,
     getPopupWindow,
+    raiseOverlayWindow,
     setPopupWindowAlwaysOnTop,
     toggleMainWindow,
 } from './window-manager.ts'
@@ -444,18 +445,18 @@ export function registerIpcHandlers(isDev) {
             if (floatingWindow && !floatingWindow.isDestroyed() && shouldShowAugmentTopOverlay()) {
                 applyFloatingWindowLayout()
                 if (!floatingWindow.isVisible()) {
-                    floatingWindow.show()
                     logger.info('Floating window shown for test')
                 }
+                raiseOverlayWindow(floatingWindow, 'floating')
                 floatingWindow.webContents.send('augment-detected', data)
             }
 
             if (sidePanelWindow && !sidePanelWindow.isDestroyed() && shouldShowAugmentSidePanel()) {
                 applyAugmentSidePanelWindowLayout()
                 if (!sidePanelWindow.isVisible()) {
-                    sidePanelWindow.show()
                     logger.info('Augment side panel window shown for test')
                 }
+                raiseOverlayWindow(sidePanelWindow, 'augment-side-panel')
                 sidePanelWindow.webContents.send('augment-detected', data)
             }
 
@@ -484,18 +485,18 @@ export function registerIpcHandlers(isDev) {
             if (floatingWindow && !floatingWindow.isDestroyed() && shouldShowAugmentTopOverlay()) {
                 applyFloatingWindowLayout()
                 if (!floatingWindow.isVisible()) {
-                    floatingWindow.show()
                     logger.info('Floating window shown for random test')
                 }
+                raiseOverlayWindow(floatingWindow, 'floating')
                 floatingWindow.webContents.send('augment-detected', data)
             }
 
             if (sidePanelWindow && !sidePanelWindow.isDestroyed() && shouldShowAugmentSidePanel()) {
                 applyAugmentSidePanelWindowLayout()
                 if (!sidePanelWindow.isVisible()) {
-                    sidePanelWindow.show()
                     logger.info('Augment side panel window shown for random test')
                 }
+                raiseOverlayWindow(sidePanelWindow, 'augment-side-panel')
                 sidePanelWindow.webContents.send('augment-detected', data)
             }
 
@@ -925,7 +926,7 @@ export function registerIpcHandlers(isDev) {
                 const detail = await getChampionDetailData(championId)
                 logger.info('[champion-data] load completed', {
                     championId,
-                    hasBuild: !!detail.build,
+                    buildCount: Array.isArray(detail.builds) ? detail.builds.length : 0,
                     augmentCount: detail.augments ? Object.keys(detail.augments).length : 0,
                     durationMs: getElapsedMs(startedAt),
                 })
@@ -937,7 +938,7 @@ export function registerIpcHandlers(isDev) {
                         augments: detail.augmentBase,
                         augmentStats: detail.augments,
                         augmentTrios: detail.augmentTrios,
-                        build: detail.build,
+                        builds: detail.builds,
                         items: detail.items,
                         championName: detail.championName,
                     },
@@ -1022,7 +1023,7 @@ export function registerIpcHandlers(isDev) {
 
             return await installAramItemSetForChampion({
                 championId: request.championId,
-                build: request.build,
+                builds: request.builds,
                 championName: request.championName,
             })
         } catch (error) {

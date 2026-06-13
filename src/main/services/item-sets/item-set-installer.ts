@@ -7,7 +7,7 @@ import {
 
 type SingleChampionItemSetInstallOptions = {
   championId: string | number
-  build?: any
+  builds?: any[]
   championName?: ChampionLike | null
 }
 
@@ -25,6 +25,8 @@ type BuildRecord = {
   itemIds?: Array<string | number>
   items?: Array<string | number>
   winRate?: number
+  pick_rate?: number
+  win_rate?: number
   pickRate?: number
   games?: number
   averageIndex?: number
@@ -41,6 +43,7 @@ type ChampionInstallResult = {
   lcuItemSetCount?: number | null
   localRemovedCount?: number | null
   localWrittenCount?: number | null
+  writtenItemSetCount?: number | null
   success: boolean
   skipped?: boolean
   reason?: string
@@ -171,31 +174,24 @@ function getBuildSkipReason(build: any): string | null {
   return null
 }
 
-function collectBuildVariants(build: any): any[] {
-  if (!build || typeof build !== 'object') {
-    return []
-  }
-
-  const variants = [
-    ...(Array.isArray(build.allBuilds) ? build.allBuilds : []),
-    ...(Array.isArray(build.builds) ? build.builds : []),
-    ...(Array.isArray(build.buildVariants) ? build.buildVariants : []),
-  ]
-  if (!variants.length) {
-    variants.push(build)
-  }
+function collectBuilds(builds: any): any[] {
+  const records: any[] = Array.isArray(builds)
+    ? builds
+    : Array.isArray(builds?.builds)
+      ? builds.builds
+      : []
 
   const seen = new Set<string>()
-  return variants
-    .filter((variant) => variant && typeof variant === 'object')
-    .filter((variant) => {
-      const coreKey = Array.isArray(variant?.coreItems)
-        ? variant.coreItems
+  return records
+    .filter((build) => build && typeof build === 'object' && !Array.isArray(build))
+    .filter((build) => {
+      const coreKey = Array.isArray(build?.coreItems)
+        ? build.coreItems
           .slice(0, 3)
           .map((record: BuildRecord) => normalizeItemIds(record).join('-'))
           .join('|')
         : ''
-      const key = `${getBuildTags(variant).join('|')}:${coreKey}:${variant?.role || ''}:${variant?.tier || ''}`
+      const key = `${getBuildTags(build).join('|')}:${coreKey}:${build?.role || ''}:${build?.tier || ''}`
       if (seen.has(key)) {
         return false
       }
@@ -344,24 +340,24 @@ function createItemSet(
   }
 }
 
-function createItemSets(champion: ChampionLike, championName: ChampionLike | null, build: any): {
+export function createItemSets(champion: ChampionLike, championName: ChampionLike | null, builds: any): {
   itemSets: any[]
   skippedBuilds: Array<{ title: string; reason: string }>
   totalBuilds: number
 } {
-  const variants = collectBuildVariants(build)
+  const trustedBuilds = collectBuilds(builds)
   const itemSets: any[] = []
   const skippedBuilds: Array<{ title: string; reason: string }> = []
 
-  variants.forEach((variant, index) => {
-    const title = getBuildTitleTag(variant, index)
-    const skipReason = getBuildSkipReason(variant)
+  trustedBuilds.forEach((build, index) => {
+    const title = getBuildTitleTag(build, index)
+    const skipReason = getBuildSkipReason(build)
     if (skipReason) {
       skippedBuilds.push({ title, reason: skipReason })
       return
     }
 
-    const itemSet = createItemSet(champion, championName, variant, index)
+    const itemSet = createItemSet(champion, championName, build, index)
     if (itemSet) {
       itemSets.push(itemSet)
     } else {
@@ -372,7 +368,7 @@ function createItemSets(champion: ChampionLike, championName: ChampionLike | nul
   return {
     itemSets,
     skippedBuilds,
-    totalBuilds: variants.length,
+    totalBuilds: trustedBuilds.length,
   }
 }
 
@@ -450,33 +446,35 @@ async function installCurrentItemSets(itemSets: any[], championKey: string): Pro
 
 async function installChampionItemSet(
   champion: ChampionLike,
-  providedBuild: any = null,
+  providedBuilds: any[] | null = null,
   providedChampionName: ChampionLike | null = null
 ): Promise<ChampionInstallResult> {
   const championId = getChampionId(champion)
 
   try {
-    const hasProvidedBuild = providedBuild && typeof providedBuild === 'object'
+    const hasProvidedBuilds = Array.isArray(providedBuilds)
     const hasProvidedChampionName = providedChampionName && typeof providedChampionName === 'object'
-    const [build, championName] = await Promise.all([
-      hasProvidedBuild ? Promise.resolve(providedBuild) : loadChampionBuild(championId),
+    const [buildData, championName] = await Promise.all([
+      hasProvidedBuilds ? Promise.resolve(null) : loadChampionBuild(championId),
       hasProvidedChampionName ? Promise.resolve(providedChampionName) : loadChampionName(championId),
     ])
+    const builds = hasProvidedBuilds ? providedBuilds : buildData?.builds
     const championKey = getChampionKey(champion, championName)
 
     if (!championId || !championKey) {
       return {
         championId,
         championKey,
+        writtenItemSetCount: 0,
         success: false,
         skipped: true,
         reason: 'missing-champion-key',
       }
     }
 
-    const buildItemSets = createItemSets(champion, championName, build)
+    const buildItemSets = createItemSets(champion, championName, builds)
     if (buildItemSets.skippedBuilds.length > 0) {
-      logger.info('[item-set] build variants skipped', {
+      logger.info('[item-set] builds skipped', {
         championId,
         championKey,
         totalBuilds: buildItemSets.totalBuilds,
@@ -497,6 +495,7 @@ async function installChampionItemSet(
         lcuItemSetCount: clearResult.itemSetCount,
         localRemovedCount: clearResult.localRemovedCount,
         localWrittenCount: clearResult.localWrittenCount,
+        writtenItemSetCount: 0,
         success: false,
         skipped: true,
         reason: buildItemSets.totalBuilds > 0
@@ -522,6 +521,7 @@ async function installChampionItemSet(
       lcuItemSetCount: installResult.itemSetCount,
       localRemovedCount: installResult.localRemovedCount,
       localWrittenCount: installResult.localWrittenCount,
+      writtenItemSetCount: installResult.success ? buildItemSets.itemSets.length : 0,
       success: installResult.success,
       reason: installResult.success ? undefined : installResult.error || '装备推荐写入失败',
     }
@@ -531,6 +531,7 @@ async function installChampionItemSet(
     return {
       championId,
       championKey: getChampionKey(champion),
+      writtenItemSetCount: 0,
       success: false,
       reason: err.message,
     }
@@ -556,7 +557,7 @@ export async function installAramItemSetForChampion(options: SingleChampionItemS
 
   const result = await installChampionItemSet(
     { championId },
-    options.build || null,
+    Array.isArray(options.builds) ? options.builds : null,
     options.championName || null
   )
 
@@ -574,6 +575,7 @@ export async function installAramItemSetForChampion(options: SingleChampionItemS
     lcuItemSetCount: result.lcuItemSetCount ?? null,
     localRemovedCount: result.localRemovedCount ?? null,
     localWrittenCount: result.localWrittenCount ?? null,
+    writtenItemSetCount: result.writtenItemSetCount ?? null,
     durationMs: Date.now() - startedAt,
   })
 
@@ -590,6 +592,7 @@ export async function installAramItemSetForChampion(options: SingleChampionItemS
     lcuItemSetCount: result.lcuItemSetCount ?? null,
     localRemovedCount: result.localRemovedCount ?? null,
     localWrittenCount: result.localWrittenCount ?? null,
+    writtenItemSetCount: result.writtenItemSetCount ?? null,
     skipped: result.skipped || false,
     reason: result.reason || null,
     error: result.success ? null : formatInstallError(result.reason),
