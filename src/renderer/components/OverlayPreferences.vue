@@ -50,13 +50,6 @@ const { t } = useI18n()
 const emit = defineEmits(['post-game-auto-show-changed'])
 const preferenceDefinitions = [
   {
-    key: 'hideChampionInsightOnGameStart',
-    storeKey: 'championInsight.hideOnGameStart',
-    defaultValue: true,
-    titleKey: 'preferences.hideDetailsTitle',
-    descriptionKey: 'preferences.hideDetailsDescription',
-  },
-  {
     key: 'showAugmentTopOverlay',
     storeKey: 'augments.showTopOverlay',
     defaultValue: true,

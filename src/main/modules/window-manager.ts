@@ -564,6 +564,7 @@ export const createPopupWindow = async (
         show: false,
         frame: false,
         skipTaskbar: true,
+        closable: false,
         resizable: isDev || false,
         fullscreenable: false,
         alwaysOnTop: true, // 始终置顶，包括开发模式

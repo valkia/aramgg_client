@@ -50,7 +50,6 @@ import {
 } from './performance-monitor.ts'
 import { createAppTray } from './tray.ts'
 import {
-    shouldHideChampionInsightOnGameStart,
     shouldShowAugmentSidePanel,
     shouldShowAugmentTopOverlay,
 } from './user-preferences.ts'
@@ -261,21 +260,12 @@ function clearAugmentOverlayForPhase(phase) {
         return
     }
 
-    if (phase === 'GameStart' && !shouldHideChampionInsightOnGameStart()) {
-        logger.info('Champion insight retained on game start by user preference')
-        return
-    }
-
     autoScreenshotService.clearAugmentState(`LCU phase ${phase}`)
 }
 
-function allowChampionInsightInBackground(reason) {
-    if (shouldHideChampionInsightOnGameStart()) {
-        return
-    }
-
-    setPopupWindowAlwaysOnTop(false)
-    logger.info('Champion insight can move behind game window by user preference', { reason })
+function keepChampionInsightOnTop(reason) {
+    setPopupWindowAlwaysOnTop(true)
+    logger.info('Champion insight remains visible and always on top', { reason })
 }
 
 function getDiagnosticType(value) {
@@ -850,6 +840,11 @@ async function recoverChampionInsightForInProgress(lcuService, reason) {
         return
     }
 
+    const popupWindow = getPopupWindow()
+    if (!popupWindow || popupWindow.isDestroyed() || !popupWindow.isVisible()) {
+        return
+    }
+
     const now = Date.now()
     if (
         lastInProgressInsightChampionId == null &&
@@ -890,27 +885,7 @@ async function recoverChampionInsightForInProgress(lcuService, reason) {
         }
 
         lastInProgressInsightChampionId = championId
-        if (shouldHideChampionInsightOnGameStart()) {
-            logger.info('Champion insight popup hidden during in-progress recovery by user preference', {
-                championId,
-                reason,
-            })
-            return
-        }
-
-        const popupWindow = getPopupWindow()
-        if (!popupWindow || popupWindow.isDestroyed()) {
-            logger.warn('Champion insight window is unavailable for in-progress recovery', {
-                championId,
-                reason,
-            })
-            return
-        }
-
-        applyPopupWindowLayout()
-        if (!popupWindow.isVisible()) {
-            popupWindow.show()
-        }
+        setPopupWindowAlwaysOnTop(true)
 
         popupWindow.webContents.send('for-popup', {
             championId,
@@ -1207,14 +1182,14 @@ async function initGameFlowMonitor() {
                     case 'ENTER_GAME_START':
                         logger.info('游戏开始加载')
                         resetPostGameShareSnapshot('LCU phase GameStart')
-                        allowChampionInsightInBackground('LCU phase GameStart')
+                        keepChampionInsightOnTop('LCU phase GameStart')
                         notifyAllWindows('game-started', {})
                         resetChampSelectItemSetState('LCU phase GameStart')
                         stopAutoScreenshotForGame('LCU phase GameStart')
                         break
                     case 'ENTER_IN_PROGRESS':
                         logger.info('游戏进行中 - 启动自动截图来检测海克斯选择')
-                        allowChampionInsightInBackground('LCU phase InProgress')
+                        keepChampionInsightOnTop('LCU phase InProgress')
                         notifyAllWindows('game-in-progress', {})
                         resetChampSelectItemSetState('LCU phase InProgress')
                         void recoverChampionInsightForInProgress(lcuService, 'LCU phase InProgress')

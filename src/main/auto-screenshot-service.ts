@@ -28,7 +28,6 @@ import {
     mergePartialAugments,
 } from './augment-partial-merge.ts'
 import {
-    shouldHideChampionInsightOnGameStart,
     shouldShowAugmentSidePanel,
     shouldShowAugmentTopOverlay,
 } from './modules/user-preferences.ts'
@@ -332,9 +331,7 @@ class AutoScreenshotService {
         if (phase && phase !== 'InProgress' && phase !== 'None') {
             this.pendingAnalysisBuffer = null
             if (this.lastDetectedAugmentIds.length > 0) {
-                this.clearAugmentState(`gameflow-${phase}`, {
-                    hidePopup: phase !== 'GameStart' || shouldHideChampionInsightOnGameStart(),
-                })
+                this.clearAugmentState(`gameflow-${phase}`)
             }
         }
     }
@@ -343,7 +340,7 @@ class AutoScreenshotService {
         return !this.gameflowPhase || this.gameflowPhase === 'InProgress' || this.gameflowPhase === 'None'
     }
 
-    clearAugmentState(reason = 'gameflow-cleared', options = {}) {
+    clearAugmentState(reason = 'gameflow-cleared') {
         const previousIds = this.lastDetectedAugmentIds
         const ageMs = this.lastDetectedAugmentAt ? Date.now() - this.lastDetectedAugmentAt : null
         this.lastDetectedAugmentIds = []
@@ -362,7 +359,7 @@ class AutoScreenshotService {
             previousIds,
             ageMs,
         })
-        this._notifyAugmentCleared(reason, options)
+        this._notifyAugmentCleared(reason)
     }
 
     /**
@@ -1192,10 +1189,9 @@ class AutoScreenshotService {
      * Notify renderers that the augment selection has disappeared.
      * @private
      */
-    _notifyAugmentCleared(reason = 'unknown', options = {}) {
+    _notifyAugmentCleared(reason = 'unknown') {
         try {
             const windows = BrowserWindow.getAllWindows()
-            const hidePopup = options.hidePopup !== false
             const payload = {
                 success: true,
                 gamePhase: 'augment-cleared',
@@ -1206,10 +1202,6 @@ class AutoScreenshotService {
 
             windows.forEach(window => {
                 if (!window.isDestroyed()) {
-                    const url = window.webContents.getURL()
-                    if (!hidePopup && url.includes('augment-overlay')) {
-                        return
-                    }
                     window.webContents.send('augment-cleared', payload)
                 }
             })
@@ -1234,23 +1226,11 @@ class AutoScreenshotService {
                 logger.debug('Hidden augment side panel window after selection disappeared')
             }
 
-            const popupWindow = windows.find(win => {
-                const url = win.webContents.getURL()
-                return url.includes('augment-overlay')
-            })
-            const wasPopupWindowVisible = !!popupWindow && !popupWindow.isDestroyed() && popupWindow.isVisible()
-            if (wasPopupWindowVisible && hidePopup) {
-                popupWindow.hide()
-                logger.debug('Hidden augment popup window after selection disappeared')
-            }
-
             logger.debug('Augment clear notification sent', {
                 reason,
                 windowCount: windows.length,
                 floatingWindowWasVisible: wasFloatingWindowVisible,
                 sidePanelWindowWasVisible: wasSidePanelWindowVisible,
-                popupWindowWasVisible: wasPopupWindowVisible,
-                popupHidden: wasPopupWindowVisible && hidePopup,
             })
         } catch (error) {
             logger.error('Failed to notify augment cleared:', error)

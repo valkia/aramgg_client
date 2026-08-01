@@ -17,7 +17,6 @@ const APP_LOCALE_KEY = 'app.locale'
 const RENDERER_STORE_KEYS = new Set<AppStoreKey>([
   'lastSelectedChampionId',
   'itemSets.autoApplyAram',
-  'championInsight.hideOnGameStart',
   'augments.showTopOverlay',
   'augments.showSidePanel',
   'postGameShare.autoShow',
