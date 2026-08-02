@@ -24,9 +24,9 @@ GET /lol-gameflow/v1/gameflow-phase
 | `Lobby` | 大厅 | 停止 gameflow 管理的自动截图，清空海克斯浮窗 |
 | `Matchmaking` | 匹配中 | 停止 gameflow 管理的自动截图 |
 | `ReadyCheck` | 准备确认 | 停止 gameflow 管理的自动截图 |
-| `ChampSelect` | 选人阶段 | 显示英雄详情并在顶部展示 ARAM 席位推荐，暂停海克斯 OCR |
-| `GameStart` | 游戏加载 | 清空海克斯过期状态；默认关闭英雄详情，关闭「进游戏关闭英雄详情页」后保留并允许切到后台 |
-| `InProgress` | 实际对局中 | 允许自动截图和海克斯 OCR；按窗口偏好展示顶部浮窗和右侧推荐列表 |
+| `ChampSelect` | 选人阶段 | 「展示英雄详情」开启时显示英雄详情及 ARAM 席位推荐；无论是否显示都保持英雄跟踪，并暂停海克斯 OCR |
+| `GameStart` | 游戏加载 | 清空海克斯过期状态；英雄详情可见性由「展示英雄详情」统一控制 |
+| `InProgress` | 实际对局中 | 普通画面约 1.5 秒一次 `1024x576` 自动截图，确认海克斯选择并识别到候选后恢复 500 ms；按各自窗口偏好展示顶部浮窗、右侧列表和英雄详情 |
 | `WaitingForStats` | 等待结算 | 停止自动截图，清空海克斯浮窗 |
 | `PreEndOfGame` | 结算前 | 停止自动截图 |
 | `EndOfGame` | 对局结束 | 停止自动截图，清空海克斯浮窗 |
@@ -76,7 +76,7 @@ npm run test:unit -- tests/unit/game-session-machine.test.ts
 2. 默认等待应用自动发现运行中的 League Client；如果失败，展开主界面「游戏目录」选择英雄联盟安装目录作为高级兜底。
 3. 进入大厅、选人、加载、实际对局、结算阶段。
 4. 查看日志中是否出现 `LCU OnJsonApiEvent WebSocket 已订阅 gameflow phase`、`游戏阶段变化(websocket)` 或兜底 `游戏阶段变化(poll)`。
-5. 在 `ChampSelect` 确认英雄详情窗口显示，顶部 ARAM 席位推荐更新完整候选列表。
+5. 在 `ChampSelect` 确认「展示英雄详情」开启时窗口显示并更新完整席位候选；关闭后窗口立即隐藏，英雄监控仍继续。
 6. 在实际对局 `InProgress` 确认自动截图和海克斯 OCR 允许运行。
 7. 按「窗口偏好」确认顶部浮窗和右侧推荐列表分别显示或隐藏。
 8. 离开实际对局后确认过期海克斯浮窗和右侧推荐列表被清空。
@@ -102,8 +102,8 @@ LCU/API 结构探索和阶段诊断内容写入当天主日志 `logs/app-YYYY-MM
 检查：
 
 - `gameflowPhase` 是否为 `ChampSelect`。
-- 英雄详情窗口是否已显示；如果手动隐藏，下一次进入 `ChampSelect` 会重新显示。
-- 「进游戏关闭英雄详情页」关闭时，`GameStart` / `InProgress` 不会主动关闭英雄详情，但会解除置顶，让窗口可以切到后台。
+- 主界面「展示英雄详情」是否开启。关闭时不显示窗口，但不会停止英雄监控、出装处理或其他后台流程。
+- 重新开启偏好不会当场弹窗；下一次正常选人入口或英雄变化时再显示。
 - `lcu-get-champ-select-snapshot` 是否返回 `status: "ready"`。
 - `snapshot.selfChampionId` 和 `snapshot.benchChampions` 是否有值。
 - 远端英雄统计是否可用；数据缺失时 UI 会降级展示。
