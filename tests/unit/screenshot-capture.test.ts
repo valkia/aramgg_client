@@ -59,4 +59,26 @@ describe('captureScreenshot', () => {
       thumbnailSize: { width: 1280, height: 720 },
     })
   })
+
+  it('accepts a smaller thumbnail only when the caller requests it', async () => {
+    mocks.getSources.mockResolvedValue([
+      {
+        id: 'screen:0:0',
+        name: 'Entire Screen',
+        thumbnail: createThumbnail(1024, 576),
+      },
+    ])
+
+    const { captureScreenshot } = await import('../../src/main/screenshot.ts')
+    const result = await captureScreenshot({
+      preferScreen: true,
+      thumbnailSize: { width: 1024, height: 576 },
+    })
+
+    expect(result.success).toBe(true)
+    expect(mocks.getSources).toHaveBeenCalledWith({
+      types: ['screen'],
+      thumbnailSize: { width: 1024, height: 576 },
+    })
+  })
 })

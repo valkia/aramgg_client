@@ -91,6 +91,8 @@ export const messages = {
       title: '窗口偏好',
       fullscreenTitle: '全屏显示说明',
       fullscreenDescription: '海克斯浮窗是桌面置顶窗口，独占全屏可能会遮挡它；需要显示浮窗时，请将英雄联盟视频设置切换为无边框或窗口化。',
+      championDetailsTitle: '展示英雄详情',
+      championDetailsDescription: '选人或英雄变化时展示独立的英雄详情窗口；关闭后仍保持英雄监控和其他后台功能。',
       topOverlayTitle: '展示海克斯顶部浮窗',
       topOverlayDescription: '识别到海克斯选择时，在屏幕顶部展示三张海克斯推荐。',
       sidePanelTitle: '展示海克斯右侧推荐列表',
@@ -286,7 +288,7 @@ export const messages = {
       gameDirectoryAdminHint: 'If automatic detection fails, try running this app as administrator.',
     },
     preferences: {
-      title: 'WINDOW PREFERENCES', fullscreenTitle: 'Fullscreen display', fullscreenDescription: 'The augment overlay is an always-on-top desktop window and may be hidden by exclusive fullscreen. Use borderless or windowed mode when you need the overlay.', topOverlayTitle: 'Show the top augment overlay', topOverlayDescription: 'Show three augment recommendations at the top of the screen when an augment choice is detected.', sidePanelTitle: 'Show the right recommendation panel', sidePanelDescription: 'Show augment and build recommendations on the right side of the game when an augment choice is detected.', postGameShareTitle: 'Automatically show the post-game poster', postGameShareDescription: 'Open the poster automatically after a match. When disabled, it remains available from the main window.',
+      title: 'WINDOW PREFERENCES', fullscreenTitle: 'Fullscreen display', fullscreenDescription: 'The augment overlay is an always-on-top desktop window and may be hidden by exclusive fullscreen. Use borderless or windowed mode when you need the overlay.', championDetailsTitle: 'Show champion details', championDetailsDescription: 'Show the separate Champion Details window during champion select or champion changes. Champion monitoring and other background features remain active when disabled.', topOverlayTitle: 'Show the top augment overlay', topOverlayDescription: 'Show three augment recommendations at the top of the screen when an augment choice is detected.', sidePanelTitle: 'Show the right recommendation panel', sidePanelDescription: 'Show augment and build recommendations on the right side of the game when an augment choice is detected.', postGameShareTitle: 'Automatically show the post-game poster', postGameShareDescription: 'Open the poster automatically after a match. When disabled, it remains available from the main window.',
     },
     monitor: {
       title: 'CHAMPION MONITOR', monitoring: 'Monitoring', stopped: 'Stopped', stop: 'Stop monitoring', start: 'Start monitoring', currentSelection: 'Current selection', lastDetected: 'Last detected', championId: 'Champion ID: {id}',
@@ -319,7 +321,7 @@ export const messages = {
       gameDirectoryAdminHint: '如果自動偵測失敗，可嘗試以系統管理員身分執行本應用程式。',
     },
     preferences: {
-      title: '視窗偏好', fullscreenTitle: '全螢幕顯示說明', fullscreenDescription: '增幅裝置浮窗是桌面置頂視窗，獨佔全螢幕可能會遮擋它；需要顯示浮窗時，請將英雄聯盟影片設定切換為無邊框或視窗化。', topOverlayTitle: '顯示頂部增幅裝置浮窗', topOverlayDescription: '辨識到增幅裝置選擇時，在螢幕頂部顯示三張推薦。', sidePanelTitle: '顯示右側推薦清單', sidePanelDescription: '辨識到增幅裝置選擇時，在遊戲右側顯示增幅裝置與出裝推薦清單。', postGameShareTitle: '自動顯示賽後海報', postGameShareDescription: '遊戲結束後自動開啟賽後海報；關閉後仍可在主頁面手動產生和查看。',
+      title: '視窗偏好', fullscreenTitle: '全螢幕顯示說明', fullscreenDescription: '增幅裝置浮窗是桌面置頂視窗，獨佔全螢幕可能會遮擋它；需要顯示浮窗時，請將英雄聯盟影片設定切換為無邊框或視窗化。', championDetailsTitle: '顯示英雄詳情', championDetailsDescription: '選角或英雄變化時顯示獨立的英雄詳情視窗；關閉後仍保持英雄監控與其他後台功能。', topOverlayTitle: '顯示頂部增幅裝置浮窗', topOverlayDescription: '辨識到增幅裝置選擇時，在螢幕頂部顯示三張推薦。', sidePanelTitle: '顯示右側推薦清單', sidePanelDescription: '辨識到增幅裝置選擇時，在遊戲右側顯示增幅裝置與出裝推薦清單。', postGameShareTitle: '自動顯示賽後海報', postGameShareDescription: '遊戲結束後自動開啟賽後海報；關閉後仍可在主頁面手動產生和查看。',
     },
     monitor: {
       title: '英雄監控', monitoring: '監控中', stopped: '未啟動', stop: '停止監控', start: '啟動監控', currentSelection: '目前選擇', lastDetected: '最後偵測', championId: '英雄 ID：{id}',

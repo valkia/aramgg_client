@@ -8,7 +8,12 @@
  * 因此截图时无需隐藏浮窗，避免了闪烁问题
  */
 
-import { captureScreenshot } from './screenshot.ts'
+import { CAPTURE_THUMBNAIL_SIZE, captureScreenshot } from './screenshot.ts'
+import {
+    resolveCaptureModeAfterAnalysis,
+    resolveGameflowCaptureInterval,
+    shouldActivateSelectionCapture,
+} from './auto-screenshot-policy.ts'
 import { analyzeScreenshot, warmupImageAnalyzer } from './image-analyzer.ts'
 import { BrowserWindow } from 'electron'
 import fs from 'fs-extra'
@@ -179,6 +184,9 @@ class AutoScreenshotService {
         this.interval = 5000 // 默认5秒
         this.minInterval = 200
         this.stableDetectionInterval = null
+        this.idleInterval = null
+        this.captureMode = 'idle'
+        this.automaticThumbnailSize = null
         this.maxScreenshots = 50 // 保留字段但已不再使用（截图直接使用内存 Buffer）
         this.screenshotCount = 0
         this.lastScreenshotTime = null
@@ -245,6 +253,7 @@ class AutoScreenshotService {
         this.runId++
         this.isRunning = true
         this.controlOwner = owner
+        this.captureMode = owner === 'gameflow' ? 'idle' : 'manual'
         this.screenshotCount = 0
         this.analysisCount = 0
         this.detectionCount = 0
@@ -283,7 +292,9 @@ class AutoScreenshotService {
 
         logger.info('Auto screenshot service started', {
             intervalMs: this.interval,
-            stableDetectionIntervalMs: this.stableDetectionInterval,
+            idleIntervalMs: this.idleInterval,
+            captureMode: this.captureMode,
+            thumbnailSize: this._getCurrentThumbnailSize(),
             owner,
         })
         void warmupImageAnalyzer()
@@ -314,6 +325,7 @@ class AutoScreenshotService {
         this.intervalId = null
         this.pendingAnalysisBuffer = null
         this.controlOwner = null
+        this.captureMode = 'idle'
         this.isCapturing = false
         this.isAnalyzing = false
 
@@ -330,6 +342,7 @@ class AutoScreenshotService {
 
         if (phase && phase !== 'InProgress' && phase !== 'None') {
             this.pendingAnalysisBuffer = null
+            this._setCaptureMode('idle', `gameflow-${phase}`)
             if (this.lastDetectedAugmentIds.length > 0) {
                 this.clearAugmentState(`gameflow-${phase}`)
             }
@@ -354,6 +367,7 @@ class AutoScreenshotService {
         this.lastDetectedAugmentAt = 0
         this.visibleAugmentMissCount = 0
         this.pendingAnalysisBuffer = null
+        this._setCaptureMode('idle', reason)
         logger.debug('Augment state cleared', {
             reason,
             previousIds,
@@ -389,11 +403,48 @@ class AutoScreenshotService {
     }
 
     _getCurrentCaptureInterval() {
+        if (this.controlOwner === 'gameflow') {
+            return resolveGameflowCaptureInterval(
+                this.captureMode,
+                this.interval,
+                this.idleInterval || this.interval
+            )
+        }
+
         if (this.lastDetectedAugmentIds.length > 0 && this.stableDetectionInterval) {
             return this.stableDetectionInterval
         }
 
         return this.interval
+    }
+
+    _getCurrentThumbnailSize() {
+        if (this.controlOwner === 'gameflow' && this.automaticThumbnailSize) {
+            return { ...this.automaticThumbnailSize }
+        }
+
+        return { ...CAPTURE_THUMBNAIL_SIZE }
+    }
+
+    _setCaptureMode(mode, reason) {
+        if (this.controlOwner !== 'gameflow' || this.captureMode === mode) {
+            return
+        }
+
+        const previousMode = this.captureMode
+        this.captureMode = mode
+        logger.info('Auto screenshot capture mode changed', {
+            previousMode,
+            captureMode: mode,
+            activeIntervalMs: this._getCurrentCaptureInterval(),
+            reason,
+        })
+
+        if (this.isRunning && this.intervalId) {
+            clearTimeout(this.intervalId)
+            this.intervalId = null
+            this._scheduleNextCapture(this._getCurrentCaptureInterval(), this.runId)
+        }
     }
 
     /**
@@ -426,6 +477,7 @@ class AutoScreenshotService {
             const result = await captureScreenshot({
                 preferScreen: this.preferScreenCapture,
                 timeoutMs: this.captureTimeoutMs,
+                thumbnailSize: this._getCurrentThumbnailSize(),
             })
 
             if (!this.isRunning || runId !== this.runId) {
@@ -452,6 +504,8 @@ class AutoScreenshotService {
                         captureTimeMs: Number(captureTimeMs.toFixed(1)),
                         sinceStartMs: this.startedAt ? Date.now() - this.startedAt : 0,
                         preferScreenCapture: this.preferScreenCapture,
+                        captureMode: this.captureMode,
+                        thumbnailSize: this._getCurrentThumbnailSize(),
                     })
                 } else if (captureTimeMs > 1000) {
                     logger.warn('Auto screenshot slow capture', {
@@ -563,6 +617,18 @@ class AutoScreenshotService {
             }
 
             const { cardCount, confidence, isAugmentPhase, augments } = analysisResult.analysis
+            const hasVisibleAugments = this.lastDetectedAugmentIds.length > 0
+            const confirmedSelectionUi = shouldActivateSelectionCapture({
+                confirmedSelectionUi: isConfirmedAugmentSelectionUi(analysisResult.analysis),
+                recognizedAugmentCount: cardCount,
+                hasVisibleAugments,
+            })
+            this._setCaptureMode(resolveCaptureModeAfterAnalysis({
+                currentMode: this.captureMode,
+                confirmedSelectionUi,
+                hasVisibleAugments,
+            }), confirmedSelectionUi ? 'confirmed-selection-ui' : 'selection-ui-not-confirmed')
+
             if (cardCount > 0 && cardCount < 3) {
                 this._savePartialOcrScreenshot(imageBuffer, analysisResult, analysisDuration)
             }
@@ -716,6 +782,7 @@ class AutoScreenshotService {
                         this.lastDetectedAugmentSlotFingerprints = []
                         this.lastDetectedAugmentAt = 0
                         this.visibleAugmentMissCount = 0
+                        this._setCaptureMode('idle', clearReason)
                         this._notifyAugmentCleared(clearReason)
                     }
                 } else if (!isAugmentPhase) {
@@ -749,7 +816,7 @@ class AutoScreenshotService {
 
         this.lastSummaryLogAt = now
         const stats = this.getPerformanceStats()
-        logger.info(`Auto screenshot summary: screenshots=${stats.screenshotCount}, analyses=${stats.analysisCount}, detections=${stats.detectionCount}, replacedPendingAnalyses=${stats.droppedAnalysisCount}, backpressureSkippedCaptures=${stats.analysisBackpressureSkipCount}, interval=${stats.activeInterval}ms, avgCapture=${stats.averageCaptureTime}ms, lastAnalysis=${stats.lastAnalysisDuration || 0}ms`)
+        logger.info(`Auto screenshot summary: screenshots=${stats.screenshotCount}, analyses=${stats.analysisCount}, detections=${stats.detectionCount}, replacedPendingAnalyses=${stats.droppedAnalysisCount}, backpressureSkippedCaptures=${stats.analysisBackpressureSkipCount}, mode=${stats.captureMode}, interval=${stats.activeInterval}ms, thumbnail=${stats.thumbnailSize.width}x${stats.thumbnailSize.height}, avgCapture=${stats.averageCaptureTime}ms, lastAnalysis=${stats.lastAnalysisDuration || 0}ms`)
     }
 
     _shouldClearVisibleAugmentsAfterMiss({ cardCount, augments = [] }) {
@@ -1286,6 +1353,9 @@ class AutoScreenshotService {
                 preferScreenCapture: this.preferScreenCapture,
                 interval: this.interval,
                 stableDetectionInterval: this.stableDetectionInterval,
+                idleInterval: this.idleInterval,
+                captureMode: this.captureMode,
+                thumbnailSize: this._getCurrentThumbnailSize(),
                 activeInterval: this._getCurrentCaptureInterval(),
                 averageCaptureTime: 0,
                 maxCaptureTime: 0,
@@ -1333,6 +1403,9 @@ class AutoScreenshotService {
             maxMemory: parseFloat(maxMemory.toFixed(2)),
             performanceLevel: this._assessPerformanceLevel(avgCapture, avgMemory),
             stableDetectionInterval: this.stableDetectionInterval,
+            idleInterval: this.idleInterval,
+            captureMode: this.captureMode,
+            thumbnailSize: this._getCurrentThumbnailSize(),
             activeInterval: this._getCurrentCaptureInterval(),
         }
     }
@@ -1387,6 +1460,19 @@ class AutoScreenshotService {
                 ? Math.max(stableDetectionInterval, this.minInterval)
                 : null
         }
+        if (Object.prototype.hasOwnProperty.call(config, 'idleInterval')) {
+            const idleInterval = Number(config.idleInterval)
+            this.idleInterval = idleInterval > 0
+                ? Math.max(idleInterval, this.minInterval)
+                : null
+        }
+        if (config.automaticThumbnailSize) {
+            const width = Number(config.automaticThumbnailSize.width)
+            const height = Number(config.automaticThumbnailSize.height)
+            if (width > 0 && height > 0) {
+                this.automaticThumbnailSize = { width, height }
+            }
+        }
         if (config.maxScreenshots !== undefined && config.maxScreenshots > 0) {
             this.maxScreenshots = config.maxScreenshots
         }
@@ -1424,6 +1510,9 @@ class AutoScreenshotService {
             captureTimeoutMs: this.captureTimeoutMs,
             preferScreenCapture: this.preferScreenCapture,
             stableDetectionInterval: this.stableDetectionInterval,
+            idleInterval: this.idleInterval,
+            captureMode: this.captureMode,
+            thumbnailSize: this._getCurrentThumbnailSize(),
             activeInterval: this._getCurrentCaptureInterval(),
             lastAnalysisDuration: parseFloat(this.lastAnalysisDuration.toFixed(2)),
         }
@@ -1470,6 +1559,9 @@ class AutoScreenshotService {
         this.partialOcrSaveCount = 0
         this.pendingAnalysisBuffer = null
         this.stableDetectionInterval = null
+        this.idleInterval = null
+        this.captureMode = 'idle'
+        this.automaticThumbnailSize = null
         this.gameflowPhase = null
         this.controlOwner = null
         this.isCapturing = false

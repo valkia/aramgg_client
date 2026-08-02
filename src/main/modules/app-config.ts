@@ -50,11 +50,17 @@ import {
 } from './performance-monitor.ts'
 import { createAppTray } from './tray.ts'
 import {
+    shouldShowChampionDetails,
     shouldShowAugmentSidePanel,
     shouldShowAugmentTopOverlay,
 } from './user-preferences.ts'
 import { GameSessionCoordinator } from '../services/game-session/game-session-machine.ts'
 import { shouldRaiseOverlayWindow } from './overlay-window-state.ts'
+import {
+    GAMEFLOW_ACTIVE_CAPTURE_INTERVAL_MS,
+    GAMEFLOW_CAPTURE_THUMBNAIL_SIZE,
+    GAMEFLOW_IDLE_CAPTURE_INTERVAL_MS,
+} from '../auto-screenshot-policy.ts'
 
 const __dirname = import.meta.dirname
 
@@ -66,8 +72,6 @@ let lcuGameflowMonitorStopping = false
 let lcuGameflowInitPromise = null
 let quitCleanupCompleted = false
 let quitCleanupPromise = null
-const AUTO_SCREENSHOT_INTERVAL_MS = 500
-const AUTO_SCREENSHOT_STABLE_INTERVAL_MS = 1200
 const AUTO_SCREENSHOT_MAX_CAPTURES = 100
 const GAME_WINDOW_STATUS_LOG_INTERVAL_MS = 30000
 const GAMEFLOW_AUGMENT_ANALYSIS_PHASE = 'InProgress'
@@ -213,20 +217,23 @@ async function startAutoScreenshotForGame(reason) {
     }
 
     autoScreenshotService.setConfig({
-        interval: AUTO_SCREENSHOT_INTERVAL_MS,
-        stableDetectionInterval: AUTO_SCREENSHOT_STABLE_INTERVAL_MS,
+        interval: GAMEFLOW_ACTIVE_CAPTURE_INTERVAL_MS,
+        idleInterval: GAMEFLOW_IDLE_CAPTURE_INTERVAL_MS,
+        automaticThumbnailSize: GAMEFLOW_CAPTURE_THUMBNAIL_SIZE,
         maxScreenshots: AUTO_SCREENSHOT_MAX_CAPTURES,
     })
 
     const startedAt = Date.now()
-    const success = await autoScreenshotService.start(AUTO_SCREENSHOT_INTERVAL_MS, 'gameflow')
+    const success = await autoScreenshotService.start(GAMEFLOW_ACTIVE_CAPTURE_INTERVAL_MS, 'gameflow')
     if (success) {
         autoScreenshotManagedByGameFlow = true
         logger.info('Auto screenshot service started by game monitor', {
             reason,
             durationMs: Date.now() - startedAt,
-            intervalMs: AUTO_SCREENSHOT_INTERVAL_MS,
-            stableDetectionIntervalMs: AUTO_SCREENSHOT_STABLE_INTERVAL_MS,
+            intervalMs: GAMEFLOW_ACTIVE_CAPTURE_INTERVAL_MS,
+            idleIntervalMs: GAMEFLOW_IDLE_CAPTURE_INTERVAL_MS,
+            activeIntervalMs: GAMEFLOW_ACTIVE_CAPTURE_INTERVAL_MS,
+            thumbnailSize: GAMEFLOW_CAPTURE_THUMBNAIL_SIZE,
             pollFallbackIntervalMs: GAMEFLOW_POLL_FALLBACK_INTERVAL_MS,
         })
     }
@@ -264,6 +271,15 @@ function clearAugmentOverlayForPhase(phase) {
 }
 
 function keepChampionInsightOnTop(reason) {
+    const popupWindow = getPopupWindow()
+    if (!shouldShowChampionDetails()) {
+        if (popupWindow && !popupWindow.isDestroyed() && popupWindow.isVisible()) {
+            popupWindow.hide()
+        }
+        logger.debug('Champion insight visibility disabled by preference', { reason })
+        return
+    }
+
     setPopupWindowAlwaysOnTop(true)
     logger.info('Champion insight remains visible and always on top', { reason })
 }
@@ -715,15 +731,20 @@ function buildRefreshableBenchRecommendation(snapshot) {
 }
 
 async function showChampionInsightSnapshot(snapshot, reason) {
+    const championId = normalizeChampionId(snapshot?.selfChampionId)
+    if (championId) {
+        store.set('lastSelectedChampionId', championId)
+    }
+
+    if (!shouldShowChampionDetails()) {
+        logger.debug('Champion insight show skipped by preference', { championId, reason })
+        return
+    }
+
     const popupWindow = getPopupWindow()
     if (!popupWindow || popupWindow.isDestroyed()) {
         logger.warn('Champion insight window is unavailable for champ-select')
         return
-    }
-
-    const championId = normalizeChampionId(snapshot?.selfChampionId)
-    if (championId) {
-        store.set('lastSelectedChampionId', championId)
     }
 
     applyPopupWindowLayout()
@@ -841,9 +862,10 @@ async function recoverChampionInsightForInProgress(lcuService, reason) {
     }
 
     const popupWindow = getPopupWindow()
-    if (!popupWindow || popupWindow.isDestroyed() || !popupWindow.isVisible()) {
-        return
-    }
+    const canRefreshVisiblePopup = shouldShowChampionDetails() &&
+        popupWindow &&
+        !popupWindow.isDestroyed() &&
+        popupWindow.isVisible()
 
     const now = Date.now()
     if (
@@ -885,6 +907,10 @@ async function recoverChampionInsightForInProgress(lcuService, reason) {
         }
 
         lastInProgressInsightChampionId = championId
+        if (!canRefreshVisiblePopup) {
+            return
+        }
+
         setPopupWindowAlwaysOnTop(true)
 
         popupWindow.webContents.send('for-popup', {
@@ -1172,7 +1198,7 @@ async function initGameFlowMonitor() {
                     case 'ENTER_CHAMP_SELECT':
                         logger.info('进入选人阶段 - 暂停游戏内海克斯 OCR')
                         resetPostGameShareSnapshot('LCU phase ChampSelect')
-                        setPopupWindowAlwaysOnTop(true)
+                        keepChampionInsightOnTop('LCU phase ChampSelect')
                         lastAutoAppliedItemSetChampionId = null
                         resetChampSelectItemSetState(`LCU phase ${phase}`)
                         notifyAllWindows('champ-select-start', {})

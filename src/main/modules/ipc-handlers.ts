@@ -27,6 +27,7 @@ import logger from './logger.ts'
 import store from './app-store.ts'
 import { getAppDataDir } from './app-paths.ts'
 import {
+    shouldShowChampionDetails,
     shouldShowAugmentSidePanel,
     shouldShowAugmentTopOverlay,
 } from './user-preferences.ts'
@@ -375,6 +376,11 @@ export function registerIpcHandlers(isDev: boolean): void {
             dataSource: data?.dataSource || null,
         })
 
+        if (!shouldShowChampionDetails()) {
+            logger.debug('[popup] show-popup skipped by preference')
+            return
+        }
+
         if (!getPopupWindow()) {
             const devServerUrl = isDev ? 'http://localhost:5173' : ''
             await createPopupWindow(isDev, devServerUrl)
@@ -386,6 +392,10 @@ export function registerIpcHandlers(isDev: boolean): void {
         const popupWindow = getPopupWindow()
         if (!popupWindow) {
             logger.warn('[popup] show-popup aborted: window unavailable')
+            return
+        }
+        if (!shouldShowChampionDetails()) {
+            logger.debug('[popup] show-popup aborted after window preparation: disabled by preference')
             return
         }
 
@@ -532,6 +542,10 @@ export function registerIpcHandlers(isDev: boolean): void {
         try {
             logger.info('[diagnostics] random popup test requested')
 
+            if (!shouldShowChampionDetails()) {
+                return { success: true, skipped: true, reason: 'champion-details-disabled' }
+            }
+
             if (!getPopupWindow()) {
                 const devServerUrl = isDev ? 'http://localhost:5173' : ''
                 await createPopupWindow(isDev, devServerUrl)
@@ -543,6 +557,9 @@ export function registerIpcHandlers(isDev: boolean): void {
             const popupWindow = getPopupWindow()
             if (!popupWindow || popupWindow.isDestroyed()) {
                 return { success: false, error: 'Popup window does not exist' }
+            }
+            if (!shouldShowChampionDetails()) {
+                return { success: true, skipped: true, reason: 'champion-details-disabled' }
             }
 
             applyPopupWindowLayout()
@@ -587,6 +604,11 @@ export function registerIpcHandlers(isDev: boolean): void {
         const startedAt = Date.now()
         try {
             logger.info('[diagnostics] random bench recommendation requested for champion insight')
+
+            if (!shouldShowChampionDetails()) {
+                return { success: true, skipped: true, reason: 'champion-details-disabled' }
+            }
+
             const recommendation = await buildRandomBenchRecommendation()
 
             if (!getPopupWindow()) {
@@ -597,6 +619,9 @@ export function registerIpcHandlers(isDev: boolean): void {
             const popupWindow = getPopupWindow()
             if (!popupWindow || popupWindow.isDestroyed()) {
                 return { success: false, error: 'Popup window does not exist' }
+            }
+            if (!shouldShowChampionDetails()) {
+                return { success: true, skipped: true, reason: 'champion-details-disabled' }
             }
 
             applyPopupWindowLayout()

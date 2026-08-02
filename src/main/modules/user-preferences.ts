@@ -1,6 +1,7 @@
 import store from './app-store.ts'
 
 export const USER_PREFERENCE_KEYS = {
+    showChampionDetails: 'championInsight.showDetails',
     showAugmentTopOverlay: 'augments.showTopOverlay',
     showAugmentSidePanel: 'augments.showSidePanel',
 }
@@ -12,6 +13,10 @@ export function getBooleanPreference(key: string, defaultValue = true): boolean 
     }
 
     return value !== false
+}
+
+export function shouldShowChampionDetails(): boolean {
+    return getBooleanPreference(USER_PREFERENCE_KEYS.showChampionDetails, true)
 }
 
 export function shouldShowAugmentTopOverlay(): boolean {
