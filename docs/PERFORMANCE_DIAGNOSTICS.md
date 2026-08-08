@@ -24,7 +24,7 @@
 - 普通画面只截 `640x360` 门禁帧；连续 2 帧通过门禁后才升级为 `1024x576` 完整截图。
 - 完整 OCR 无匹配后进入约 `4 s` 冷却；确认海克斯选择界面后仍按 `500 ms` 完整帧识别。
 - 图像分析内部改为单次 raw 解码，去掉 PNG 往返。
-- PaddleOCR ONNX session 默认限制为 2 个 intra-op 线程、1 个 inter-op 线程、sequential 模式；可用 `ARAMGG_OCR_THREADS` 覆盖，Sharp 并发默认 2。
+- PaddleOCR/ONNX 的线程配置保持依赖默认值不变；本轮通过截图门禁、缩略图尺寸、raw 图像处理和匹配预筛降低重复工作。
 - 海克斯名称匹配增加精确/共享字符预筛，消除 1-2 s 的 `matchMs` 尖峰。
 - LCU 进程发现成功结果缓存约 `60 s`，失败或显式刷新时绕过；locale hint 直接走该缓存，避免每次探测都重复 PowerShell。
 

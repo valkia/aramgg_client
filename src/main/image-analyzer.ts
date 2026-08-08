@@ -22,7 +22,6 @@ import axios from 'axios'
 import path from 'path'
 import { readFileSync, existsSync } from 'fs'
 import { fileURLToPath } from 'url'
-import { createOrtSessionOptions, withOrtSessionOptions } from './modules/onnxruntime-session-options.ts'
 import {
     DEFAULT_DATA_LOCALE,
     SUPPORTED_DATA_LOCALES,
@@ -573,14 +572,11 @@ async function getPaddleOcrService() {
                 import('paddleocr'),
                 import('onnxruntime-node'),
             ])
-            const ocrSessionOptions = createOrtSessionOptions()
-            const ortWithOptions = withOrtSessionOptions(ort, ocrSessionOptions)
-
             const charactersDictionary = readPaddleOcrCharacterDictionary(
                 readFileSync(modelPaths.recConfigPath, 'utf8')
             )
             const service = await PaddleOcrService.createInstance({
-                ort: ortWithOptions,
+                ort,
                 detection: {
                     modelBuffer: bufferToArrayBuffer(readFileSync(modelPaths.detModelPath)),
                     maxSideLength: PADDLE_OCR_MAX_SIDE_LENGTH,
@@ -603,7 +599,6 @@ async function getPaddleOcrService() {
                     runtimeDir: modelPaths.runtimeDir,
                     dictionarySize: charactersDictionary.length,
                     maxSideLength: PADDLE_OCR_MAX_SIDE_LENGTH,
-                    ocrThreads: ocrSessionOptions.intraOpNumThreads,
                 })
             }
 
