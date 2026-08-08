@@ -1,9 +1,0 @@
-{
-  "name": "aramgg-release-cdn-uploader",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "cos-nodejs-sdk-v5": "3.0.0"
-  }
-}

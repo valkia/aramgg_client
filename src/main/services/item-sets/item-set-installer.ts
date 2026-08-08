@@ -88,8 +88,13 @@ function getRecordGames(record: BuildRecord): number {
   return Number.isFinite(games) ? games : 0
 }
 
-function hasEnoughGames(record: BuildRecord): boolean {
-  return getRecordGames(record) >= MIN_RECOMMENDATION_GAMES
+function getRecordPickRate(record: BuildRecord): number {
+  const pickRate = Number(record?.pickRate ?? record?.pick_rate ?? 0)
+  return Number.isFinite(pickRate) ? pickRate : 0
+}
+
+function hasRecommendationEvidence(record: BuildRecord): boolean {
+  return getRecordGames(record) >= MIN_RECOMMENDATION_GAMES || getRecordPickRate(record) > 0
 }
 
 function compareRecordsByConfidence(left: BuildRecord, right: BuildRecord): number {
@@ -98,7 +103,7 @@ function compareRecordsByConfidence(left: BuildRecord, right: BuildRecord): numb
     return gamesDiff
   }
 
-  const pickDiff = Number(right?.pickRate || 0) - Number(left?.pickRate || 0)
+  const pickDiff = getRecordPickRate(right) - getRecordPickRate(left)
   if (pickDiff !== 0) {
     return pickDiff
   }
@@ -108,7 +113,7 @@ function compareRecordsByConfidence(left: BuildRecord, right: BuildRecord): numb
 
 function getTrustedRecords(records: BuildRecord[]): BuildRecord[] {
   return records
-    .filter(hasEnoughGames)
+    .filter(hasRecommendationEvidence)
     .sort(compareRecordsByConfidence)
 }
 
@@ -162,12 +167,13 @@ function getBuildSkipReason(build: any): string | null {
   const coreRecords = build?.coreItems || build?.recommended || []
   const buildGames = getBuildGames(build)
   const bestCoreGames = getBestCoreGames(coreRecords)
+  const hasRateBasedCore = coreRecords.some((record: BuildRecord) => getRecordPickRate(record) > 0)
 
-  if (buildGames < MIN_BUILD_GAMES) {
+  if (buildGames < MIN_BUILD_GAMES && !hasRateBasedCore) {
     return `low-build-games:${buildGames}`
   }
 
-  if (bestCoreGames < MIN_CORE_SEQUENCE_GAMES) {
+  if (bestCoreGames < MIN_CORE_SEQUENCE_GAMES && !hasRateBasedCore) {
     return `low-core-games:${bestCoreGames}`
   }
 
@@ -312,6 +318,7 @@ function createItemSet(
   const blocks = [
     ...createSequenceBlocks(build?.startingItems || [], 'Starter', 3),
     ...createSequenceBlocks(coreRecords, 'Core', 5),
+    ...createSequenceBlocks(build?.fullItems || [], 'Full Build', 3),
     ...createSingleItemBlock(build?.itemExtensions || [], 'Next Items', 12),
     ...createSingleItemBlock(
       build?.situationalItems || [],

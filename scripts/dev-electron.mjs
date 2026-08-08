@@ -13,7 +13,10 @@ const ELECTRON_MODULE_DIR = path.join(ROOT_DIR, 'node_modules', 'electron')
 const ELECTRON_PACKAGE_FILE = path.join(ELECTRON_MODULE_DIR, 'package.json')
 const ELECTRON_VERSION_FILE = path.join(ELECTRON_MODULE_DIR, 'dist', 'version')
 
-const env = { ...process.env }
+const env = {
+  ...process.env,
+  ARAMGG_MATCH_HISTORY_DIAGNOSTICS: process.env.ARAMGG_MATCH_HISTORY_DIAGNOSTICS || '1',
+}
 if (env.ELECTRON_RUN_AS_NODE) {
   delete env.ELECTRON_RUN_AS_NODE
   console.warn('Removed ELECTRON_RUN_AS_NODE from dev environment before starting Electron.')

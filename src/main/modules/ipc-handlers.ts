@@ -6,6 +6,7 @@ import { analyzeScreenshot } from '../image-analyzer.ts'
 import autoScreenshotService from '../auto-screenshot-service.ts'
 import { registerLCUIpcHandlers } from '../services/lcu/ipc-handlers.ts'
 import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
+import { registerMatchHistoryIpcHandlers } from '../services/match-history/ipc-handlers.ts'
 import {
     createMockPostGameSharePosterData,
     getLatestPostGameSharePosterData,
@@ -1163,6 +1164,7 @@ export function registerIpcHandlers(isDev: boolean): void {
     })
 
     registerLCUIpcHandlers()
+    registerMatchHistoryIpcHandlers()
 
     ipcMain.handle('test-database-load', async () => {
         try {

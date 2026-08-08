@@ -32,6 +32,8 @@ import {
 } from './types.ts'
 
 const LCU_ENDPOINT_PROBE_TIMEOUT_MS = 2500
+const LCU_MATCH_HISTORY_TIMEOUT_MS = 10 * 1000
+const LCU_ENTITLEMENTS_TIMEOUT_MS = 5 * 1000
 const LCU_CONNECTION_DIAGNOSTIC_INTERVAL_MS = 30 * 1000
 const RECOVERABLE_LCU_ERROR_CODES = new Set([
   'ECONNREFUSED',
@@ -106,6 +108,24 @@ const toPositiveInteger = (value: unknown): number | null => {
   }
 
   return numberValue
+}
+
+const normalizeMatchHistoryRange = (beginIndex: unknown, endIndex: unknown) => {
+  const begin = Number.isInteger(beginIndex) && Number(beginIndex) >= 0
+    ? Math.min(Number(beginIndex), 99)
+    : 0
+  const requestedEnd = Number.isInteger(endIndex) && Number(endIndex) >= begin
+    ? Number(endIndex)
+    : begin + 19
+
+  return {
+    begin,
+    end: Math.min(requestedEnd, begin + 49, 99),
+  }
+}
+
+const isValidPuuid = (value: unknown): value is string => {
+  return typeof value === 'string' && /^[a-zA-Z0-9-]{8,128}$/.test(value)
 }
 
 const CHAMP_SELECT_DIAGNOSTIC_MAX_VALUES = 24
@@ -907,6 +927,51 @@ export class LCUService {
     }
   }
 
+  /**
+   * Read the short-lived entitlement bearer token used by the logged-in client
+   * for SGP requests. The value must remain in memory and must never be logged.
+   */
+  async getEntitlementsAccessToken(): Promise<string | null> {
+    if (!this.active || !this.url) {
+      await this.getAuthToken()
+    }
+
+    if (!this.active || !this.url || !this.auth) {
+      return null
+    }
+
+    try {
+      const response = await axios.get(`${this.url}/entitlements/v1/token`, {
+        ...this.auth,
+        httpsAgent: this.httpsAgent,
+        proxy: false,
+        timeout: LCU_ENTITLEMENTS_TIMEOUT_MS,
+        validateStatus: (status) => status < 500,
+      })
+      if (response.status >= 200 && response.status < 300) {
+        const accessToken = typeof response.data?.accessToken === 'string'
+          ? response.data.accessToken.trim()
+          : ''
+        return accessToken || null
+      }
+
+      if (response.status === 401) {
+        this.invalidateAuth('entitlements-token:unauthorized', null, false)
+        await this.getAuthToken(true)
+      }
+      logger.debug('[LCU] entitlements token endpoint rejected', { status: response.status })
+      return null
+    } catch (error) {
+      if (!await this.recoverFromConnectionFailure('entitlements-token', error)) {
+        logger.debug('[LCU] entitlements token endpoint failed', {
+          code: getLcuRequestErrorCode(error),
+          sensitiveValuesLogged: false,
+        })
+      }
+      return null
+    }
+  }
+
   async getCurrentSummoner(): Promise<any | null> {
     if (!this.active || !this.url) {
       await this.getAuthToken()
@@ -1196,6 +1261,103 @@ export class LCUService {
     } catch (error) {
       const err = error as Error
       logger.error('获取游戏会话失败:', err.message)
+      return null
+    }
+  }
+
+  /**
+   * 读取当前登录玩家的战绩索引。该接口只读取 LCU 本地数据，不向 Riot/第三方写入数据。
+   */
+  async getCurrentSummonerMatchHistory(beginIndex = 0, endIndex = 19): Promise<any | null> {
+    const range = normalizeMatchHistoryRange(beginIndex, endIndex)
+    return this.getMatchHistoryEndpoint(
+      '/lol-match-history/v1/products/lol/current-summoner/matches',
+      range,
+      'current-summoner-match-history'
+    )
+  }
+
+  /**
+   * 读取指定 PUUID 的战绩索引。仅供受控的本地只读采集流程使用。
+   */
+  async getSummonerMatchHistory(
+    puuid: string,
+    beginIndex = 0,
+    endIndex = 19
+  ): Promise<any | null> {
+    if (!isValidPuuid(puuid)) {
+      throw new Error('Invalid match-history PUUID')
+    }
+
+    const range = normalizeMatchHistoryRange(beginIndex, endIndex)
+    return this.getMatchHistoryEndpoint(
+      `/lol-match-history/v1/products/lol/${encodeURIComponent(puuid)}/matches`,
+      range,
+      'player-match-history'
+    )
+  }
+
+  /** 获取一场对局的完整参与者、终局装备和海克斯字段。 */
+  async getMatchHistoryGame(gameId: number): Promise<any | null> {
+    const normalizedGameId = toPositiveInteger(gameId)
+    if (!normalizedGameId) {
+      throw new Error('Invalid match-history game ID')
+    }
+
+    return this.getMatchHistoryEndpoint(
+      `/lol-match-history/v1/games/${normalizedGameId}`,
+      undefined,
+      'match-history-game'
+    )
+  }
+
+  private async getMatchHistoryEndpoint(
+    endpointPath: string,
+    params: Record<string, number> | undefined,
+    context: string
+  ): Promise<any | null> {
+    if (!this.active || !this.url) {
+      await this.getAuthToken()
+    }
+
+    if (!this.active || !this.url || !this.auth) {
+      return null
+    }
+
+    try {
+      const response = await axios.get(`${this.url}${endpointPath}`, {
+        ...this.auth,
+        httpsAgent: this.httpsAgent,
+        params: params
+          ? { begIndex: params.begin, endIndex: params.end }
+          : undefined,
+        proxy: false,
+        timeout: LCU_MATCH_HISTORY_TIMEOUT_MS,
+        validateStatus: (status) => status < 500,
+      })
+
+      if (response.status >= 200 && response.status < 300) {
+        return response.data
+      }
+
+      if (response.status === 401) {
+        this.invalidateAuth(`${context}:unauthorized`, null, false)
+        await this.getAuthToken(true)
+      }
+
+      logger.debug('[LCU] match-history endpoint rejected', {
+        context,
+        status: response.status,
+      })
+      return null
+    } catch (error) {
+      if (!await this.recoverFromConnectionFailure(context, error)) {
+        logger.debug('[LCU] match-history endpoint failed', {
+          context,
+          code: getLcuRequestErrorCode(error),
+          sensitiveValuesLogged: false,
+        })
+      }
       return null
     }
   }

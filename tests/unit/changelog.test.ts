@@ -6,17 +6,17 @@ import {
 } from '../../src/main/changelog.ts'
 
 describe('changelog entries', () => {
-  it('includes the latest augment tier and performance diagnostics announcement', () => {
+  it('includes the Tencent build compatibility announcement', () => {
     const latestEntry = LOCAL_CHANGELOG_ENTRIES[0]
 
-    expect(latestEntry.version).toBe('0.2.7')
-    expect(latestEntry.date).toBe('2026-07-31')
-    expect(latestEntry.title).toBe('海克斯梯队与性能诊断')
+    expect(latestEntry.version).toBe('0.2.8')
+    expect(latestEntry.date).toBe('2026-08-02')
+    expect(latestEntry.title).toBe('修复英雄装备配置')
     expect(latestEntry.changes).toEqual(expect.arrayContaining([
-      expect.stringContaining('英雄详情'),
-      expect.stringContaining('海克斯浮窗'),
-      expect.stringContaining('CPU'),
-      expect.stringContaining('LCU'),
+      expect.stringContaining('An object could not be cloned'),
+      expect.stringContaining('单条综合路线'),
+      expect.stringContaining('完整出装'),
+      expect.stringContaining('15 至 18 级'),
     ]))
   })
 

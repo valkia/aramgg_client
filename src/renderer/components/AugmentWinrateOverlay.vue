@@ -229,7 +229,10 @@
                       <h4>{{ selectedBuildRoute.title }}</h4>
                       <small v-if="selectedBuildRoute.subtitle">{{ selectedBuildRoute.subtitle }}</small>
                     </div>
-                    <div class="build-route-stats">
+                    <div
+                      v-if="selectedBuildRoute.winRate || selectedBuildRoute.games"
+                      class="build-route-stats"
+                    >
                       <strong>{{ formatPercent(selectedBuildRoute.winRate) }}</strong>
                       <small>{{ t('augment.gameCount', { count: formatNumber(selectedBuildRoute.games) }) }}</small>
                     </div>
@@ -267,7 +270,7 @@
                         <div class="recommendation-stats">
                           <span>{{ t('augment.pickRate') }} <strong>{{ formatPercent(recommendation.pickRate) }}</strong></span>
                           <span>{{ t('augment.winRate') }} <strong>{{ formatPercent(recommendation.winRate) }}</strong></span>
-                          <span>{{ t('augment.gameCount', { count: formatNumber(recommendation.games) }) }}</span>
+                          <span v-if="recommendation.games > 0">{{ t('augment.gameCount', { count: formatNumber(recommendation.games) }) }}</span>
                         </div>
                       </div>
                     </div>
@@ -308,7 +311,7 @@
                         <div class="recommendation-stats">
                           <span>{{ t('augment.pickRate') }} <strong>{{ formatPercent(recommendation.pickRate) }}</strong></span>
                           <span>{{ t('augment.winRate') }} <strong>{{ formatPercent(recommendation.winRate) }}</strong></span>
-                          <span>{{ t('augment.gameCount', { count: formatNumber(recommendation.games) }) }}</span>
+                          <span v-if="recommendation.games > 0">{{ t('augment.gameCount', { count: formatNumber(recommendation.games) }) }}</span>
                         </div>
                       </div>
                     </div>
@@ -354,10 +357,38 @@
                       </div>
                       <div class="build-stats">
                         <span>{{ formatPercent(build.winRate) }}</span>
-                        <small>{{ t('augment.gameCount', { count: formatNumber(build.games) }) }}</small>
+                        <small v-if="build.games > 0">{{ t('augment.gameCount', { count: formatNumber(build.games) }) }}</small>
+                        <small v-else-if="build.pickRate">{{ t('augment.pickRate') }} {{ formatPercent(build.pickRate) }}</small>
                       </div>
                     </div>
                   </div>
+
+                  <section v-if="selectedBuildRoute.fullItems.length > 0" class="item-section">
+                    <h4>{{ t('augment.fullItems') }}</h4>
+                    <div class="build-grid">
+                      <div
+                        v-for="(build, idx) in selectedBuildRoute.fullItems.slice(0, 3)"
+                        :key="`${selectedBuildRoute.key}-full-${idx}`"
+                        class="build-tile"
+                      >
+                        <div class="build-tile-label">{{ t('augment.fullItem', { index: idx + 1 }) }}</div>
+                        <div class="item-icons">
+                          <img
+                            v-for="itemId in build.items.slice(0, 6)"
+                            :key="itemId"
+                            :src="getItemIconUrl(itemId)"
+                            class="item-icon"
+                            :alt="getItemName(itemId)"
+                          />
+                        </div>
+                        <div class="build-stats">
+                          <span>{{ formatPercent(build.winRate) }}</span>
+                          <small v-if="build.games > 0">{{ t('augment.gameCount', { count: formatNumber(build.games) }) }}</small>
+                          <small v-else-if="build.pickRate">{{ t('augment.pickRate') }} {{ formatPercent(build.pickRate) }}</small>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
 
                   <section v-if="selectedBuildRoute.itemExtensions.length > 0" class="item-section">
                     <h4>{{ t('augment.laterItems') }}</h4>
@@ -697,8 +728,6 @@ const configureCurrentChampionItems = async (automatic = false) => {
   try {
     const result = await electronAPI.itemSets.installAramChampion({
       championId: championId.value,
-      builds: buildRoutes.value.map(route => route.rawBuild).slice(0, MAX_ITEM_SET_BUILDS),
-      championName: championNameData.value || { nameCN: championName.value },
     })
     if (!result?.success) {
       throw new Error(result?.error || t('itemSets.configurationFailed'))

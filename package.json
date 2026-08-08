@@ -1,6 +1,6 @@
 {
   "name": "aramgg_client",
-  "version": "0.2.7",
+  "version": "0.2.10",
   "description": "Electron companion for League of Legends ARAM recommendations and augment OCR.",
   "author": "ARAMGG",
   "private": true,

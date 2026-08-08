@@ -26,7 +26,14 @@ type JsonDocument = {
 
 type SupportedDataLocale = 'zh-CN' | 'en-US' | 'zh-TW'
 
-type ClientConfig = {
+export type MatchHistoryUploadConfig = {
+  enabled?: boolean
+  sessionPath?: string
+  batchPath?: string
+  maxBatchSize?: number
+}
+
+export type ClientConfig = {
   service?: string
   apiVersion?: string
   locale?: string
@@ -62,6 +69,7 @@ type ClientConfig = {
     firebaseConfig?: Record<string, string>
     sampleRate?: number
   }
+  matchHistoryUpload?: MatchHistoryUploadConfig
 }
 
 type ActiveDataSet = {
@@ -2087,7 +2095,11 @@ function mapSkillOrderRecommendations(value: any): any[] {
       const skillOrder = normalizePositiveIntegerIds(
         record?.skillOrder ?? record?.order
       )
-      if (skillOrder.length !== 18 || skillOrder.some((skill) => skill > 4)) {
+      if (
+        skillOrder.length < 15
+        || skillOrder.length > 18
+        || skillOrder.some((skill) => skill > 4)
+      ) {
         return null
       }
 
@@ -2109,6 +2121,9 @@ function mapPublicBuild(publicBuild: any, championId: string | number): any {
   }
 
   const coreItems = (publicBuild.coreItems || [])
+    .filter((record: any) => hasItemSequence(record))
+    .map((record: any) => mapBuildSet(record))
+  const fullItems = (publicBuild.fullItems || [])
     .filter((record: any) => hasItemSequence(record))
     .map((record: any) => mapBuildSet(record))
   const startingItems = (publicBuild.startingItems || [])
@@ -2136,6 +2151,7 @@ function mapPublicBuild(publicBuild: any, championId: string | number): any {
       ? publicBuild.tags.join(', ')
       : Object.values(publicBuild.tags || {}).join(', '),
     coreItems,
+    fullItems,
     recommended: coreItems,
     itemSequences: {},
     itemExtensions,

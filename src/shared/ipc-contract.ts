@@ -38,6 +38,56 @@ export interface OperationResult extends LooseRecord {
   error?: string
 }
 
+/** A locally collected champion + augment/item outcome aggregate. */
+export interface LocalMatchHistoryStat extends LooseRecord {
+  championId: number
+  championName?: string
+  subjectId: number
+  subjectName?: string
+  samples: number
+  wins: number
+  winRate: number
+}
+
+export interface LocalMatchHistoryRecentMatch extends LooseRecord {
+  gameId: number
+  gameCreation: number
+  gameMode: string
+  queueId: number
+  championId: number
+  championName?: string
+  kills: number
+  deaths: number
+  assists: number
+  win: boolean
+  subteamPlacement: number | null
+}
+
+export interface LocalMatchHistoryOverview extends LooseRecord {
+  /** LCU platform/shard, e.g. HN10, NA1, KR. Statistics never mix platforms. */
+  platformId: string | null
+  gameCount: number
+  playerCount: number
+  hextechAramGameCount: number
+  availableMatchedPlayerCount: number
+  pendingUploadCount: number
+}
+
+export interface LocalMatchHistorySummary extends LooseRecord {
+  updatedAt: number
+  currentPlayer: {
+    name: string
+  } | null
+  overview: LocalMatchHistoryOverview
+  recentMatches: LocalMatchHistoryRecentMatch[]
+  augmentStats: LocalMatchHistoryStat[]
+  itemStats: LocalMatchHistoryStat[]
+}
+
+export interface LocalMatchHistorySummaryResult extends OperationResult {
+  data: LocalMatchHistorySummary
+}
+
 export interface ClientVersionInfo extends LooseRecord {
   currentVersion?: string
   latestVersion?: string
@@ -217,6 +267,10 @@ export interface LocaleChangedPayload extends LooseRecord {
   dataVersion?: string
 }
 
+export interface MatchHistoryUpdatedPayload {
+  updatedAt: number
+}
+
 export interface ElectronEventMap {
   fromMain: [payload?: unknown]
   'for-popup': [payload: OverlayPayload]
@@ -238,6 +292,7 @@ export interface ElectronEventMap {
   'quit-confirm-requested': []
   'app-update-status-changed': [payload: AppUpdateState]
   'locale-changed': [payload: LocaleChangedPayload]
+  'match-history-updated': [payload: MatchHistoryUpdatedPayload]
 }
 
 export type ElectronEventChannel = keyof ElectronEventMap
@@ -294,6 +349,9 @@ export interface ElectronAPI {
   itemSets: {
     getAramStatus(): Promise<OperationResult>
     installAramChampion(payload: LooseRecord): Promise<OperationResult>
+  }
+  matchHistory: {
+    getLocalSummary(): Promise<LocalMatchHistorySummaryResult>
   }
   lcu: {
     getChampionId(): Promise<LcuChampionIdResult>

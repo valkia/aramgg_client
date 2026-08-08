@@ -1,6 +1,6 @@
 # Electron 客户端版本更新方案
 
-本文档记录 aramgg Electron 客户端的版本发布和自动更新方案。当前 GitHub Releases 发布链路已经验证可用；主界面已接入版本提示、下载入口、更新日志展示和 `electron-updater` 自动下载/重启安装流程。自动更新默认不启用，只有远端 `client.autoUpdateEnabled: true` 时才会读取 `client.updateFeedUrl`。更新 feed 首期按腾讯 OSS/COS HTTPS 静态目录发布。
+本文档记录 aramgg Electron 客户端的版本发布和自动更新方案。当前 GitHub Releases 发布链路已经验证可用；主界面已接入版本提示、下载入口、更新日志展示和 `electron-updater` 自动下载/重启安装流程。自动更新默认不启用，只有远端 `client.autoUpdateEnabled: true` 时才会读取 `client.updateFeedUrl`。更新 feed 按腾讯 OSS/COS HTTPS 静态目录发布，由本地发布流程上传，不在 GitHub Runner 中执行跨境大文件上传。
 
 ## 目标
 
@@ -32,6 +32,7 @@ GitHub Actions 的 `Build Windows Release` workflow 已验证 Windows 安装包�
 
 - `master` push 会构建 Actions artifact，便于检查安装包。
 - `v*` tag push 会创建 GitHub Release，并上传 NSIS 安装包、`.blockmap` 和 `latest.yml`。
+- workflow 到 GitHub Release 即结束，不自动上传腾讯 OSS/COS；更新 feed 使用本地发布流程单独交付。
 - workflow 使用 Node `22.18.0` 和 npm 10，安装依赖时执行 `npm ci --ignore-scripts`。
 - workflow 会校验 tag 版本必须等于 `package.json` 版本。
 - 已验证基线：`v0.1.4`，2026-06-02，GitHub Actions run `26766190598`。
@@ -61,7 +62,7 @@ GitHub Release v0.2.0/
 - `.exe` 是完整安装包。
 - `.blockmap` 用于差分更新。
 
-当前 GitHub Releases 已作为发布产物托管位置验证通过。首期自动更新 feed 准备放到腾讯 OSS/COS 或同类 HTTPS 静态目录。客户端只需要读取公开的更新 feed，不应该内置任何写入 token。
+当前 GitHub Releases 已作为发布产物托管位置验证通过。自动更新 feed 发布到腾讯 OSS/COS 或同类 HTTPS 静态目录，上传由本地发布流程完成。客户端只需要读取公开的更新 feed，不应该内置任何写入 token。
 
 ## 已接入的更新能力
 
@@ -177,7 +178,7 @@ Electron 的页面更新属于应用本体更新的一部分：
 2. 修改版本号并重新发布新版本，例如 `0.1.5`。
 3. 确认 GitHub Release 包含 `.exe`、`.blockmap`、`latest.yml`。
 4. 先保持 `client.autoUpdateEnabled: false`，更新远端 `/api/client/v1/config` 的 `client.latestVersion`、`client.downloadUrl` 和 `client.changelog`，确认旧版本只展示更新提示和手动下载入口。
-5. 上传 `latest.yml`、安装包 `.exe` 和 `.blockmap` 到腾讯 OSS/COS 的 `client.updateFeedUrl` 目录。
+5. 使用本地发布流程上传 `latest.yml`、安装包 `.exe` 和 `.blockmap` 到腾讯 OSS/COS 的 `client.updateFeedUrl` 目录。
 6. 在小范围测试配置里设置 `client.autoUpdateEnabled: true` 和 `client.updateFeedUrl`，启动旧版本，确认能发现新版本。
 7. 验证下载进度、下载完成、重启安装和版本号变化。
 8. 验证没有更新时的状态。
@@ -190,7 +191,6 @@ Electron 的页面更新属于应用本体更新的一部分：
 
 - 是否长期使用腾讯 OSS/COS 作为更新 feed，或切换到 EdgeOne、GitHub Releases、自建静态目录。
 - Windows 代码签名证书。
-- 是否补发布 workflow 自动同步腾讯 OSS/COS，避免手动上传 release 产物。
 - 自动检查频率：启动时、每天一次、用户手动检查，或组合策略。
 - 是否需要强制升级和最低可用版本。
 - macOS、Linux 是否进入首期范围。

@@ -19,6 +19,11 @@ import {
 } from './window-manager.ts'
 import autoScreenshotService from '../auto-screenshot-service.ts'
 import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
+import {
+    requestLocalMatchHistoryBackgroundSync,
+    startLocalMatchHistoryBackgroundSync,
+    stopLocalMatchHistoryBackgroundSync,
+} from '../services/match-history/background-sync.ts'
 import { checkForClientUpdate } from '../version-checker.ts'
 import {
     checkForAppUpdate,
@@ -193,6 +198,9 @@ export async function init() {
     initAnalyticsService().catch((error) => {
         logger.debug('[analytics] initialization skipped:', error.message)
     })
+    startLocalMatchHistoryBackgroundSync((updatedAt) => {
+        notifyAllWindows('match-history-updated', { updatedAt })
+    }, app.getVersion())
 
     // 初始化游戏流程监控（延迟初始化，避免阻塞应用启动）
     logger.info('将在后台初始化游戏流程监控...')
@@ -1187,6 +1195,9 @@ async function initGameFlowMonitor() {
                 notifyAllWindows('game-phase-changed', { phase: currentPhase, prevPhase })
                 clearAugmentOverlayForPhase(currentPhase)
                 void logReadOnlyGameApiDiagnostics(lcuService, currentPhase, `phase-change:${source}`, true)
+                if (currentPhase === 'Lobby' || currentPhase === 'None') {
+                    requestLocalMatchHistoryBackgroundSync(`phase-change:${currentPhase}`)
+                }
 
                 // 状态机只决定阶段入口效果，Electron/LCU 副作用仍由主进程执行。
                 switch (transition.entryEffect) {
@@ -1391,6 +1402,7 @@ async function runQuitCleanup(reason = 'app quit') {
     stopPerformanceMonitor(reason)
 
     stopGameflowMonitorRuntime('app will quit')
+    stopLocalMatchHistoryBackgroundSync()
 
     if (autoScreenshotService && autoScreenshotService.isRunning) {
         autoScreenshotService.stop()

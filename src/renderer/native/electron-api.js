@@ -63,6 +63,9 @@ export const electronAPI = {
     getAramStatus: (...args) => requireElectronAPI().itemSets.getAramStatus(...args),
     installAramChampion: (...args) => requireElectronAPI().itemSets.installAramChampion(...args),
   },
+  matchHistory: {
+    getLocalSummary: (...args) => requireElectronAPI().matchHistory.getLocalSummary(...args),
+  },
   lcu: {
     getChampionId: (...args) => requireElectronAPI().lcu.getChampionId(...args),
     getStatus: (...args) => requireElectronAPI().lcu.getStatus(...args),

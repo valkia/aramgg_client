@@ -84,4 +84,27 @@ describe('champion build routes', () => {
       'W', 'R', 'W', 'W', 'E', 'E', 'R', 'E', 'E',
     ])
   })
+
+  it('keeps full builds and 15-level rate-only recommendations from Tencent data', () => {
+    const skillOrder = [1, 2, 3, 1, 1, 4, 1, 3, 1, 3, 4, 3, 3, 2, 2]
+    const routes = createBuildRoutes({
+      builds: [{
+        patch: '16.15',
+        games: null,
+        coreItems: [
+          { itemIds: [126697, 6676, 3031], games: null, pickRate: 0.161, winRate: 0.4337 },
+        ],
+        fullItems: [
+          { itemIds: [126697, 3031, 3036, 3508, 6676, 6699], games: null, pickRate: 0.0297, winRate: 0.505 },
+        ],
+        skillOrders: [
+          { skillOrder, games: null, pickRate: 0.1261, winRate: 0.4636 },
+        ],
+      }],
+    })
+
+    expect(routes).toHaveLength(1)
+    expect(routes[0].fullItems[0].items).toEqual(['126697', '3031', '3036', '3508', '6676', '6699'])
+    expect(routes[0].skillOrders[0].skillOrder).toEqual(skillOrder)
+  })
 })

@@ -1,0 +1,960 @@
+{
+  "schemaVersion": 2,
+  "clientVersion": "0.2.10",
+  "sentAt": "2026-08-05T13:52:39.678Z",
+  "pendingUploadCount": 3,
+  "samples": [
+    {
+      "sourceKey": "match-history:v1:GZ100:600925866630",
+      "idempotencyKey": "dbf662e10dacbca77803f2cf34436e24f6e46104c81e0f61b19b10b5a89aca0a",
+      "payloadHash": "b902eccd4b3abc36bb5b775f51a6f2dcdd877b8502cc1a8c219900feb3190dcb",
+      "observedAt": "2026-08-05T13:52:39.676Z",
+      "game": {
+        "platformId": "GZ100",
+        "gameId": 600925866630,
+        "gameCreation": 1785936112617,
+        "gameDuration": 854,
+        "gameMode": "KIWI",
+        "gameModeMutators": [
+          "mapskin_ha_bilgewater"
+        ],
+        "gameType": "MATCHED_GAME",
+        "gameVersion": "16.15.801.3452",
+        "mapId": 12,
+        "queueId": 2400,
+        "endOfGameResult": "GameComplete",
+        "participants": [
+          {
+            "participantId": 1,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 53,
+            "teamId": 100,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": true,
+            "gameEndedInEarlySurrender": false,
+            "kills": 4,
+            "deaths": 9,
+            "assists": 27,
+            "items": [
+              4646,
+              2510,
+              3031,
+              1018,
+              3113,
+              3108
+            ],
+            "augments": [
+              1238,
+              1349,
+              1336,
+              1211
+            ]
+          },
+          {
+            "participantId": 2,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 21,
+            "teamId": 100,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": true,
+            "gameEndedInEarlySurrender": false,
+            "kills": 20,
+            "deaths": 9,
+            "assists": 18,
+            "items": [
+              6676,
+              3006,
+              3031,
+              6675,
+              1053,
+              3033,
+              2052
+            ],
+            "augments": [
+              1336,
+              1115,
+              1071,
+              1077
+            ]
+          },
+          {
+            "participantId": 3,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 38,
+            "teamId": 100,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": true,
+            "gameEndedInEarlySurrender": false,
+            "kills": 8,
+            "deaths": 10,
+            "assists": 30,
+            "items": [
+              3042,
+              6657,
+              3003,
+              4645,
+              1026,
+              2052
+            ],
+            "augments": [
+              1211,
+              1194,
+              1063,
+              2132
+            ]
+          },
+          {
+            "participantId": 4,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 114,
+            "teamId": 100,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": true,
+            "gameEndedInEarlySurrender": false,
+            "kills": 9,
+            "deaths": 9,
+            "assists": 33,
+            "items": [
+              3074,
+              3008,
+              6333,
+              2517,
+              3211,
+              2022,
+              2052
+            ],
+            "augments": [
+              2064,
+              1058,
+              1238,
+              1029
+            ]
+          },
+          {
+            "participantId": 5,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 84,
+            "teamId": 100,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": true,
+            "gameEndedInEarlySurrender": false,
+            "kills": 11,
+            "deaths": 6,
+            "assists": 23,
+            "items": [
+              3100,
+              3152,
+              4646,
+              3089,
+              1052,
+              2052
+            ],
+            "augments": [
+              1996,
+              2107,
+              1403,
+              1068
+            ]
+          },
+          {
+            "participantId": 6,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 141,
+            "teamId": 200,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": false,
+            "gameEndedInEarlySurrender": false,
+            "kills": 10,
+            "deaths": 13,
+            "assists": 17,
+            "items": [
+              126697,
+              6696,
+              6333,
+              3111,
+              3133,
+              1036,
+              2052
+            ],
+            "augments": [
+              2091,
+              1001,
+              1063,
+              1238
+            ]
+          },
+          {
+            "participantId": 7,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 157,
+            "teamId": 200,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": false,
+            "gameEndedInEarlySurrender": false,
+            "kills": 10,
+            "deaths": 12,
+            "assists": 10,
+            "items": [
+              6672,
+              123430,
+              3006,
+              3153,
+              6670,
+              2052
+            ],
+            "augments": [
+              12317,
+              1150,
+              1013,
+              1336
+            ]
+          },
+          {
+            "participantId": 8,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 107,
+            "teamId": 200,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": false,
+            "gameEndedInEarlySurrender": false,
+            "kills": 17,
+            "deaths": 11,
+            "assists": 13,
+            "items": [
+              126697,
+              6676,
+              3008,
+              6696,
+              3031,
+              2020,
+              2052
+            ],
+            "augments": [
+              2083,
+              2099,
+              1211,
+              1337
+            ]
+          },
+          {
+            "participantId": 9,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 106,
+            "teamId": 200,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": false,
+            "gameEndedInEarlySurrender": false,
+            "kills": 3,
+            "deaths": 11,
+            "assists": 21,
+            "items": [
+              3084,
+              3047,
+              2510,
+              3083,
+              2052
+            ],
+            "augments": [
+              2116,
+              1041,
+              1013,
+              2091
+            ]
+          },
+          {
+            "participantId": 10,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 910,
+            "teamId": 200,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": false,
+            "gameEndedInEarlySurrender": false,
+            "kills": 3,
+            "deaths": 5,
+            "assists": 28,
+            "items": [
+              2503,
+              6653,
+              3008,
+              4645,
+              3003,
+              2052
+            ],
+            "augments": [
+              1390,
+              1004,
+              1133,
+              1384
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "match-history:v1:GZ100:600925833735",
+      "idempotencyKey": "2f3d2e4377d076a094dedf0fe7592d2275a1d634196cdabcb2f093f3572a774e",
+      "payloadHash": "b40e400d122bbe2cdd9057a4eea609c62f73ffe0a7d9ceb1ea2ed2dd288efc56",
+      "observedAt": "2026-08-05T13:52:39.676Z",
+      "game": {
+        "platformId": "GZ100",
+        "gameId": 600925833735,
+        "gameCreation": 1785935009039,
+        "gameDuration": 990,
+        "gameMode": "KIWI",
+        "gameModeMutators": [],
+        "gameType": "MATCHED_GAME",
+        "gameVersion": "16.15.801.3452",
+        "mapId": 12,
+        "queueId": 2400,
+        "endOfGameResult": "GameComplete",
+        "participants": [
+          {
+            "participantId": 1,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 901,
+            "teamId": 100,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": false,
+            "gameEndedInEarlySurrender": false,
+            "kills": 13,
+            "deaths": 11,
+            "assists": 26,
+            "items": [
+              3508,
+              3158,
+              3031,
+              3036,
+              3161,
+              2052
+            ],
+            "augments": [
+              2100,
+              1415,
+              2024,
+              1048
+            ]
+          },
+          {
+            "participantId": 2,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 223,
+            "teamId": 100,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": false,
+            "gameEndedInEarlySurrender": false,
+            "kills": 12,
+            "deaths": 4,
+            "assists": 22,
+            "items": [
+              3084,
+              3111,
+              3083,
+              2052
+            ],
+            "augments": [
+              1353,
+              1181,
+              1333,
+              1041
+            ]
+          },
+          {
+            "participantId": 3,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 50,
+            "teamId": 100,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": false,
+            "gameEndedInEarlySurrender": false,
+            "kills": 13,
+            "deaths": 10,
+            "assists": 31,
+            "items": [
+              3084,
+              3143,
+              2502,
+              3075,
+              3121,
+              1011,
+              220013
+            ],
+            "augments": [
+              1029,
+              1056,
+              1060,
+              1332
+            ]
+          },
+          {
+            "participantId": 4,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 21,
+            "teamId": 100,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": false,
+            "gameEndedInEarlySurrender": false,
+            "kills": 3,
+            "deaths": 6,
+            "assists": 37,
+            "items": [
+              2503,
+              3158,
+              6653,
+              3116,
+              4628,
+              3916,
+              2052
+            ],
+            "augments": [
+              1373,
+              1305,
+              1044,
+              2087
+            ]
+          },
+          {
+            "participantId": 5,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 107,
+            "teamId": 100,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": false,
+            "gameEndedInEarlySurrender": false,
+            "kills": 17,
+            "deaths": 12,
+            "assists": 13,
+            "items": [
+              126697,
+              3031,
+              6676,
+              3036,
+              6695,
+              2052
+            ],
+            "augments": [
+              1326,
+              1138,
+              1320,
+              2005
+            ]
+          },
+          {
+            "participantId": 6,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 888,
+            "teamId": 200,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": true,
+            "gameEndedInEarlySurrender": false,
+            "kills": 2,
+            "deaths": 12,
+            "assists": 24,
+            "items": [
+              3118,
+              4005,
+              3165,
+              3115,
+              1043,
+              1052,
+              220013
+            ],
+            "augments": [
+              1098,
+              2144,
+              2018,
+              2087
+            ]
+          },
+          {
+            "participantId": 7,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 29,
+            "teamId": 200,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": true,
+            "gameEndedInEarlySurrender": false,
+            "kills": 15,
+            "deaths": 12,
+            "assists": 10,
+            "items": [
+              6676,
+              2512,
+              3006,
+              3031,
+              3153,
+              3035,
+              2052
+            ],
+            "augments": [
+              1328,
+              1022,
+              1087,
+              1225
+            ]
+          },
+          {
+            "participantId": 8,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 157,
+            "teamId": 200,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": true,
+            "gameEndedInEarlySurrender": false,
+            "kills": 10,
+            "deaths": 10,
+            "assists": 22,
+            "items": [
+              3006,
+              123430,
+              3153,
+              6333,
+              3086,
+              1042,
+              2052
+            ],
+            "augments": [
+              1322,
+              1206,
+              1138,
+              1058
+            ]
+          },
+          {
+            "participantId": 9,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 246,
+            "teamId": 200,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": true,
+            "gameEndedInEarlySurrender": false,
+            "kills": 7,
+            "deaths": 11,
+            "assists": 13,
+            "items": [
+              126697,
+              6676,
+              6696,
+              3036,
+              2052
+            ],
+            "augments": [
+              2042,
+              1320,
+              1206,
+              1195
+            ]
+          },
+          {
+            "participantId": 10,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 104,
+            "teamId": 200,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": true,
+            "gameEndedInEarlySurrender": false,
+            "kills": 8,
+            "deaths": 13,
+            "assists": 19,
+            "items": [
+              6676,
+              3031,
+              3008,
+              3036,
+              3072,
+              1036,
+              2052
+            ],
+            "augments": [
+              1336,
+              1080,
+              1022,
+              1195
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sourceKey": "match-history:v1:GZ100:600925790803",
+      "idempotencyKey": "85cc5cbfcb595bbe344c728231c8d99de38b9f6dae326d3f5c8fd75c29d1abaa",
+      "payloadHash": "f3cb8dcb416858b05fc3c36ccddb4459fbf9ec32e8d0132b1aac0386c77953ba",
+      "observedAt": "2026-08-05T13:52:39.676Z",
+      "game": {
+        "platformId": "GZ100",
+        "gameId": 600925790803,
+        "gameCreation": 1785933711889,
+        "gameDuration": 1180,
+        "gameMode": "KIWI",
+        "gameModeMutators": [
+          "mapskin_ha_bilgewater"
+        ],
+        "gameType": "MATCHED_GAME",
+        "gameVersion": "16.15.801.3452",
+        "mapId": 12,
+        "queueId": 2400,
+        "endOfGameResult": "GameComplete",
+        "participants": [
+          {
+            "participantId": 1,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 41,
+            "teamId": 100,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": true,
+            "gameEndedInEarlySurrender": false,
+            "kills": 20,
+            "deaths": 10,
+            "assists": 26,
+            "items": [
+              3508,
+              3142,
+              6676,
+              3036,
+              3031,
+              3814,
+              220013
+            ],
+            "augments": [
+              1320,
+              1388,
+              1195,
+              2024
+            ]
+          },
+          {
+            "participantId": 2,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 54,
+            "teamId": 100,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": true,
+            "gameEndedInEarlySurrender": false,
+            "kills": 9,
+            "deaths": 11,
+            "assists": 25,
+            "items": [
+              3157,
+              3089,
+              4645,
+              3158,
+              3118,
+              3100,
+              2052
+            ],
+            "augments": [
+              1025,
+              1030,
+              2118,
+              2018
+            ]
+          },
+          {
+            "participantId": 3,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 134,
+            "teamId": 100,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": true,
+            "gameEndedInEarlySurrender": false,
+            "kills": 7,
+            "deaths": 5,
+            "assists": 43,
+            "items": [
+              6655,
+              4645,
+              3008,
+              3089,
+              3135,
+              3102,
+              2052
+            ],
+            "augments": [
+              1056,
+              1349,
+              1041,
+              1333
+            ]
+          },
+          {
+            "participantId": 4,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 20,
+            "teamId": 100,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": true,
+            "gameEndedInEarlySurrender": false,
+            "kills": 10,
+            "deaths": 11,
+            "assists": 39,
+            "items": [
+              4646,
+              4645,
+              3135,
+              3089,
+              3118,
+              3020,
+              2052
+            ],
+            "augments": [
+              1415,
+              1335,
+              1329,
+              1112
+            ]
+          },
+          {
+            "participantId": 5,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 35,
+            "teamId": 100,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": true,
+            "gameEndedInEarlySurrender": false,
+            "kills": 30,
+            "deaths": 7,
+            "assists": 24,
+            "items": [
+              126697,
+              6676,
+              3009,
+              3031,
+              3036,
+              3508,
+              2052
+            ],
+            "augments": [
+              1237,
+              2099,
+              1019,
+              1305
+            ]
+          },
+          {
+            "participantId": 6,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 141,
+            "teamId": 200,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": false,
+            "gameEndedInEarlySurrender": false,
+            "kills": 9,
+            "deaths": 18,
+            "assists": 15,
+            "items": [
+              126697,
+              6696,
+              6694,
+              3111,
+              6333,
+              3031,
+              2052
+            ],
+            "augments": [
+              1214,
+              1006,
+              2098,
+              1345
+            ]
+          },
+          {
+            "participantId": 7,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 901,
+            "teamId": 200,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": false,
+            "gameEndedInEarlySurrender": false,
+            "kills": 4,
+            "deaths": 12,
+            "assists": 24,
+            "items": [
+              3046,
+              3031,
+              3008,
+              3161,
+              3814,
+              994403,
+              2052
+            ],
+            "augments": [
+              2018,
+              1154,
+              1048,
+              1415
+            ]
+          },
+          {
+            "participantId": 8,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 60,
+            "teamId": 200,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": false,
+            "gameEndedInEarlySurrender": false,
+            "kills": 12,
+            "deaths": 14,
+            "assists": 15,
+            "items": [
+              3089,
+              3157,
+              4646,
+              3020,
+              6655,
+              4645,
+              220013
+            ],
+            "augments": [
+              2127,
+              1030,
+              2087,
+              1097
+            ]
+          },
+          {
+            "participantId": 9,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 14,
+            "teamId": 200,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": false,
+            "gameEndedInEarlySurrender": false,
+            "kills": 11,
+            "deaths": 17,
+            "assists": 13,
+            "items": [
+              3084,
+              6665,
+              2502,
+              6664,
+              3083,
+              3082,
+              2052
+            ],
+            "augments": [
+              2127,
+              2006,
+              1001,
+              1181
+            ]
+          },
+          {
+            "participantId": 10,
+            "puuid": null,
+            "gameName": "",
+            "tagLine": "",
+            "championId": 4,
+            "teamId": 200,
+            "playerSubteamId": 0,
+            "subteamPlacement": 0,
+            "win": false,
+            "gameEndedInEarlySurrender": false,
+            "kills": 8,
+            "deaths": 15,
+            "assists": 26,
+            "items": [
+              228002,
+              3020,
+              2503,
+              3031,
+              3135,
+              2052
+            ],
+            "augments": [
+              1415,
+              1156,
+              1329,
+              2009
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

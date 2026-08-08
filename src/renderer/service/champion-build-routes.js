@@ -256,7 +256,11 @@ export const normalizeSkillOrderRecommendations = (build = {}) => {
   return parseRecommendationRecords(build.skillOrders)
     .flatMap((record) => {
       const skillOrder = normalizePositiveIntegerIds(record?.skillOrder ?? record?.order)
-      if (skillOrder.length !== 18 || skillOrder.some(skill => skill > 4)) {
+      if (
+        skillOrder.length < 15 ||
+        skillOrder.length > 18 ||
+        skillOrder.some(skill => skill > 4)
+      ) {
         return []
       }
 
@@ -301,6 +305,7 @@ export const createBuildRoutes = (build) => collectBuildRoutes(build)
     const stats = getBuildStats(route)
     const startingItems = normalizeBuildRecords(route.startingItems || [])
     const coreItems = normalizeBuildRecords(route.coreItems || route.recommended || [])
+    const fullItems = normalizeBuildRecords(route.fullItems || [])
     const itemExtensions = normalizeSingleItemRecords(route.itemExtensions || [])
     const situationalItems = normalizeSingleItemRecords(
       route.situationalItems || [],
@@ -310,12 +315,12 @@ export const createBuildRoutes = (build) => collectBuildRoutes(build)
     const skillOrders = normalizeSkillOrderRecommendations(route)
     const hasAnyItems = startingItems.length > 0 ||
       coreItems.length > 0 ||
+      fullItems.length > 0 ||
       itemExtensions.length > 0 ||
       situationalItems.length > 0
 
     return {
       key: `${index}-${getBuildTitle(route, index)}`,
-      rawBuild: route,
       title: getBuildTitle(route, index),
       subtitle: route.patch ? `版本 ${route.patch}` : '',
       winRate: stats.winRate,
@@ -323,6 +328,7 @@ export const createBuildRoutes = (build) => collectBuildRoutes(build)
       games: stats.games,
       startingItems,
       coreItems,
+      fullItems,
       itemExtensions,
       situationalItems,
       summonerSpells,

@@ -1,5 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createItemSets } from '../../src/main/services/item-sets/item-set-installer.ts'
+
+vi.mock('../../src/main/modules/logger.ts', () => ({
+  default: { info: vi.fn(), warn: vi.fn() },
+}))
+vi.mock('../../src/main/services/lcu/lcu-service.ts', () => ({
+  getLCUServiceInstance: vi.fn(),
+}))
+vi.mock('../../src/main/data-loader.ts', () => ({
+  loadChampionBuild: vi.fn(),
+  loadChampionName: vi.fn(),
+}))
 
 describe('ARAM item set builder', () => {
   const firstBuild = {
@@ -48,5 +59,42 @@ describe('ARAM item set builder', () => {
     )
 
     expect(result.itemSets).toHaveLength(2)
+  })
+
+  it('accepts the current Tencent build when only recommendation rates are available', () => {
+    const result = createItemSets(
+      { championId: 35, alias: 'Shaco' },
+      null,
+      [{
+        patch: '16.15',
+        tier: 'Tencent',
+        games: 0,
+        startingItems: [{ itemIds: [3802], games: 0, pickRate: 0.1638, winRate: 0.5155 }],
+        coreItems: [{ itemIds: [126697, 6676, 3031], games: 0, pickRate: 0.161, winRate: 0.4337 }],
+        fullItems: [{ itemIds: [126697, 3031, 3036, 3508, 6676, 6699], games: 0, pickRate: 0.0297, winRate: 0.505 }],
+        itemExtensions: [],
+        situationalItems: [{ itemId: 3020, games: 0, pickRate: 0.1306, winRate: 0.4893 }],
+      }]
+    )
+
+    expect(result.skippedBuilds).toEqual([])
+    expect(result.itemSets).toHaveLength(1)
+    expect(result.itemSets[0].blocks.map(block => block.type)).toEqual([
+      expect.stringContaining('ARAMGG Starter'),
+      expect.stringContaining('ARAMGG Core'),
+      expect.stringContaining('ARAMGG Full Build'),
+      'ARAMGG Situational Items',
+    ])
+  })
+
+  it('still rejects builds without game counts or recommendation rates', () => {
+    const result = createItemSets(
+      { championId: 35, alias: 'Shaco' },
+      null,
+      [{ coreItems: [{ itemIds: [6676, 3031, 3036], games: 0, pickRate: 0 }] }]
+    )
+
+    expect(result.itemSets).toHaveLength(0)
+    expect(result.skippedBuilds).toHaveLength(1)
   })
 })

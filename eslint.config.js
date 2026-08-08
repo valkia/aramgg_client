@@ -16,6 +16,15 @@ export default [
   js.configs.recommended,
   ...vue.configs['flat/essential'],
   {
+    files: ['src/**/*.vue'],
+    languageOptions: {
+      parserOptions: {
+        parser: tseslint.parser,
+        extraFileExtensions: ['.vue'],
+      },
+    },
+  },
+  {
     files: ['src/**/*.{js,vue}', 'eslint.config.js'],
     languageOptions: {
       ecmaVersion: 'latest',

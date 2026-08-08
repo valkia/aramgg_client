@@ -58,4 +58,28 @@ describe('champion build mapping', () => {
       winRate: 0.544,
     })
   })
+
+  it('maps the current rate-only Tencent build fields', () => {
+    const skillOrder = [1, 2, 3, 1, 1, 4, 1, 3, 1, 3, 4, 3, 3, 2, 2]
+    const mapped = mapChampionBuilds({
+      builds: [{
+        patch: '16.15',
+        queueId: 450,
+        tier: 'Tencent',
+        stats: { games: null, wins: null, winRate: null, pickRate: null },
+        startingItems: [{ itemIds: [3802], games: null, pickRate: 0.1638, winRate: 0.5155 }],
+        coreItems: [{ itemIds: [126697, 6676, 3031], games: null, pickRate: 0.161, winRate: 0.4337 }],
+        fullItems: [{ itemIds: [126697, 3031, 3036, 3508, 6676, 6699], games: null, pickRate: 0.0297, winRate: 0.505 }],
+        itemExtensions: [],
+        situationalItems: [{ id: 6676, games: null, pickRate: 0.605, winRate: 0.4202 }],
+        skillOrders: [{ skillOrder, games: null, pickRate: 0.1261, winRate: 0.4636 }],
+      }],
+    }, 35)
+
+    expect(mapped.builds).toHaveLength(1)
+    expect(mapped.fullItems[0].itemIds).toEqual(['126697', '3031', '3036', '3508', '6676', '6699'])
+    expect(mapped.fullItems[0].pickRate).toBe(0.0297)
+    expect(mapped.skillOrders[0].skillOrder).toEqual(skillOrder)
+    expect(mapped.skillOrders[0].pickRate).toBe(0.1261)
+  })
 })

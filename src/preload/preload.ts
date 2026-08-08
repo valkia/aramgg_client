@@ -26,6 +26,7 @@ const validEvents = new Set<ElectronEventChannel>([
   'quit-confirm-requested',
   'app-update-status-changed',
   'locale-changed',
+  'match-history-updated',
 ])
 
 function assertValidEvent(channel: string): asserts channel is ElectronEventChannel {
@@ -110,6 +111,9 @@ const electronAPI: ElectronAPI = {
   itemSets: {
     getAramStatus: () => ipcRenderer.invoke('item-sets-get-aram-status'),
     installAramChampion: (payload) => ipcRenderer.invoke('item-sets-install-aram-champion', payload),
+  },
+  matchHistory: {
+    getLocalSummary: () => ipcRenderer.invoke('match-history-get-local-summary'),
   },
   lcu: {
     getChampionId: () => ipcRenderer.invoke('get-champion-id'),

@@ -157,13 +157,3 @@ jobs:
               exit $LASTEXITCODE
             }
           }
-
-  upload-cdn:
-    name: Upload release to Tencent CDN
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: read
-    uses: ./.github/workflows/upload-tencent-cdn.yml
-    with:
-      release-tag: ${{ github.ref_name }}

@@ -1,0 +1,368 @@
+openapi: 3.1.0
+info:
+  title: ARAMGG Client Match History Ingestion API
+  version: 2.0.0
+  description: >-
+    Receives completed ARAM: Mayhem match samples from the official client.
+    Every participant includes a nullable PUUID and the two Riot ID fields.
+    LCU credentials, entitlements tokens, local player tables, and raw response
+    bodies from SGP are never accepted.
+servers:
+  - url: https://data.dtodo.cn
+paths:
+  /api/client/v1/match-history/upload-session:
+    post:
+      operationId: createMatchHistoryUploadSession
+      summary: Create a short-lived upload session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadSessionRequest'
+      responses:
+        '200':
+          description: Short-lived upload session issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/client/v1/match-history/batches:
+    post:
+      operationId: ingestMatchHistoryBatch
+      summary: Ingest an idempotent batch of completed match samples
+      security:
+        - uploadSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MatchHistoryBatchRequest'
+      responses:
+        '200':
+          description: Batch processed; inspect every acknowledgement
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchHistoryBatchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/ServerError'
+components:
+  securitySchemes:
+    uploadSession:
+      type: http
+      scheme: bearer
+      bearerFormat: short-lived opaque token
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or expired upload session
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PayloadTooLarge:
+      description: Batch or request body exceeds the advertised limit
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RateLimited:
+      description: Rate limited; Retry-After is expressed in seconds
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServerError:
+      description: Retryable server failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    UploadSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, clientVersion, platformId, installationId]
+      properties:
+        schemaVersion:
+          type: integer
+          const: 2
+        clientVersion:
+          type: string
+          minLength: 1
+          maxLength: 32
+        platformId:
+          type: string
+          pattern: '^[A-Z0-9]{2,16}$'
+        installationId:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+    UploadSessionResponse:
+      type: object
+      additionalProperties: false
+      required: [token, expiresAt, maxBatchSize, maxBodyBytes]
+      properties:
+        token:
+          type: string
+          minLength: 16
+        expiresAt:
+          type: string
+          format: date-time
+        maxBatchSize:
+          type: integer
+          minimum: 1
+          maximum: 20
+        maxBodyBytes:
+          type: integer
+          minimum: 65536
+          maximum: 1048576
+    MatchHistoryBatchRequest:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, clientVersion, sentAt, pendingUploadCount, samples]
+      properties:
+        schemaVersion:
+          type: integer
+          const: 2
+        clientVersion:
+          type: string
+          minLength: 1
+          maxLength: 32
+        sentAt:
+          type: string
+          format: date-time
+        pendingUploadCount:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+        samples:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/MatchSample'
+    MatchSample:
+      type: object
+      additionalProperties: false
+      required: [sourceKey, idempotencyKey, payloadHash, observedAt, game]
+      properties:
+        sourceKey:
+          type: string
+          pattern: '^match-history:v1:[A-Z0-9]{2,16}:[0-9]+$'
+        idempotencyKey:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        payloadHash:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        observedAt:
+          type: string
+          format: date-time
+        game:
+          $ref: '#/components/schemas/MatchGame'
+    MatchGame:
+      type: object
+      additionalProperties: false
+      required:
+        - platformId
+        - gameId
+        - gameCreation
+        - gameDuration
+        - gameMode
+        - gameModeMutators
+        - gameType
+        - gameVersion
+        - mapId
+        - queueId
+        - endOfGameResult
+        - participants
+      properties:
+        platformId:
+          type: string
+          pattern: '^[A-Z0-9]{2,16}$'
+        gameId:
+          type: integer
+          format: int64
+          minimum: 1
+        gameCreation:
+          type: integer
+          format: int64
+          minimum: 1
+        gameDuration:
+          type: integer
+          minimum: 0
+          maximum: 14400
+        gameMode:
+          type: string
+          const: KIWI
+        gameModeMutators:
+          type: array
+          maxItems: 16
+          items:
+            type: string
+            maxLength: 100
+        gameType:
+          type: string
+          maxLength: 64
+        gameVersion:
+          type: string
+          maxLength: 64
+        mapId:
+          type: integer
+          const: 12
+        queueId:
+          type: integer
+          const: 2400
+        endOfGameResult:
+          type: string
+          maxLength: 64
+        participants:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/MatchParticipant'
+    MatchParticipant:
+      type: object
+      additionalProperties: false
+      required:
+        - participantId
+        - puuid
+        - gameName
+        - tagLine
+        - championId
+        - teamId
+        - playerSubteamId
+        - subteamPlacement
+        - win
+        - gameEndedInEarlySurrender
+        - kills
+        - deaths
+        - assists
+        - items
+        - augments
+      properties:
+        participantId:
+          type: integer
+          minimum: 1
+          maximum: 20
+        puuid:
+          type: [string, 'null']
+          pattern: '^[a-zA-Z0-9-]{8,128}$'
+          description: Null only when the upstream match payload has no usable PUUID.
+        gameName:
+          type: string
+          maxLength: 128
+          description: Riot ID game name; empty only when unavailable upstream.
+        tagLine:
+          type: string
+          maxLength: 32
+          description: Riot ID tag line; empty only when unavailable upstream.
+        championId:
+          type: integer
+          minimum: 1
+        teamId:
+          type: integer
+          minimum: 0
+        playerSubteamId:
+          type: integer
+          minimum: 0
+        subteamPlacement:
+          type: integer
+          minimum: 0
+        win:
+          type: boolean
+        gameEndedInEarlySurrender:
+          type: boolean
+        kills:
+          type: integer
+          minimum: 0
+        deaths:
+          type: integer
+          minimum: 0
+        assists:
+          type: integer
+          minimum: 0
+        items:
+          type: array
+          maxItems: 7
+          items:
+            type: integer
+            minimum: 1
+        augments:
+          type: array
+          maxItems: 6
+          items:
+            type: integer
+            minimum: 1
+    MatchHistoryBatchResponse:
+      type: object
+      additionalProperties: false
+      required: [serverTime, acknowledgements]
+      properties:
+        serverTime:
+          type: string
+          format: date-time
+        acknowledgements:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchAcknowledgement'
+    MatchAcknowledgement:
+      type: object
+      additionalProperties: false
+      required: [sourceKey, idempotencyKey, status]
+      properties:
+        sourceKey:
+          type: string
+        idempotencyKey:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        status:
+          type: string
+          enum: [inserted, duplicate, updated, rejected]
+        code:
+          type: string
+          maxLength: 64
+        message:
+          type: string
+          maxLength: 300
+        retryable:
+          type: boolean
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [code, message, retryable]
+      properties:
+        code:
+          type: string
+          maxLength: 64
+        message:
+          type: string
+          maxLength: 300
+        retryable:
+          type: boolean

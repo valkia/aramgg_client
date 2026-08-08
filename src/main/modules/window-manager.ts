@@ -24,6 +24,7 @@ import { shouldRaiseOverlayWindow } from './overlay-window-state.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+const OPEN_OVERLAY_DEVTOOLS = process.env.ARAMGG_OPEN_OVERLAY_DEVTOOLS === '1'
 const RENDERER_CONTENT_SECURITY_POLICY = [
     "default-src 'self'",
     "script-src 'self' https://www.googletagmanager.com",
@@ -587,7 +588,7 @@ export const createPopupWindow = async (
 
     await loadRendererRoute(popupWindow, 'popup', isDev, devServerUrl, '/augment-overlay', webPreferences.preload)
 
-    if (isDev) {
+    if (isDev && OPEN_OVERLAY_DEVTOOLS) {
         popupWindow.webContents.openDevTools({ mode: 'detach' })
     }
 
@@ -635,7 +636,7 @@ export const createAugmentSidePanelWindow = async (
         webPreferences.preload
     )
 
-    if (isDev) {
+    if (isDev && OPEN_OVERLAY_DEVTOOLS) {
         augmentSidePanelWindow.webContents.openDevTools({ mode: 'detach' })
     }
 
@@ -684,7 +685,7 @@ export const createFloatingWindow = async (
     await loadRendererRoute(floatingWindow, 'floating', isDev, devServerUrl, '/floating-overlay', webPreferences.preload)
 
     // 开发模式下打开开发者工具
-    if (isDev) {
+    if (isDev && OPEN_OVERLAY_DEVTOOLS) {
         floatingWindow.webContents.openDevTools({ mode: 'detach' })
     }
 

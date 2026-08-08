@@ -189,3 +189,10 @@ export function getPartialOcrScreenshotDir(): string {
     fs.ensureDirSync(screenshotDir)
     return screenshotDir
 }
+
+/** Persistent, user-local LCU match-history records and derived statistics. */
+export function getMatchHistoryDataDir(): string {
+    const matchHistoryDir = path.join(getAppDataDir(), 'match-history')
+    fs.ensureDirSync(matchHistoryDir)
+    return matchHistoryDir
+}
