@@ -10,11 +10,16 @@
 
 import { CAPTURE_THUMBNAIL_SIZE, captureScreenshot } from './screenshot.ts'
 import {
+    GATE_CAPTURE_THUMBNAIL_SIZE,
+    resolveCandidateStreak,
+    resolveCaptureStage,
     resolveCaptureModeAfterAnalysis,
+    resolveFullOcrBackoffUntil,
     resolveGameflowCaptureInterval,
+    shouldQueueFullCapture,
     shouldActivateSelectionCapture,
 } from './auto-screenshot-policy.ts'
-import { analyzeScreenshot, warmupImageAnalyzer } from './image-analyzer.ts'
+import { analyzeScreenshot, analyzeScreenshotGate, warmupImageAnalyzer } from './image-analyzer.ts'
 import { BrowserWindow } from 'electron'
 import fs from 'fs-extra'
 import path from 'path'
@@ -186,6 +191,12 @@ class AutoScreenshotService {
         this.stableDetectionInterval = null
         this.idleInterval = null
         this.captureMode = 'idle'
+        this.candidateStreak = 0
+        this.pendingFullCapture = false
+        this.fullOcrCooldownUntil = 0
+        this.gateScreenshotCount = 0
+        this.fullOcrScreenshotCount = 0
+        this.fullOcrBackoffSkips = 0
         this.automaticThumbnailSize = null
         this.maxScreenshots = 50 // 保留字段但已不再使用（截图直接使用内存 Buffer）
         this.screenshotCount = 0
@@ -254,6 +265,12 @@ class AutoScreenshotService {
         this.isRunning = true
         this.controlOwner = owner
         this.captureMode = owner === 'gameflow' ? 'idle' : 'manual'
+        this.candidateStreak = 0
+        this.pendingFullCapture = false
+        this.fullOcrCooldownUntil = 0
+        this.gateScreenshotCount = 0
+        this.fullOcrScreenshotCount = 0
+        this.fullOcrBackoffSkips = 0
         this.screenshotCount = 0
         this.analysisCount = 0
         this.detectionCount = 0
@@ -342,6 +359,9 @@ class AutoScreenshotService {
 
         if (phase && phase !== 'InProgress' && phase !== 'None') {
             this.pendingAnalysisBuffer = null
+            this.candidateStreak = 0
+            this.pendingFullCapture = false
+            this.fullOcrCooldownUntil = 0
             this._setCaptureMode('idle', `gameflow-${phase}`)
             if (this.lastDetectedAugmentIds.length > 0) {
                 this.clearAugmentState(`gameflow-${phase}`)
@@ -367,6 +387,9 @@ class AutoScreenshotService {
         this.lastDetectedAugmentAt = 0
         this.visibleAugmentMissCount = 0
         this.pendingAnalysisBuffer = null
+        this.candidateStreak = 0
+        this.pendingFullCapture = false
+        this.fullOcrCooldownUntil = 0
         this._setCaptureMode('idle', reason)
         logger.debug('Augment state cleared', {
             reason,
@@ -426,6 +449,10 @@ class AutoScreenshotService {
         return { ...CAPTURE_THUMBNAIL_SIZE }
     }
 
+    _getCurrentGateThumbnailSize() {
+        return { ...GATE_CAPTURE_THUMBNAIL_SIZE }
+    }
+
     _setCaptureMode(mode, reason) {
         if (this.controlOwner !== 'gameflow' || this.captureMode === mode) {
             return
@@ -433,6 +460,11 @@ class AutoScreenshotService {
 
         const previousMode = this.captureMode
         this.captureMode = mode
+        if (mode === 'active-selection') {
+            this.candidateStreak = 0
+            this.pendingFullCapture = false
+            this.fullOcrCooldownUntil = 0
+        }
         logger.info('Auto screenshot capture mode changed', {
             previousMode,
             captureMode: mode,
@@ -474,10 +506,24 @@ class AutoScreenshotService {
         this.isCapturing = true
 
         try {
+            const stage = this.enableAnalysis && this.controlOwner === 'gameflow'
+                ? resolveCaptureStage({
+                    mode: this.captureMode,
+                    pendingFullCapture: this.pendingFullCapture,
+                    fullOcrCooldownUntil: this.fullOcrCooldownUntil,
+                    now: Date.now(),
+                })
+                : 'full'
+            if (stage === 'gate' && this.pendingFullCapture && this.fullOcrCooldownUntil > Date.now()) {
+                this.fullOcrBackoffSkips++
+            }
+            const thumbnailSize = stage === 'gate'
+                ? this._getCurrentGateThumbnailSize()
+                : this._getCurrentThumbnailSize()
             const result = await captureScreenshot({
                 preferScreen: this.preferScreenCapture,
                 timeoutMs: this.captureTimeoutMs,
-                thumbnailSize: this._getCurrentThumbnailSize(),
+                thumbnailSize,
             })
 
             if (!this.isRunning || runId !== this.runId) {
@@ -505,7 +551,8 @@ class AutoScreenshotService {
                         sinceStartMs: this.startedAt ? Date.now() - this.startedAt : 0,
                         preferScreenCapture: this.preferScreenCapture,
                         captureMode: this.captureMode,
-                        thumbnailSize: this._getCurrentThumbnailSize(),
+                        stage,
+                        thumbnailSize,
                     })
                 } else if (captureTimeMs > 1000) {
                     logger.warn('Auto screenshot slow capture', {
@@ -516,11 +563,25 @@ class AutoScreenshotService {
                 }
                 this._logPerformanceSummary()
 
-                if (this.enableAnalysis) {
+                if (stage === 'gate') {
+                    this.gateScreenshotCount++
+                    if (this.enableAnalysis && this.isAnalysisAllowedByGameflow()) {
+                        await this._analyzeGateScreenshot(result.buffer, runId)
+                    }
+                } else {
+                    if (this.controlOwner === 'gameflow') {
+                        this.fullOcrScreenshotCount++
+                    }
+                }
+
+                if (stage !== 'gate' && this.enableAnalysis) {
                     this._queueAnalysis(result.buffer)
                 }
 
-                return result
+                return {
+                    ...result,
+                    stage,
+                }
             } else {
                 logger.error('Auto screenshot failed:', result.error)
                 return result
@@ -536,6 +597,58 @@ class AutoScreenshotService {
                 this.isCapturing = false
             }
         }
+    }
+
+    /**
+     * 分析小尺寸门禁帧，只判断是否像海克斯选择界面。
+     * @private
+     */
+    async _analyzeGateScreenshot(imageBuffer, runId = this.runId) {
+        const gateResult = await analyzeScreenshotGate(imageBuffer)
+        if (!gateResult.success) {
+            logger.debug('Augment selection gate analysis failed', {
+                error: gateResult.error,
+            })
+            this.candidateStreak = 0
+            this.pendingFullCapture = false
+            return
+        }
+
+        const gateLikely = gateResult.likely === true
+        const rerollVisible = gateResult.rerollVisible === true
+        this.candidateStreak = resolveCandidateStreak({
+            gateLikely,
+            rerollVisible,
+            currentStreak: this.candidateStreak,
+        })
+        this.pendingFullCapture = shouldQueueFullCapture({
+            candidateStreak: this.candidateStreak,
+            fullOcrCooldownUntil: this.fullOcrCooldownUntil,
+            now: Date.now(),
+        })
+
+        logger.debug('Augment selection gate frame analyzed', {
+            runId,
+            likely: gateLikely,
+            rerollVisible,
+            candidateStreak: this.candidateStreak,
+            pendingFullCapture: this.pendingFullCapture,
+            durationMs: gateResult.durationMs,
+        })
+    }
+
+    /**
+     * 进入完整 OCR 冷却，避免对普通 HUD 反复执行 PaddleOCR。
+     * @private
+     */
+    _enterFullOcrBackoff(reason) {
+        this.fullOcrCooldownUntil = resolveFullOcrBackoffUntil()
+        this.candidateStreak = 0
+        this.pendingFullCapture = false
+        logger.debug('Full OCR backoff engaged', {
+            reason,
+            until: this.fullOcrCooldownUntil,
+        })
     }
 
     /**
@@ -618,6 +731,9 @@ class AutoScreenshotService {
 
             const { cardCount, confidence, isAugmentPhase, augments } = analysisResult.analysis
             const hasVisibleAugments = this.lastDetectedAugmentIds.length > 0
+            if (cardCount === 0 && !hasVisibleAugments) {
+                this._enterFullOcrBackoff('no-augments-detected')
+            }
             const confirmedSelectionUi = shouldActivateSelectionCapture({
                 confirmedSelectionUi: isConfirmedAugmentSelectionUi(analysisResult.analysis),
                 recognizedAugmentCount: cardCount,
@@ -783,6 +899,7 @@ class AutoScreenshotService {
                         this.lastDetectedAugmentAt = 0
                         this.visibleAugmentMissCount = 0
                         this._setCaptureMode('idle', clearReason)
+                        this._enterFullOcrBackoff(clearReason)
                         this._notifyAugmentCleared(clearReason)
                     }
                 } else if (!isAugmentPhase) {
@@ -816,7 +933,7 @@ class AutoScreenshotService {
 
         this.lastSummaryLogAt = now
         const stats = this.getPerformanceStats()
-        logger.info(`Auto screenshot summary: screenshots=${stats.screenshotCount}, analyses=${stats.analysisCount}, detections=${stats.detectionCount}, replacedPendingAnalyses=${stats.droppedAnalysisCount}, backpressureSkippedCaptures=${stats.analysisBackpressureSkipCount}, mode=${stats.captureMode}, interval=${stats.activeInterval}ms, thumbnail=${stats.thumbnailSize.width}x${stats.thumbnailSize.height}, avgCapture=${stats.averageCaptureTime}ms, lastAnalysis=${stats.lastAnalysisDuration || 0}ms`)
+        logger.info(`Auto screenshot summary: screenshots=${stats.screenshotCount}, gateScreenshots=${stats.gateScreenshotCount}, fullOcrScreenshots=${stats.fullOcrScreenshotCount}, analyses=${stats.analysisCount}, detections=${stats.detectionCount}, replacedPendingAnalyses=${stats.droppedAnalysisCount}, backpressureSkippedCaptures=${stats.analysisBackpressureSkipCount}, fullOcrBackoffSkips=${stats.fullOcrBackoffSkips}, mode=${stats.captureMode}, interval=${stats.activeInterval}ms, thumbnail=${stats.thumbnailSize.width}x${stats.thumbnailSize.height}, avgCapture=${stats.averageCaptureTime}ms, lastAnalysis=${stats.lastAnalysisDuration || 0}ms`)
     }
 
     _shouldClearVisibleAugmentsAfterMiss({ cardCount, augments = [] }) {
@@ -1343,7 +1460,12 @@ class AutoScreenshotService {
                 detectionCount: this.detectionCount,
                 droppedAnalysisCount: this.droppedAnalysisCount,
                 analysisBackpressureSkipCount: this.analysisBackpressureSkipCount,
+                fullOcrBackoffSkips: this.fullOcrBackoffSkips,
                 partialOcrSaveCount: this.partialOcrSaveCount,
+                gateScreenshotCount: this.gateScreenshotCount,
+                fullOcrScreenshotCount: this.fullOcrScreenshotCount,
+                candidateStreak: this.candidateStreak,
+                pendingFullCapture: this.pendingFullCapture,
                 gameflowPhase: this.gameflowPhase,
                 analysisPausedByGameflow: !this.isAnalysisAllowedByGameflow(),
                 controlOwner: this.controlOwner,
@@ -1383,7 +1505,12 @@ class AutoScreenshotService {
             detectionCount: this.detectionCount,
             droppedAnalysisCount: this.droppedAnalysisCount,
             analysisBackpressureSkipCount: this.analysisBackpressureSkipCount,
+            fullOcrBackoffSkips: this.fullOcrBackoffSkips,
             partialOcrSaveCount: this.partialOcrSaveCount,
+            gateScreenshotCount: this.gateScreenshotCount,
+            fullOcrScreenshotCount: this.fullOcrScreenshotCount,
+            candidateStreak: this.candidateStreak,
+            pendingFullCapture: this.pendingFullCapture,
             gameflowPhase: this.gameflowPhase,
             analysisPausedByGameflow: !this.isAnalysisAllowedByGameflow(),
             controlOwner: this.controlOwner,
@@ -1501,7 +1628,12 @@ class AutoScreenshotService {
             detectionCount: this.detectionCount,
             droppedAnalysisCount: this.droppedAnalysisCount,
             analysisBackpressureSkipCount: this.analysisBackpressureSkipCount,
+            fullOcrBackoffSkips: this.fullOcrBackoffSkips,
             partialOcrSaveCount: this.partialOcrSaveCount,
+            gateScreenshotCount: this.gateScreenshotCount,
+            fullOcrScreenshotCount: this.fullOcrScreenshotCount,
+            candidateStreak: this.candidateStreak,
+            pendingFullCapture: this.pendingFullCapture,
             gameflowPhase: this.gameflowPhase,
             analysisPausedByGameflow: !this.isAnalysisAllowedByGameflow(),
             controlOwner: this.controlOwner,
@@ -1561,6 +1693,12 @@ class AutoScreenshotService {
         this.stableDetectionInterval = null
         this.idleInterval = null
         this.captureMode = 'idle'
+        this.candidateStreak = 0
+        this.pendingFullCapture = false
+        this.fullOcrCooldownUntil = 0
+        this.gateScreenshotCount = 0
+        this.fullOcrScreenshotCount = 0
+        this.fullOcrBackoffSkips = 0
         this.automaticThumbnailSize = null
         this.gameflowPhase = null
         this.controlOwner = null

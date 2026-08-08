@@ -16,6 +16,10 @@ _Avoid_: Champion Details page, augment popup, main page
 A user preference that controls only whether the **Champion Details window** is displayed. It does not enable or disable champion monitoring, augment recognition, item-set behavior, or post-game data capture.
 _Avoid_: Champion monitoring switch, OCR switch
 
+**Automatic capture stage**:
+Gameflow screenshot flow first captures a small `640x360` gate frame during normal play and only upgrades to a full `1024x576` OCR frame after consecutive candidate frames; full OCR backs off for about four seconds after no-match frames.
+_Avoid_: treating gate frames as OCR frames
+
 ## Example Dialogue
 
 Developer: "The user disabled Champion Details visibility. Should champion monitoring stop?"

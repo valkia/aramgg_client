@@ -7,8 +7,8 @@
     >
       <header class="insight-titlebar">
         <h1>{{ isSidePanel ? t('augment.recommendation') : t('augment.championDetails') }}</h1>
-        <div v-if="isSidePanel" class="window-controls">
-          <button class="window-control" type="button" :aria-label="t('common.minimize')" @click="closeOverlay('manual')">
+        <div class="window-controls">
+          <button v-if="isSidePanel" class="window-control" type="button" :aria-label="t('common.minimize')" @click="closeOverlay('manual')">
             <Minus class="window-icon" />
           </button>
           <button class="window-control danger" type="button" :aria-label="t('common.close')" @click="closeOverlay('manual')">

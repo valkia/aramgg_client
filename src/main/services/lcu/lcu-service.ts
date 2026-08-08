@@ -716,8 +716,8 @@ export class LCUService {
     }
   }
 
-  private async loadAndVerifyAuth(): Promise<LCUAuthResult | null> {
-    const [token, port] = await getLcuToken()
+  private async loadAndVerifyAuth(forceRefresh: boolean = false): Promise<LCUAuthResult | null> {
+    const [token, port] = await getLcuToken(null, forceRefresh)
 
     if (!token || !port) {
       logger.debug('Unable to get LCU token; game client may not be running')
@@ -797,7 +797,7 @@ export class LCUService {
       return this.authRefreshPromise
     }
 
-    this.authRefreshPromise = this.loadAndVerifyAuth()
+    this.authRefreshPromise = this.loadAndVerifyAuth(forceRefresh)
     try {
       return await this.authRefreshPromise
     } catch (error) {

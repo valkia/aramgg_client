@@ -19,6 +19,15 @@
 
 针对该路径，gameflow 自动截图改为普通画面 `idle` 模式约 `1500 ms` 一次，确认海克斯选择且识别到候选后切换为 `active-selection` 模式 `500 ms` 一次；自动缩略图从 `1280x720` 改为 `1024x576`，手动截图默认值不变。日志性能摘要包含 `captureMode`、`activeInterval` 和 `thumbnailSize`。最终 CPU 降幅仍需用相同正式包对局条件复测。
 
+2026-08-02 对包含上述改动的正式包 `0.2.7` 复测：第二局 `InProgress` 的 71 个样本平均 `totalCpuPercent` 为 `27.2`、p95 为 `37.1`，Browser 进程约 `26.8`，与 `27.4%` 基线基本持平。日志显示自动截图平均仍需 `600-700 ms`，且门禁在普通 HUD 上频繁误通过，完整 PaddleOCR 会对非海克斯文本反复执行，`matchMs` 最高约 `2 s`。因此第二轮优化改为：
+
+- 普通画面只截 `640x360` 门禁帧；连续 2 帧通过门禁后才升级为 `1024x576` 完整截图。
+- 完整 OCR 无匹配后进入约 `4 s` 冷却；确认海克斯选择界面后仍按 `500 ms` 完整帧识别。
+- 图像分析内部改为单次 raw 解码，去掉 PNG 往返。
+- PaddleOCR ONNX session 默认限制为 2 个 intra-op 线程、1 个 inter-op 线程、sequential 模式；可用 `ARAMGG_OCR_THREADS` 覆盖，Sharp 并发默认 2。
+- 海克斯名称匹配增加精确/共享字符预筛，消除 1-2 s 的 `matchMs` 尖峰。
+- LCU 进程发现成功结果缓存约 `60 s`，失败或显式刷新时绕过；locale hint 直接走该缓存，避免每次探测都重复 PowerShell。
+
 2026-07-31 曾对开发环境、League 未运行的场景做约 30 秒采样：
 
 - Electron 空闲总 CPU 约为 `0.6%–0.8%`，启动阶段峰值约为 `4.6%–5%`。
@@ -49,6 +58,7 @@
 - 当前窗口路由、可见性、焦点状态以及 DevTools 状态。
 - 主进程 event loop 利用率、延迟和定时器漂移。
 - 自动截图/OCR 是否运行、截图数、分析数和最近一次分析耗时。
+- 门禁帧数、完整 OCR 帧数、完整 OCR 冷却跳过次数和当前候选状态。
 - LCU 进程发现查询数、PowerShell 尝试数和单次耗时。
 
 启动时还会记录 `[performance] GPU diagnostics`。连续三个样本的 Electron 总 CPU 不低于 `25%` 时，会记录 `[performance] sustained Electron CPU usage detected`；单个采样周期内反复发现 LCU 进程时，会记录 `[performance] repeated LCU process discovery detected`。
@@ -75,6 +85,7 @@
 ## 判断口径
 
 - 如果高负载只在 `InProgress` 出现，并且 `ocr.screenshotCount`、`ocr.analysisCount` 持续增长，优先排查 500 ms 截图调度、屏幕捕获和 PaddleOCR 分析链路。
+- 如果 `gateScreenshotCount` 明显高于 `fullOcrScreenshotCount` 且 CPU 仍高，优先排查 `640x360` 门禁帧截图成本；如果 `fullOcrBackoffSkips` 持续增长，说明冷却门禁正常但没有把误报彻底压住。
 - 如果 Electron CPU 较低而 GPU 持续较高，优先排查透明置顶 overlay 和 Chromium GPU 合成。
 - 如果 League 已连接时 `lcuDiscovery.queriesSinceLastSample` 或 `powershellAttemptsSinceLastSample` 仍持续增长，说明 LCU 凭据刷新抖动也进入了正式对局路径。
 - 如果高负载与 OCR、GPU、LCU 都不相关，再对齐远端数据刷新、更新检查和 renderer 活动。

@@ -28,7 +28,7 @@ describe('champion insight lifecycle', () => {
   })
 
   it('keeps popup content visible while preserving side-panel dismissal', async () => {
-    const [overlay, screenshotService, preferences] = await Promise.all([
+    const [overlaySource, screenshotService, preferences] = await Promise.all([
       readFile(
         new URL('../../src/renderer/components/AugmentWinrateOverlay.vue', import.meta.url),
         'utf8',
@@ -36,12 +36,15 @@ describe('champion insight lifecycle', () => {
       readFile(new URL('../../src/main/auto-screenshot-service.ts', import.meta.url), 'utf8'),
       readFile(new URL('../../src/renderer/components/OverlayPreferences.vue', import.meta.url), 'utf8'),
     ])
+    const overlay = overlaySource.replace(/\r\n/g, '\n')
     const augmentClearedBlock = screenshotService.slice(
       screenshotService.indexOf('_notifyAugmentCleared'),
       screenshotService.indexOf('_recordPerformance'),
     )
 
-    expect(overlay).toContain('<div v-if="isSidePanel" class="window-controls">')
+    expect(overlay).toContain('<div class="window-controls">')
+    expect(overlay).toContain('<button v-if="isSidePanel" class="window-control"')
+    expect(overlay).toContain('<button class="window-control danger" type="button" :aria-label="t(\'common.close\')" @click="closeOverlay(\'manual\')">')
     expect(overlay).toContain("if (isSidePanel.value) {\n      closeOverlay('augment-cleared')")
     expect(overlay).toContain("game-started received; champion insight remains visible")
     expect(overlay).toContain("game-in-progress received; champion insight remains visible")
