@@ -1,6 +1,6 @@
 # 性能与发热排查
 
-更新时间：2026-08-02
+更新时间：2026-08-08
 
 ## 当前现场记录
 
@@ -27,6 +27,11 @@
 - PaddleOCR/ONNX 的线程配置保持依赖默认值不变；本轮通过截图门禁、缩略图尺寸、raw 图像处理和匹配预筛降低重复工作。
 - 海克斯名称匹配增加精确/共享字符预筛，消除 1-2 s 的 `matchMs` 尖峰。
 - LCU 进程发现成功结果缓存约 `60 s`，失败或显式刷新时绕过；locale hint 直接走该缓存，避免每次探测都重复 PowerShell。
+
+2026-08-08 对当前提交 `c57d53f` 重新打包的 `0.2.10` unpacked 正式包进行了生产等价采样：`app.isPackaged=true`、16 个逻辑处理器、League 客户端在线、gameflow 为 `InProgress`、窗口无 DevTools。16:49:23–16:55:56 共 40 个 10 秒样本，Electron 进程树 `totalCpuPercent` 平均 `11.0%`、稳态（去掉首个样本）平均 `11.0%`、p95 `20.9%`、峰值 `31.7%`；相对 `27.4%` 基线平均下降约 `59.9%`，低于验收目标 `19.2%`。
+
+- 同一日志确认 `idle → active-selection → idle` 切换；16:55:18 摘要为 `screenshots=238`、`gateScreenshots=174`、`fullOcrScreenshots=63`、`analyses=63`、`backpressureSkippedCaptures=8`、`mode=idle`、`interval=1500ms`、`thumbnail=1024x576`、平均截图耗时 `780.47ms`。
+- 该次采样期间原先已安装的 ARAMGG 实例也保持运行，因此样本可作为当前包自身 CPU 的生产等价证据，但不是严格的单实例系统发热对照；发布前若需要复核风扇/温度，应只保留当前包重跑一次。
 
 2026-07-31 曾对开发环境、League 未运行的场景做约 30 秒采样：
 
