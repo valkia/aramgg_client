@@ -42,8 +42,8 @@
                 <strong>{{ formatPercent(augment.pickRate) }}</strong>
               </div>
               <div class="stat-line">
-                <span>{{ t('augment.winRate') }}</span>
-                <strong>{{ formatPercent(augment.winRate) }}</strong>
+                <span>{{ t('augment.tierLabel') }}</span>
+                <strong>{{ formatAugmentTier(augment.tier) }}</strong>
               </div>
             </div>
             <span v-if="!augment.missing" class="recommend-label" :class="getBadgeClass(augment.recommendScore)">
@@ -76,7 +76,7 @@ import {
   mergeWinrateWithDetectedSlots
 } from '../service/augment-display.js'
 import { getAugmentIconUrl } from '../service/cdn'
-import { formatPercent } from '../service/overlay-formatters.ts'
+import { formatAugmentTier, formatPercent } from '../service/overlay-formatters.ts'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -210,17 +210,22 @@ const showOverlay = async (data) => {
   if (data && data.augments && data.augments.length > 0) {
     championId.value = data.championId
 
-    // 检查是否有完整的胜率数据
-    const hasWinrateData = data.augments.some(aug => aug.winRate != null)
-    console.log('🔍 [FloatingOverlay] 检查胜率数据:', hasWinrateData)
+    const hasRecommendationData = data.augments.some(aug => [
+      aug?.rank,
+      aug?.tier,
+      aug?.pickRate,
+      aug?.winRate,
+      aug?.recommendScore,
+    ].some(value => value != null && Number.isFinite(Number(value))))
+    console.log('🔍 [FloatingOverlay] 检查推荐数据:', hasRecommendationData)
 
-    if (hasWinrateData) {
+    if (hasRecommendationData) {
       displayAugments.value = sortAugmentsByDetectedOrder(data.augments, data.augments)
       loading.value = false
       console.log('✅ [FloatingOverlay] 直接显示完整数据')
       logDisplayState('display state applied', data, {
-        mode: 'full-winrate',
-        hasWinrateData: true,
+        mode: 'full-recommendation',
+        hasRecommendationData: true,
       })
     } else {
       const fallbackAugments = mergeWinrateWithDetectedSlots([], data.augments, displayAugments.value)
@@ -228,7 +233,7 @@ const showOverlay = async (data) => {
       loading.value = false
       logDisplayState('display state applied', data, {
         mode: 'fallback',
-        hasWinrateData: false,
+        hasRecommendationData: false,
         winratePending: data.winratePending === true,
       })
       if (data.winratePending === true || data.winrateInMain === true) {
