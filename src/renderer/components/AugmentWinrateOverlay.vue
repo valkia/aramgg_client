@@ -196,7 +196,7 @@
                   </div>
                   <div class="augment-rate">
                     <small>{{ t('augment.winRate') }}</small>
-                    <strong>{{ formatPercent(augment.winRate) }}</strong>
+                    <strong>{{ formatAugmentWinRate(augment.winRate) }}</strong>
                   </div>
                 </div>
               </div>
@@ -500,6 +500,7 @@ import {
 } from '../service/champion-build-routes.js'
 import {
   formatAugmentTier,
+  formatAugmentWinRate,
   formatDataSource,
   formatNumber,
   formatPercent,

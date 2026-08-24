@@ -39,10 +39,10 @@ describe('augment overlay performance safeguards', () => {
     ])
 
     expect(floatingOverlay).toContain('formatPercent(augment.pickRate)')
-    expect(floatingOverlay).toContain('formatPercent(augment.winRate)')
+    expect(floatingOverlay).toContain('formatAugmentWinRate(augment.winRate)')
     expect(floatingOverlay).toContain("t('augment.winRate')")
     expect(floatingOverlay).toContain('const hasRecommendationData =')
-    expect(championDetailOverlay).toContain('formatPercent(augment.winRate)')
+    expect(championDetailOverlay).toContain('formatAugmentWinRate(augment.winRate)')
     expect(championDetailOverlay).toContain("t('augment.winRate')")
     expect(championDetailOverlay).toContain('class="augment-tier"')
     expect(championDetailOverlay).toContain('formatAugmentTier(augment.tier)')

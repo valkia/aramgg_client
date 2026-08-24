@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   formatAugmentTier,
+  formatAugmentWinRate,
   formatDataSource,
   formatNumber,
   formatPercent,
@@ -13,6 +14,15 @@ describe('overlay formatters', () => {
     expect(formatPercent(0.523)).toBe('52.3%')
     expect(formatPercent(52.3)).toBe('52.3%')
     expect(formatPercent(null)).toBe('--')
+  })
+
+  it('labels only missing augment win rates as insufficient games', () => {
+    expect(formatAugmentWinRate(null)).toBe('场次不足')
+    expect(formatAugmentWinRate(undefined)).toBe('场次不足')
+    expect(formatAugmentWinRate('')).toBe('场次不足')
+    expect(formatAugmentWinRate(0)).toBe('0.0%')
+    expect(formatAugmentWinRate(0.523)).toBe('52.3%')
+    expect(formatAugmentWinRate('invalid')).toBe('--')
   })
 
   it('formats augment tiers as compact T labels', () => {
