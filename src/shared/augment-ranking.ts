@@ -90,6 +90,10 @@ export function compareAugmentPriority(
     return leftRank - rightRank
   }
 
+  if (toPositiveInteger(left.tier) != null || toPositiveInteger(right.tier) != null) {
+    return compareByTierAndPickRate(left, right)
+  }
+
   if (getWinRate(left) != null || getWinRate(right) != null) {
     return compareByLegacyScore(left, right)
   }
@@ -110,12 +114,17 @@ export function rankAugmentRecommendations<T extends AugmentRankingRecord>(
 ): Array<T & { rank: number; total: number; recommendScore: number }> {
   const useAuthoritativeRank = records.length > 0
     && records.every(record => toPositiveInteger(record.rank) != null)
+  const useTierPriority = !useAuthoritativeRank
+    && records.some(record => toPositiveInteger(record.tier) != null)
   const useLegacyScore = !useAuthoritativeRank
+    && !useTierPriority
     && records.some(record => getWinRate(record) != null)
-
   const sorted = [...records].sort((left, right) => {
     if (useAuthoritativeRank) {
       return Number(left.rank) - Number(right.rank)
+    }
+    if (useTierPriority) {
+      return compareByTierAndPickRate(left, right)
     }
     if (useLegacyScore) {
       return compareByLegacyScore(left, right)
@@ -126,10 +135,10 @@ export function rankAugmentRecommendations<T extends AugmentRankingRecord>(
 
   return sorted.map((record, index) => {
     const rank = useAuthoritativeRank ? toPositiveInteger(record.rank) ?? index + 1 : index + 1
-    const total = toPositiveInteger(record.total) ?? fallbackTotal
-    const recommendScore = toFiniteNumber(record.recommendScore)
-      ?? getRankPercentile(rank, total)
-
+    const total = useAuthoritativeRank ? toPositiveInteger(record.total) ?? fallbackTotal : fallbackTotal
+    const recommendScore = useAuthoritativeRank || useTierPriority
+      ? getRankPercentile(rank, total)
+      : toFiniteNumber(record.recommendScore) ?? getRankPercentile(rank, total)
     return {
       ...record,
       rank,

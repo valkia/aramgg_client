@@ -1,4 +1,5 @@
 import { sortAugmentsByDetectedOrder } from './augment-order.js'
+import { compareAugmentPriority } from '../../shared/augment-ranking.ts'
 
 export const getAugmentId = (augment) => augment?.augmentId ?? augment?.id ?? null
 
@@ -28,16 +29,22 @@ export const getAugmentScore = (augment) => {
 
 export const getTopPickKey = (augments = []) => {
   let bestIndex = -1
-  let bestScore = null
 
   augments.forEach((augment, index) => {
-    const score = getAugmentScore(augment)
-    if (score == null) {
+    const hasPriorityData = [
+      augment?.rank,
+      augment?.tier,
+      augment?.pickRate,
+      augment?.pick_rate,
+      augment?.winRate,
+      augment?.win_rate,
+      augment?.recommendScore,
+    ].some(value => value != null && Number.isFinite(Number(value)))
+    if (augment?.missing || !hasPriorityData) {
       return
     }
 
-    if (bestScore == null || score > bestScore) {
-      bestScore = score
+    if (bestIndex < 0 || compareAugmentPriority(augment, augments[bestIndex]) < 0) {
       bestIndex = index
     }
   })
@@ -80,9 +87,12 @@ export const mapDetectedAugmentsForFallback = (augments = [], previousAugments =
         id: null,
         name: '',
         rarity: 'unknown',
+        tier: null,
+        rank: null,
+        total: null,
         winRate: null,
         pickRate: null,
-        playCount: 0,
+        playCount: null,
         recommendScore: null,
         iconPath: null,
         detectedSlot,
@@ -99,9 +109,12 @@ export const mapDetectedAugmentsForFallback = (augments = [], previousAugments =
       id,
       name: augment?.name || previous?.name || '',
       rarity: augment?.rarity || previous?.rarity || 'unknown',
+      tier: augment?.tier ?? previous?.tier ?? null,
+      rank: augment?.rank ?? previous?.rank ?? null,
+      total: augment?.total ?? previous?.total ?? null,
       winRate: augment?.winRate ?? previous?.winRate ?? null,
       pickRate: augment?.pickRate ?? previous?.pickRate ?? null,
-      playCount: augment?.playCount ?? previous?.playCount ?? 0,
+      playCount: augment?.playCount ?? previous?.playCount ?? null,
       recommendScore: augment?.recommendScore ?? previous?.recommendScore ?? null,
       iconPath: augment?.iconPath || augment?.iconUrl || previous?.iconPath || null,
       detectedSlot,

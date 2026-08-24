@@ -71,13 +71,13 @@ describe('augment floating display merge', () => {
     expect(getTopPickKey(result)).toBe(103)
   })
 
-  it('uses the recommendation score for the floating overlay top pick', () => {
+  it('uses official rank before the legacy recommendation score for the floating overlay top pick', () => {
     const result = [
       detected(101, 0, { rank: 12, recommendScore: 0.8, winRate: 0.6 }),
       detected(102, 1, { rank: 1, recommendScore: 0.4, winRate: 0.5 }),
       detected(103, 2, { rank: 8, recommendScore: 0.6, winRate: 0.55 }),
     ]
 
-    expect(getTopPickKey(result)).toBe(101)
+    expect(getTopPickKey(result)).toBe(102)
   })
 })
