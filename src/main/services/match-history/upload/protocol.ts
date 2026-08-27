@@ -1,6 +1,7 @@
 import type { ClientConfig } from '../../../data-loader.ts'
 import { resolveTrustedClientDataUrl } from '../../../../shared/client-data-security.ts'
 import { gzipSync } from 'node:zlib'
+import { getMatchHistoryCollectionPolicy } from '../collection-policy.ts'
 import type {
   ClaimedMatchHistoryUploadSample,
   MatchHistoryUploadResolution,
@@ -45,6 +46,8 @@ export type UploadSettings = {
   sessionUrl: string
   batchUrl: string
   maxBatchSize: number
+  maxBatchesPerSync: number
+  targetGamePatch: string
 }
 
 export function isRecord(value: unknown): value is JsonRecord {
@@ -75,10 +78,16 @@ export function getUploadSettings(config: ClientConfig): UploadSettings | null {
   if (!Number.isInteger(configuredMax) || Number(configuredMax) < 1 || Number(configuredMax) > MAX_BATCH_SIZE) {
     throw new Error('上传批量上限无效')
   }
+  const collectionPolicy = getMatchHistoryCollectionPolicy(config)
+  if (!collectionPolicy.targetGamePatch) {
+    throw new Error('上传目标补丁无效')
+  }
   return {
     sessionUrl: getTrustedEndpoint(raw.sessionPath, SESSION_PATH),
     batchUrl: getTrustedEndpoint(raw.batchPath, BATCH_PATH),
     maxBatchSize: Number(configuredMax),
+    maxBatchesPerSync: collectionPolicy.maxBatchesPerSync,
+    targetGamePatch: collectionPolicy.targetGamePatch,
   }
 }
 

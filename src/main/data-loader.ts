@@ -32,6 +32,13 @@ export type MatchHistoryUploadConfig = {
   sessionPath?: string
   batchPath?: string
   maxBatchSize?: number
+  collectionPolicy?: {
+    refreshCurrentMatchLimit?: number
+    matchedPlayerLimit?: number
+    matchedMatchLimit?: number
+    maxBatchesPerSync?: number
+    targetGamePatch?: string
+  }
 }
 
 export type ClientConfig = {

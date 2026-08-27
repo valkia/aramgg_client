@@ -31,6 +31,13 @@ function config(cloudflareEnabled = true): ClientConfig {
       sessionPath: '/api/client/v1/match-history/upload-session',
       batchPath: '/api/client/v1/match-history/batches',
       maxBatchSize: 20,
+      collectionPolicy: {
+        refreshCurrentMatchLimit: 10,
+        matchedPlayerLimit: 6,
+        matchedMatchLimit: 20,
+        maxBatchesPerSync: 7,
+        targetGamePatch: '16.17',
+      },
     },
   }
 }
@@ -79,7 +86,7 @@ function claimed(gameId = 123, idempotencyCharacter = 'a'): ClaimedMatchHistoryU
         gameMode: 'KIWI',
         gameModeMutators: ['mapskin_ha_bilgewater'],
         gameType: 'MATCHED_GAME',
-        gameVersion: '16.15.1',
+        gameVersion: '16.17.1',
         mapId: 12,
         queueId: 2400,
         endOfGameResult: 'GameComplete',
@@ -114,6 +121,9 @@ function fakeService(samples: ClaimedMatchHistoryUploadSample[]): {
   return {
     resolutions,
     service: {
+      async discardUploadEntriesOutsidePatch() {
+        return 0
+      },
       async getNextPendingUploadPlatform() {
         return available ? 'HN10' : null
       },
@@ -135,8 +145,61 @@ function fakeService(samples: ClaimedMatchHistoryUploadSample[]): {
 }
 
 describe('match-history uploader', () => {
-  it('drains at most 100 matches per default round', () => {
-    expect(DEFAULT_MAX_BATCHES).toBe(5)
+  it('drains at most 140 matches per default round', () => {
+    expect(DEFAULT_MAX_BATCHES).toBe(7)
+  })
+
+  it('uses all seven configured batches for the target patch', async () => {
+    const targetPatches: Array<string | null> = []
+    const resolutions: MatchHistoryUploadResolution[] = []
+    let remaining = 7
+    const service: MatchHistoryUploadService = {
+      async discardUploadEntriesOutsidePatch(targetGamePatch) {
+        targetPatches.push(targetGamePatch)
+        return 0
+      },
+      async getNextPendingUploadPlatform(_now, targetGamePatch) {
+        targetPatches.push(targetGamePatch)
+        return remaining > 0 ? 'HN10' : null
+      },
+      async claimUploadBatch(_platformId, _limit, _now, targetGamePatch) {
+        targetPatches.push(targetGamePatch)
+        const item = claimed(1_000 + remaining, String.fromCharCode(96 + remaining))
+        remaining -= 1
+        return [item]
+      },
+      async getUploadTelemetry() {
+        return { installationId: INSTALLATION_ID, pendingUploadCount: remaining }
+      },
+      async resolveUploadBatch(next) {
+        resolutions.push(...next)
+      },
+    }
+    const fetcher: MatchHistoryUploadFetch = async (url, init) => {
+      if (url.endsWith('/upload-session')) return session()
+      const body = parseRequestBody(init) as { samples: ClaimedMatchHistoryUploadSample['sample'][] }
+      return response(200, {
+        serverTime: new Date(NOW).toISOString(),
+        acknowledgements: body.samples.map((sample) => ({
+          sourceKey: sample.sourceKey,
+          idempotencyKey: sample.idempotencyKey,
+          status: 'inserted',
+        })),
+      })
+    }
+
+    const result = await drainMatchHistoryUploads(service, {
+      clientVersion: '0.2.13',
+      runtime: OFFICIAL_PACKAGED_RUNTIME,
+      loadConfig: async () => config(),
+      fetch: fetcher,
+      now: () => NOW,
+    })
+
+    expect(result).toEqual({ batches: 7, uploaded: 7, retried: 0, rejected: 0 })
+    expect(resolutions).toHaveLength(7)
+    expect(targetPatches).toHaveLength(15)
+    expect(targetPatches.every((patch) => patch === '16.17')).toBe(true)
   })
 
   it('does nothing while the Cloudflare config switch is disabled', async () => {
@@ -147,6 +210,24 @@ describe('match-history uploader', () => {
       clientVersion: '0.2.9',
       runtime: OFFICIAL_PACKAGED_RUNTIME,
       loadConfig: async () => config(false),
+      fetch: fetcher as unknown as MatchHistoryUploadFetch,
+      now: () => NOW,
+    })
+
+    expect(result).toEqual({ batches: 0, uploaded: 0, retried: 0, rejected: 0 })
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the target game patch is missing', async () => {
+    const { service } = fakeService([claimed()])
+    const fetcher = vi.fn()
+    const invalidConfig = config()
+    delete invalidConfig.matchHistoryUpload?.collectionPolicy?.targetGamePatch
+
+    const result = await drainMatchHistoryUploads(service, {
+      clientVersion: '0.2.13',
+      runtime: OFFICIAL_PACKAGED_RUNTIME,
+      loadConfig: async () => invalidConfig,
       fetch: fetcher as unknown as MatchHistoryUploadFetch,
       now: () => NOW,
     })

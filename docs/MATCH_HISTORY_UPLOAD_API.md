@@ -126,7 +126,14 @@ UNIQUE (idempotency_key)
     "cloudflareEnabled": true,
     "sessionPath": "/api/client/v1/match-history/upload-session",
     "batchPath": "/api/client/v1/match-history/batches",
-    "maxBatchSize": 20
+    "maxBatchSize": 20,
+    "collectionPolicy": {
+      "refreshCurrentMatchLimit": 10,
+      "matchedPlayerLimit": 6,
+      "matchedMatchLimit": 20,
+      "maxBatchesPerSync": 7,
+      "targetGamePatch": "16.17"
+    }
   }
 }
 ```
@@ -141,3 +148,5 @@ UNIQUE (idempotency_key)
 它用于阻止开发运行、普通 fork 和非官方打包意外写入生产服务，服务端仍必须保留鉴权、限流和数据完整性校验。
 
 远端配置只能启用客户端编译期内置的上传 origin，并且 pathname 必须精确等于以上两个 cf-api 路径，不能注入任意上传域名或写接口。会话请求发送普通 JSON；批次 JSON 使用 gzip 并带 `Content-Encoding: gzip`。
+
+`collectionPolicy` 只接受客户端内置边界内的整数；越界值回退到安全默认值。客户端只把 `gameVersion` 匹配 `targetGamePatch` 或其补丁号前缀的比赛放入上传队列，并在上传前清理其他补丁的旧 pending；本地战绩正文继续保留。每轮最多 7 批、每批 20 局，因此当前补丁的 drain 上限为 140 局。
