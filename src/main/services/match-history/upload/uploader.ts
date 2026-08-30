@@ -1,11 +1,13 @@
 import type { ClientConfig } from '../../../data-loader.ts'
 import logger from '../../../modules/logger.ts'
+import { BACKGROUND_MAX_UPLOAD_BATCHES_PER_SYNC } from '../collection-policy.ts'
 import type { LocalMatchHistoryService } from '../local-match-history-service.ts'
 import type { MatchHistoryUploadResolution } from '../types.ts'
 import {
   createSession,
   getDefaultFetch,
   getUploadSettings,
+  gzipJson,
   isRecord,
   postJson,
   readJson,
@@ -16,12 +18,21 @@ import {
   type UploadResponse,
   type UploadSession,
 } from './protocol.ts'
+import {
+  getMatchHistoryUploadEligibility,
+  MATCH_HISTORY_DISTRIBUTION_CHANNEL,
+  type MatchHistoryUploadRuntime,
+} from './runtime-policy.ts'
 
-export const DEFAULT_MAX_BATCHES = 5
+export const DEFAULT_MAX_BATCHES = BACKGROUND_MAX_UPLOAD_BATCHES_PER_SYNC
 
 export type MatchHistoryUploadService = Pick<
   LocalMatchHistoryService,
-  'getNextPendingUploadPlatform' | 'getUploadTelemetry' | 'claimUploadBatch' | 'resolveUploadBatch'
+  | 'discardUploadEntriesOutsidePatch'
+  | 'getNextPendingUploadPlatform'
+  | 'getUploadTelemetry'
+  | 'claimUploadBatch'
+  | 'resolveUploadBatch'
 >
 
 export type MatchHistoryUploadResult = {
@@ -33,6 +44,7 @@ export type MatchHistoryUploadResult = {
 
 export type MatchHistoryUploaderOptions = {
   clientVersion: string
+  runtime?: MatchHistoryUploadRuntime
   loadConfig?: () => Promise<ClientConfig>
   fetch?: MatchHistoryUploadFetch
   now?: () => number
@@ -57,6 +69,20 @@ export async function drainMatchHistoryUploads(
   options: MatchHistoryUploaderOptions,
 ): Promise<MatchHistoryUploadResult> {
   const result: MatchHistoryUploadResult = { batches: 0, uploaded: 0, retried: 0, rejected: 0 }
+  const runtime = options.runtime ?? {
+    isPackaged: false,
+    distributionChannel: MATCH_HISTORY_DISTRIBUTION_CHANNEL,
+  }
+  const eligibility = getMatchHistoryUploadEligibility(runtime)
+  if (!eligibility.allowed) {
+    logger.debug('[match-history] upload disabled for runtime', {
+      reason: eligibility.reason,
+      packaged: runtime.isPackaged,
+      distributionChannel: runtime.distributionChannel,
+    })
+    return result
+  }
+
   let settings
   try {
     settings = getUploadSettings(await (options.loadConfig ?? loadDefaultConfig)())
@@ -73,14 +99,21 @@ export async function drainMatchHistoryUploads(
 
   const fetcher = options.fetch ?? await getDefaultFetch()
   const now = options.now ?? Date.now
-  const maxBatches = options.maxBatches ?? DEFAULT_MAX_BATCHES
+  const maxBatches = options.maxBatches ?? settings.maxBatchesPerSync
+  const discardedOtherPatchCount = await service.discardUploadEntriesOutsidePatch(settings.targetGamePatch)
+  if (discardedOtherPatchCount > 0) {
+    logger.info('[match-history] discarded non-target-patch upload entries', {
+      targetGamePatch: settings.targetGamePatch,
+      discardedCount: discardedOtherPatchCount,
+    })
+  }
   let session: UploadSession | null = null
   let sessionPlatformId: string | null = null
   let adaptiveBatchSize = settings.maxBatchSize
 
   for (let index = 0; index < maxBatches; index += 1) {
     const attemptAt = now()
-    const platformId = await service.getNextPendingUploadPlatform(attemptAt)
+    const platformId = await service.getNextPendingUploadPlatform(attemptAt, settings.targetGamePatch)
     if (!platformId) break
     const telemetry = await service.getUploadTelemetry()
 
@@ -102,18 +135,19 @@ export async function drainMatchHistoryUploads(
     }
 
     const limit = Math.min(settings.maxBatchSize, session.maxBatchSize, adaptiveBatchSize)
-    const claimed = await service.claimUploadBatch(platformId, limit, attemptAt)
+    const claimed = await service.claimUploadBatch(platformId, limit, attemptAt, settings.targetGamePatch)
     if (!claimed.length) continue
     result.batches += 1
-    const requestBody = JSON.stringify({
+    const requestBodyJson = JSON.stringify({
       schemaVersion: 2,
       clientVersion: options.clientVersion,
       sentAt: new Date(attemptAt).toISOString(),
       pendingUploadCount: telemetry.pendingUploadCount,
       samples: claimed.map((item) => item.sample),
     })
+    const requestBody = gzipJson(requestBodyJson)
 
-    if (Buffer.byteLength(requestBody) > session.maxBodyBytes) {
+    if (Buffer.byteLength(requestBodyJson) > session.maxBodyBytes || requestBody.byteLength > session.maxBodyBytes) {
       const outcome = claimed.length === 1 ? 'rejected' : 'retry'
       const resolutions = resolveWholeBatch(claimed, outcome, 'payload_too_large', attemptAt, 0)
       await service.resolveUploadBatch(resolutions, attemptAt)

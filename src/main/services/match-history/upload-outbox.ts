@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { isMatchHistoryGameVersionForPatch } from './collection-policy.ts'
 import type {
   ClaimedMatchHistoryUploadSample,
   LocalMatchHistoryData,
@@ -53,13 +54,14 @@ export function queueGameForUpload(data: LocalMatchHistoryData, game: StoredMatc
     delete data.uploadedGameTombstones[sourceKey]
   }
   if (existing?.payloadHash === payloadHash) {
+    const shouldRequeueArchived = existing.status === 'rejected' && existing.lastErrorCode === 'game_archived'
     data.uploadOutbox[sourceKey] = {
       ...existing,
       sourceKey,
       idempotencyKey: getIdempotencyKey(sourceKey, payloadHash),
-      status: existing.status === 'uploading' ? 'pending' : existing.status,
-      nextAttemptAt: existing.nextAttemptAt ?? null,
-      lastErrorCode: existing.lastErrorCode ?? null,
+      status: existing.status === 'uploading' || shouldRequeueArchived ? 'pending' : existing.status,
+      nextAttemptAt: shouldRequeueArchived ? null : existing.nextAttemptAt ?? null,
+      lastErrorCode: shouldRequeueArchived ? null : existing.lastErrorCode ?? null,
     }
     return
   }
@@ -100,12 +102,38 @@ function isDue(entry: LocalMatchHistoryData['uploadOutbox'][string], now: number
     (entry.nextAttemptAt ?? 0) <= now
 }
 
+function matchesTargetPatch(
+  data: LocalMatchHistoryData,
+  entry: LocalMatchHistoryData['uploadOutbox'][string],
+  targetGamePatch: string | null,
+): boolean {
+  if (!targetGamePatch) return true
+  const game = data.games[getGameKey(entry.platformId, entry.gameId)]
+  return Boolean(game && isMatchHistoryGameVersionForPatch(game.gameVersion, targetGamePatch))
+}
+
+export function discardMatchHistoryUploadEntriesOutsidePatch(
+  data: LocalMatchHistoryData,
+  targetGamePatch: string,
+): number {
+  let removed = 0
+  for (const [sourceKey, entry] of Object.entries(data.uploadOutbox)) {
+    const game = data.games[getGameKey(entry.platformId, entry.gameId)]
+    if (!game || !isMatchHistoryGameVersionForPatch(game.gameVersion, targetGamePatch)) {
+      delete data.uploadOutbox[sourceKey]
+      removed += 1
+    }
+  }
+  return removed
+}
+
 export function getNextPendingMatchHistoryUploadPlatform(
   data: LocalMatchHistoryData,
   now = Date.now(),
+  targetGamePatch: string | null = null,
 ): string | null {
   return Object.values(data.uploadOutbox)
-    .filter((entry) => isDue(entry, now))
+    .filter((entry) => isDue(entry, now) && matchesTargetPatch(data, entry, targetGamePatch))
     .sort((left, right) => left.queuedAt - right.queuedAt || left.sourceKey.localeCompare(right.sourceKey))[0]
     ?.platformId ?? null
 }
@@ -115,10 +143,15 @@ export function claimMatchHistoryUploadBatch(
   platformId: string,
   limit: number,
   now = Date.now(),
+  targetGamePatch: string | null = null,
 ): ClaimedMatchHistoryUploadSample[] {
   const claimed: ClaimedMatchHistoryUploadSample[] = []
   const candidates = Object.values(data.uploadOutbox)
-    .filter((entry) => entry.platformId === platformId && isDue(entry, now))
+    .filter((entry) =>
+      entry.platformId === platformId
+      && isDue(entry, now)
+      && matchesTargetPatch(data, entry, targetGamePatch)
+    )
     .sort((left, right) => left.queuedAt - right.queuedAt || left.sourceKey.localeCompare(right.sourceKey))
 
   for (const entry of candidates) {

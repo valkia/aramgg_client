@@ -12,7 +12,7 @@ import {
 } from './process-auth-discovery.ts'
 import type { TokenLoadResult } from './types.ts'
 
-const MANUAL_DISCOVERY_DIAGNOSTIC_LOG_INTERVAL_MS = 30 * 1000
+const MANUAL_DISCOVERY_DIAGNOSTIC_LOG_INTERVAL_MS = 5 * 60 * 1000
 let lastManualDiscoveryDiagnosticAt = 0
 let lastManualDiscoveryDiagnosticPath = ''
 
@@ -91,7 +91,7 @@ function logSelectedAuthCandidate(params: {
     return
   }
 
-  logger.info('[LCU manual discovery] auth candidate selected', {
+  logger.debug('[LCU manual discovery] auth candidate selected', {
     configuredPath: params.normalizedPath,
     source: params.source,
     candidatePath: params.candidatePath,

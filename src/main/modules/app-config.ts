@@ -409,7 +409,7 @@ async function logReadOnlyGameApiDiagnostics(lcuService, phase, reason, force = 
     gameApiDiagnosticInFlight = true
 
     try {
-        const logSnapshot = force ? logger.info : logger.debug
+        const logSnapshot = logger.debug
         for (const endpoint of getLcuDiagnosticEndpoints(phase)) {
             const result = await lcuService.getReadOnlyJsonEndpoint(endpoint.path)
             logSnapshot('[LCU diagnostics] read-only endpoint snapshot', {
@@ -1064,7 +1064,7 @@ function logLolGameStatus(status, phase) {
         statusKey !== lastGameWindowStatusKey ||
         now - lastGameWindowStatusLogAt > GAME_WINDOW_STATUS_LOG_INTERVAL_MS
     ) {
-        logger.info(
+        logger.debug(
             `LoL game status: phase=${phase || 'unknown'}, process=${processState}, window=${windowState}, autoScreenshot=${autoScreenshotService.isRunning}`
         )
         lastGameWindowStatusKey = statusKey
@@ -1352,7 +1352,10 @@ async function initGameFlowMonitor() {
 
                 if (now - lastTokenRefreshAt >= GAMEFLOW_TOKEN_REFRESH_INTERVAL_MS || !lcuService.isActive()) {
                     logger.debug('定期刷新 LCU token...')
-                    currentAuth = await lcuService.getAuthToken(!lcuService.isActive())
+                    // Inactive polling must respect the service failure cooldown. Forcing a
+                    // refresh here turns the 1s gameflow fallback into continuous process and
+                    // stale-endpoint discovery while League is closed.
+                    currentAuth = await lcuService.getAuthToken(false)
                     lastTokenRefreshAt = now
 
                     if (currentAuth && currentAuth.url !== lastAuthUrl) {

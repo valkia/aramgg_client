@@ -21,6 +21,8 @@ jobs:
 
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      ARAMGG_DISTRIBUTION_CHANNEL: official
+      ARAMGG_MATCH_HISTORY_UPLOAD_ORIGIN: https://aramgg.com
 
     steps:
       - name: Checkout

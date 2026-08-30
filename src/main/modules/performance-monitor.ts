@@ -252,7 +252,7 @@ function takePerformanceSample(): void {
             lcuDiscovery,
             processes,
         }
-        logger.info('[performance] resource sample', payload)
+        logger.debug('[performance] resource sample', payload)
 
         if (
             sustainedHighCpuSamples >= SUSTAINED_HIGH_CPU_SAMPLE_COUNT &&
@@ -306,7 +306,7 @@ async function logGpuDiagnostics(): Promise<void> {
             app.getGPUInfo('basic'),
         ])
         const info = gpuInfo as Record<string, unknown>
-        logger.info('[performance] GPU diagnostics', {
+        logger.debug('[performance] GPU diagnostics', {
             featureStatus,
             gpuDevice: info.gpuDevice || [],
             auxAttributes: info.auxAttributes || {},

@@ -57,11 +57,11 @@ export async function getLcuToken(
         return manualResult
       }
 
-      logger.warn('[getLcuToken] 手动目录兜底未发现 LCU 凭据')
+      logger.debug('[getLcuToken] 手动目录兜底未发现 LCU 凭据')
       return [null, null, null]
     }
 
-    logger.warn('[getLcuToken] 未从运行中的 League Client 进程发现 LCU 凭据，且未配置手动目录兜底')
+    logger.debug('[getLcuToken] 未从运行中的 League Client 进程发现 LCU 凭据，且未配置手动目录兜底')
     return [null, null, null]
   } catch (err) {
     const error = err as Error

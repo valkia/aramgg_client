@@ -1,13 +1,16 @@
+import { app } from 'electron'
 import logger from '../../modules/logger.ts'
 import { getLCUServiceInstance } from '../lcu/lcu-service.ts'
 import {
   BACKGROUND_SYNC_INTERVAL_MS,
   BACKGROUND_SYNC_MIN_GAP_MS,
   getBackgroundSyncCoalesceCause,
+  getMatchHistoryCollectionPolicy,
 } from './collection-policy.ts'
 import { logMatchHistoryDev } from './dev-diagnostics.ts'
 import { getLocalMatchHistoryService } from './local-match-history-service.ts'
 import { drainMatchHistoryUploads } from './upload/uploader.ts'
+import { MATCH_HISTORY_DISTRIBUTION_CHANNEL } from './upload/runtime-policy.ts'
 
 const BACKGROUND_SYNC_START_DELAY_MS = 15 * 1000
 
@@ -18,6 +21,19 @@ let backgroundSyncInFlight = false
 let lastBackgroundSyncCompletedAt = 0
 let backgroundSyncUpdatedCallback: ((updatedAt: number) => void) | null = null
 let backgroundSyncClientVersion = '0.0.0'
+
+async function loadMatchHistoryConfig() {
+  try {
+    const { loadDataApiConfig } = await import('../../data-loader.ts')
+    return await loadDataApiConfig()
+  } catch (error) {
+    logger.debug('[match-history] remote collection policy unavailable; using safe defaults', {
+      error: error instanceof Error ? error.message : String(error),
+      sensitiveValuesLogged: false,
+    })
+    return null
+  }
+}
 
 async function runBackgroundSync(reason: string): Promise<void> {
   const now = Date.now()
@@ -47,9 +63,16 @@ async function runBackgroundSync(reason: string): Promise<void> {
     }
 
     const service = getLocalMatchHistoryService(lcuService)
-    await service.runBackgroundBatch()
+    const config = await loadMatchHistoryConfig()
+    const collectionPolicy = getMatchHistoryCollectionPolicy(config)
+    await service.runBackgroundBatch(collectionPolicy)
     const uploadResult = await drainMatchHistoryUploads(service, {
       clientVersion: backgroundSyncClientVersion,
+      loadConfig: async () => config ?? {},
+      runtime: {
+        isPackaged: app.isPackaged,
+        distributionChannel: MATCH_HISTORY_DISTRIBUTION_CHANNEL,
+      },
     })
     const summary = await service.getLocalSummary()
     lastBackgroundSyncCompletedAt = Date.now()

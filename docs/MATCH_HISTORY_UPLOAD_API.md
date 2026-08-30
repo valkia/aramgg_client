@@ -66,7 +66,7 @@ UNIQUE (idempotency_key)
 
 1. 校验上传会话、请求大小和批量数量。
 2. 逐项校验 `sourceKey` 与比赛身份。
-3. 已存在相同 `idempotencyKey`：返回 `duplicate`。
+3. 已存在相同 completed `idempotencyKey`：即使比赛正文已安全归档并从在线存储删除，也返回 `duplicate`，不得恢复相同正文。
 4. 不存在 `platformId + gameId`：插入比赛和参与者，返回 `inserted`。
 5. 已存在比赛但 `payloadHash` 不同：在完整性校验通过后更新，返回 `updated`。
 6. 单项无效：返回 `rejected`，并明确 `retryable`；不要让一条坏数据回滚其他有效项。
@@ -84,6 +84,8 @@ UNIQUE (idempotency_key)
 | `413` | 缩小批量；单项仍超限则停止重试 |
 | `429` | 遵循 `Retry-After` |
 | 网络错误或 `5xx` | 有上限的指数退避，不改变幂等键 |
+
+`game_archived` 是旧服务端时间截止线的兼容错误码。新版客户端将它视为可重试，并在本地或 SGP 再次读到相同比赛时，把历史 rejected outbox 恢复为 pending；新服务端不再按比赛时间拒绝从未上传的旧比赛。
 
 服务端返回的 `message` 不得回显完整请求体或任何 Authorization header。
 
@@ -115,17 +117,36 @@ UNIQUE (idempotency_key)
 
 ## 上线开关
 
-生产开关由同源 `/api/client/v1/config` 下发；客户端只在 `enabled=true` 且两个路径都通过内置受信任端点校验时上传：
+公开数据配置仍从 `https://data.dtodo.cn/api/client/v1/config` 获取；战绩会话和批次使用独立的 `https://aramgg.com` Origin。客户端只在 `cloudflareEnabled=true` 且两个路径都通过内置受信任端点校验时上传。旧 `enabled` 永久保持 false，避免旧客户端重新请求 EdgeOne：
 
 ```json
 {
   "matchHistoryUpload": {
-    "enabled": true,
+    "enabled": false,
+    "cloudflareEnabled": true,
     "sessionPath": "/api/client/v1/match-history/upload-session",
     "batchPath": "/api/client/v1/match-history/batches",
-    "maxBatchSize": 20
+    "maxBatchSize": 20,
+    "collectionPolicy": {
+      "refreshCurrentMatchLimit": 10,
+      "matchedPlayerLimit": 6,
+      "matchedMatchLimit": 20,
+      "maxBatchesPerSync": 7,
+      "targetGamePatch": "16.17"
+    }
   }
 }
 ```
 
-远端配置只能启用内置受信任 HTTPS origin，并且 pathname 必须精确等于以上两个 cf-api 路径，不能注入任意上传域名或写接口。
+远端开关之外，客户端还执行本地发布门禁：只有 `app.isPackaged=true` 且编译期
+`ARAMGG_DISTRIBUTION_CHANNEL=official` 时才会申请上传会话。源码、开发模式和普通本地打包均默认关闭上传；
+写接口使用独立的 `ARAMGG_MATCH_HISTORY_UPLOAD_ORIGIN`，源码默认值为
+`http://127.0.0.1:8787`，不继承公开数据下载使用的 `ARAMGG_DATA_API_ORIGIN`。
+
+官方 Windows 发布流水线同时注入 `ARAMGG_DISTRIBUTION_CHANNEL=official` 和生产写接口 `https://aramgg.com`。
+如果非官方通道尝试把写接口设置为生产 origin，构建会直接失败。发布通道标记不是 Secret，也不能抵抗有意修改源码的攻击者；
+它用于阻止开发运行、普通 fork 和非官方打包意外写入生产服务，服务端仍必须保留鉴权、限流和数据完整性校验。
+
+远端配置只能启用客户端编译期内置的上传 origin，并且 pathname 必须精确等于以上两个 cf-api 路径，不能注入任意上传域名或写接口。会话请求发送普通 JSON；批次 JSON 使用 gzip 并带 `Content-Encoding: gzip`。
+
+`collectionPolicy` 只接受客户端内置边界内的整数；越界值回退到安全默认值。客户端只把 `gameVersion` 匹配 `targetGamePatch` 或其补丁号前缀的比赛放入上传队列，并在上传前清理其他补丁的旧 pending；本地战绩正文继续保留。每轮最多 7 批、每批 20 局，因此当前补丁的 drain 上限为 140 局。

@@ -38,6 +38,7 @@ const connectionRefused = (port: number) => Object.assign(
 )
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.clearAllMocks()
 })
 
@@ -66,6 +67,54 @@ describe('LCU connection verification and recovery', () => {
       })
     )
     expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toContain('stale-private-token')
+  })
+
+  it('respects the failure cooldown after a forced discovery fails', async () => {
+    vi.mocked(getLcuToken).mockResolvedValue([
+      'stale-private-token',
+      '57195',
+      'https://riot:stale-private-token@127.0.0.1:57195',
+    ])
+    vi.mocked(axios.get).mockRejectedValue(connectionRefused(57195))
+    const service = new LCUService({ failCooldown: 10000 })
+
+    expect(await service.getAuthToken(true)).toBeNull()
+    expect(await service.getAuthToken(false)).toBeNull()
+
+    expect(getLcuToken).toHaveBeenCalledTimes(1)
+    expect(axios.get).toHaveBeenCalledTimes(1)
+  })
+
+  it('rate limits alternating diagnostics by signature and reports suppressed repeats', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-08T00:00:00.000Z'))
+    vi.mocked(getLcuToken).mockResolvedValue([
+      'stale-private-token',
+      '57195',
+      'https://riot:stale-private-token@127.0.0.1:57195',
+    ])
+    vi.mocked(axios.get).mockRejectedValue(connectionRefused(57195))
+    const service = new LCUService({ failCooldown: 0 })
+
+    await service.getAuthToken(true)
+    await service.getAuthToken(true)
+
+    expect(logger.warn).toHaveBeenCalledTimes(2)
+
+    vi.advanceTimersByTime(5 * 60 * 1000)
+    await service.getAuthToken(true)
+
+    expect(logger.warn).toHaveBeenCalledTimes(4)
+    expect(logger.warn).toHaveBeenNthCalledWith(
+      3,
+      '[LCU connection] endpoint probe failed',
+      expect.objectContaining({ suppressedSinceLastLog: 1 })
+    )
+    expect(logger.warn).toHaveBeenNthCalledWith(
+      4,
+      '[LCU connection] cached auth invalidated',
+      expect.objectContaining({ suppressedSinceLastLog: 1 })
+    )
   })
 
   it('clears rejected auth and force-discovers a new endpoint after ECONNREFUSED', async () => {

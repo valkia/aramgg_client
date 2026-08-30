@@ -5,6 +5,12 @@
 import path from 'path'
 import fs from 'fs-extra'
 import { getLogDir as resolveLogDir } from './app-paths.ts'
+import {
+    DEFAULT_LOG_FILES_PER_DAY,
+    getRotatedLogFilePath,
+    isBrokenPipeError,
+    shouldRotateLogFile,
+} from './logger-utils.ts'
 
 // 日志级别
 const LOG_LEVELS = {
@@ -24,6 +30,22 @@ const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000
 const FILE_WRITE_ERROR_LOG_INTERVAL_MS = 30000
 let lastFileWriteErrorAt = 0
 let lastFileWriteErrorKey = ''
+let fileWriteQueue: Promise<void> = Promise.resolve()
+let consoleSinkAvailable = true
+let lastAutomaticCleanupDate = ''
+
+const handleConsoleStreamError = (error: unknown): void => {
+    if (isBrokenPipeError(error)) {
+        consoleSinkAvailable = false
+        return
+    }
+
+    // A logger must never turn a broken diagnostic stream into an app crash.
+    consoleSinkAvailable = false
+}
+
+process.stdout?.on('error', handleConsoleStreamError)
+process.stderr?.on('error', handleConsoleStreamError)
 
 const toBeijingISOString = (date: Date = new Date()): string => {
     const beijingDate = new Date(date.getTime() + BEIJING_OFFSET_MS)
@@ -46,6 +68,70 @@ const getLogFileName = (): string => {
 // 获取日志文件路径
 const getLogFilePath = (): string => {
     return path.join(getLogDir(), getLogFileName())
+}
+
+const removeOldLogFiles = async (keepDays: number): Promise<string[]> => {
+    const logDir = getLogDir()
+    const files = await fs.readdir(logDir)
+    const now = Date.now()
+    const maxAge = keepDays * 24 * 60 * 60 * 1000
+    const removedFiles: string[] = []
+
+    for (const file of files) {
+        if (!file.endsWith('.log')) continue
+
+        const filePath = path.join(logDir, file)
+        const stats = await fs.stat(filePath)
+        if (now - stats.mtime.getTime() <= maxAge) continue
+
+        await fs.remove(filePath)
+        removedFiles.push(file)
+    }
+
+    return removedFiles
+}
+
+const runAutomaticCleanupIfNeeded = async (logFilePath: string): Promise<void> => {
+    const dateKey = path.basename(logFilePath).match(/^app-(\d{4}-\d{2}-\d{2})/)?.[1] || ''
+    if (!dateKey || dateKey === lastAutomaticCleanupDate) {
+        return
+    }
+
+    lastAutomaticCleanupDate = dateKey
+    try {
+        await removeOldLogFiles(7)
+    } catch {
+        // Retention cleanup must not prevent the current log entry from being written.
+    }
+}
+
+const rotateLogFileIfNeeded = async (
+    logFilePath: string,
+    incomingSize: number
+): Promise<void> => {
+    let currentSize = 0
+    try {
+        currentSize = (await fs.stat(logFilePath)).size
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw error
+        }
+    }
+
+    if (!shouldRotateLogFile(currentSize, incomingSize)) {
+        return
+    }
+
+    for (let index = DEFAULT_LOG_FILES_PER_DAY - 1; index >= 1; index -= 1) {
+        const sourcePath = index === 1
+            ? logFilePath
+            : getRotatedLogFilePath(logFilePath, index - 1)
+        if (!await fs.pathExists(sourcePath)) continue
+
+        await fs.move(sourcePath, getRotatedLogFilePath(logFilePath, index), {
+            overwrite: true,
+        })
+    }
 }
 
 const formatArg = (arg: unknown): string => {
@@ -89,20 +175,52 @@ const writeToFile = async (
     logMessage: string,
     resolveFilePath: () => string = getLogFilePath
 ): Promise<void> => {
-    try {
-        const logFile = resolveFilePath()
-        await fs.appendFile(logFile, logMessage + '\n', { encoding: 'utf8' })
-    } catch (error) {
-        const now = Date.now()
-        const normalizedError = (
-            error instanceof Error ? error : new Error(String(error))
-        ) as Error & { code?: unknown }
-        const errorKey = `${resolveFilePath.name}:${normalizedError.code || normalizedError.name}:${normalizedError.message}`
-        if (errorKey !== lastFileWriteErrorKey || now - lastFileWriteErrorAt > FILE_WRITE_ERROR_LOG_INTERVAL_MS) {
-            lastFileWriteErrorAt = now
-            lastFileWriteErrorKey = errorKey
-            console.error('写入日志文件失败:', error)
+    const writeOperation = async (): Promise<void> => {
+        try {
+            const logFile = resolveFilePath()
+            const serializedMessage = logMessage + '\n'
+            await runAutomaticCleanupIfNeeded(logFile)
+            await rotateLogFileIfNeeded(logFile, Buffer.byteLength(serializedMessage, 'utf8'))
+            await fs.appendFile(logFile, serializedMessage, { encoding: 'utf8' })
+        } catch (error) {
+            const now = Date.now()
+            const normalizedError = (
+                error instanceof Error ? error : new Error(String(error))
+            ) as Error & { code?: unknown }
+            const errorKey = `${resolveFilePath.name}:${normalizedError.code || normalizedError.name}:${normalizedError.message}`
+            if (errorKey !== lastFileWriteErrorKey || now - lastFileWriteErrorAt > FILE_WRITE_ERROR_LOG_INTERVAL_MS) {
+                lastFileWriteErrorAt = now
+                lastFileWriteErrorKey = errorKey
+                if (consoleSinkAvailable) {
+                    try {
+                        console.error('写入日志文件失败:', error)
+                    } catch (consoleError) {
+                        handleConsoleStreamError(consoleError)
+                    }
+                }
+            }
         }
+    }
+
+    fileWriteQueue = fileWriteQueue.then(writeOperation, writeOperation)
+    return fileWriteQueue
+}
+
+const writeToConsole = (level: LogLevel, formattedMessage: string): void => {
+    if (!consoleSinkAvailable) {
+        return
+    }
+
+    try {
+        if (level === 'ERROR') {
+            console.error(formattedMessage)
+        } else if (level === 'WARN') {
+            console.warn(formattedMessage)
+        } else {
+            console.log(formattedMessage)
+        }
+    } catch (error) {
+        handleConsoleStreamError(error)
     }
 }
 
@@ -117,14 +235,8 @@ const logWithLevel = (
     
     const formattedMessage = formatLogMessage(level, message, ...args)
     
-    // 输出到控制台
-    if (level === 'ERROR') {
-        console.error(formattedMessage)
-    } else if (level === 'WARN') {
-        console.warn(formattedMessage)
-    } else {
-        console.log(formattedMessage)
-    }
+    // 输出到控制台。stdout/stderr 关闭后会永久停用该 sink，避免 EPIPE 递归。
+    writeToConsole(level, formattedMessage)
     
     // 异步写入文件（不阻塞主线程）
     writeToFile(formattedMessage)
@@ -149,22 +261,10 @@ export const logger = {
     // 清理旧日志文件（保留最近N天）
     cleanupOldLogs: async (keepDays: number = 7): Promise<void> => {
         try {
-            const logDir = getLogDir()
-            const files = await fs.readdir(logDir)
-            const now = Date.now()
-            const maxAge = keepDays * 24 * 60 * 60 * 1000 // N天的毫秒数
-            
-            for (const file of files) {
-                if (!file.endsWith('.log')) continue
-                
-                const filePath = path.join(logDir, file)
-                const stats = await fs.stat(filePath)
-                const fileAge = now - stats.mtime.getTime()
-                
-                if (fileAge > maxAge) {
-                    await fs.remove(filePath)
-                    logger.info(`已删除旧日志文件: ${file}`)
-                }
+            await fileWriteQueue
+            const removedFiles = await removeOldLogFiles(keepDays)
+            for (const file of removedFiles) {
+                logger.info(`已删除旧日志文件: ${file}`)
             }
         } catch (error) {
             logger.error('清理旧日志失败:', error)

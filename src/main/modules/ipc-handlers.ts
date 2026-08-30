@@ -424,7 +424,7 @@ export function registerIpcHandlers(isDev: boolean): void {
         if (popupWindow && !popupWindow.isDestroyed() && popupWindow.isVisible()) {
             popupWindow.hide()
         }
-        logger.info('[popup] hide-popup processed', {
+        logger.debug('[popup] hide-popup processed', {
             reason,
             windowExists: !!popupWindow && !popupWindow.isDestroyed(),
             visibleAfter: !!popupWindow && !popupWindow.isDestroyed() && popupWindow.isVisible(),
@@ -437,7 +437,7 @@ export function registerIpcHandlers(isDev: boolean): void {
         if (floatingWindow && !floatingWindow.isDestroyed() && floatingWindow.isVisible()) {
             floatingWindow.hide()
         }
-        logger.info('Floating window hide processed', {
+        logger.debug('Floating window hide processed', {
             reason,
             windowExists: !!floatingWindow && !floatingWindow.isDestroyed(),
             visibleAfter: !!floatingWindow && !floatingWindow.isDestroyed() && floatingWindow.isVisible(),
@@ -450,7 +450,7 @@ export function registerIpcHandlers(isDev: boolean): void {
         if (sidePanelWindow && !sidePanelWindow.isDestroyed() && sidePanelWindow.isVisible()) {
             sidePanelWindow.hide()
         }
-        logger.info('Augment side panel hide processed', {
+        logger.debug('Augment side panel hide processed', {
             reason,
             windowExists: !!sidePanelWindow && !sidePanelWindow.isDestroyed(),
             visibleAfter: !!sidePanelWindow && !sidePanelWindow.isDestroyed() && sidePanelWindow.isVisible(),

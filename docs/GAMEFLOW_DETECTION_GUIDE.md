@@ -8,7 +8,7 @@
 OnJsonApiEvent /lol-gameflow/v1/gameflow-phase
 ```
 
-WebSocket 断开、长时间无事件或 LCU token 变化时，主进程会回退到低频只读接口轮询：
+WebSocket 断开、长时间无事件或 LCU token 变化时，主进程会回退到每秒一次的只读接口轮询：
 
 ```text
 GET /lol-gameflow/v1/gameflow-phase

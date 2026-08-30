@@ -45,7 +45,7 @@ describe('LCU manual directory auth discovery', () => {
     expect(token).toBe('manual-lock-token')
     expect(port).toBe('58123')
     expect(url).toBe('https://riot:manual-lock-token@127.0.0.1:58123')
-    expect(logger.info).toHaveBeenCalledWith(
+    expect(logger.debug).toHaveBeenCalledWith(
       '[LCU manual discovery] auth candidate selected',
       expect.objectContaining({
         source: 'lockfile',
@@ -55,7 +55,7 @@ describe('LCU manual directory auth discovery', () => {
         sensitiveValuesLogged: false,
       })
     )
-    expect(JSON.stringify(vi.mocked(logger.info).mock.calls)).not.toContain('manual-lock-token')
+    expect(JSON.stringify(vi.mocked(logger.debug).mock.calls)).not.toContain('manual-lock-token')
   })
 
   it('extracts auth from LeagueClientUx logs under the LeagueClient directory', async () => {

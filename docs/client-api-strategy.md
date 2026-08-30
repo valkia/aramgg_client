@@ -151,6 +151,8 @@ data/
 | `/api/client/v1/data/{dataVersion}/champion-shards/index.json` | 英雄详情分片索引 |
 | `/api/client/v1/data/{dataVersion}/champion-shards/{shardId}.json` | 固定分片的多个英雄详情 |
 | `/api/client/v1/data/{dataVersion}/champions/{championId}.json` | 客户端单英雄详情兜底 |
+| `/api/client/v1/match-history/upload-session` | 受控申请短期战绩上传会话 |
+| `/api/client/v1/match-history/batches` | 使用短期会话批量提交 outbox 战绩 |
 
 单英雄详情应包含该英雄的海克斯胜率列表、装备表现、三强化组合和 `builds` 出装路线。每条出装路线还可包含召唤师技能组合与 18 级技能加点顺序。当前官方客户端的打包预加载和运行时版本更新会按 manifest 准备全部必需固定分片，完整校验后再激活该语言版本；单英雄接口只作为本地版本缺少目标文件时的兜底，不属于正常启动主路径。
 
@@ -263,9 +265,9 @@ Content-Type: application/json
 - 任意批量导出接口或不受限动态 batch。
 - 历史版本批量下载。
 - 高成本组合查询。
-- 管理后台或数据上传能力。
+- 管理后台或除战绩采集协议外的通用数据上传能力。
 
-这些能力应保留给第三方 API Key 体系或内部工具。
+这些能力应保留给第三方 API Key 体系或内部工具。战绩写入是范围受限的例外，完整契约见 [MATCH_HISTORY_UPLOAD_API.md](./MATCH_HISTORY_UPLOAD_API.md)。客户端只向编译期固定 origin 的两个写路径发送请求，且必须同时满足 `app.isPackaged`、官方发布通道和远端开关。
 
 ## 防滥用策略
 
@@ -279,6 +281,8 @@ Content-Type: application/json
 - 必要时为写操作、收藏、同步等个人能力引入登录态和短期 token。
 
 匿名设备 ID 只能用于限流和统计，不能当作安全凭证；客户端生成逻辑开源后可以被伪造。
+
+源码和普通本地打包默认使用 localhost 写入 origin；只有官方 GitHub 发布 workflow 注入 `ARAMGG_DISTRIBUTION_CHANNEL=official` 和生产 `ARAMGG_MATCH_HISTORY_UPLOAD_ORIGIN`。该发布门禁只防止开发运行、普通 fork 和非官方包误写生产，不能阻止有意修改源码的请求方，因此服务端仍须校验短期会话、幂等键、批次限制和数据完整性。
 
 ## 与第三方 API 的商业边界
 

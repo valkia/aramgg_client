@@ -9,6 +9,7 @@ import {
 } from '../../src/renderer/i18n/index.ts'
 import { messages } from '../../src/renderer/i18n/messages.ts'
 import {
+  formatAugmentWinRate,
   formatDataSource,
   getLocalizedText,
 } from '../../src/renderer/service/overlay-formatters.ts'
@@ -51,11 +52,13 @@ describe('renderer i18n', () => {
 
     setAppLocale('en-US')
     expect(translate('display.appLanguage')).toBe('Interface and data language')
+    expect(formatAugmentWinRate(null)).toBe('Insufficient games')
     expect(formatDataSource('remote')).toBe('Remote data')
     expect(getLocalizedText(localizedValue)).toBe('English description')
 
     setAppLocale('zh-TW')
     expect(translate('display.appLanguage')).toBe('介面與資料語言')
+    expect(formatAugmentWinRate(null)).toBe('場次不足')
     expect(formatDataSource('remote')).toBe('遠端資料')
     expect(getLocalizedText(localizedValue)).toBe('繁體說明')
   })

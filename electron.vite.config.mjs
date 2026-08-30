@@ -3,10 +3,55 @@ import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
 
+const OFFICIAL_DISTRIBUTION_CHANNEL = 'official'
+const PRODUCTION_MATCH_HISTORY_UPLOAD_ORIGIN = 'https://aramgg.com'
+const DEFAULT_MATCH_HISTORY_UPLOAD_ORIGIN = 'http://127.0.0.1:8787'
+
+function resolveMatchHistoryBuildConfig() {
+  const distributionChannel = String(
+    process.env.ARAMGG_DISTRIBUTION_CHANNEL || 'local'
+  ).trim().toLowerCase()
+  const rawUploadOrigin = String(
+    process.env.ARAMGG_MATCH_HISTORY_UPLOAD_ORIGIN || DEFAULT_MATCH_HISTORY_UPLOAD_ORIGIN
+  ).trim()
+  const uploadUrl = new URL(rawUploadOrigin)
+  const isLocalhost = ['localhost', '127.0.0.1', '::1'].includes(uploadUrl.hostname)
+
+  if (uploadUrl.protocol !== 'https:' && !(uploadUrl.protocol === 'http:' && isLocalhost)) {
+    throw new Error(
+      'ARAMGG_MATCH_HISTORY_UPLOAD_ORIGIN must use HTTPS, except for localhost development origins'
+    )
+  }
+
+  if (
+    uploadUrl.origin === PRODUCTION_MATCH_HISTORY_UPLOAD_ORIGIN &&
+    distributionChannel !== OFFICIAL_DISTRIBUTION_CHANNEL
+  ) {
+    throw new Error(
+      'Production match-history upload origin requires ARAMGG_DISTRIBUTION_CHANNEL=official'
+    )
+  }
+
+  return {
+    distributionChannel,
+    uploadOrigin: uploadUrl.origin,
+  }
+}
+
+const matchHistoryBuildConfig = resolveMatchHistoryBuildConfig()
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     envPrefix: ['VITE_', 'ARAMGG_'],
+    define: {
+      'import.meta.env.ARAMGG_DISTRIBUTION_CHANNEL': JSON.stringify(
+        matchHistoryBuildConfig.distributionChannel
+      ),
+      'import.meta.env.ARAMGG_MATCH_HISTORY_UPLOAD_ORIGIN': JSON.stringify(
+        matchHistoryBuildConfig.uploadOrigin
+      ),
+    },
     build: {
       target: 'node24',
       sourcemap: false,

@@ -7,6 +7,7 @@ import {
   BACKGROUND_SYNC_INTERVAL_MS,
   getBackgroundCurrentMatchLimit,
   getBackgroundSyncCoalesceCause,
+  getMatchHistoryCollectionPolicy,
 } from '../../src/main/services/match-history/collection-policy.ts'
 
 describe('match-history background sync scheduling', () => {
@@ -40,8 +41,46 @@ describe('match-history background sync scheduling', () => {
     expect(getBackgroundCurrentMatchLimit(50)).toBe(BACKGROUND_INITIAL_CURRENT_MATCH_LIMIT)
     expect(getBackgroundCurrentMatchLimit(199)).toBe(BACKGROUND_INITIAL_CURRENT_MATCH_LIMIT)
     expect(getBackgroundCurrentMatchLimit(200)).toBe(BACKGROUND_REFRESH_CURRENT_MATCH_LIMIT)
-    expect(BACKGROUND_MATCHED_PLAYER_LIMIT).toBe(3)
+    expect(BACKGROUND_MATCHED_PLAYER_LIMIT).toBe(6)
     expect(BACKGROUND_MATCHED_MATCH_LIMIT).toBe(20)
     expect(BACKGROUND_SYNC_INTERVAL_MS).toBe(3 * 60 * 1000)
+  })
+
+  it('accepts only bounded remote collection settings', () => {
+    expect(getMatchHistoryCollectionPolicy({
+      matchHistoryUpload: {
+        collectionPolicy: {
+          refreshCurrentMatchLimit: 12,
+          matchedPlayerLimit: 4,
+          matchedMatchLimit: 30,
+          maxBatchesPerSync: 6,
+          targetGamePatch: '16.18',
+        },
+      },
+    })).toEqual({
+      refreshCurrentMatchLimit: 12,
+      matchedPlayerLimit: 4,
+      matchedMatchLimit: 30,
+      maxBatchesPerSync: 6,
+      targetGamePatch: '16.18',
+    })
+
+    expect(getMatchHistoryCollectionPolicy({
+      matchHistoryUpload: {
+        collectionPolicy: {
+          refreshCurrentMatchLimit: 1000,
+          matchedPlayerLimit: 1000,
+          matchedMatchLimit: 1000,
+          maxBatchesPerSync: 1000,
+          targetGamePatch: '../unsafe',
+        },
+      },
+    })).toEqual({
+      refreshCurrentMatchLimit: 10,
+      matchedPlayerLimit: 6,
+      matchedMatchLimit: 20,
+      maxBatchesPerSync: 7,
+      targetGamePatch: null,
+    })
   })
 })

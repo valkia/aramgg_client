@@ -184,11 +184,19 @@
                     <span v-else>{{ index + 1 }}</span>
                   </div>
                   <div class="augment-main">
-                    <div class="augment-name">{{ augment.name }}</div>
+                    <div class="augment-name-row">
+                      <div class="augment-name">{{ augment.name }}</div>
+                      <span
+                        v-if="formatAugmentTier(augment.tier) !== '--'"
+                        class="augment-tier"
+                      >
+                        {{ formatAugmentTier(augment.tier) }}
+                      </span>
+                    </div>
                   </div>
                   <div class="augment-rate">
-                    <small>{{ t('augment.tierLabel') }}</small>
-                    <strong>{{ formatAugmentTier(augment.tier) }}</strong>
+                    <small>{{ t('augment.winRate') }}</small>
+                    <strong>{{ formatAugmentWinRate(augment.winRate) }}</strong>
                   </div>
                 </div>
               </div>
@@ -492,6 +500,7 @@ import {
 } from '../service/champion-build-routes.js'
 import {
   formatAugmentTier,
+  formatAugmentWinRate,
   formatDataSource,
   formatNumber,
   formatPercent,
@@ -2661,22 +2670,55 @@ defineExpose({
   justify-content: center;
 }
 
+.augment-name-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.augment-name-row .augment-name {
+  min-width: 0;
+}
+
+.augment-tier {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border-radius: 999px;
+  color: #b8c7c3;
+  background: rgba(134, 155, 150, 0.09);
+  box-shadow: inset 0 0 0 1px rgba(184, 199, 195, 0.14);
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
 .augment-rate {
+  display: flex;
+  min-width: 62px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
   text-align: right;
 }
 
 .augment-rate small {
-  display: block;
   color: #869b96;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .augment-rate strong {
   display: block;
   color: #e2c08f;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .build-content {

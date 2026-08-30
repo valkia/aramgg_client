@@ -581,7 +581,7 @@ export async function discoverLcuAuthFromProcess(
       diagnosticHints.push('League processes were found, but no usable auth was present in command lines, lockfiles, or recent client logs.')
     }
 
-    logger.warn('[LCU discovery] no process auth found', {
+    logger.debug('[LCU discovery] no process auth found', {
       processCount: sortedRecords.length,
       processes: sortedRecords.map(summarizeProcessRecord),
       attempts,

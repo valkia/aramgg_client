@@ -1,9 +1,12 @@
 import type { ClientConfig } from '../../../data-loader.ts'
 import { resolveTrustedClientDataUrl } from '../../../../shared/client-data-security.ts'
+import { gzipSync } from 'node:zlib'
+import { getMatchHistoryCollectionPolicy } from '../collection-policy.ts'
 import type {
   ClaimedMatchHistoryUploadSample,
   MatchHistoryUploadResolution,
 } from '../types.ts'
+import { MATCH_HISTORY_UPLOAD_ORIGIN } from './runtime-policy.ts'
 
 const SESSION_PATH = '/api/client/v1/match-history/upload-session'
 const BATCH_PATH = '/api/client/v1/match-history/batches'
@@ -13,8 +16,6 @@ const MAX_BODY_BYTES = 1024 * 1024
 const REQUEST_TIMEOUT_MS = 15 * 1000
 const BASE_RETRY_DELAY_MS = 30 * 1000
 const MAX_RETRY_DELAY_MS = 6 * 60 * 60 * 1000
-const DATA_API_ORIGIN = process.env.ARAMGG_DATA_API_ORIGIN || 'https://data.dtodo.cn'
-const DATA_ALLOWED_ORIGINS = process.env.ARAMGG_DATA_ALLOWED_ORIGINS || ''
 
 export type JsonRecord = Record<string, unknown>
 
@@ -29,7 +30,7 @@ export type MatchHistoryUploadFetch = (
   init: {
     method: 'POST'
     headers: Record<string, string>
-    body: string
+    body: string | Uint8Array
     signal: AbortSignal
   },
 ) => Promise<UploadResponse>
@@ -45,6 +46,8 @@ export type UploadSettings = {
   sessionUrl: string
   batchUrl: string
   maxBatchSize: number
+  maxBatchesPerSync: number
+  targetGamePatch: string
 }
 
 export function isRecord(value: unknown): value is JsonRecord {
@@ -58,8 +61,7 @@ function getTrustedEndpoint(value: unknown, expectedPath: string): string {
   }
   const url = new URL(resolveTrustedClientDataUrl(
     configuredPath,
-    DATA_API_ORIGIN,
-    DATA_ALLOWED_ORIGINS,
+    MATCH_HISTORY_UPLOAD_ORIGIN,
   ))
   if (url.pathname !== expectedPath || url.search || url.hash) {
     throw new Error(`上传接口路径不受信任：${url.pathname}`)
@@ -69,17 +71,23 @@ function getTrustedEndpoint(value: unknown, expectedPath: string): string {
 
 export function getUploadSettings(config: ClientConfig): UploadSettings | null {
   const raw = config.matchHistoryUpload as unknown
-  if (!isRecord(raw) || raw.enabled !== true) {
+  if (!isRecord(raw) || raw.cloudflareEnabled !== true) {
     return null
   }
   const configuredMax = raw.maxBatchSize ?? DEFAULT_MAX_BATCH_SIZE
   if (!Number.isInteger(configuredMax) || Number(configuredMax) < 1 || Number(configuredMax) > MAX_BATCH_SIZE) {
     throw new Error('上传批量上限无效')
   }
+  const collectionPolicy = getMatchHistoryCollectionPolicy(config)
+  if (!collectionPolicy.targetGamePatch) {
+    throw new Error('上传目标补丁无效')
+  }
   return {
     sessionUrl: getTrustedEndpoint(raw.sessionPath, SESSION_PATH),
     batchUrl: getTrustedEndpoint(raw.batchPath, BATCH_PATH),
     maxBatchSize: Number(configuredMax),
+    maxBatchesPerSync: collectionPolicy.maxBatchesPerSync,
+    targetGamePatch: collectionPolicy.targetGamePatch,
   }
 }
 
@@ -97,7 +105,7 @@ export async function getDefaultFetch(): Promise<MatchHistoryUploadFetch> {
 export async function postJson(
   fetcher: MatchHistoryUploadFetch,
   url: string,
-  body: string,
+  body: string | Uint8Array,
   authorization?: string,
 ): Promise<UploadResponse> {
   const controller = new AbortController()
@@ -107,6 +115,7 @@ export async function postJson(
       method: 'POST',
       headers: {
         'content-type': 'application/json',
+        ...(typeof body === 'string' ? {} : { 'content-encoding': 'gzip' }),
         ...(authorization ? { authorization: `Bearer ${authorization}` } : {}),
       },
       body,
@@ -115,6 +124,10 @@ export async function postJson(
   } finally {
     clearTimeout(timeout)
   }
+}
+
+export function gzipJson(body: string): Uint8Array {
+  return gzipSync(Buffer.from(body, 'utf8'))
 }
 
 export async function readJson(response: UploadResponse): Promise<unknown> {
@@ -216,6 +229,15 @@ export function resolveAcknowledgements(
     const code = typeof acknowledgement?.code === 'string' ? acknowledgement.code : 'invalid_acknowledgement'
     if (status === 'inserted' || status === 'duplicate' || status === 'updated') {
       return { sourceKey: sample.sourceKey, idempotencyKey: sample.idempotencyKey, outcome: 'uploaded' }
+    }
+    if (status === 'rejected' && code === 'game_archived') {
+      return {
+        sourceKey: sample.sourceKey,
+        idempotencyKey: sample.idempotencyKey,
+        outcome: 'retry',
+        code,
+        nextAttemptAt: getRetryAt(attempts, now),
+      }
     }
     if (status === 'rejected' && acknowledgement?.retryable === false) {
       return { sourceKey: sample.sourceKey, idempotencyKey: sample.idempotencyKey, outcome: 'rejected', code }

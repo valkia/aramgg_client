@@ -58,10 +58,43 @@ app.commandLine.appendSwitch('ignore-connections-limit', 'op.gg')
  * 主进程全局错误处理
  */
 function setupMainProcessErrorHandling(): void {
+    const globalErrorStates = new Map<string, {
+        lastLoggedAt: number
+        suppressedCount: number
+    }>()
+    const globalErrorLogIntervalMs = 30 * 1000
+
+    const logGlobalError = (event: string, error: unknown): boolean => {
+        const normalizedError = error instanceof Error ? error : new Error(String(error))
+        const errorWithCode = normalizedError as Error & { code?: unknown }
+        const signature = `${event}:${normalizedError.name}:${errorWithCode.code || ''}:${normalizedError.message}`
+        const now = Date.now()
+        const state = globalErrorStates.get(signature)
+
+        if (state && now - state.lastLoggedAt < globalErrorLogIntervalMs) {
+            state.suppressedCount += 1
+            return false
+        }
+
+        globalErrorStates.set(signature, {
+            lastLoggedAt: now,
+            suppressedCount: 0,
+        })
+        if (state?.suppressedCount) {
+            logger.error(event, {
+                suppressedSinceLastLog: state.suppressedCount,
+            }, normalizedError)
+        } else {
+            logger.error(event, normalizedError)
+        }
+        return true
+    }
+
     // 捕获未处理的 Promise 拒绝
-    process.on('unhandledRejection', (reason, promise) => {
-        logger.error('主进程未处理的 Promise 拒绝:', reason)
-        console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+    process.on('unhandledRejection', (reason) => {
+        if (!logGlobalError('主进程未处理的 Promise 拒绝:', reason)) {
+            return
+        }
         import('./services/analytics-service.ts').then(({ recordPendingAnalyticsEvent }) => {
             recordPendingAnalyticsEvent('main_unhandled_rejection', {
                 message: reason instanceof Error ? reason.message : String(reason || 'unknown'),
@@ -71,8 +104,9 @@ function setupMainProcessErrorHandling(): void {
 
     // 捕获未捕获的异常
     process.on('uncaughtException', (error) => {
-        logger.error('主进程未捕获的异常:', error.message, error.stack)
-        console.error('Uncaught Exception:', error)
+        if (!logGlobalError('主进程未捕获的异常:', error)) {
+            return
+        }
         import('./services/analytics-service.ts').then(({ recordPendingAnalyticsEvent }) => {
             recordPendingAnalyticsEvent('main_uncaught_exception', {
                 message: error?.message || 'unknown',
@@ -83,8 +117,7 @@ function setupMainProcessErrorHandling(): void {
 
     // 捕获警告
     process.on('warning', (warning) => {
-        logger.warn('主进程警告:', warning.message, warning.stack)
-        console.warn('Process Warning:', warning)
+        logger.warn('主进程警告:', warning)
     })
 
     app.on('before-quit', () => {

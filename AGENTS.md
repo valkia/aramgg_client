@@ -61,6 +61,8 @@ After dependency or lockfile changes, verify the lockfile with `npx -p npm@10 np
 
 Older clients see future app release notes through the remote `/api/client/v1/config` response. After publishing a new installer, update `client.latestVersion`, `client.downloadUrl`, and `client.changelog` or `client.releaseNotes`; keep `client.autoUpdateEnabled` false unless the `electron-updater` feed has been fully tested. Do not rely on the packaged local changelog fallback for future versions.
 
+Match-history production uploads are release-gated. Source and local packages must default to localhost; only `.github/workflows/release-windows.yml` may inject `ARAMGG_DISTRIBUTION_CHANNEL=official` with the production `ARAMGG_MATCH_HISTORY_UPLOAD_ORIGIN`. Keep the runtime check for both `app.isPackaged` and the official channel, and do not reuse the read-only `ARAMGG_DATA_API_ORIGIN` for uploads.
+
 ## Security & Configuration Tips
 
 Renderer code must not assume Node access. Use the preload bridge and IPC APIs. Keep `contextIsolation`, `sandbox`, and `webSecurity` enabled unless a change explicitly justifies otherwise.

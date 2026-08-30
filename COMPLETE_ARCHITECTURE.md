@@ -32,6 +32,7 @@ Renderer 不直接访问 Node API。所有主进程能力都必须经由 preload
 | IPC 注册 | `src/main/modules/ipc-handlers.ts`、`src/main/ipc/`、`src/main/services/lcu/ipc-handlers.ts` | 聚合注册并按 system、preferences、LCU 等领域组织业务通道 |
 | IPC 契约 | `src/shared/ipc-contract.ts` | 统一 preload API、主进程推送事件、LCU 返回值和 renderer 可写配置 key |
 | LCU 服务 | `src/main/services/lcu/` | LCU token、gameflow、champ-select、符文页 |
+| 本地战绩与受控上传 | `src/main/services/match-history/` | 本地采集、outbox、批量上传，以及打包状态与官方发布通道双重门禁 |
 | 游戏会话状态机 | `src/main/services/game-session/game-session-machine.ts` | 规范化 gameflow 生命周期、去重阶段入口并选择副作用 |
 | ARAM bench 推荐 | `src/main/services/aram/bench-recommendation.ts` | 纯逻辑，只输入快照和英雄统计 |
 | 数据加载与语言切换 | `src/main/data-loader.ts`、`src/main/modules/data-locale-controller.ts` | 按语言隔离的远端/本地数据、打包兜底数据，以及先准备再提交的语言切换事务 |
@@ -86,6 +87,18 @@ resources/client-data/ 或 appData/data/
 英雄详情中的出装数据以 `builds[]` 为入口。主进程 `data-loader.ts` 将每条路线里的装备、`summonerSpells` 和 `skillOrders` 统一映射到 renderer 契约；renderer 再校验召唤师技能必须为两个正整数 ID、技能加点必须为 18 个 `1..4` 的技能序号，并按场次和选取率排序。缺失或不合法的推荐记录会被忽略，对应区块无数据时不展示。
 
 `locale-set` 是界面与数据语言的唯一提交入口。主进程先完整准备目标语言，再依次写入 electron-store、切换活动数据语言并广播 `locale-changed`；每个 renderer 窗口收到事件后更新 Vue i18n，英雄详情同时清理旧 locale 缓存并重新加载。主窗口只在右上角语言菜单显示准备进度；提交后的远端版本/config 刷新在后台运行，并丢弃旧 locale 响应，不能继续占用语言 loading 或阻塞窗口。准备失败不会广播事件，因此界面和数据都保留原语言。渲染入口在挂载 Vue 前调用 `locale-get`，独立浮窗不会先以默认中文闪现。
+
+### 本地战绩采集与受控上传
+
+```text
+LCU / SGP 只读战绩来源
+  -> LocalMatchHistoryService 本地去重与 outbox
+  -> app.isPackaged + ARAMGG_DISTRIBUTION_CHANNEL=official
+  -> /api/client/v1/config 远端开关
+  -> upload-session + batches 写接口
+```
+
+写接口使用独立的 `ARAMGG_MATCH_HISTORY_UPLOAD_ORIGIN`。源码、开发模式和普通本地打包默认指向 `http://127.0.0.1:8787`，只有 `.github/workflows/release-windows.yml` 会同时注入官方通道和生产 origin；非官方通道配置生产 origin 时构建直接失败。远端配置只能启用编译时 origin 下固定的两个写路径，不能改变 origin 或注入其他写接口。这个本地门禁用于避免 fork 和非官方包意外上传，不替代服务端鉴权、限流与数据完整性校验。
 
 ### ARAM 选人只读推荐
 

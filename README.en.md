@@ -122,6 +122,8 @@ Client data APIs, API key applications, and integration notes are available on t
 
 GitHub Actions runs lint, type-check, unit tests, and packaging on a Windows runner. Official releases use `npm run release:patch|minor|major` to create the version commit and annotated tag, followed by `npm run release:push`.
 
+Source builds and ordinary local packages do not upload match history to production. Only the official GitHub release workflow injects the official channel marker and production upload origin.
+
 After dependency or lockfile changes, validate with npm 10 before publishing:
 
 ```bash

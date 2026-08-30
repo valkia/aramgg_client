@@ -30,7 +30,7 @@
 
 GitHub Actions 的 `Build Windows Release` workflow 已验证 Windows 安装包发布链路：
 
-- `master` push 会构建 Actions artifact，便于检查安装包。
+- 手动触发 `workflow_dispatch` 会构建 Actions artifact，便于检查安装包。
 - `v*` tag push 会创建 GitHub Release，并上传 NSIS 安装包、`.blockmap` 和 `latest.yml`。
 - workflow 到 GitHub Release 即结束，不自动上传腾讯 OSS/COS；更新 feed 使用本地发布流程单独交付。
 - workflow 使用 Node `22.18.0` 和 npm 10，安装依赖时执行 `npm ci --ignore-scripts`。

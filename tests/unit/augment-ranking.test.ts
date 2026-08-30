@@ -30,10 +30,31 @@ describe('augment recommendation ranking', () => {
     expect(ranked[1].recommendScore).toBeCloseTo(8 / 9)
   })
 
-  it('keeps the legacy score order while cached data still has win rate', () => {
+  it('derives the displayed score from authoritative rank even when legacy score exists', () => {
+    const ranked = rankAugmentRecommendations([
+      { id: 1, rank: 2, total: 10, winRate: 0.6, recommendScore: 0.4 },
+      { id: 2, rank: 1, total: 10, winRate: 0.5, recommendScore: 0.55 },
+    ])
+
+    expect(ranked.map(item => item.id)).toEqual([2, 1])
+    expect(ranked[0].recommendScore).toBe(1)
+    expect(ranked[1].recommendScore).toBeCloseTo(8 / 9)
+  })
+
+  it('uses tier-derived scores before legacy win-rate scores when tier data exists', () => {
     const ranked = rankAugmentRecommendations([
       { id: 1, tier: 1, winRate: 0.6, recommendScore: 0.4 },
       { id: 2, tier: 2, winRate: 0.5, recommendScore: 0.7 },
+    ])
+
+    expect(ranked.map(item => item.id)).toEqual([1, 2])
+    expect(ranked.map(item => item.recommendScore)).toEqual([1, 0])
+  })
+
+  it('keeps the legacy score order when cached data lacks official rank and tier', () => {
+    const ranked = rankAugmentRecommendations([
+      { id: 1, winRate: 0.6, recommendScore: 0.4 },
+      { id: 2, winRate: 0.5, recommendScore: 0.7 },
     ])
 
     expect(ranked.map(item => item.id)).toEqual([2, 1])

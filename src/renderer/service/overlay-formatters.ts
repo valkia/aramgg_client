@@ -59,6 +59,14 @@ export function formatPercent(value: unknown): string {
   return normalized == null ? '--' : `${(normalized * 100).toFixed(1)}%`
 }
 
+export function formatAugmentWinRate(value: unknown): string {
+  if (value == null || value === '') {
+    return translate('augment.insufficientGames')
+  }
+
+  return formatPercent(value)
+}
+
 export function getWinRateClass(value: unknown): string {
   const normalized = normalizeRateValue(value)
   if (!normalized) return ''

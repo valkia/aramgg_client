@@ -10,10 +10,11 @@ import { getMatchHistoryDataDir } from '../../modules/app-paths.ts'
 import logger from '../../modules/logger.ts'
 import type LCUService from '../lcu/lcu-service.ts'
 import {
-  BACKGROUND_MATCHED_MATCH_LIMIT,
-  BACKGROUND_MATCHED_PLAYER_LIMIT,
   BACKGROUND_REQUEST_PACING_MS,
+  DEFAULT_MATCH_HISTORY_COLLECTION_POLICY,
   getBackgroundCurrentMatchLimit,
+  isMatchHistoryGameVersionForPatch,
+  type MatchHistoryCollectionPolicy,
 } from './collection-policy.ts'
 import {
   MATCH_HISTORY_DEV_DIAGNOSTICS_ENABLED,
@@ -28,6 +29,7 @@ import {
 } from './sgp-match-history-service.ts'
 import {
   claimMatchHistoryUploadBatch,
+  discardMatchHistoryUploadEntriesOutsidePatch,
   getGameKey,
   getNextPendingMatchHistoryUploadPlatform,
   queueGameForUpload,
@@ -72,6 +74,7 @@ type PlayerTarget = {
 
 type PlayerScanOptions = {
   matchLimit: number
+  targetGamePatch: string | null
   shouldContinue?: () => Promise<boolean>
 }
 
@@ -495,13 +498,26 @@ export class LocalMatchHistoryService {
     return this.enrichSummary(buildLocalMatchHistorySummary(await this.repository.getData()))
   }
 
-  runBackgroundBatch(): Promise<LocalMatchHistorySummary> {
-    return this.enqueue('background-batch', () => this.runBackgroundBatchInternal())
+  runBackgroundBatch(
+    policy: MatchHistoryCollectionPolicy = DEFAULT_MATCH_HISTORY_COLLECTION_POLICY,
+  ): Promise<LocalMatchHistorySummary> {
+    return this.enqueue('background-batch', () => this.runBackgroundBatchInternal(policy))
   }
 
-  getNextPendingUploadPlatform(now = Date.now()): Promise<string | null> {
+  discardUploadEntriesOutsidePatch(targetGamePatch: string): Promise<number> {
+    return this.enqueue('upload-discard-other-patches', async () => {
+      const data = await this.repository.getData()
+      const removed = discardMatchHistoryUploadEntriesOutsidePatch(data, targetGamePatch)
+      if (removed > 0) {
+        await this.repository.save(data, 'upload-discard-other-patches')
+      }
+      return removed
+    })
+  }
+
+  getNextPendingUploadPlatform(now = Date.now(), targetGamePatch: string | null = null): Promise<string | null> {
     return this.enqueue('upload-next-platform', async () => (
-      getNextPendingMatchHistoryUploadPlatform(await this.repository.getData(), now)
+      getNextPendingMatchHistoryUploadPlatform(await this.repository.getData(), now, targetGamePatch)
     ))
   }
 
@@ -521,10 +537,11 @@ export class LocalMatchHistoryService {
     platformId: string,
     limit: number,
     now = Date.now(),
+    targetGamePatch: string | null = null,
   ): Promise<ClaimedMatchHistoryUploadSample[]> {
     return this.enqueue('upload-claim', async () => {
       const data = await this.repository.getData()
-      const claimed = claimMatchHistoryUploadBatch(data, platformId, limit, now)
+      const claimed = claimMatchHistoryUploadBatch(data, platformId, limit, now, targetGamePatch)
       await this.repository.save(data, 'upload-claim')
       return claimed
     })
@@ -560,7 +577,7 @@ export class LocalMatchHistoryService {
     return result
   }
 
-  private async runBackgroundBatchInternal(): Promise<LocalMatchHistorySummary> {
+  private async runBackgroundBatchInternal(policy: MatchHistoryCollectionPolicy): Promise<LocalMatchHistorySummary> {
     if (!await this.isSafeBackgroundPhase()) {
       return this.getLocalSummary()
     }
@@ -579,23 +596,26 @@ export class LocalMatchHistoryService {
     const shouldContinue = () => this.isSafeBackgroundPhase()
     const currentMatchLimit = getBackgroundCurrentMatchLimit(
       data.players[currentPlayer.playerKey]?.historyScanLimit,
+      policy,
     )
     logMatchHistoryDev('background collection batch prepared', {
       platformId: currentPlayer.platformId,
       currentMatchLimit,
-      matchedPlayerLimit: BACKGROUND_MATCHED_PLAYER_LIMIT,
-      matchedMatchLimit: BACKGROUND_MATCHED_MATCH_LIMIT,
+      matchedPlayerLimit: policy.matchedPlayerLimit,
+      matchedMatchLimit: policy.matchedMatchLimit,
+      targetGamePatch: policy.targetGamePatch,
       concurrency: 1,
     })
     const currentOutcome = await this.scanPlayerHistory(currentPlayer, {
       matchLimit: currentMatchLimit,
+      targetGamePatch: policy.targetGamePatch,
       shouldContinue,
     })
     if (!currentOutcome.failed && !currentOutcome.interrupted && await shouldContinue()) {
       const candidates = this.getMatchedPlayerCandidates(
         data,
         data.activePlatformId || currentPlayer.platformId,
-      ).slice(0, BACKGROUND_MATCHED_PLAYER_LIMIT)
+      ).slice(0, policy.matchedPlayerLimit)
 
       for (const candidate of candidates) {
         await wait(BACKGROUND_REQUEST_PACING_MS)
@@ -608,7 +628,8 @@ export class LocalMatchHistoryService {
           platformId: candidate.platformId,
           source: 'matched',
         }, {
-          matchLimit: BACKGROUND_MATCHED_MATCH_LIMIT,
+          matchLimit: policy.matchedMatchLimit,
+          targetGamePatch: policy.targetGamePatch,
           shouldContinue,
         })
         if (outcome.failed || outcome.interrupted) {
@@ -756,7 +777,7 @@ export class LocalMatchHistoryService {
         }
         gameIds.add(game.gameId)
         const wasStored = Boolean(data.games[game.gameKey])
-        this.upsertGame(data, game, resolvedTarget.source === 'current')
+        this.upsertGame(data, game, resolvedTarget.source === 'current', options.targetGamePatch)
         if (!wasStored) {
           gameCount += 1
           pageNewGameCount += 1
@@ -898,9 +919,12 @@ export class LocalMatchHistoryService {
     data: LocalMatchHistoryData,
     game: StoredMatchHistoryGame,
     discoverParticipants: boolean,
+    targetGamePatch: string | null,
   ): void {
     data.games[game.gameKey] = game
-    queueGameForUpload(data, game)
+    if (!targetGamePatch || isMatchHistoryGameVersionForPatch(game.gameVersion, targetGamePatch)) {
+      queueGameForUpload(data, game)
+    }
     if (!discoverParticipants) {
       return
     }

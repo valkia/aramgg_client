@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   claimMatchHistoryUploadBatch,
+  discardMatchHistoryUploadEntriesOutsidePatch,
   queueGameForUpload,
   resolveMatchHistoryUploadBatch,
   toMatchHistoryUploadGame,
@@ -146,6 +147,24 @@ describe('match-history upload outbox', () => {
     })
   })
 
+  it('requeues game_archived when the game is read again', () => {
+    const data = createData()
+    const game = createGame()
+    data.games[game.gameKey] = game
+    queueGameForUpload(data, game)
+    const entry = data.uploadOutbox['match-history:v1:HN10:123']
+    entry.status = 'rejected'
+    entry.lastErrorCode = 'game_archived'
+    entry.nextAttemptAt = 999
+
+    queueGameForUpload(data, { ...game, collectedAt: 200 })
+    expect(data.uploadOutbox['match-history:v1:HN10:123']).toMatchObject({
+      status: 'pending',
+      lastErrorCode: null,
+      nextAttemptAt: null,
+    })
+  })
+
   it('claims due entries and applies retry, acknowledgement, and permanent rejection states', () => {
     const data = createData()
     const firstGame = createGame()
@@ -195,6 +214,39 @@ describe('match-history upload outbox', () => {
       status: 'rejected',
       lastErrorCode: 'unsupported_game',
     })
+  })
+
+  it('uploads only the configured patch and discards older pending entries', () => {
+    const data = createData()
+    const oldGame = createGame({ gameKey: 'HN10:123', gameId: 123, gameVersion: '16.16.4' })
+    const currentGame = createGame({ gameKey: 'HN10:456', gameId: 456, gameVersion: '16.17.1' })
+    data.games[oldGame.gameKey] = oldGame
+    data.games[currentGame.gameKey] = currentGame
+    queueGameForUpload(data, oldGame)
+    queueGameForUpload(data, currentGame)
+
+    expect(discardMatchHistoryUploadEntriesOutsidePatch(data, '16.17')).toBe(1)
+    expect(data.uploadOutbox['match-history:v1:HN10:123']).toBeUndefined()
+    expect(data.games[oldGame.gameKey]).toBeDefined()
+
+    const claimed = claimMatchHistoryUploadBatch(data, 'HN10', 20, 200, '16.17')
+    expect(claimed.map((item) => item.sample.game.gameId)).toEqual([456])
+  })
+
+  it('discards orphaned outbox entries while retaining stored games', () => {
+    const data = createData()
+    const currentGame = createGame({ gameKey: 'HN10:456', gameId: 456, gameVersion: '16.17.1' })
+    data.games[currentGame.gameKey] = currentGame
+    queueGameForUpload(data, currentGame)
+    data.uploadOutbox['match-history:v1:HN10:999'] = {
+      ...data.uploadOutbox['match-history:v1:HN10:456'],
+      sourceKey: 'match-history:v1:HN10:999',
+      gameId: 999,
+    }
+
+    expect(discardMatchHistoryUploadEntriesOutsidePatch(data, '16.17')).toBe(1)
+    expect(data.uploadOutbox['match-history:v1:HN10:999']).toBeUndefined()
+    expect(data.games[currentGame.gameKey]).toBeDefined()
   })
 
   it('compacts uploaded bodies but never removes a pending game', () => {

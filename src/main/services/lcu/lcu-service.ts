@@ -34,7 +34,8 @@ import {
 const LCU_ENDPOINT_PROBE_TIMEOUT_MS = 2500
 const LCU_MATCH_HISTORY_TIMEOUT_MS = 10 * 1000
 const LCU_ENTITLEMENTS_TIMEOUT_MS = 5 * 1000
-const LCU_CONNECTION_DIAGNOSTIC_INTERVAL_MS = 30 * 1000
+const LCU_CONNECTION_DIAGNOSTIC_INTERVAL_MS = 5 * 60 * 1000
+const LCU_CONNECTION_DIAGNOSTIC_MAX_SIGNATURES = 50
 const RECOVERABLE_LCU_ERROR_CODES = new Set([
   'ECONNREFUSED',
   'ECONNRESET',
@@ -389,7 +390,7 @@ const logChampSelectSessionDiagnostic = (
     }
 
     lastChampSelectSessionDiagnosticSignature = signature
-    logger.info('[LCU] champ-select raw session diagnostic', diagnostic)
+    logger.debug('[LCU] champ-select raw session diagnostic', diagnostic)
   } catch (error) {
     const err = error as Error
     logger.debug('[LCU] champ-select raw session diagnostic failed:', err.message)
@@ -575,8 +576,10 @@ export class LCUService {
   private tokenCacheDuration: number
   private failCooldown: number
   private authRefreshPromise: Promise<LCUAuthResult | null> | null = null
-  private lastConnectionDiagnosticAt: number = 0
-  private lastConnectionDiagnosticSignature: string = ''
+  private connectionDiagnosticStates = new Map<string, {
+    lastLoggedAt: number
+    suppressedCount: number
+  }>()
 
   // HTTPS Agent（禁用证书验证，LCU 使用自签名证书）
   private httpsAgent = new https.Agent({
@@ -637,17 +640,35 @@ export class LCUService {
       status: details.status || null,
     })
 
+    const previousState = this.connectionDiagnosticStates.get(signature)
     if (
-      signature === this.lastConnectionDiagnosticSignature &&
-      now - this.lastConnectionDiagnosticAt < LCU_CONNECTION_DIAGNOSTIC_INTERVAL_MS
+      previousState &&
+      now - previousState.lastLoggedAt < LCU_CONNECTION_DIAGNOSTIC_INTERVAL_MS
     ) {
+      previousState.suppressedCount += 1
       return
     }
 
-    this.lastConnectionDiagnosticAt = now
-    this.lastConnectionDiagnosticSignature = signature
+    if (
+      !previousState &&
+      this.connectionDiagnosticStates.size >= LCU_CONNECTION_DIAGNOSTIC_MAX_SIGNATURES
+    ) {
+      const oldestSignature = this.connectionDiagnosticStates.keys().next().value
+      if (oldestSignature) {
+        this.connectionDiagnosticStates.delete(oldestSignature)
+      }
+    }
+
+    this.connectionDiagnosticStates.delete(signature)
+    this.connectionDiagnosticStates.set(signature, {
+      lastLoggedAt: now,
+      suppressedCount: 0,
+    })
     logger.warn(event, {
       ...details,
+      ...(previousState?.suppressedCount
+        ? { suppressedSinceLastLog: previousState.suppressedCount }
+        : {}),
       sensitiveValuesLogged: false,
     })
   }

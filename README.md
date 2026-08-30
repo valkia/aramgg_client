@@ -122,6 +122,8 @@ npm run build
 
 GitHub Actions 会在 Windows Runner 上执行 lint、type-check、unit tests 和打包。正式发布使用 `npm run release:patch|minor|major` 创建版本提交与 annotated tag，再运行 `npm run release:push`。
 
+源码开发和普通本地打包不会向生产服上传战绩；只有该 GitHub 官方发布 workflow 会注入官方通道标记和生产写接口 origin。
+
 依赖或 lockfile 变更后，发布前使用 npm 10 验证：
 
 ```bash

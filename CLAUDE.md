@@ -54,6 +54,7 @@ node tests/electron/test-augment-ocr-fixtures.js
 - 正式发布使用 `npm run release:patch|minor|major` 和 `npm run release:push`，让 `npm version` 创建版本提交和 annotated `v*` tag。
 - `v*` tag 必须和 `package.json` 版本一致；清理错误 release 时只删除确认范围内的本地和远端 tag。
 - 旧客户端看到未来版本更新日志依赖远端 `/api/client/v1/config`；发布新安装包后同步 `client.latestVersion`、`client.downloadUrl` 和 `client.changelog` / `client.releaseNotes`。`client.autoUpdateEnabled` 默认保持 `false`，只有自动更新 feed 完整验证后再打开，不要指望打包内的本地兜底日志展示未来版本。
+- 战绩生产上传只允许 GitHub 官方发布流水线注入 `ARAMGG_DISTRIBUTION_CHANNEL=official` 和生产 `ARAMGG_MATCH_HISTORY_UPLOAD_ORIGIN`；源码和本地打包默认 localhost，运行时必须同时满足 `app.isPackaged` 与官方通道，且写接口不得复用只读数据的 `ARAMGG_DATA_API_ORIGIN`。
 
 ## 安全红线
 
