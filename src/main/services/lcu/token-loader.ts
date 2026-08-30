@@ -34,9 +34,12 @@ function getManualLeaguePath(explicitDirPath?: string | null): string | null {
  * 从 LeagueClientUx/LeagueClient 进程参数中提取 LCU Token。
  * 如果 Windows 不暴露进程命令行，则从进程路径旁的 lockfile 或 LeagueClientUx 日志兜底读取。
  */
-export async function getLcuToken(dirPath?: string | null): Promise<TokenLoadResult> {
+export async function getLcuToken(
+    dirPath?: string | null,
+    forceRefresh: boolean = false
+): Promise<TokenLoadResult> {
   try {
-    const processResult = await discoverLcuAuthFromProcess()
+    const processResult = await discoverLcuAuthFromProcess(forceRefresh)
     if (processResult[0] && processResult[1]) {
       return processResult
     }

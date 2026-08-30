@@ -50,11 +50,11 @@ const { t } = useI18n()
 const emit = defineEmits(['post-game-auto-show-changed'])
 const preferenceDefinitions = [
   {
-    key: 'hideChampionInsightOnGameStart',
-    storeKey: 'championInsight.hideOnGameStart',
+    key: 'showChampionDetails',
+    storeKey: 'championInsight.showDetails',
     defaultValue: true,
-    titleKey: 'preferences.hideDetailsTitle',
-    descriptionKey: 'preferences.hideDetailsDescription',
+    titleKey: 'preferences.championDetailsTitle',
+    descriptionKey: 'preferences.championDetailsDescription',
   },
   {
     key: 'showAugmentTopOverlay',
@@ -127,6 +127,8 @@ const applyImmediateWindowEffect = (key, value) => {
     electronAPI.windows.hideFloating()
   } else if (key === 'showAugmentSidePanel') {
     electronAPI.windows.hideAugmentSidePanel()
+  } else if (key === 'showChampionDetails') {
+    electronAPI.windows.hidePopup()
   }
 }
 

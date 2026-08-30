@@ -3,7 +3,7 @@ import { desktopCapturer, type DesktopCapturerSource, type Size } from 'electron
 import logger from './modules/logger.ts'
 
 let lastCaptureSourceKey: string | null = null
-const CAPTURE_THUMBNAIL_SIZE = { width: 1280, height: 720 }
+export const CAPTURE_THUMBNAIL_SIZE = { width: 1280, height: 720 }
 const DEFAULT_CAPTURE_TIMEOUT_MS = 4000
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {

@@ -12,6 +12,7 @@ const LEAGUE_CLIENT_PROCESS_FILTER =
 const CIM_PROCESS_QUERY_TIMEOUT_MS = 8000
 const GET_PROCESS_QUERY_TIMEOUT_MS = 4000
 const DISCOVERY_DIAGNOSTIC_LOG_INTERVAL_MS = 30 * 1000
+const DISCOVERY_SUCCESS_CACHE_MS = 60 * 1000
 let lastDiscoveryDiagnosticLogAt = 0
 let lastFallbackSuccessLogAt = 0
 let processDiscoveryQueryCount = 0
@@ -21,6 +22,8 @@ let lastProcessDiscoveryQueryAt: number | null = null
 let lastProcessDiscoveryQueryDurationMs = 0
 let lastProcessDiscoveryAttemptDurationsMs: number[] = []
 let lastProcessDiscoveryRecordCount = 0
+let cachedLcuAuthResult: TokenLoadResult | null = null
+let cachedLcuAuthAt = 0
 
 export type Win32ProcessRecord = {
   Name?: string
@@ -499,35 +502,63 @@ export function getLcuProcessDiscoveryStats(): LcuProcessDiscoveryStats {
   }
 }
 
-export async function discoverLcuAuthFromProcess(): Promise<TokenLoadResult> {
-  const { records, attempts } = await queryLeagueClientProcesses()
+function cacheLcuAuthResult(result: TokenLoadResult): TokenLoadResult {
+    if (result[0] && result[1]) {
+        cachedLcuAuthResult = result
+        cachedLcuAuthAt = Date.now()
+    }
+
+    return result
+}
+
+export function shouldUseDiscoveryCache(
+    cachedAt: number,
+    now: number,
+    forceRefresh: boolean
+): boolean {
+    return !forceRefresh && cachedAt > 0 && now - cachedAt < DISCOVERY_SUCCESS_CACHE_MS
+}
+
+export async function discoverLcuAuthFromProcess(
+    forceRefresh: boolean = false
+): Promise<TokenLoadResult> {
+    if (shouldUseDiscoveryCache(cachedLcuAuthAt, Date.now(), forceRefresh) && cachedLcuAuthResult) {
+        return cachedLcuAuthResult
+    }
+
+    const { records, attempts } = await queryLeagueClientProcesses()
   const sortedRecords = records.sort((a, b) => {
     const aIsUx = a.Name === 'LeagueClientUx.exe' ? 1 : 0
     const bIsUx = b.Name === 'LeagueClientUx.exe' ? 1 : 0
     return bIsUx - aIsUx
   })
 
-  for (const record of sortedRecords) {
-    const result = parseLcuAuthFromCommandLine(record.CommandLine)
-    if (result[0] && result[1]) {
+    for (const record of sortedRecords) {
+        const result = parseLcuAuthFromCommandLine(record.CommandLine)
+        if (result[0] && result[1]) {
       logger.debug('[LCU discovery] token extracted from process command line', {
         processName: record.Name || null,
         processId: record.ProcessId || null,
         port: result[1],
       })
-      return result
+            return cacheLcuAuthResult(result)
+        }
+
+        const lockfileResult = await readLcuAuthFromProcessLockfile(record)
+        if (lockfileResult[0] && lockfileResult[1]) {
+            return cacheLcuAuthResult(lockfileResult)
+        }
+
+        const logResult = await readLcuAuthFromProcessLog(record)
+        if (logResult[0] && logResult[1]) {
+            return cacheLcuAuthResult(logResult)
+        }
     }
 
-    const lockfileResult = await readLcuAuthFromProcessLockfile(record)
-    if (lockfileResult[0] && lockfileResult[1]) {
-      return lockfileResult
+    if (forceRefresh) {
+        cachedLcuAuthResult = null
+        cachedLcuAuthAt = 0
     }
-
-    const logResult = await readLcuAuthFromProcessLog(record)
-    if (logResult[0] && logResult[1]) {
-      return logResult
-    }
-  }
 
   if (shouldLogDiscoveryDiagnostic()) {
     const metadataAccessLikelyRestricted =

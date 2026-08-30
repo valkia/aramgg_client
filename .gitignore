@@ -8,6 +8,14 @@ node_modules
 /.codex-tmp
 /.codex-update-test
 
+# Local Trellis workflow
+/.trellis/
+/.codex/
+/.agents/
+
+# Local CodeGraph index
+/.codegraph/
+
 # local env files
 .env
 .env.*

@@ -8,7 +8,7 @@
       <header class="insight-titlebar">
         <h1>{{ isSidePanel ? t('augment.recommendation') : t('augment.championDetails') }}</h1>
         <div class="window-controls">
-          <button class="window-control" type="button" :aria-label="t('common.minimize')" @click="closeOverlay('manual')">
+          <button v-if="isSidePanel" class="window-control" type="button" :aria-label="t('common.minimize')" @click="closeOverlay('manual')">
             <Minus class="window-icon" />
           </button>
           <button class="window-control danger" type="button" :aria-label="t('common.close')" @click="closeOverlay('manual')">
@@ -549,10 +549,8 @@ const benchPreviewRecommendation = ref(null)
 const unsubscribeEvents = []
 const itemSetApplying = ref(false)
 const itemSetAutoEnabled = ref(true)
-const hideChampionInsightOnGameStart = ref(true)
 const itemSetToast = ref({ type: '', message: '' })
 const ITEM_SET_AUTO_KEY = 'itemSets.autoApplyAram'
-const HIDE_CHAMPION_INSIGHT_ON_GAME_START_KEY = 'championInsight.hideOnGameStart'
 const CHAMPION_DATA_CACHE_TTL_MS = 15000
 const MAX_ITEM_SET_BUILDS = 4
 let itemSetToastTimer = null
@@ -646,21 +644,6 @@ const loadItemSetAutoPreference = async () => {
     itemSetAutoEnabled.value = Boolean(storedValue)
   } catch (err) {
     console.warn('Failed to load item set preference:', err)
-  }
-}
-
-const loadChampionInsightPreference = async () => {
-  try {
-    const storedValue = await electronAPI.store.get(HIDE_CHAMPION_INSIGHT_ON_GAME_START_KEY)
-    if (storedValue == null) {
-      await electronAPI.store.set(HIDE_CHAMPION_INSIGHT_ON_GAME_START_KEY, true)
-      hideChampionInsightOnGameStart.value = true
-      return
-    }
-
-    hideChampionInsightOnGameStart.value = Boolean(storedValue)
-  } catch (err) {
-    console.warn('Failed to load champion insight preference:', err)
   }
 }
 
@@ -1307,7 +1290,6 @@ const applyDataLocale = (locale) => {
  */
 onMounted(() => {
   logOverlayInfo('component mounted')
-  void loadChampionInsightPreference()
   void electronAPI.locale.get()
     .then((result) => {
       applyDataLocale(result?.locale)
@@ -1344,27 +1326,29 @@ onMounted(() => {
 
   unsubscribeEvents.push(electronAPI.events.on('augment-cleared', (data) => {
     console.log('🔧 收到 augment-cleared 事件:', data)
-    closeOverlay('augment-cleared')
+    if (isSidePanel.value) {
+      closeOverlay('augment-cleared')
+    }
   }))
 
   unsubscribeEvents.push(electronAPI.events.on('game-started', () => {
-    if (hideChampionInsightOnGameStart.value || isSidePanel.value) {
-      console.log('🎮 游戏开始，隐藏弹窗')
+    if (isSidePanel.value) {
+      console.log('🎮 游戏开始，隐藏海克斯右侧面板')
       closeOverlay('game-started')
       return
     }
 
-    logOverlayInfo('game-started received; champion insight retained by preference')
+    logOverlayInfo('game-started received; champion insight remains visible')
   }))
 
   unsubscribeEvents.push(electronAPI.events.on('game-in-progress', () => {
-    if (hideChampionInsightOnGameStart.value || isSidePanel.value) {
-      console.log('🎮 游戏进行中，隐藏弹窗')
+    if (isSidePanel.value) {
+      console.log('🎮 游戏进行中，隐藏海克斯右侧面板')
       closeOverlay('game-in-progress')
       return
     }
 
-    logOverlayInfo('game-in-progress received; champion insight retained by preference')
+    logOverlayInfo('game-in-progress received; champion insight remains visible')
   }))
 
   unsubscribeEvents.push(electronAPI.events.on('item-set-auto-apply-completed', (data) => {

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import sharp from 'sharp'
 import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -67,6 +68,65 @@ function enginesOf(slotDiagnostics = []) {
     return [...new Set(slotDiagnostics.map(diagnostic => diagnostic.ocrEngine).filter(Boolean))]
 }
 
+async function assertFixtureResult(analyzeScreenshot, input, sample, variant) {
+    const result = await analyzeScreenshot(input)
+
+    assert.equal(result.success, true, `${sample.file} (${variant}): analysis should succeed`)
+    assert.equal(
+        result.analysis.cardCount,
+        sample.expectedCardCount,
+        `${sample.file} (${variant}): cardCount should match fixture expectation`
+    )
+    assert.deepEqual(
+        idsOf(result.analysis.augments),
+        sample.expectedIds,
+        `${sample.file} (${variant}): augment ids should remain stable`
+    )
+    assert.deepEqual(
+        namesOf(result.analysis.augments),
+        sample.expectedNames,
+        `${sample.file} (${variant}): augment names should remain stable`
+    )
+
+    const engines = enginesOf(result.analysis.slotDiagnostics)
+    if (variant === '1280x720' || engines.length > 0) {
+        assert.deepEqual(engines, ['paddleocr'], `${sample.file} (${variant}): OCR engine should be PaddleOCR only`)
+    }
+
+    console.log(JSON.stringify({
+        file: sample.file,
+        variant,
+        cardCount: result.analysis.cardCount,
+        ids: idsOf(result.analysis.augments),
+        names: namesOf(result.analysis.augments),
+        durationMs: result.metadata.analysisDurationMs,
+    }))
+}
+
+async function assertGateResult(analyzeScreenshotGate, input, sample, variant) {
+    const result = await analyzeScreenshotGate(input)
+
+    assert.equal(result.success, true, `${sample.file} (${variant}): gate analysis should succeed`)
+    assert.equal(
+        result.likely,
+        true,
+        `${sample.file} (${variant}): title activity gate should pass for a card frame`
+    )
+    assert.equal(
+        result.rerollVisible,
+        true,
+        `${sample.file} (${variant}): reroll button gate should pass for a card frame`
+    )
+
+    console.log(JSON.stringify({
+        file: sample.file,
+        variant,
+        likely: result.likely,
+        rerollVisible: result.rerollVisible,
+        durationMs: result.durationMs,
+    }))
+}
+
 async function main() {
     const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
     testRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aramgg-augment-ocr-'))
@@ -78,40 +138,24 @@ async function main() {
 
     const imageAnalyzer = await import('../../src/main/image-analyzer.ts')
     const analyzeScreenshot = imageAnalyzer.analyzeScreenshot
+    const analyzeScreenshotGate = imageAnalyzer.analyzeScreenshotGate
     shutdownImageAnalyzer = imageAnalyzer.shutdownImageAnalyzer
 
     for (const sample of manifest) {
         const imagePath = path.join(fixturesDir, sample.file)
-        const result = await analyzeScreenshot(imagePath)
-
-        assert.equal(result.success, true, `${sample.file}: analysis should succeed`)
-        assert.equal(
-            result.analysis.cardCount,
-            sample.expectedCardCount,
-            `${sample.file}: cardCount should match fixture expectation`
-        )
-        assert.deepEqual(
-            idsOf(result.analysis.augments),
-            sample.expectedIds,
-            `${sample.file}: augment ids should remain stable`
-        )
-        assert.deepEqual(
-            namesOf(result.analysis.augments),
-            sample.expectedNames,
-            `${sample.file}: augment names should remain stable`
-        )
-
-        const engines = enginesOf(result.analysis.slotDiagnostics)
-        assert.deepEqual(engines, ['paddleocr'], `${sample.file}: OCR engine should be PaddleOCR only`)
-
-        console.log(JSON.stringify({
-            file: sample.file,
-            description: sample.description,
-            cardCount: result.analysis.cardCount,
-            ids: idsOf(result.analysis.augments),
-            names: namesOf(result.analysis.augments),
-            durationMs: result.metadata.analysisDurationMs,
-        }))
+        await assertFixtureResult(analyzeScreenshot, imagePath, sample, '1280x720')
+        if (sample.expectedCardCount > 0) {
+            const gateBuffer = await sharp(imagePath)
+                .resize(640, 360, { fit: 'fill' })
+                .png()
+                .toBuffer()
+            await assertGateResult(analyzeScreenshotGate, gateBuffer, sample, '640x360')
+        }
+        const automaticCaptureBuffer = await sharp(imagePath)
+            .resize(1024, 576, { fit: 'fill' })
+            .png()
+            .toBuffer()
+        await assertFixtureResult(analyzeScreenshot, automaticCaptureBuffer, sample, '1024x576')
     }
 }
 

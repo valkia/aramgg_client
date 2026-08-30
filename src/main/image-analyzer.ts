@@ -33,6 +33,8 @@ import logger from './modules/logger.ts'
 import { ensureOnnxruntimeNativeDllPath } from './modules/onnxruntime-native-path.ts'
 import { discoverLcuAuthFromProcess } from './services/lcu/process-auth-discovery.ts'
 
+sharp.concurrency(Number(process.env.ARAMGG_SHARP_CONCURRENCY) || 2)
+
 // ES Module 中获取 __dirname
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -570,7 +572,6 @@ async function getPaddleOcrService() {
                 import('paddleocr'),
                 import('onnxruntime-node'),
             ])
-
             const charactersDictionary = readPaddleOcrCharacterDictionary(
                 readFileSync(modelPaths.recConfigPath, 'utf8')
             )
@@ -641,16 +642,17 @@ async function performPaddleOCR(imageBuffer) {
             return null
         }
 
-        const { data, info } = await sharp(imageBuffer)
-            .ensureAlpha()
-            .raw()
-            .toBuffer({ resolveWithObject: true })
-
-        const input = {
-            width: info.width,
-            height: info.height,
-            data: new Uint8Array(data.buffer, data.byteOffset, data.byteLength),
-        }
+        const input = isRawImageInput(imageBuffer)
+            ? {
+                width: imageBuffer.width,
+                height: imageBuffer.height,
+                data: new Uint8Array(
+                    imageBuffer.buffer.buffer,
+                    imageBuffer.buffer.byteOffset,
+                    imageBuffer.buffer.byteLength
+                ),
+            }
+            : await decodeImageToRaw(imageBuffer)
 
         return await service.recognize(input)
     })
@@ -681,6 +683,42 @@ function resolveImageBuffer(imageInput) {
         buffer: null,
         sourceType: 'unknown',
         sourcePath: null,
+    }
+}
+
+function isRawImageInput(value) {
+    return !!value &&
+        Buffer.isBuffer(value.buffer) &&
+        Number.isInteger(value.width) &&
+        Number.isInteger(value.height) &&
+        Number.isInteger(value.channels)
+}
+
+function sharpFromImage(imageInput) {
+    if (isRawImageInput(imageInput)) {
+        return sharp(imageInput.buffer, {
+            raw: {
+                width: imageInput.width,
+                height: imageInput.height,
+                channels: imageInput.channels,
+            },
+        })
+    }
+
+    return sharp(imageInput)
+}
+
+async function decodeImageToRaw(imageBuffer) {
+    const { data, info } = await sharp(imageBuffer)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true })
+
+    return {
+        buffer: data,
+        width: info.width,
+        height: info.height,
+        channels: info.channels,
     }
 }
 
@@ -1182,25 +1220,28 @@ async function prepareRawOcrRegion(imageBuffer, region, imageWidth, imageHeight)
     const scale = region.scale || 1
     const targetWidth = Math.max(1, Math.round(rect.width * scale))
     const targetHeight = Math.max(1, Math.round(rect.height * scale))
+    const { data, info } = await sharpFromImage(imageBuffer)
+        .extract(rect)
+        .resize({
+            width: targetWidth,
+            height: targetHeight,
+            fit: 'fill',
+        })
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true })
 
     return {
         rect,
         width: targetWidth,
         height: targetHeight,
-        buffer: await sharp(imageBuffer)
-            .extract(rect)
-            .resize({
-                width: targetWidth,
-                height: targetHeight,
-                fit: 'fill',
-            })
-            .png()
-            .toBuffer(),
+        buffer: data,
+        channels: info.channels,
     }
 }
 
-async function createTitleFingerprint(imageBuffer) {
-    const { data } = await sharp(imageBuffer)
+async function createTitleFingerprint(imageInput) {
+    const { data } = await sharpFromImage(imageInput)
         .resize({
             width: OCR_TITLE_FINGERPRINT_SIZE.width,
             height: OCR_TITLE_FINGERPRINT_SIZE.height,
@@ -1229,25 +1270,32 @@ async function createTitleFingerprint(imageBuffer) {
 
 async function composeStackedTitleRows(preparedRows, minRowGap = 10) {
     if (preparedRows.length === 0) {
+        const empty = await sharp({
+            create: {
+                width: 1,
+                height: 1,
+                channels: 4,
+                background: '#ffffff',
+            },
+        }).raw().toBuffer({ resolveWithObject: true })
         return {
             rect: { left: 0, top: 0, width: 1, height: 1 },
             width: 1,
             height: 1,
-            buffer: await sharp({
-                create: {
-                    width: 1,
-                    height: 1,
-                    channels: 3,
-                    background: '#ffffff',
-                },
-            }).png().toBuffer(),
+            buffer: empty.data,
+            channels: empty.info.channels,
             rowBounds: [],
             rowFingerprints: [],
         }
     }
 
     const rowFingerprints = await Promise.all(
-        preparedRows.map(row => createTitleFingerprint(row.buffer))
+        preparedRows.map(row => createTitleFingerprint({
+            buffer: row.buffer,
+            width: row.width,
+            height: row.height,
+            channels: row.channels,
+        }))
     )
     const rowGap = Math.max(minRowGap, Math.round(preparedRows[0].height * 0.18))
     const width = Math.max(...preparedRows.map(row => row.width))
@@ -1269,6 +1317,11 @@ async function composeStackedTitleRows(preparedRows, minRowGap = 10) {
         const rowTop = top
         const composite = {
             input: row.buffer,
+            raw: {
+                width: row.width,
+                height: row.height,
+                channels: row.channels,
+            },
             left: Math.max(0, Math.round((width - row.width) / 2)),
             top,
         }
@@ -1281,17 +1334,17 @@ async function composeStackedTitleRows(preparedRows, minRowGap = 10) {
         return composite
     })
 
-    const buffer = await sharp({
+    const { data, info } = await sharp({
         create: {
             width,
             height,
-            channels: 3,
+            channels: 4,
             background: '#ffffff',
         },
     })
         .composite(composites)
-        .png()
-        .toBuffer()
+        .raw()
+        .toBuffer({ resolveWithObject: true })
 
     return {
         rect: {
@@ -1302,7 +1355,8 @@ async function composeStackedTitleRows(preparedRows, minRowGap = 10) {
         },
         width,
         height,
-        buffer,
+        buffer: data,
+        channels: info.channels,
         rowBounds,
         rowFingerprints,
     }
@@ -1418,12 +1472,13 @@ export function isLikelyTitleSlotText(rawText, match) {
 async function readPaddleOcrTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
     const startedAt = performance.now()
     const prepareStartedAt = performance.now()
-    const { rect, buffer, rowBounds, rowFingerprints } = await preparePaddleOcrStackedTitleRegion(imageBuffer, imageWidth, imageHeight)
+    const prepared = await preparePaddleOcrStackedTitleRegion(imageBuffer, imageWidth, imageHeight)
+    const { rect, rowBounds, rowFingerprints } = prepared
     const prepareMs = performance.now() - prepareStartedAt
     logger.debug(`PaddleOCR ordered title stack: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
 
     const ocrStartedAt = performance.now()
-    const items = await performPaddleOCR(buffer)
+    const items = await performPaddleOCR(prepared)
     const ocrMs = performance.now() - ocrStartedAt
     if (!items) {
         return null
@@ -1489,7 +1544,7 @@ async function readStackedTitleAugments(imageBuffer, groupRegion, imageWidth, im
 
 async function measureTitleRegionActivity(imageBuffer, region, imageWidth, imageHeight) {
     const rect = clampRegion(region, imageWidth, imageHeight)
-    const { data, info } = await sharp(imageBuffer)
+    const { data, info } = await sharpFromImage(imageBuffer)
         .extract(rect)
         .resize({
             width: OCR_TITLE_ACTIVITY_SAMPLE.width,
@@ -1548,7 +1603,7 @@ async function getAugmentTitleActivity(imageBuffer, width, height) {
 
 async function measureRerollButtonRegion(imageBuffer, region, imageWidth, imageHeight) {
     const rect = clampRegion(region, imageWidth, imageHeight)
-    const { data, info } = await sharp(imageBuffer)
+    const { data, info } = await sharpFromImage(imageBuffer)
         .extract(rect)
         .resize({
             width: AUGMENT_REROLL_BUTTON_SAMPLE.width,
@@ -1597,9 +1652,11 @@ async function measureRerollButtonRegion(imageBuffer, region, imageWidth, imageH
 }
 
 export async function detectAugmentRerollButtons(imageBuffer, imageWidth = null, imageHeight = null) {
-    const metadata = !imageWidth || !imageHeight
-        ? await sharp(imageBuffer).metadata()
-        : { width: imageWidth, height: imageHeight }
+    const metadata = isRawImageInput(imageBuffer)
+        ? { width: imageBuffer.width, height: imageBuffer.height }
+        : !imageWidth || !imageHeight
+            ? await sharp(imageBuffer).metadata()
+            : { width: imageWidth, height: imageHeight }
     const width = metadata.width
     const height = metadata.height
 
@@ -1707,12 +1764,12 @@ export const warmupImageAnalyzer = async () => {
  */
 async function recognizeAugmentsFromImage(imageBuffer) {
     try {
-        const metadata = await sharp(imageBuffer).metadata()
-        const { width, height } = metadata
+        const rawImage = await decodeImageToRaw(imageBuffer)
+        const { width, height } = rawImage
 
         logger.debug(`OCR augment recognition started: ${width}x${height}`)
 
-        const titleActivity = await getAugmentTitleActivity(imageBuffer, width, height)
+        const titleActivity = await getAugmentTitleActivity(rawImage, width, height)
         const gate = {
             titleActivity,
             rerollButtons: null,
@@ -1732,7 +1789,7 @@ async function recognizeAugmentsFromImage(imageBuffer) {
             }
         }
 
-        const rerollButtons = await detectAugmentRerollButtons(imageBuffer, width, height)
+        const rerollButtons = await detectAugmentRerollButtons(rawImage, width, height)
         gate.rerollButtons = rerollButtons
         if (!rerollButtons.visible) {
             logger.debug('OCR augment recognition skipped: no visible augment reroll buttons')
@@ -1756,7 +1813,7 @@ async function recognizeAugmentsFromImage(imageBuffer) {
         const {
             augments: orderedTitleAugments,
             slotDiagnostics,
-        } = await readStackedTitleAugments(imageBuffer, individualTitleGroup, width, height)
+        } = await readStackedTitleAugments(rawImage, individualTitleGroup, width, height)
         const result = orderAugmentsByDetectedSlot(orderedTitleAugments)
 
         if (result.length === 0) {
@@ -1964,6 +2021,32 @@ function rangesOverlap(a, b) {
 }
 
 /**
+ * 用低成本条件过滤匹配候选，避免对每个海克斯名称都跑滑动窗口编辑距离。
+ */
+export function prefilterAugmentMatchEntries(matchEntries, normalizedText) {
+    const normalizedTextChars = new Set(normalizedText)
+
+    return matchEntries.filter(entry => {
+        const normalizedName = entry.normalizedName
+        if (!normalizedName || normalizedName.length > normalizedText.length) {
+            return false
+        }
+        if (normalizedText.includes(normalizedName)) {
+            return true
+        }
+        if (normalizedName.length <= 2) {
+            return false
+        }
+        for (const char of normalizedName) {
+            if (normalizedTextChars.has(char)) {
+                return true
+            }
+        }
+        return false
+    })
+}
+
+/**
  * 从识别的文本匹配海克斯数据库
  * @param {string} recognizedText - OCR识别的文本
  * @returns {Array} 匹配的海克斯列表
@@ -1996,11 +2079,14 @@ export async function matchAugmentDatabase(recognizedText) {
     })
     logger.debug(`📊 海克斯匹配索引已就绪，最长名称: "${matchEntries[0]?.matchName || matchEntries[0]?.augmentData.name}" (${matchEntries[0]?.normalizedName.length} 字符), localePriority=${localePriority.join('>')}`)
 
+    // 先做低成本预筛：长度超界、无共享字符的候选不进入编辑距离计算。
+    const prefilteredEntries = prefilterAugmentMatchEntries(matchEntries, normalizedText)
+
     // 收集所有候选匹配，再按重叠范围筛选，避免长名称被短名称拆分。
     const candidates = []
     let matchedCount = 0
 
-    for (const { augmentData, locale, matchName, normalizedName } of matchEntries) {
+    for (const { augmentData, locale, matchName, normalizedName } of prefilteredEntries) {
 
         // 使用模糊匹配查找
         const match = fuzzyFind(normalizedText, normalizedName)
@@ -2021,7 +2107,7 @@ export async function matchAugmentDatabase(recognizedText) {
         }
     }
 
-    logger.debug(`Augment match stats: scanned=${matchEntries.length}, matched=${matchedCount}`)
+    logger.debug(`Augment match stats: scanned=${prefilteredEntries.length}/${matchEntries.length}, matched=${matchedCount}`)
 
     candidates.sort((a, b) => {
         if (a.match.distance !== b.match.distance) {
@@ -2151,6 +2237,51 @@ function generateAugmentRecommendations(cardDetections) {
 }
 
 /**
+ * 仅执行像素级海克斯选择界面门禁，不触发完整 OCR。
+ * @param {Buffer|string} imageInput - 截图 Buffer 或图片路径
+ */
+export const analyzeScreenshotGate = async (imageInput) => {
+    try {
+        const startTime = performance.now()
+        const { buffer: imageBuffer, sourceType, sourcePath } = resolveImageBuffer(imageInput)
+
+        if (!imageBuffer || !Buffer.isBuffer(imageBuffer) || imageBuffer.length === 0) {
+            return {
+                success: false,
+                error: '截图数据无效',
+            }
+        }
+
+        const rawImage = await decodeImageToRaw(imageBuffer)
+        const { width, height } = rawImage
+        const titleActivity = await getAugmentTitleActivity(rawImage, width, height)
+        const rerollButtons = await detectAugmentRerollButtons(rawImage, width, height)
+        // 小尺寸门禁帧的标题区域更小，放宽到至少一个候选区域即可触发升级；
+        // 连续候选帧阈值和完整 OCR 冷却会过滤普通 HUD 误报。
+        const likely = titleActivity.strongTitleRegions >= 1 || titleActivity.weakCardRegions >= 1
+
+        return {
+            success: true,
+            likely,
+            rerollVisible: rerollButtons.visible,
+            strongTitleRegions: titleActivity.strongTitleRegions,
+            weakCardRegions: titleActivity.weakCardRegions,
+            titleActivity,
+            rerollButtons,
+            sourceType,
+            sourcePath,
+            durationMs: parseFloat((performance.now() - startTime).toFixed(2)),
+        }
+    } catch (error) {
+        logger.error('Augment selection gate analysis failed:', error)
+        return {
+            success: false,
+            error: error.message,
+        }
+    }
+}
+
+/**
  * 分析截图图像
  * @param {Buffer|string} imageInput - 截图 Buffer 或图片路径
  * @returns {Promise<Object>} 分析结果
@@ -2270,6 +2401,7 @@ export const shutdownImageAnalyzer = async () => {
 
 export default {
     analyzeScreenshot,
+    analyzeScreenshotGate,
     extractAugments,
     isAugmentPhase,
     getConfidence,

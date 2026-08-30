@@ -3,7 +3,7 @@ export type Unsubscribe = () => void
 export type AppStoreKey =
   | 'lastSelectedChampionId'
   | 'itemSets.autoApplyAram'
-  | 'championInsight.hideOnGameStart'
+  | 'championInsight.showDetails'
   | 'augments.showTopOverlay'
   | 'augments.showSidePanel'
   | 'postGameShare.autoShow'

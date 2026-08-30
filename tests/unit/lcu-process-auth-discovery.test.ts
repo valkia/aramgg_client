@@ -4,6 +4,7 @@ import {
   parseLcuAuthFromLogContent,
   parseLcuAuthFromLockfile,
   queryLeagueClientProcessesWithRunner,
+  shouldUseDiscoveryCache,
 } from '../../src/main/services/lcu/process-auth-discovery.ts'
 
 describe('LCU process auth discovery', () => {
@@ -151,5 +152,13 @@ describe('LCU process auth discovery', () => {
       ProcessId: 4321,
       ExecutablePath: 'D:\\League\\LeagueClientUx.exe',
     }))
+  })
+
+  it('caches successful discovery results and bypasses the cache on force refresh', () => {
+    const now = 100_000
+    expect(shouldUseDiscoveryCache(now - 1000, now, false)).toBe(true)
+    expect(shouldUseDiscoveryCache(0, now, false)).toBe(false)
+    expect(shouldUseDiscoveryCache(now - 61_000, now, false)).toBe(false)
+    expect(shouldUseDiscoveryCache(now - 1000, now, true)).toBe(false)
   })
 })
