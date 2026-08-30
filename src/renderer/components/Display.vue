@@ -209,6 +209,7 @@
                     @post-game-auto-show-changed="setPostGameShareAutoShowEnabled"
                 />
                 <ChampionMonitor />
+                <MatchHistoryPanel />
 
                 <section class="post-game-panel">
                     <div class="section-header">
@@ -385,6 +386,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import ItemSetInstaller from './ItemSetInstaller.vue'
 import OverlayPreferences from './OverlayPreferences.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
+import MatchHistoryPanel from './MatchHistoryPanel.vue'
 import PostGameShareModal from './PostGameShareModal.vue'
 import {
     Select,

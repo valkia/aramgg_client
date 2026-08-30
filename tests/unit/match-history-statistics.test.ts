@@ -169,6 +169,7 @@ describe('local match-history statistics', () => {
       expect.objectContaining({ subjectId: 1001 }),
       expect.objectContaining({ subjectId: 9999 }),
     ]))
+    expect(summary.recentMatches.map((match) => match.gameId)).toEqual([2, 3, 4])
   })
 
   it('keeps the active platform separate when game IDs overlap across regions', () => {

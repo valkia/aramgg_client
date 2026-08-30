@@ -1,7 +1,12 @@
-import type { LocalMatchHistorySummaryResult } from '../../../shared/ipc-contract.ts'
+import type {
+  HextechAramMatchHistoryQuery,
+  HextechAramMatchHistoryQueryResult,
+  LocalMatchHistorySummaryResult,
+} from '../../../shared/ipc-contract.ts'
 import { getLCUServiceInstance } from '../lcu/lcu-service.ts'
 import logger from '../../modules/logger.ts'
 import { trustedIpcMain as ipcMain } from '../../security/trusted-ipc.ts'
+import { getHextechAramQueryService } from './hextech-aram-query-service.ts'
 import { getLocalMatchHistoryService } from './local-match-history-service.ts'
 
 function getService() {
@@ -31,6 +36,24 @@ export function registerMatchHistoryIpcHandlers(): void {
     } catch (error) {
       logger.warn('[match-history] failed to read local summary:', getErrorMessage(error))
       return getSummaryFailure(error)
+    }
+  })
+
+  ipcMain.handle('match-history-query-current', async (_event, query?: HextechAramMatchHistoryQuery) => {
+    try {
+      return {
+        success: true,
+        data: await getHextechAramQueryService(getLCUServiceInstance()).queryCurrent(query),
+      } satisfies HextechAramMatchHistoryQueryResult
+    } catch (error) {
+      logger.warn('[match-history] current player query failed:', {
+        error: getErrorMessage(error),
+        sensitiveValuesLogged: false,
+      })
+      return {
+        success: false,
+        error: getErrorMessage(error),
+      } satisfies HextechAramMatchHistoryQueryResult
     }
   })
 

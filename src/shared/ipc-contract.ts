@@ -88,6 +88,51 @@ export interface LocalMatchHistorySummaryResult extends OperationResult {
   data: LocalMatchHistorySummary
 }
 
+export interface HextechAramMatchHistoryAsset extends LooseRecord {
+  id: number
+  name?: string
+  iconUrl?: string
+}
+
+export type HextechAramMatchResult = 'win' | 'loss' | 'remake'
+
+export interface HextechAramMatchHistoryMatch extends LooseRecord {
+  gameId: number
+  gameCreation: number
+  gameDuration: number
+  gameVersion: string
+  championId: number
+  championName?: string
+  championIconUrl?: string
+  kills: number
+  deaths: number
+  assists: number
+  result: HextechAramMatchResult
+  augments: HextechAramMatchHistoryAsset[]
+  items: HextechAramMatchHistoryAsset[]
+}
+
+export interface HextechAramMatchHistoryPage extends LooseRecord {
+  playerName: string
+  platformId: string
+  queriedAt: number
+  startIndex: number
+  count: number
+  returnedCount: number
+  hasPrevious: boolean
+  hasMore: boolean
+  matches: HextechAramMatchHistoryMatch[]
+}
+
+export interface HextechAramMatchHistoryQuery extends LooseRecord {
+  startIndex?: number
+  count?: number
+}
+
+export interface HextechAramMatchHistoryQueryResult extends OperationResult {
+  data?: HextechAramMatchHistoryPage
+}
+
 export interface ClientVersionInfo extends LooseRecord {
   currentVersion?: string
   latestVersion?: string
@@ -352,6 +397,7 @@ export interface ElectronAPI {
   }
   matchHistory: {
     getLocalSummary(): Promise<LocalMatchHistorySummaryResult>
+    queryCurrent(payload?: HextechAramMatchHistoryQuery): Promise<HextechAramMatchHistoryQueryResult>
   }
   lcu: {
     getChampionId(): Promise<LcuChampionIdResult>

@@ -116,6 +116,7 @@ function buildRecentMatches(
   }
 
   return games
+    .filter(isHextechAramGame)
     .map((game) => {
       const participant = game.participants.find((item) => item.puuid === currentPlayerPuuid)
       if (!participant) {
