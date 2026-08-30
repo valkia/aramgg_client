@@ -514,6 +514,11 @@ class AutoScreenshotService {
                     now: Date.now(),
                 })
                 : 'full'
+            if (stage === 'full' && this.controlOwner === 'gameflow' && this.captureMode === 'idle') {
+                // 门禁升级只允许消费一次；后续是否再次升级由新的门禁帧决定。
+                this.pendingFullCapture = false
+                this.candidateStreak = 0
+            }
             if (stage === 'gate' && this.pendingFullCapture && this.fullOcrCooldownUntil > Date.now()) {
                 this.fullOcrBackoffSkips++
             }
@@ -651,6 +656,12 @@ class AutoScreenshotService {
         })
     }
 
+    _returnToGateAfterFullOcrMiss(reason) {
+        if (this.controlOwner === 'gameflow' && this.captureMode === 'idle') {
+            this._enterFullOcrBackoff(reason)
+        }
+    }
+
     /**
      * OCR 只保留一个正在运行的任务；忙碌时用最新截图替换待分析截图。
      * @private
@@ -726,14 +737,12 @@ class AutoScreenshotService {
                     error: analysisResult.error || 'unknown',
                     durationMs: analysisDuration,
                 })
+                this._returnToGateAfterFullOcrMiss('analysis-failed')
                 return  // 分析失败，不继续处理
             }
 
             const { cardCount, confidence, isAugmentPhase, augments } = analysisResult.analysis
             const hasVisibleAugments = this.lastDetectedAugmentIds.length > 0
-            if (cardCount === 0 && !hasVisibleAugments) {
-                this._enterFullOcrBackoff('no-augments-detected')
-            }
             const confirmedSelectionUi = shouldActivateSelectionCapture({
                 confirmedSelectionUi: isConfirmedAugmentSelectionUi(analysisResult.analysis),
                 recognizedAugmentCount: cardCount,
@@ -744,6 +753,11 @@ class AutoScreenshotService {
                 confirmedSelectionUi,
                 hasVisibleAugments,
             }), confirmedSelectionUi ? 'confirmed-selection-ui' : 'selection-ui-not-confirmed')
+            if (!confirmedSelectionUi && !hasVisibleAugments) {
+                this._returnToGateAfterFullOcrMiss(
+                    cardCount === 0 ? 'no-augments-detected' : 'selection-ui-not-confirmed'
+                )
+            }
 
             if (cardCount > 0 && cardCount < 3) {
                 this._savePartialOcrScreenshot(imageBuffer, analysisResult, analysisDuration)
@@ -921,6 +935,7 @@ class AutoScreenshotService {
                 }
             }
         } catch (error) {
+            this._returnToGateAfterFullOcrMiss('analysis-error')
             logger.error('Auto screenshot analysis error:', error)
         }
     }
