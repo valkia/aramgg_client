@@ -45,7 +45,7 @@ let augmentSidePanelWindow: BrowserWindow | null = null
 let mainWindowCloseAllowed = false
 let rendererServerPromise: Promise<string> | null = null
 
-const MAIN_WINDOW_SIZE = { width: 380, height: 620 }
+const MAIN_WINDOW_SIZE = { width: 472, height: 752 }
 const POPUP_WINDOW_SIZE = { width: 360, height: 640 }
 const POPUP_WINDOW_POSITION_KEY = 'windows.championInsightPosition'
 const FLOATING_WINDOW_SIZE = { width: 760, height: 170 }

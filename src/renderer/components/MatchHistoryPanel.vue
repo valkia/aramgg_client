@@ -65,32 +65,48 @@
 
         <div class="match-assets">
           <div class="match-asset-group">
-            <span class="match-asset-label">{{ t('matchHistory.augments') }}</span>
-            <div v-if="match.augments.length" class="match-asset-list">
+            <div
+              v-if="match.augments.length"
+              class="match-asset-list"
+              role="list"
+              :aria-label="t('matchHistory.augments')"
+            >
               <span
                 v-for="augment in match.augments"
                 :key="augment.id"
                 class="match-asset"
+                role="listitem"
                 :title="assetName(augment, 'augment')"
               >
-                <img v-if="augment.iconUrl" :src="augment.iconUrl" :alt="assetName(augment, 'augment')" />
-                <span v-else>{{ assetName(augment, 'augment') }}</span>
+                <span class="match-asset-icon" aria-hidden="true">
+                  <img v-if="augment.iconUrl" :src="augment.iconUrl" alt="" />
+                  <span v-else class="match-asset-placeholder">?</span>
+                </span>
+                <span class="match-asset-name">{{ assetName(augment, 'augment') }}</span>
               </span>
             </div>
             <small v-else>{{ t('matchHistory.noAugments') }}</small>
           </div>
 
           <div class="match-asset-group">
-            <span class="match-asset-label">{{ t('matchHistory.items') }}</span>
-            <div v-if="match.items.length" class="match-asset-list">
+            <div
+              v-if="match.items.length"
+              class="match-asset-list"
+              role="list"
+              :aria-label="t('matchHistory.items')"
+            >
               <span
                 v-for="(item, index) in match.items"
                 :key="`${item.id}:${index}`"
                 class="match-asset"
+                role="listitem"
                 :title="assetName(item, 'item')"
               >
-                <img v-if="item.iconUrl" :src="item.iconUrl" :alt="assetName(item, 'item')" />
-                <span v-else>{{ assetName(item, 'item') }}</span>
+                <span class="match-asset-icon" aria-hidden="true">
+                  <img v-if="item.iconUrl" :src="item.iconUrl" alt="" />
+                  <span v-else class="match-asset-placeholder">?</span>
+                </span>
+                <span class="match-asset-name">{{ assetName(item, 'item') }}</span>
               </span>
             </div>
             <small v-else>{{ t('matchHistory.noItems') }}</small>
@@ -250,8 +266,8 @@ onMounted(() => {
 
 .match-history-refresh {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   flex: 0 0 auto;
   place-items: center;
   border: 1px solid rgba(194, 156, 109, 0.26);
@@ -259,6 +275,17 @@ onMounted(() => {
   background: rgba(194, 156, 109, 0.08);
   color: #e2c08f;
   cursor: pointer;
+  transition: background-color 140ms ease-out, border-color 140ms ease-out, transform 140ms ease-out;
+}
+
+.match-history-refresh:not(:disabled):hover {
+  border-color: rgba(194, 156, 109, 0.4);
+  background: rgba(194, 156, 109, 0.14);
+}
+
+.match-history-refresh:not(:disabled):active,
+.match-history-pagination button:not(:disabled):active {
+  transform: scale(0.96);
 }
 
 .match-history-refresh:disabled,
@@ -376,6 +403,8 @@ onMounted(() => {
   border: 1px solid rgba(194, 156, 109, 0.34);
   border-radius: 4px;
   object-fit: cover;
+  outline: 1px solid rgba(255, 255, 255, 0.1);
+  outline-offset: -1px;
 }
 
 .recent-match-copy {
@@ -412,46 +441,72 @@ onMounted(() => {
 
 .match-assets {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 7px;
   margin-top: 8px;
   padding-top: 7px;
   border-top: 1px solid rgba(244, 236, 220, 0.06);
 }
 
-.match-asset-label {
-  display: block;
-  margin-bottom: 4px;
-  color: #859491;
-  font-size: 8px;
-  font-weight: 850;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+.match-asset-group {
+  min-width: 0;
 }
 
 .match-asset-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  align-items: start;
+  gap: 8px 4px;
+  min-width: 0;
+  overflow: visible;
 }
 
 .match-asset {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  color: #bacac6;
+  font-size: 8px;
+}
+
+.match-asset-icon {
   display: grid;
-  min-width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
   place-items: center;
   overflow: hidden;
   border: 1px solid rgba(244, 236, 220, 0.1);
   border-radius: 3px;
   background: rgba(31, 43, 53, 0.75);
-  color: #bacac6;
-  font-size: 8px;
 }
 
-.match-asset img {
+.match-asset-icon img {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  outline: 1px solid rgba(255, 255, 255, 0.1);
+  outline-offset: -1px;
+}
+
+.match-asset-placeholder {
+  color: #859491;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.match-asset-name {
+  width: 100%;
+  margin-top: 4px;
+  color: #aebdc5;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  text-align: center;
+  text-wrap: pretty;
 }
 
 .match-history-empty {
@@ -469,12 +524,19 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  min-height: 40px;
+  padding: 0 4px;
   border: 0;
   background: transparent;
   color: #e2c08f;
   font-size: 9px;
   font-weight: 850;
   cursor: pointer;
+  transition: color 140ms ease-out, transform 140ms ease-out;
+}
+
+.match-history-pagination button:not(:disabled):hover {
+  color: #f2d4a4;
 }
 
 .match-history-pagination button svg {

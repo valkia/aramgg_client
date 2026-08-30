@@ -366,11 +366,6 @@
                 @close="closePostGameShare"
             />
 
-            <FeedbackWidget
-                ref="feedbackWidget"
-                @open-change="feedbackOpen = $event"
-            />
-
             <button
                 v-if="shouldShowPostGameFloatingShare && !feedbackOpen"
                 class="post-game-floating-share"
@@ -382,6 +377,11 @@
                 <Share2 class="icon" />
                 <span>{{ postGameShareFloatingLabel }}</span>
             </button>
+
+            <FeedbackWidget
+                ref="feedbackWidget"
+                @open-change="feedbackOpen = $event"
+            />
         </section>
     </div>
 </template>
@@ -1790,18 +1790,18 @@ onBeforeUnmount(() => {
 
 .post-game-floating-share {
     position: absolute;
-    left: 16px;
-    bottom: 78px;
+    right: 16px;
+    bottom: 130px;
     z-index: 8;
-    min-width: 112px;
-    min-height: 46px;
+    width: 128px;
+    height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 0 14px 0 16px;
+    padding: 0 16px 0 14px;
     border: 0;
-    border-radius: 23px;
+    border-radius: 999px;
     color: #061116;
     background:
         linear-gradient(135deg, rgba(155, 232, 220, 0.98), rgba(231, 189, 104, 0.96));

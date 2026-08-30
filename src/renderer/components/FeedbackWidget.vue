@@ -105,6 +105,7 @@
       :title="t('feedback.button')"
       @click="open"
     >
+      <MessageSquareText class="feedback-trigger-icon" aria-hidden="true" />
       <span class="feedback-trigger-label">{{ t('feedback.button') }}</span>
     </button>
   </aside>
@@ -112,7 +113,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Plus, Send, X } from 'lucide-vue-next'
+import { MessageSquareText, Plus, Send, X } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import type { FeedbackCategory, SupportedDataLocale } from '../../shared/ipc-contract.ts'
 import { electronAPI } from '../native/electron-api.js'

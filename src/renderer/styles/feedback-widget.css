@@ -47,9 +47,11 @@
   bottom: -1px;
   width: 128px;
   height: 44px;
-  display: grid;
-  place-items: center;
-  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px 0 14px;
   color: #091014;
   background: linear-gradient(145deg, #f1d4a8, #b98a52);
   border: 0;
@@ -68,9 +70,14 @@
 .feedback-trigger-label {
   position: relative;
   z-index: 1;
-  width: 100%;
   line-height: 1;
   text-align: center;
+}
+
+.feedback-trigger-icon {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
 }
 
 .feedback-morph[data-open='true'] .feedback-morph-trigger {
@@ -191,8 +198,32 @@
 }
 
 .feedback-field input,
-.feedback-field select { height: 38px; padding: 0 10px; }
+.feedback-field select { height: 40px; padding: 0 10px; }
 .feedback-field textarea { min-height: 92px; padding: 9px 10px; line-height: 1.5; resize: vertical; }
+
+.feedback-field select {
+  color-scheme: dark;
+  color: #edf3f6;
+  background-color: #111c24;
+  cursor: pointer;
+  transition: background-color 140ms ease-out, border-color 140ms ease-out, box-shadow 140ms ease-out;
+}
+
+.feedback-field select:hover {
+  border-color: rgba(226, 195, 132, 0.42);
+  background-color: #172630;
+}
+
+.feedback-field select option {
+  color: #edf3f6;
+  background-color: #111c24;
+}
+
+.feedback-field select option:checked {
+  color: #091014;
+  background-color: #d9b77e;
+  font-weight: 800;
+}
 
 .feedback-field input:focus,
 .feedback-field select:focus,
