@@ -284,9 +284,9 @@
                 </p>
                 <p class="footer-feedback">
                     {{ t('display.feedback') }}
-                    <a class="footer-link" :href="FEEDBACK_URL" @click.prevent="openFeedbackEmail">
-                        {{ FEEDBACK_EMAIL }}
-                    </a>
+                    <button class="footer-link footer-action" type="button" @click="openFeedbackWidget">
+                        {{ t('feedback.button') }}
+                    </button>
                     <span class="footer-separator">·</span>
                     <a class="footer-link" :href="GITHUB_URL" @click.prevent="openGithub">
                         GitHub
@@ -366,8 +366,13 @@
                 @close="closePostGameShare"
             />
 
+            <FeedbackWidget
+                ref="feedbackWidget"
+                @open-change="feedbackOpen = $event"
+            />
+
             <button
-                v-if="shouldShowPostGameFloatingShare"
+                v-if="shouldShowPostGameFloatingShare && !feedbackOpen"
                 class="post-game-floating-share"
                 type="button"
                 :title="t('display.shareReport')"
@@ -387,6 +392,7 @@ import ItemSetInstaller from './ItemSetInstaller.vue'
 import OverlayPreferences from './OverlayPreferences.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
 import MatchHistoryPanel from './MatchHistoryPanel.vue'
+import FeedbackWidget from './FeedbackWidget.vue'
 import PostGameShareModal from './PostGameShareModal.vue'
 import {
     Select,
@@ -425,6 +431,8 @@ const { t } = useI18n()
 const versionInfo = ref(null)
 const showQuitConfirm = ref(false)
 const showChangelog = ref(false)
+const feedbackWidget = ref(null)
+const feedbackOpen = ref(false)
 const showAdvancedLcuConfig = ref(false)
 const manualLolPath = ref('')
 const manualPathStatus = ref(null)
@@ -441,8 +449,6 @@ const ARAMGG_HOME_URL = 'https://aramgg.com'
 const ARAMGG_HOME_LABEL = 'aramgg.com'
 const DATA_API_URL = 'https://data.dtodo.cn'
 const DATA_API_LABEL = computed(() => t('display.openApi'))
-const FEEDBACK_EMAIL = 'djlinguge@gmail.com'
-const FEEDBACK_URL = `mailto:${FEEDBACK_EMAIL}`
 const GITHUB_URL = 'https://github.com/valkia/aramgg_client'
 let removeQuitConfirmListener = null
 let removeLocaleChangedListener = null
@@ -779,12 +785,8 @@ const openDataApi = async () => {
     }
 }
 
-const openFeedbackEmail = async () => {
-    try {
-        await electronAPI.shell.openExternal(FEEDBACK_URL)
-    } catch (error) {
-        console.warn('Failed to open feedback email:', error)
-    }
+const openFeedbackWidget = () => {
+    feedbackWidget.value?.open()
 }
 
 const openGithub = async () => {
@@ -1788,7 +1790,7 @@ onBeforeUnmount(() => {
 
 .post-game-floating-share {
     position: absolute;
-    right: 16px;
+    left: 16px;
     bottom: 78px;
     z-index: 8;
     min-width: 112px;

@@ -116,6 +116,9 @@ const electronAPI: ElectronAPI = {
     getLocalSummary: () => ipcRenderer.invoke('match-history-get-local-summary'),
     queryCurrent: (payload) => ipcRenderer.invoke('match-history-query-current', payload),
   },
+  feedback: {
+    submit: (payload) => ipcRenderer.invoke('feedback-submit', payload),
+  },
   lcu: {
     getChampionId: () => ipcRenderer.invoke('get-champion-id'),
     getStatus: () => ipcRenderer.invoke('lcu-get-status'),

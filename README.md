@@ -57,6 +57,7 @@
 - **按真实卡位识别。** PaddleOCR 只读取左、中、右标题区域；某个位置读不到时保留空槽，不用宽区域结果打乱顺序。
 - **本地优先展示。** 完整的内置或缓存数据会先渲染，远端版本检查与下载在后台进行，且只在必需文件完整后切换。
 - **界面与数据同语言。** `zh-CN`、`en-US`、`zh-TW` 采用事务式切换，避免界面已经变更但数据仍停留在旧语言。
+- **内置反馈与诊断。** 原生反馈表单支持可选截图，并在明确提示后自动附带已脱敏的近两天客户端日志，帮助复现问题。
 
 ## 安装与使用
 
@@ -108,6 +109,7 @@ npm run build
 
 - [完整架构](./COMPLETE_ARCHITECTURE.md)
 - [自动海克斯检测使用指南](./docs/USER_GUIDE_AUTO_AUGMENT.md)
+- [客户端反馈与日志边界](./docs/FEEDBACK.md)
 - [LCU 排障指南](./docs/LCU_TROUBLESHOOTING.md)
 - [性能与发热排查](./docs/PERFORMANCE_DIAGNOSTICS.md)
 - [大乱斗 LCU 只读推荐进度](./docs/ARAM_LCU_READONLY_RECOMMENDATION_PROGRESS.md)

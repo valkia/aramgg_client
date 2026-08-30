@@ -67,6 +67,9 @@ export const electronAPI = {
     getLocalSummary: (...args) => requireElectronAPI().matchHistory.getLocalSummary(...args),
     queryCurrent: (...args) => requireElectronAPI().matchHistory.queryCurrent(...args),
   },
+  feedback: {
+    submit: (...args) => requireElectronAPI().feedback.submit(...args),
+  },
   lcu: {
     getChampionId: (...args) => requireElectronAPI().lcu.getChampionId(...args),
     getStatus: (...args) => requireElectronAPI().lcu.getStatus(...args),
