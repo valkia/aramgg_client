@@ -20,6 +20,8 @@
 <p align="center">
   <a href="https://github.com/valkia/aramgg_client/releases/latest"><strong>下载 Windows 安装包</strong></a>
   ·
+  <a href="https://aramgg.com"><strong>访问 ARAMGG 主站</strong></a>
+  ·
   <a href="./docs/USER_GUIDE_AUTO_AUGMENT.md">使用指南</a>
   ·
   <a href="./docs/LCU_TROUBLESHOOTING.md">LCU 排障</a>

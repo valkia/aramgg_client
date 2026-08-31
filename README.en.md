@@ -20,6 +20,8 @@
 <p align="center">
   <a href="https://github.com/valkia/aramgg_client/releases/latest"><strong>Download for Windows</strong></a>
   ·
+  <a href="https://aramgg.com"><strong>Visit ARAMGG</strong></a>
+  ·
   <a href="./docs/USER_GUIDE_AUTO_AUGMENT.md">User guide</a>
   ·
   <a href="./docs/LCU_TROUBLESHOOTING.md">LCU troubleshooting</a>
