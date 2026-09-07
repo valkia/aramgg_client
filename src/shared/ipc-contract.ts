@@ -324,6 +324,13 @@ export interface GamePhaseChangedPayload {
   prevPhase: GameflowPhase | null
 }
 
+export interface ChampionMonitorState {
+  phase: GameflowPhase | null
+  selectedChampionId: number | null
+  lastChampionId: number | null
+  revision: number
+}
+
 export interface LocaleChangedPayload extends LooseRecord {
   locale: SupportedDataLocale
   dataVersion?: string
@@ -340,6 +347,7 @@ export interface ElectronEventMap {
   'winrate-updated': [payload: LooseRecord]
   'auto-screenshot-taken': [payload: LooseRecord]
   'game-phase-changed': [payload: GamePhaseChangedPayload]
+  'champion-monitor-changed': [payload: ChampionMonitorState]
   'champ-select-start': [payload?: LooseRecord]
   'item-set-auto-apply-completed': [payload: LooseRecord]
   'game-started': [payload?: LooseRecord]
@@ -366,6 +374,7 @@ export interface ElectronAPI {
     delete(key: AppStoreKey): Promise<void>
   }
   windows: {
+    ready(): void
     showPopup(data: OverlayPayload): void
     hidePopup(reason?: string): void
     hideFloating(reason?: string): void
@@ -420,6 +429,7 @@ export interface ElectronAPI {
     submit(payload: FeedbackSubmissionPayload): Promise<FeedbackSubmissionResult>
   }
   lcu: {
+    getChampionMonitorState(): Promise<ChampionMonitorState>
     getChampionId(): Promise<LcuChampionIdResult>
     getStatus(): Promise<LcuStatusResult>
     getCurrentSession(): Promise<LcuSessionResult>

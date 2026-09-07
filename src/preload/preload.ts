@@ -12,6 +12,7 @@ const validEvents = new Set<ElectronEventChannel>([
   'winrate-updated',
   'auto-screenshot-taken',
   'game-phase-changed',
+  'champion-monitor-changed',
   'champ-select-start',
   'item-set-auto-apply-completed',
   'game-started',
@@ -66,6 +67,7 @@ const electronAPI: ElectronAPI = {
     delete: (key) => ipcRenderer.invoke('store-delete', key),
   },
   windows: {
+    ready: () => ipcRenderer.send('renderer-ready'),
     showPopup: (data) => ipcRenderer.send('show-popup', data),
     hidePopup: (reason) => ipcRenderer.send('hide-popup', reason),
     hideFloating: (reason) => ipcRenderer.send('hide-floating', reason),
@@ -120,6 +122,7 @@ const electronAPI: ElectronAPI = {
     submit: (payload) => ipcRenderer.invoke('feedback-submit', payload),
   },
   lcu: {
+    getChampionMonitorState: () => ipcRenderer.invoke('lcu-get-champion-monitor-state'),
     getChampionId: () => ipcRenderer.invoke('get-champion-id'),
     getStatus: () => ipcRenderer.invoke('lcu-get-status'),
     getCurrentSession: () => ipcRenderer.invoke('lcu-get-current-session'),

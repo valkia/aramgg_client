@@ -1,0 +1,36 @@
+import { expect, it, vi } from 'vitest'
+import { readFileSync, writeFileSync } from 'node:fs'
+vi.mock('/Users/a111/Workspace/projects/aramgg_client/src/main/modules/logger.ts', () => ({default:{info:vi.fn(),debug:vi.fn(),warn:vi.fn(),error:vi.fn()}}))
+vi.mock('/Users/a111/Workspace/projects/aramgg_client/src/main/services/lcu/process-auth-discovery.ts', () => ({discoverLcuAuthFromProcess:vi.fn(()=>{throw new Error('Live discovery is forbidden in this probe')})}))
+vi.mock('/Users/a111/Workspace/projects/aramgg_client/src/main/data-loader.ts', async () => {
+  const {readFileSync} = await import('node:fs')
+  return {
+    DEFAULT_DATA_LOCALE:'zh-CN', SUPPORTED_DATA_LOCALES:[{code:'zh-CN'},{code:'en-US'},{code:'zh-TW'}],
+    getDataLocale:()=> 'zh-CN', tryNormalizeDataLocale:value=>['zh-CN','en-US','zh-TW'].includes(value)?value:null,
+    loadAugmentBaseForOcrLocale:async locale=> {
+      const suffix=locale==='zh-CN'?'':locale+'/'
+      const data=JSON.parse(readFileSync('/Users/a111/Workspace/projects/aramgg_client/resources/client-data/versions/'+suffix+'16.15.2/augments.json','utf8'))
+      return {locale,dataVersion:'16.15.2',source:'isolated-bundled-fixture',augments:data.data}
+    }
+  }
+})
+import { matchAugmentDatabase } from '/Users/a111/Workspace/projects/aramgg_client/src/main/image-analyzer.ts'
+it('records full bundled dictionary match costs without live data or LCU', async () => {
+  vi.stubEnv('ARAMGG_OCR_LOCALE','zh-CN')
+  await matchAugmentDatabase('审计预热')
+  await new Promise(resolve=>setTimeout(resolve,0))
+  const cases={zhExact:'超凡邪恶 伤害',zhMiss:'系统消息正在加载窗口内容请稍候返回主页',enExact:'Phenomenal Evil Damage',enMiss:'Application settings security notifications and current window configuration',enLongMiss:'Application settings security notifications and current window configuration '.repeat(3)}
+  const records=[]
+  for (const [name,text] of Object.entries(cases)) {
+    const values=[]
+    let matches=[]
+    for(let i=0;i<25;i++) {const start=performance.now(); matches=await matchAugmentDatabase(text); values.push(performance.now()-start)}
+    values.sort((a,b)=>a-b)
+    records.push({name,chars:text.length,samples:25,p50Ms:+values[12].toFixed(2),p95Ms:+values[23].toFixed(2),maxMs:+values[24].toFixed(2),matchedIds:matches.map(x=>x.id)})
+    if(name==='zhExact'||name==='enExact') expect(matches.map(x=>String(x.id))).toContain('1390')
+  }
+  const cn=JSON.parse(readFileSync('/Users/a111/Workspace/projects/aramgg_client/resources/client-data/versions/16.15.2/augments.json','utf8'))
+  expect(cn.data.length).toBe(205)
+  writeFileSync('/private/tmp/aramgg-audit-20260905/matcher-results.json',JSON.stringify({dataVersion:'16.15.2',augmentsPerLocale:cn.data.length,records},null,2))
+  vi.unstubAllEnvs()
+}, 20000)

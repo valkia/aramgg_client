@@ -1,0 +1,40 @@
+
+ RUN  v4.1.10 /Users/a111/Workspace/projects/aramgg_client
+
+stdout | tests/unit/audit-late-ocr.tmp.test.ts > audit: late OCR result after stop > must discard the old frame after EndOfGame and stop
+LATE_OCR_RESULT {"running":false,"phase":"EndOfGame","ids":["1","2","3"],"notifications":1}
+
+ ❯ tests/unit/audit-late-ocr.tmp.test.ts (1 test | 1 failed) 5ms
+     × must discard the old frame after EndOfGame and stop 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/audit-late-ocr.tmp.test.ts > audit: late OCR result after stop > must discard the old frame after EndOfGame and stop
+AssertionError: expected [ '1', '2', '3' ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "1",
++   "2",
++   "3",
++ ]
+
+ ❯ tests/unit/audit-late-ocr.tmp.test.ts:111:44
+    109|     await pending
+    110|     console.log('LATE_OCR_RESULT', JSON.stringify({running:service.isR…
+    111|     expect(service.lastDetectedAugmentIds).toEqual([])
+       |                                            ^
+    112|     expect(detected).not.toHaveBeenCalled()
+    113|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  12:12:02
+   Duration  129ms (transform 48ms, setup 0ms, import 60ms, tests 5ms, environment 0ms)
+

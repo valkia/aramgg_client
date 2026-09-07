@@ -27,6 +27,7 @@ import logger from './modules/logger.ts'
 import {
     applyAugmentSidePanelWindowLayout,
     applyFloatingWindowLayout,
+    ensureAugmentOverlayWindows,
     raiseOverlayWindow,
 } from './modules/window-manager.ts'
 import { shouldRaiseOverlayWindow } from './modules/overlay-window-state.ts'
@@ -1236,8 +1237,12 @@ class AutoScreenshotService {
         }
     }
 
-    _sendAugmentDetectedPayload(winrateData, notifyMode = 'detected') {
+    async _sendAugmentDetectedPayload(winrateData, notifyMode = 'detected') {
         try {
+            if (!this.isRunning || !this._isCurrentAugmentPayload(winrateData)) return
+            const runId = this.runId
+            await ensureAugmentOverlayWindows()
+            if (!this.isRunning || runId !== this.runId || !this._isCurrentAugmentPayload(winrateData)) return
             if (this._isManualHiddenAugmentSuppressed(winrateData)) {
                 return
             }

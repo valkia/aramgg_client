@@ -1,0 +1,24 @@
+// @vitest-environment happy-dom
+import { afterEach, expect, it, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
+const mocks = vi.hoisted(()=>({snapshot:vi.fn(),champion:vi.fn(async()=>({success:true,championId:null}))}))
+vi.mock('/Users/a111/Workspace/projects/aramgg_client/src/renderer/native/electron-api.js',()=>({hasElectronAPI:()=>true,electronAPI:{lcu:{getChampSelectSnapshot:mocks.snapshot,getChampionId:mocks.champion}}}))
+vi.mock('vue-i18n',()=>({useI18n:()=>({t:key=>key})}))
+import ChampionMonitor from '/Users/a111/Workspace/projects/aramgg_client/src/renderer/components/ChampionMonitor.vue'
+let wrapper
+afterEach(()=>{wrapper?.unmount();vi.useRealTimers();vi.restoreAllMocks()})
+it('does not create a polling timer when stopped during its initial read',async()=>{
+  vi.useFakeTimers()
+  let resolveFirst
+  mocks.snapshot.mockImplementationOnce(()=>new Promise(resolve=>{resolveFirst=resolve})).mockResolvedValue({success:true,snapshot:{selfChampionId:null}})
+  wrapper=mount(ChampionMonitor,{global:{stubs:{Button:{template:'<button><slot /></button>'}}}})
+  await nextTick()
+  await wrapper.find('button').trigger('click')
+  expect(wrapper.text()).toContain('monitor.stopped')
+  resolveFirst({success:true,snapshot:{selfChampionId:null}})
+  await Promise.resolve();await Promise.resolve();await Promise.resolve();await Promise.resolve()
+  await vi.advanceTimersByTimeAsync(6000)
+  console.log('MONITOR_AFTER_STOP',JSON.stringify({snapshotCalls:mocks.snapshot.mock.calls.length,timers:vi.getTimerCount(),ui:wrapper.text()}))
+  expect(mocks.snapshot).toHaveBeenCalledTimes(1)
+})

@@ -1,0 +1,4 @@
+
+> aramgg_client@0.2.15 type-check
+> vue-tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.electron.json --noEmit
+

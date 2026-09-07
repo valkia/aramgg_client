@@ -1,0 +1,30 @@
+
+> aramgg_client@0.2.15 test:unit
+> vitest run
+
+
+ RUN  v4.1.10 /Users/a111/Workspace/projects/aramgg_client
+
+ ❯ tests/unit/onnxruntime-native-path.test.ts (2 tests | 1 failed) 7ms
+     × adds the app.asar.unpacked native dir for packaged installs 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/onnxruntime-native-path.test.ts > onnxruntime native path candidates > adds the app.asar.unpacked native dir for packaged installs
+AssertionError: expected [ …(5) ] to include 'E:\aramgg\aramgg_client\resources\app…'
+ ❯ tests/unit/onnxruntime-native-path.test.ts:40:24
+     38|       'x64'
+     39|     )
+     40|     expect(candidates).toContain(expected)
+       |                        ^
+     41|   })
+     42| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 46 passed (47)
+      Tests  1 failed | 195 passed (196)
+   Start at  12:06:57
+   Duration  1.50s (transform 2.55s, setup 0ms, import 4.34s, tests 1.82s, environment 792ms)
+

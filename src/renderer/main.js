@@ -1,4 +1,4 @@
-import { createApp } from 'vue'
+import { createApp, nextTick } from 'vue'
 import App from './App.vue'
 import './styles/index.css'
 import { createRouter, createWebHashHistory } from 'vue-router'
@@ -221,8 +221,11 @@ async function mountApp() {
     }
   }
 
+  await router.isReady()
   app.mount('#app')
   appMounted = true
+  await nextTick()
+  if (hasElectronAPI()) electronAPI.windows.ready()
 }
 
 void mountApp()

@@ -1,0 +1,54 @@
+
+> aramgg_client@0.2.15 build
+> electron-vite build
+
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 62 modules transformed.
+rendering chunks...
+dist-electron/app-store-D_SuoJaW.js             0.17 kB
+dist-electron/app-paths-C4voCBAa.js             4.63 kB
+dist-electron/main.js                           5.58 kB
+dist-electron/logger-o3CHwmuM.js                7.13 kB
+dist-electron/item-set-installer-D-6ORSdu.js   15.40 kB
+dist-electron/window-manager-C-lOHDVs.js       21.65 kB
+dist-electron/analytics-service-C4mQAEYr.js    88.44 kB
+dist-electron/app-config-DdXuf6jA.js          508.53 kB
+✓ built in 298ms
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 1 modules transformed.
+rendering chunks...
+dist-electron/preload.cjs  7.04 kB
+✓ built in 6ms
+vite v7.3.6 building client environment for production...
+transforming...
+node_modules/@vueuse/core/dist/index.js (3362:0): A comment
+
+"/* #__PURE__ */"
+
+in "node_modules/@vueuse/core/dist/index.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.
+node_modules/@vueuse/core/dist/index.js (5780:22): A comment
+
+"/* #__PURE__ */"
+
+in "node_modules/@vueuse/core/dist/index.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.
+✓ 2403 modules transformed.
+rendering chunks...
+../../dist/index.html                                      1.14 kB
+../../dist/assets/PopupAugmentView-BIb3e6jx.css            0.14 kB
+../../dist/assets/AugmentSidePanelView-C3tYZYbv.css        0.44 kB
+../../dist/assets/FloatingView-Bqrwx4YT.css               14.04 kB
+../../dist/assets/index-CaFmELcJ.css                      35.96 kB
+../../dist/assets/AugmentWinrateOverlay-BuDD5Wob.css      47.04 kB
+../../dist/assets/Display-C_6qvsTm.css                    60.89 kB
+../../dist/assets/PopupAugmentView-ZbOrGFq1.js             0.76 kB
+../../dist/assets/AugmentSidePanelView-BPJWT9m_.js         1.22 kB
+../../dist/assets/sparkles-C23NsYbn.js                     2.11 kB
+../../dist/assets/_plugin-vue_export-helper-C_srK2GC.js    2.75 kB
+../../dist/assets/overlay-formatters-KM9zjsgo.js           9.46 kB
+../../dist/assets/FloatingView-CkPtqJU8.js                24.03 kB
+../../dist/assets/AugmentWinrateOverlay-C9Fvh2Dt.js       98.62 kB
+../../dist/assets/Display-CpYMcNkt.js                    438.59 kB
+../../dist/assets/index-GxPyECyL.js                      584.06 kB
+✓ built in 1.33s

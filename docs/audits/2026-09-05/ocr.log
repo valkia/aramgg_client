@@ -1,0 +1,17 @@
+
+> aramgg_client@0.2.15 test:augment-ocr
+> node tests/electron/test-augment-ocr-fixtures.js
+
+[2026-09-05T12:07:44.285+08:00] [INFO ] PaddleOCR service ready {"runtimeDir":"/Users/a111/Workspace/projects/aramgg_client/resources/paddleocr","dictionarySize":18384,"maxSideLength":512}
+[2026-09-05T12:07:44.416+08:00] [INFO ] [augment-ocr] locale augment names loaded {"locale":"zh-CN","dataVersion":"ocr-fixtures-v1","source":"cache","augmentCount":4,"ocrNameCount":4,"invalidCount":0}
+[2026-09-05T12:07:44.417+08:00] [INFO ] PaddleOCR ordered title stack slow {"totalMs":492.2,"prepareMs":16.7,"ocrMs":471.4,"extractMs":0.2,"matchMs":3.9,"itemCount":6,"matchedCount":3,"slotTexts":["裁決使 伤害","超凡邪恶 伤害","神射法师 伤害"]}
+{"file":"full-three-cards.png","variant":"1280x720","cardCount":3,"ids":[1032,1390,1129],"names":["裁决使","超凡邪恶","神射法师"],"durationMs":518.51}
+[2026-09-05T12:07:44.419+08:00] [INFO ] [augment-ocr] locale augment names loaded {"locale":"en-US","dataVersion":"ocr-fixtures-v1","source":"cache","augmentCount":4,"ocrNameCount":4,"invalidCount":0}
+[2026-09-05T12:07:44.419+08:00] [INFO ] [augment-ocr] locale augment names loaded {"locale":"zh-TW","dataVersion":"ocr-fixtures-v1","source":"cache","augmentCount":4,"ocrNameCount":4,"invalidCount":0}
+{"file":"full-three-cards.png","variant":"640x360","likely":true,"rerollVisible":true,"durationMs":8.27}
+{"file":"full-three-cards.png","variant":"1024x576","cardCount":3,"ids":[1032,1390,1129],"names":["裁决使","超凡邪恶","神射法师"],"durationMs":123.99}
+{"file":"partial-one-card.png","variant":"1280x720","cardCount":1,"ids":[1332],"names":["不祥契约"],"durationMs":196.87}
+{"file":"partial-one-card.png","variant":"640x360","likely":true,"rerollVisible":true,"durationMs":7.08}
+{"file":"partial-one-card.png","variant":"1024x576","cardCount":1,"ids":[1332],"names":["不祥契约"],"durationMs":143.01}
+{"file":"no-match-title-activity.png","variant":"1280x720","cardCount":0,"ids":[],"names":[],"durationMs":139.9}
+{"file":"no-match-title-activity.png","variant":"1024x576","cardCount":0,"ids":[],"names":[],"durationMs":9.17}

@@ -17,13 +17,15 @@ import {
     applyFloatingWindowLayout,
     applyPopupWindowLayout,
     getAugmentSidePanelWindow,
-    createPopupWindow,
+    ensurePopupWindow,
+    ensureAugmentOverlayWindows,
     getFloatingWindow,
     getMainWindow,
     getPopupWindow,
     raiseOverlayWindow,
 } from './window-manager.ts'
 import logger from './logger.ts'
+import { markRendererReady } from './renderer-ready.ts'
 import store from './app-store.ts'
 import { getAppDataDir } from './app-paths.ts'
 import {
@@ -359,6 +361,8 @@ export function registerIpcHandlers(isDev: boolean): void {
     registerSystemIpcHandlers()
     registerFeedbackIpcHandlers()
 
+    ipcMain.on('renderer-ready', (event) => markRendererReady(event.sender))
+
     ipcMain.on('broadcast', (ev, data) => {
         if (!data || !BROADCAST_CHANNELS.has(data.channel)) {
             logger.warn('[ipc] blocked broadcast to invalid channel', {
@@ -383,15 +387,7 @@ export function registerIpcHandlers(isDev: boolean): void {
             return
         }
 
-        if (!getPopupWindow()) {
-            const devServerUrl = isDev ? 'http://localhost:5173' : ''
-            await createPopupWindow(isDev, devServerUrl)
-            logger.info('[popup] window created for show-popup', {
-                durationMs: getElapsedMs(startedAt),
-            })
-        }
-
-        const popupWindow = getPopupWindow()
+        const popupWindow = await ensurePopupWindow()
         if (!popupWindow) {
             logger.warn('[popup] show-popup aborted: window unavailable')
             return
@@ -459,8 +455,10 @@ export function registerIpcHandlers(isDev: boolean): void {
 
     ipcMain.handle('test-show-floating', async (_event, data) => {
         try {
-            const floatingWindow = getFloatingWindow()
-            const sidePanelWindow = getAugmentSidePanelWindow()
+            if (!shouldShowAugmentTopOverlay() && !shouldShowAugmentSidePanel()) {
+                return { success: true, skipped: true, reason: 'augment-overlays-disabled' }
+            }
+            const [floatingWindow, sidePanelWindow] = await ensureAugmentOverlayWindows()
 
             if ((!floatingWindow || floatingWindow.isDestroyed()) && (!sidePanelWindow || sidePanelWindow.isDestroyed())) {
                 logger.error('Augment overlay windows do not exist')
@@ -499,8 +497,10 @@ export function registerIpcHandlers(isDev: boolean): void {
         try {
             logger.info('[diagnostics] random floating test requested')
             const data = await buildRandomAugmentPreviewData('random-floating-test')
-            const floatingWindow = getFloatingWindow()
-            const sidePanelWindow = getAugmentSidePanelWindow()
+            if (!shouldShowAugmentTopOverlay() && !shouldShowAugmentSidePanel()) {
+                return { success: true, skipped: true, reason: 'augment-overlays-disabled' }
+            }
+            const [floatingWindow, sidePanelWindow] = await ensureAugmentOverlayWindows()
 
             if ((!floatingWindow || floatingWindow.isDestroyed()) && (!sidePanelWindow || sidePanelWindow.isDestroyed())) {
                 logger.error('Augment overlay windows do not exist')
@@ -547,15 +547,7 @@ export function registerIpcHandlers(isDev: boolean): void {
                 return { success: true, skipped: true, reason: 'champion-details-disabled' }
             }
 
-            if (!getPopupWindow()) {
-                const devServerUrl = isDev ? 'http://localhost:5173' : ''
-                await createPopupWindow(isDev, devServerUrl)
-                logger.info('[diagnostics] random popup window created', {
-                    durationMs: getElapsedMs(startedAt),
-                })
-            }
-
-            const popupWindow = getPopupWindow()
+            const popupWindow = await ensurePopupWindow()
             if (!popupWindow || popupWindow.isDestroyed()) {
                 return { success: false, error: 'Popup window does not exist' }
             }
@@ -612,12 +604,7 @@ export function registerIpcHandlers(isDev: boolean): void {
 
             const recommendation = await buildRandomBenchRecommendation()
 
-            if (!getPopupWindow()) {
-                const devServerUrl = isDev ? 'http://localhost:5173' : ''
-                await createPopupWindow(isDev, devServerUrl)
-            }
-
-            const popupWindow = getPopupWindow()
+            const popupWindow = await ensurePopupWindow()
             if (!popupWindow || popupWindow.isDestroyed()) {
                 return { success: false, error: 'Popup window does not exist' }
             }

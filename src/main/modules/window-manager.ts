@@ -21,10 +21,14 @@ import {
     parseWindowPosition,
 } from './window-position.ts'
 import { shouldRaiseOverlayWindow } from './overlay-window-state.ts'
+import { createWindowLoader } from './lazy-window.ts'
+import { waitForRendererReady } from './renderer-ready.ts'
 import {
     shouldHideChampionInsightOnGameStart,
     shouldKeepChampionInsightOnTop,
     shouldShowChampionDetails,
+    shouldShowAugmentSidePanel,
+    shouldShowAugmentTopOverlay,
 } from './user-preferences.ts'
 import type { GameflowPhase } from '../../shared/ipc-contract.ts'
 
@@ -483,7 +487,14 @@ async function loadRendererRoute(
         ...getRendererLogInfo(isDev, devServerUrl),
     })
 
-    await loadRendererUrl(window, route, isDev, devServerUrl)
+    if (name === 'main') {
+        await loadRendererUrl(window, route, isDev, devServerUrl)
+    } else {
+        await Promise.all([
+            waitForRendererReady(window.webContents),
+            loadRendererUrl(window, route, isDev, devServerUrl),
+        ])
+    }
 }
 
 const getWebPreferences = (
@@ -729,6 +740,31 @@ export const getPopupWindow = () => popupWindow
 export const getFloatingWindow = () => floatingWindow
 
 export const getAugmentSidePanelWindow = () => augmentSidePanelWindow
+
+function getRendererRuntime(): [boolean, string] {
+    const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
+    return [isDev, isDev ? process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173' : '']
+}
+
+export const ensurePopupWindow = createWindowLoader(
+    getPopupWindow,
+    () => createPopupWindow(...getRendererRuntime()),
+)
+export const ensureFloatingWindow = createWindowLoader(
+    getFloatingWindow,
+    () => createFloatingWindow(...getRendererRuntime()),
+)
+export const ensureAugmentSidePanelWindow = createWindowLoader(
+    getAugmentSidePanelWindow,
+    () => createAugmentSidePanelWindow(...getRendererRuntime()),
+)
+
+export function ensureAugmentOverlayWindows(): Promise<[BrowserWindow | null, BrowserWindow | null]> {
+    return Promise.all([
+        shouldShowAugmentTopOverlay() ? ensureFloatingWindow() : null,
+        shouldShowAugmentSidePanel() ? ensureAugmentSidePanelWindow() : null,
+    ])
+}
 
 export function notifyAllWindows(channel: string, data: unknown): void {
     for (const window of BrowserWindow.getAllWindows()) {

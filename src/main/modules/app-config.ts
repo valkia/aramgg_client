@@ -6,10 +6,10 @@ import {
     applyAugmentSidePanelWindowLayout,
     applyFloatingWindowLayout,
     applyPopupWindowLayout,
-    createAugmentSidePanelWindow,
     createMainWindow,
-    createPopupWindow,
-    createFloatingWindow,
+    ensurePopupWindow,
+    ensureFloatingWindow,
+    ensureAugmentSidePanelWindow,
     toggleMainWindow,
     getAugmentSidePanelWindow,
     getFloatingWindow,
@@ -47,6 +47,11 @@ import {
 } from '../services/post-game-share.ts'
 import logger from './logger.ts'
 import store from './app-store.ts'
+import {
+    getChampionMonitorState,
+    setChampionMonitorChampion,
+    setChampionMonitorPhase,
+} from './champion-monitor-state.ts'
 import { getAppDataDir } from './app-paths.ts'
 import { logDiagnosticSnapshot } from './diagnostic-logger.ts'
 import {
@@ -164,9 +169,11 @@ export async function init() {
     })
 
     const mainWindow = await createMainWindow(isDev, devServerUrl)
-    const popupWindow = await createPopupWindow(isDev, devServerUrl)
-    const floatingWindow = await createFloatingWindow(isDev, devServerUrl)
-    const augmentSidePanelWindow = await createAugmentSidePanelWindow(isDev, devServerUrl)
+    const [popupWindow, floatingWindow, augmentSidePanelWindow] = await Promise.all([
+        ensurePopupWindow(),
+        ensureFloatingWindow(),
+        ensureAugmentSidePanelWindow(),
+    ])
     createAppTray()
     logger.info('窗口已创建:', {
         main: !!mainWindow,
@@ -726,18 +733,17 @@ function buildRefreshableBenchRecommendation(snapshot) {
 
 async function showChampionInsightSnapshot(snapshot, reason) {
     const championId = normalizeChampionId(snapshot?.selfChampionId)
-    if (championId) {
-        store.set('lastSelectedChampionId', championId)
-    }
+    setChampionMonitorChampion(championId)
 
     if (!shouldShowChampionDetails()) {
         logger.debug('Champion insight show skipped by preference', { championId, reason })
         return
     }
 
-    const popupWindow = getPopupWindow()
-    if (!popupWindow || popupWindow.isDestroyed()) {
-        logger.warn('Champion insight window is unavailable for champ-select')
+    const popupWindow = await ensurePopupWindow()
+    const currentState = getChampionMonitorState()
+    if (!shouldShowChampionDetails() || popupWindow.isDestroyed() ||
+        currentState.phase !== 'ChampSelect' || currentState.selectedChampionId !== championId) {
         return
     }
 
@@ -770,13 +776,18 @@ async function pollChampSelectSnapshot(lcuService, reason, forceShow = false) {
     }
 
     champSelectSnapshotPollInFlight = true
+    const revision = getChampionMonitorState().revision
     try {
         const snapshot = await lcuService.getChampSelectSnapshot()
+        if (getChampionMonitorState().phase !== 'ChampSelect' || getChampionMonitorState().revision !== revision) {
+            return
+        }
         if (snapshot?.gameflowPhase && snapshot.gameflowPhase !== 'ChampSelect') {
             return
         }
 
         const championId = normalizeChampionId(snapshot?.selfChampionId)
+        setChampionMonitorChampion(championId)
         const championChanged = !!championId && championId !== lastChampSelectInsightChampionId
         const shouldShowEmpty = forceShow && !championId && lastChampSelectInsightChampionId == null
 
@@ -796,6 +807,7 @@ async function pollChampSelectSnapshot(lcuService, reason, forceShow = false) {
             void autoApplyAramItemSetForChampion(championId, reason)
         }
     } catch (error) {
+        lastChampSelectInsightChampionId = null
         logger.debug('Failed to poll champ-select snapshot:', {
             reason,
             error: error.message,
@@ -873,9 +885,13 @@ async function recoverChampionInsightForInProgress(lcuService, reason) {
     lastInProgressChampionRecoveryAttemptAt = now
     inProgressChampionRecoveryInFlight = true
     const startedAt = now
+    const revision = getChampionMonitorState().revision
 
     try {
         const resolved = await resolveInProgressChampion(lcuService)
+        if (getChampionMonitorState().phase !== 'InProgress' || getChampionMonitorState().revision !== revision) {
+            return
+        }
         const championId = normalizeChampionId(resolved?.championId)
         if (!championId) {
             logger.warn('Unable to recover current champion while game is in progress', {
@@ -885,7 +901,7 @@ async function recoverChampionInsightForInProgress(lcuService, reason) {
             return
         }
 
-        store.set('lastSelectedChampionId', championId)
+        setChampionMonitorChampion(championId)
         logger.info('Recovered current champion while game is in progress', {
             championId,
             reason,
@@ -1167,6 +1183,7 @@ async function initGameFlowMonitor() {
         let websocketLastEventAt = 0
         let websocketReconnectAttempts = 0
         let websocketConnecting = false
+        let pollInFlight = false
 
         const handleGameflowPhase = async (phase, source) => {
             if (!phase) {
@@ -1175,6 +1192,7 @@ async function initGameFlowMonitor() {
 
             autoScreenshotService.setGameflowPhase(phase)
             setAppUpdateGamePhase(phase)
+            setChampionMonitorPhase(phase)
 
             const transition = gameSessionCoordinator.transition(phase, source)
             if (transition.changed) {
@@ -1202,8 +1220,8 @@ async function initGameFlowMonitor() {
                         lastAutoAppliedItemSetChampionId = null
                         resetChampSelectItemSetState(`LCU phase ${phase}`)
                         notifyAllWindows('champ-select-start', {})
-                        await showChampionInsightForChampSelect(lcuService)
                         stopAutoScreenshotForGame('LCU phase ChampSelect')
+                        await showChampionInsightForChampSelect(lcuService)
                         break
                     case 'ENTER_GAME_START':
                         logger.info('游戏开始加载')
@@ -1242,6 +1260,8 @@ async function initGameFlowMonitor() {
                         break
                 }
             }
+
+            if (gameSessionCoordinator.getState().phase !== phase) return
 
             if (phase === GAMEFLOW_AUGMENT_ANALYSIS_PHASE) {
                 void logReadOnlyGameApiDiagnostics(lcuService, phase, `heartbeat:${source}`)
@@ -1334,6 +1354,8 @@ async function initGameFlowMonitor() {
         void connectGameflowWebSocket()
 
         lcuPollingTimer = setInterval(async () => {
+            if (lcuGameflowMonitorStopping || pollInFlight) return
+            pollInFlight = true
             try {
                 const now = Date.now()
 
@@ -1343,6 +1365,7 @@ async function initGameFlowMonitor() {
                     // refresh here turns the 1s gameflow fallback into continuous process and
                     // stale-endpoint discovery while League is closed.
                     currentAuth = await lcuService.getAuthToken(false)
+                    if (lcuGameflowMonitorStopping) return
                     lastTokenRefreshAt = now
 
                     if (currentAuth && currentAuth.url !== lastAuthUrl) {
@@ -1360,6 +1383,7 @@ async function initGameFlowMonitor() {
 
                 if (!websocketFresh) {
                     const phase = await lcuService.getGameflowPhase()
+                    if (lcuGameflowMonitorStopping) return
                     await handleGameflowPhase(phase, 'poll')
 
                     if (!lcuGameflowSubscription && !lcuGameflowReconnectTimer) {
@@ -1372,6 +1396,8 @@ async function initGameFlowMonitor() {
                 }
             } catch (error) {
                 logger.warn('游戏流程轮询出错:', error.message)
+            } finally {
+                pollInFlight = false
             }
         }, GAMEFLOW_POLL_FALLBACK_INTERVAL_MS)
 
@@ -1491,8 +1517,6 @@ function registerAppEvents() {
  * 通知所有窗口
  */
 async function notifyAllWindows(channel, data) {
-    const { BrowserWindow } = await import('electron')
-
     // 如果是海克斯检测事件，找到并显示浮动窗口
     if (channel === 'augment-detected') {
         const floatingWin = getFloatingWindow()

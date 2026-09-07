@@ -1,0 +1,2 @@
+import config from '/Users/a111/Workspace/projects/aramgg_client/vitest.config.mjs'
+export default {...config, root: '/Users/a111/Workspace/projects/aramgg_client', test: {...config.test, include: ['/private/tmp/aramgg-audit-20260905/*.test.ts']}}

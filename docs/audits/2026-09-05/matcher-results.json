@@ -1,0 +1,55 @@
+{
+  "dataVersion": "16.15.2",
+  "augmentsPerLocale": 205,
+  "records": [
+    {
+      "name": "zhExact",
+      "chars": 7,
+      "samples": 25,
+      "p50Ms": 0.11,
+      "p95Ms": 0.18,
+      "maxMs": 0.28,
+      "matchedIds": [
+        "1390"
+      ]
+    },
+    {
+      "name": "zhMiss",
+      "chars": 19,
+      "samples": 25,
+      "p50Ms": 0.39,
+      "p95Ms": 0.66,
+      "maxMs": 1.04,
+      "matchedIds": []
+    },
+    {
+      "name": "enExact",
+      "chars": 22,
+      "samples": 25,
+      "p50Ms": 9.57,
+      "p95Ms": 17.33,
+      "maxMs": 78.71,
+      "matchedIds": [
+        "1390"
+      ]
+    },
+    {
+      "name": "enMiss",
+      "chars": 76,
+      "samples": 25,
+      "p50Ms": 68.96,
+      "p95Ms": 95.69,
+      "maxMs": 155.79,
+      "matchedIds": []
+    },
+    {
+      "name": "enLongMiss",
+      "chars": 231,
+      "samples": 25,
+      "p50Ms": 232.32,
+      "p95Ms": 237.57,
+      "maxMs": 255.15,
+      "matchedIds": []
+    }
+  ]
+}

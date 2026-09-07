@@ -1,0 +1,39 @@
+
+ RUN  v4.1.10 /Users/a111/Workspace/projects/aramgg_client
+
+stdout | ../../../../../private/tmp/aramgg-audit-20260905/monitor-stop.test.ts > does not create a polling timer when stopped during its initial read
+🎯 ChampionMonitor 组件已挂载，自动启动英雄监控...
+🚀 [CHAMPION_MONITOR] 开始英雄选择监控（使用 IPC 模式）
+
+stdout | ../../../../../private/tmp/aramgg-audit-20260905/monitor-stop.test.ts > does not create a polling timer when stopped during its initial read
+🛑 停止英雄选择监控
+
+stdout | ../../../../../private/tmp/aramgg-audit-20260905/monitor-stop.test.ts > does not create a polling timer when stopped during its initial read
+MONITOR_AFTER_STOP {"snapshotCalls":4,"timers":1,"ui":"monitor.title monitor.stopped monitor.start"}
+
+stdout | ../../../../../private/tmp/aramgg-audit-20260905/monitor-stop.test.ts > does not create a polling timer when stopped during its initial read
+监控未启动，无需停止
+
+ ❯ ../../../../../private/tmp/aramgg-audit-20260905/monitor-stop.test.ts (1 test | 1 failed) 19ms
+   × does not create a polling timer when stopped during its initial read 19ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  ../../../../../private/tmp/aramgg-audit-20260905/monitor-stop.test.ts > does not create a polling timer when stopped during its initial read
+AssertionError: expected "vi.fn()" to be called 1 times, but got 4 times
+ ❯ ../../../../../private/tmp/aramgg-audit-20260905/monitor-stop.test.ts:23:26
+     21|   await vi.advanceTimersByTimeAsync(6000)
+     22|   console.log('MONITOR_AFTER_STOP',JSON.stringify({snapshotCalls:mocks…
+     23|   expect(mocks.snapshot).toHaveBeenCalledTimes(1)
+       |                          ^
+     24| })
+     25|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  12:19:32
+   Duration  703ms (transform 70ms, setup 0ms, import 380ms, tests 19ms, environment 233ms)
+

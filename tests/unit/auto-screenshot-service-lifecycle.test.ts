@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   analyzeScreenshot: vi.fn(),
   analyzeScreenshotGate: vi.fn(),
   warmupImageAnalyzer: vi.fn(),
+  prepareWindows: vi.fn(),
+  windows: [] as any[],
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -28,7 +30,7 @@ vi.mock('../../src/main/image-analyzer.ts', () => ({
 
 vi.mock('electron', () => ({
   BrowserWindow: {
-    getAllWindows: vi.fn(() => []),
+    getAllWindows: vi.fn(() => mocks.windows),
   },
 }))
 
@@ -47,6 +49,7 @@ vi.mock('../../src/main/modules/window-manager.ts', () => ({
   applyAugmentSidePanelWindowLayout: vi.fn(),
   applyFloatingWindowLayout: vi.fn(),
   raiseOverlayWindow: vi.fn(),
+  ensureAugmentOverlayWindows: mocks.prepareWindows,
 }))
 vi.mock('../../src/main/modules/overlay-window-state.ts', () => ({
   shouldRaiseOverlayWindow: vi.fn(() => false),
@@ -94,11 +97,48 @@ const expectNextCaptureToUseGate = (service) => {
 describe.sequential('automatic screenshot service lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.windows.length = 0
+    mocks.prepareWindows.mockResolvedValue([])
   })
 
   afterEach(() => {
     autoScreenshotService.reset()
     vi.restoreAllMocks()
+  })
+
+  it('delivers the first detection only after the on-demand renderer is ready', async () => {
+    const service = createRunningIdleService()
+    service.lastDetectedAugmentIds = ['1', '2', '3']
+    let ready!: () => void
+    mocks.prepareWindows.mockReturnValue(new Promise<void>(resolve => { ready = resolve }))
+    const send = vi.fn()
+    mocks.windows.push({
+      isDestroyed: () => false,
+      webContents: { getURL: () => 'http://localhost/#/floating-overlay', send },
+    })
+    const payload = { augments: [{ id: 1 }, { id: 2 }, { id: 3 }] }
+    const pending = service._sendAugmentDetectedPayload(payload)
+    expect(send).not.toHaveBeenCalled()
+    ready()
+    await pending
+    expect(send).toHaveBeenCalledWith('augment-detected', payload)
+  })
+
+  it('does not deliver a detection if stopped while its window is loading', async () => {
+    const service = createRunningIdleService()
+    service.lastDetectedAugmentIds = ['1', '2', '3']
+    let ready!: () => void
+    mocks.prepareWindows.mockReturnValue(new Promise<void>(resolve => { ready = resolve }))
+    const send = vi.fn()
+    mocks.windows.push({
+      isDestroyed: () => false,
+      webContents: { getURL: () => 'http://localhost/#/floating-overlay', send },
+    })
+    const pending = service._sendAugmentDetectedPayload({ augments: [{ id: 1 }, { id: 2 }, { id: 3 }] })
+    service.stop('gameflow')
+    ready()
+    await pending
+    expect(send).not.toHaveBeenCalled()
   })
 
   it('consumes a queued full capture before starting OCR', async () => {

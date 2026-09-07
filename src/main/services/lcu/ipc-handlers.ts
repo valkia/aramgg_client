@@ -6,7 +6,7 @@
  */
 
 import logger from '../../modules/logger.ts'
-import store from '../../modules/app-store.ts'
+import { getChampionMonitorState, rememberChampionId } from '../../modules/champion-monitor-state.ts'
 import { getLCUServiceInstance } from './lcu-service.ts'
 import { ChampionIdResult, ChampSelectSnapshot } from './types.ts'
 import {
@@ -93,6 +93,7 @@ const loadChampionStatsForRecommendation = async (
  * 注册所有 LCU 相关的 IPC 处理器
  */
 export function registerLCUIpcHandlers(): void {
+  ipcMain.handle('lcu-get-champion-monitor-state', () => getChampionMonitorState())
   ipcMain.handle('lcu-get-status', async () => {
     const { service, error } = await getLcuServiceFromStore()
     if (!service) {
@@ -177,7 +178,7 @@ export function registerLCUIpcHandlers(): void {
       const recommendation = getAramBenchRecommendation(snapshot, championStatsById)
 
       if (snapshot.selfChampionId) {
-        store.set('lastSelectedChampionId', snapshot.selfChampionId)
+        rememberChampionId(snapshot.selfChampionId)
       }
 
       const summary = {
@@ -297,7 +298,7 @@ export function registerLCUIpcHandlers(): void {
       )
 
       if (snapshot.selfChampionId) {
-        store.set('lastSelectedChampionId', snapshot.selfChampionId)
+        rememberChampionId(snapshot.selfChampionId)
         return {
           success: true,
           championId: snapshot.selfChampionId,

@@ -46,186 +46,47 @@ const { t } = useI18n()
 const isMonitoring = ref(false)
 const selectedChampionId = ref(null)
 const lastChampionId = ref(null)
-const monitorTimer = ref(null)
-const lastQueryChampionId = ref(null) // 追踪最后一次查询的英雄ID，避免重复查询
+let unsubscribe = null
+let generation = 0
+let lastRevision = -1
 
-/**
- * 通过 IPC 向主进程查询当前选择的英雄ID
- */
-const getChampionIdViaIpc = async () => {
-    try {
-        if (!hasElectronAPI()) {
-            console.warn('🔴 IPC 通信不可用')
-            return null
-        }
-
-        const snapshotResult = await electronAPI.lcu.getChampSelectSnapshot()
-        if (snapshotResult?.success && snapshotResult.snapshot?.selfChampionId) {
-            console.log('✅ 从只读选人快照获取英雄ID:', snapshotResult.snapshot.selfChampionId)
-            return snapshotResult.snapshot.selfChampionId
-        }
-
-        const result = await electronAPI.lcu.getChampionId()
-
-        if (result && result.success && result.championId) {
-            console.log('✅ 从主进程获取英雄ID:', result.championId)
-            return result.championId
-        }
-
-        return null
-    } catch (error) {
-        console.warn('⚠️ 通过IPC查询英雄ID失败:', error.message)
-        return null
-    }
+function applyState(state, currentGeneration) {
+    if (!isMonitoring.value || generation !== currentGeneration || state.revision < lastRevision) return
+    lastRevision = state.revision
+    selectedChampionId.value = state.selectedChampionId
+    lastChampionId.value = state.lastChampionId
 }
 
-/**
- * 启动英雄监控
- */
-const startChampionMonitor = async () => {
-    if (isMonitoring.value) {
-        console.log('⚠️ 监控已启动，无需重复启动')
-        return
-    }
-
+async function startChampionMonitor() {
+    if (isMonitoring.value || !hasElectronAPI()) return
     isMonitoring.value = true
-    console.log('🚀 [CHAMPION_MONITOR] 开始英雄选择监控（使用 IPC 模式）')
+    const currentGeneration = ++generation
+    unsubscribe = electronAPI.events.on('champion-monitor-changed', (state) => {
+        applyState(state, currentGeneration)
+    })
 
-    // 检查当前是否已经选择了英雄
     try {
-        const championId = await getChampionIdViaIpc()
-        if (championId) {
-            console.log('✅ 检测到已选择的英雄:', championId)
-            lastChampionId.value = championId
-        }
+        const state = await electronAPI.lcu.getChampionMonitorState()
+        applyState(state, currentGeneration)
     } catch (error) {
-        console.warn('检查当前英雄选择失败:', error.message)
+        console.warn('Failed to read champion monitor state:', error)
     }
-
-    // 定期检查英雄选择（每2秒）
-    monitorTimer.value = setInterval(async () => {
-        try {
-            const championId = await getChampionIdViaIpc()
-            if (championId) {
-                selectedChampionId.value = championId
-                lastChampionId.value = championId
-                console.log('🎯 英雄选择更新:', championId)
-
-                // 缓存英雄ID到主进程store，供海克斯检测使用
-                try {
-                    await electronAPI.store.set('lastSelectedChampionId', championId)
-                    console.log('💾 英雄ID已缓存到store:', championId)
-                } catch (err) {
-                    console.warn('⚠️ 缓存英雄ID失败:', err.message)
-                }
-
-                // 如果英雄ID变化，查询胜率数据
-                if (lastQueryChampionId.value !== championId) {
-                    lastQueryChampionId.value = championId
-                    console.log('📊 查询英雄', championId, '的海克斯胜率数据...')
-                    await queryAugmentWinrates(championId)
-                }
-            }
-        } catch (error) {
-            console.warn('监控检查失败:', error.message)
-        }
-    }, 2000) // 每2秒检查一次
 }
 
-/**
- * 停止英雄监控
- */
-const stopChampionMonitor = () => {
-    if (!isMonitoring.value) {
-        console.log('监控未启动，无需停止')
-        return
-    }
-
+function stopChampionMonitor() {
     isMonitoring.value = false
-    if (monitorTimer.value) {
-        clearInterval(monitorTimer.value)
-        monitorTimer.value = null
-    }
-    console.log('🛑 停止英雄选择监控')
+    generation += 1
+    unsubscribe?.()
+    unsubscribe = null
 }
 
-/**
- * 切换英雄监控状态
- */
-const toggleChampionMonitor = () => {
-    if (isMonitoring.value) {
-        stopChampionMonitor()
-    } else {
-        startChampionMonitor()
-    }
+function toggleChampionMonitor() {
+    if (isMonitoring.value) stopChampionMonitor()
+    else void startChampionMonitor()
 }
 
-/**
- * 查询英雄的海克斯胜率数据
- */
-const queryAugmentWinrates = async (championId) => {
-    try {
-        // 检查 Electron API 是否可用
-        if (!hasElectronAPI()) {
-            console.warn('IPC 通信不可用')
-            return
-        }
-
-        const basePopupData = {
-            championId,
-            augments: [],
-            dataSource: 'pending',
-            timestamp: Date.now()
-        }
-
-        // 先显示窗口，再补数据。安装版首次运行或网络超时时，避免用户看到“检测到了ID但没有窗口”。
-        electronAPI.windows.showPopup(basePopupData)
-
-        const result = await electronAPI.winrate.get({
-            championId,
-            augmentIds: null // 查询全部海克斯
-        })
-
-        if (result.success) {
-            console.log('✅ 海克斯数据查询成功:', result.augments?.length, '个海克斯')
-
-            // 触发显示胜率浮窗
-            electronAPI.windows.showPopup({
-                championId,
-                augments: result.augments,
-                dataSource: result.dataSource,
-                timestamp: result.timestamp
-            })
-        } else {
-            console.warn('❌ 海克斯数据查询失败:', result.error)
-            electronAPI.windows.showPopup({
-                ...basePopupData,
-                dataSource: 'unavailable',
-                error: result.error || t('augment.dataLoadFailed')
-            })
-        }
-    } catch (error) {
-        console.error('查询海克斯数据时出错:', error)
-        electronAPI.windows.showPopup({
-            championId,
-            augments: [],
-            dataSource: 'unavailable',
-            error: error.message || t('augment.dataLoadFailed'),
-            timestamp: Date.now()
-        })
-    }
-}
-
-// 组件挂载时自动启动英雄监控
-onMounted(() => {
-    console.log('🎯 ChampionMonitor 组件已挂载，自动启动英雄监控...')
-    startChampionMonitor()
-})
-
-// 组件卸载时清理定时器
-onBeforeUnmount(() => {
-    stopChampionMonitor()
-})
+onMounted(() => { void startChampionMonitor() })
+onBeforeUnmount(stopChampionMonitor)
 </script>
 
 <style scoped>

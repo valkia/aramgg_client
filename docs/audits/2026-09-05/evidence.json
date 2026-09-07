@@ -1,0 +1,134 @@
+{
+  "date": "2026-09-05",
+  "commit": "431a93d91301dcfdd90bba0685aa8cff4fe84ba6",
+  "branch": "master",
+  "upstream": "origin/master",
+  "version": "0.2.15",
+  "environment": {
+    "os": "macOS",
+    "node": "24.16.0",
+    "npm": "11.13.0",
+    "packagedWindows": false,
+    "leagueRunning": false,
+    "userRuntimeDataAccessed": false
+  },
+  "standardChecks": {
+    "unit": {
+      "passed": 195,
+      "failed": 1,
+      "passedFiles": 46,
+      "failedFiles": 1,
+      "failedCase": "onnxruntime-native-path.test.ts: packaged app.asar.unpacked Windows path expectation on macOS"
+    },
+    "lint": "passed",
+    "typeCheck": "passed",
+    "build": "passed",
+    "augmentOcrFixtures": "passed"
+  },
+  "additionalBehavioralProbes": {
+    "lateOcrAfterStop": {
+      "expected": {
+        "ids": [],
+        "notifications": 0
+      },
+      "actual": {
+        "running": false,
+        "phase": "EndOfGame",
+        "ids": [
+          "1",
+          "2",
+          "3"
+        ],
+        "notifications": 1
+      }
+    },
+    "monitorStoppedDuringInitialRead": {
+      "expectedSnapshotCalls": 1,
+      "actual": {
+        "snapshotCalls": 4,
+        "timers": 1,
+        "advancedMs": 6000
+      }
+    }
+  },
+  "uiPreview": {
+    "data": "synthetic fixtures and mock electronAPI; actual built renderer",
+    "defaultViewport": [
+      472,
+      752
+    ],
+    "testedLocales": [
+      "zh-CN",
+      "en-US",
+      "zh-TW"
+    ],
+    "narrowViewport": [
+      360,
+      600
+    ],
+    "lowHeightViewport": [
+      472,
+      450
+    ],
+    "englishSwitchResult": {
+      "uiLocale": "en-US",
+      "existingChampionName": "寒冰射手",
+      "existingAugmentName": "超凡邪恶"
+    },
+    "changelogDialog": {
+      "escapeCloses": false,
+      "shiftTabFocus": {
+        "tag": "A",
+        "text": "GitHub",
+        "insideDialog": false
+      }
+    },
+    "narrowOverlap": {
+      "trigger": {
+        "x": 216,
+        "y": 477,
+        "width": 128,
+        "height": 44
+      },
+      "switch": {
+        "x": 279,
+        "y": 462.703,
+        "width": 42,
+        "height": 24
+      }
+    },
+    "matchAssetLabelFontPx": 8,
+    "defaultScrollViewportHeight": 609,
+    "defaultScrollContentHeight": 3301
+  },
+  "windowBoundsSyntheticCase": {
+    "workArea": {
+      "x": 0,
+      "y": 0,
+      "width": 1366,
+      "height": 728
+    },
+    "height": 728,
+    "y": 20,
+    "bottom": 748,
+    "overflowPx": 20
+  },
+  "npmAudit": {
+    "npm-audit.json": {
+      "info": 0,
+      "low": 1,
+      "moderate": 5,
+      "high": 13,
+      "critical": 1,
+      "total": 20
+    },
+    "npm-audit-prod.json": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 5,
+      "critical": 0,
+      "total": 5
+    }
+  }
+}
