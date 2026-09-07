@@ -15,7 +15,7 @@ import {
     getFloatingWindow,
     getPopupWindow,
     raiseOverlayWindow,
-    setPopupWindowAlwaysOnTop,
+    applyPopupWindowPreferences,
 } from './window-manager.ts'
 import autoScreenshotService from '../auto-screenshot-service.ts'
 import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
@@ -276,20 +276,6 @@ function clearAugmentOverlayForPhase(phase) {
     }
 
     autoScreenshotService.clearAugmentState(`LCU phase ${phase}`)
-}
-
-function keepChampionInsightOnTop(reason) {
-    const popupWindow = getPopupWindow()
-    if (!shouldShowChampionDetails()) {
-        if (popupWindow && !popupWindow.isDestroyed() && popupWindow.isVisible()) {
-            popupWindow.hide()
-        }
-        logger.debug('Champion insight visibility disabled by preference', { reason })
-        return
-    }
-
-    setPopupWindowAlwaysOnTop(true)
-    logger.info('Champion insight remains visible and always on top', { reason })
 }
 
 function getDiagnosticType(value) {
@@ -915,11 +901,14 @@ async function recoverChampionInsightForInProgress(lcuService, reason) {
         }
 
         lastInProgressInsightChampionId = championId
+        applyPopupWindowPreferences()
         if (!canRefreshVisiblePopup) {
             return
         }
 
-        setPopupWindowAlwaysOnTop(true)
+        if (popupWindow.isDestroyed() || !popupWindow.isVisible()) {
+            return
+        }
 
         popupWindow.webContents.send('for-popup', {
             championId,
@@ -1189,6 +1178,7 @@ async function initGameFlowMonitor() {
 
             const transition = gameSessionCoordinator.transition(phase, source)
             if (transition.changed) {
+                applyPopupWindowPreferences(phase)
                 const prevPhase = transition.previous.phase
                 const currentPhase = transition.current.phase
                 logger.info(`游戏阶段变化(${source}): ${prevPhase || 'unknown'} → ${phase}`)
@@ -1209,7 +1199,6 @@ async function initGameFlowMonitor() {
                     case 'ENTER_CHAMP_SELECT':
                         logger.info('进入选人阶段 - 暂停游戏内海克斯 OCR')
                         resetPostGameShareSnapshot('LCU phase ChampSelect')
-                        keepChampionInsightOnTop('LCU phase ChampSelect')
                         lastAutoAppliedItemSetChampionId = null
                         resetChampSelectItemSetState(`LCU phase ${phase}`)
                         notifyAllWindows('champ-select-start', {})
@@ -1219,14 +1208,12 @@ async function initGameFlowMonitor() {
                     case 'ENTER_GAME_START':
                         logger.info('游戏开始加载')
                         resetPostGameShareSnapshot('LCU phase GameStart')
-                        keepChampionInsightOnTop('LCU phase GameStart')
                         notifyAllWindows('game-started', {})
                         resetChampSelectItemSetState('LCU phase GameStart')
                         stopAutoScreenshotForGame('LCU phase GameStart')
                         break
                     case 'ENTER_IN_PROGRESS':
                         logger.info('游戏进行中 - 启动自动截图来检测海克斯选择')
-                        keepChampionInsightOnTop('LCU phase InProgress')
                         notifyAllWindows('game-in-progress', {})
                         resetChampSelectItemSetState('LCU phase InProgress')
                         void recoverChampionInsightForInProgress(lcuService, 'LCU phase InProgress')

@@ -4,6 +4,8 @@ export type AppStoreKey =
   | 'lastSelectedChampionId'
   | 'itemSets.autoApplyAram'
   | 'championInsight.showDetails'
+  | 'championInsight.hideOnGameStart'
+  | 'championInsight.alwaysOnTop'
   | 'augments.showTopOverlay'
   | 'augments.showSidePanel'
   | 'postGameShare.autoShow'

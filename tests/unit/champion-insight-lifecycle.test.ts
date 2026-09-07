@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 
 describe('champion insight lifecycle', () => {
-  it('starts hidden and becomes a persistent always-on-top window after champ select', async () => {
+  it('starts hidden and applies window preferences during champ select and game recovery', async () => {
     const [windowManager, appConfig] = await Promise.all([
       readFile(new URL('../../src/main/modules/window-manager.ts', import.meta.url), 'utf8'),
       readFile(new URL('../../src/main/modules/app-config.ts', import.meta.url), 'utf8'),
@@ -18,16 +18,16 @@ describe('champion insight lifecycle', () => {
 
     expect(popupWindowBlock).toContain('show: false')
     expect(popupWindowBlock).toContain('closable: false')
-    expect(popupWindowBlock).toContain('alwaysOnTop: true')
-    expect(appConfig).toContain("setPopupWindowAlwaysOnTop(true)")
+    expect(popupWindowBlock).toContain('alwaysOnTop: shouldKeepChampionInsightOnTop()')
+    expect(appConfig).not.toContain('setPopupWindowAlwaysOnTop(true)')
     expect(appConfig).toContain("popupWindow.show()")
     expect(inProgressRecoveryBlock).toContain('popupWindow.isVisible()')
     expect(inProgressRecoveryBlock).toContain('if (!canRefreshVisiblePopup)')
     expect(inProgressRecoveryBlock).not.toContain('popupWindow.show()')
-    expect(appConfig).not.toContain('shouldHideChampionInsightOnGameStart')
+    expect(inProgressRecoveryBlock).toContain('applyPopupWindowPreferences()')
   })
 
-  it('keeps popup content visible while preserving side-panel dismissal', async () => {
+  it('leaves champion window visibility to the main process while preserving side-panel dismissal', async () => {
     const [overlaySource, screenshotService, preferences] = await Promise.all([
       readFile(
         new URL('../../src/renderer/components/AugmentWinrateOverlay.vue', import.meta.url),
@@ -46,11 +46,11 @@ describe('champion insight lifecycle', () => {
     expect(overlay).toContain('<button v-if="isSidePanel" class="window-control"')
     expect(overlay).toContain('<button class="window-control danger" type="button" :aria-label="t(\'common.close\')" @click="closeOverlay(\'manual\')">')
     expect(overlay).toContain("if (isSidePanel.value) {\n      closeOverlay('augment-cleared')")
-    expect(overlay).toContain("game-started received; champion insight remains visible")
-    expect(overlay).toContain("game-in-progress received; champion insight remains visible")
+    expect(overlay).toContain("game-started received; champion insight visibility handled by main process")
+    expect(overlay).toContain("game-in-progress received; champion insight visibility handled by main process")
     expect(augmentClearedBlock).not.toContain("url.includes('augment-overlay')")
     expect(augmentClearedBlock).not.toContain('popupWindow.hide()')
-    expect(preferences).not.toContain('championInsight.hideOnGameStart')
+    expect(preferences).toContain('championInsight.hideOnGameStart')
   })
 
   it('gates all Champion Details show paths after preserving champion state updates', async () => {
@@ -79,6 +79,6 @@ describe('champion insight lifecycle', () => {
     expect(inProgressRecoveryBlock.indexOf('lastInProgressInsightChampionId = championId'))
       .toBeLessThan(inProgressRecoveryBlock.indexOf('if (!canRefreshVisiblePopup)'))
     expect(ipcHandlers.match(/if \(!shouldShowChampionDetails\(\)\)/g)).toHaveLength(6)
-    expect(appConfig).toContain("keepChampionInsightOnTop('LCU phase ChampSelect')")
+    expect(appConfig).toContain('applyPopupWindowPreferences(phase)')
   })
 })

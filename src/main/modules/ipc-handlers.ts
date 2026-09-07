@@ -22,7 +22,6 @@ import {
     getMainWindow,
     getPopupWindow,
     raiseOverlayWindow,
-    setPopupWindowAlwaysOnTop,
 } from './window-manager.ts'
 import logger from './logger.ts'
 import store from './app-store.ts'
@@ -403,7 +402,6 @@ export function registerIpcHandlers(isDev: boolean): void {
         }
 
         applyPopupWindowLayout()
-        setPopupWindowAlwaysOnTop(true)
         popupWindow.show()
         popupWindow.webContents.send('for-popup', {
             championId: data.championId,

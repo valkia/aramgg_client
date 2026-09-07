@@ -28,6 +28,7 @@
           class="switch-control"
           type="button"
           role="switch"
+          :aria-label="item.title"
           :aria-checked="String(preferences[item.key])"
           :class="{ active: preferences[item.key] }"
           :disabled="savingKey === item.key"
@@ -55,6 +56,20 @@ const preferenceDefinitions = [
     defaultValue: true,
     titleKey: 'preferences.championDetailsTitle',
     descriptionKey: 'preferences.championDetailsDescription',
+  },
+  {
+    key: 'hideChampionInsightOnGameStart',
+    storeKey: 'championInsight.hideOnGameStart',
+    defaultValue: true,
+    titleKey: 'preferences.hideDetailsTitle',
+    descriptionKey: 'preferences.hideDetailsDescription',
+  },
+  {
+    key: 'championInsightAlwaysOnTop',
+    storeKey: 'championInsight.alwaysOnTop',
+    defaultValue: false,
+    titleKey: 'preferences.alwaysOnTopTitle',
+    descriptionKey: 'preferences.alwaysOnTopDescription',
   },
   {
     key: 'showAugmentTopOverlay',

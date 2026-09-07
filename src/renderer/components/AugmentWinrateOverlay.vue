@@ -1338,7 +1338,7 @@ onMounted(() => {
       return
     }
 
-    logOverlayInfo('game-started received; champion insight remains visible')
+    logOverlayInfo('game-started received; champion insight visibility handled by main process')
   }))
 
   unsubscribeEvents.push(electronAPI.events.on('game-in-progress', () => {
@@ -1348,7 +1348,7 @@ onMounted(() => {
       return
     }
 
-    logOverlayInfo('game-in-progress received; champion insight remains visible')
+    logOverlayInfo('game-in-progress received; champion insight visibility handled by main process')
   }))
 
   unsubscribeEvents.push(electronAPI.events.on('item-set-auto-apply-completed', (data) => {

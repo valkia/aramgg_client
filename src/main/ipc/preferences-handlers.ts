@@ -10,7 +10,7 @@ import {
 import { changeDataLocale } from '../modules/data-locale-controller.ts'
 import store from '../modules/app-store.ts'
 import logger from '../modules/logger.ts'
-import { notifyAllWindows } from '../modules/window-manager.ts'
+import { applyPopupWindowPreferences, notifyAllWindows } from '../modules/window-manager.ts'
 import { trustedIpcMain as ipcMain } from '../security/trusted-ipc.ts'
 
 const APP_LOCALE_KEY = 'app.locale'
@@ -18,6 +18,8 @@ const RENDERER_STORE_KEYS = new Set<AppStoreKey>([
   'lastSelectedChampionId',
   'itemSets.autoApplyAram',
   'championInsight.showDetails',
+  'championInsight.hideOnGameStart',
+  'championInsight.alwaysOnTop',
   'augments.showTopOverlay',
   'augments.showSidePanel',
   'postGameShare.autoShow',
@@ -60,11 +62,17 @@ export function registerPreferencesIpcHandlers(): void {
   ipcMain.handle('store-set', (_event, key: unknown, value: unknown) => {
     assertRendererStoreKey(key)
     store.set(key, value)
+    if (key.startsWith('championInsight.')) {
+      applyPopupWindowPreferences()
+    }
   })
 
   ipcMain.handle('store-delete', (_event, key: unknown) => {
     assertRendererStoreKey(key)
     store.delete(key)
+    if (key.startsWith('championInsight.')) {
+      applyPopupWindowPreferences()
+    }
   })
 
   ipcMain.handle('locale-get', async () => {

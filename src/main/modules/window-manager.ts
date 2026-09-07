@@ -21,6 +21,12 @@ import {
     parseWindowPosition,
 } from './window-position.ts'
 import { shouldRaiseOverlayWindow } from './overlay-window-state.ts'
+import {
+    shouldHideChampionInsightOnGameStart,
+    shouldKeepChampionInsightOnTop,
+    shouldShowChampionDetails,
+} from './user-preferences.ts'
+import type { GameflowPhase } from '../../shared/ipc-contract.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -40,6 +46,7 @@ const RENDERER_CONTENT_SECURITY_POLICY = [
 
 let mainWindow: BrowserWindow | null = null
 let popupWindow: BrowserWindow | null = null
+let popupGameflowPhase: GameflowPhase | null = null
 let floatingWindow: BrowserWindow | null = null
 let augmentSidePanelWindow: BrowserWindow | null = null
 let mainWindowCloseAllowed = false
@@ -180,9 +187,17 @@ export function applyAugmentSidePanelWindowLayout() {
     }
 }
 
-export function setPopupWindowAlwaysOnTop(alwaysOnTop: boolean): void {
-    if (popupWindow && !popupWindow.isDestroyed()) {
-        setOverlayAlwaysOnTop(popupWindow, Boolean(alwaysOnTop), 'popup')
+export function applyPopupWindowPreferences(phase: GameflowPhase | null = popupGameflowPhase): void {
+    popupGameflowPhase = phase
+    if (!popupWindow || popupWindow.isDestroyed()) {
+        return
+    }
+
+    setOverlayAlwaysOnTop(popupWindow, shouldKeepChampionInsightOnTop(), 'popup')
+    const inGame = phase === 'GameStart' || phase === 'InProgress'
+    if ((!shouldShowChampionDetails() || (inGame && shouldHideChampionInsightOnGameStart())) &&
+        popupWindow.isVisible()) {
+        popupWindow.hide()
     }
 }
 
@@ -568,11 +583,12 @@ export const createPopupWindow = async (
         closable: false,
         resizable: isDev || false,
         fullscreenable: false,
-        alwaysOnTop: true, // 始终置顶，包括开发模式
+        alwaysOnTop: shouldKeepChampionInsightOnTop(),
         ...bounds,
         webPreferences,
     })
-    setOverlayAlwaysOnTop(popupWindow, true, 'popup')
+    applyPopupWindowPreferences()
+    popupWindow.on('show', () => applyPopupWindowPreferences())
     attachWindowDiagnostics('popup', popupWindow)
 
     if (process.platform === 'linux') {

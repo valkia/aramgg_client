@@ -6,7 +6,11 @@ vi.mock('../../src/main/modules/app-store.ts', () => ({
   default: { get: mocks.get },
 }))
 
-import { shouldShowChampionDetails } from '../../src/main/modules/user-preferences.ts'
+import {
+  shouldHideChampionInsightOnGameStart,
+  shouldKeepChampionInsightOnTop,
+  shouldShowChampionDetails,
+} from '../../src/main/modules/user-preferences.ts'
 
 describe('user preferences', () => {
   beforeEach(() => {
@@ -25,5 +29,21 @@ describe('user preferences', () => {
 
     mocks.get.mockReturnValue(true)
     expect(shouldShowChampionDetails()).toBe(true)
+  })
+
+  it('restores the previous hide-on-game-start preference and defaults to enabled', () => {
+    expect(shouldHideChampionInsightOnGameStart()).toBe(true)
+    expect(mocks.get).toHaveBeenCalledWith('championInsight.hideOnGameStart')
+    mocks.get.mockReturnValue(false)
+    expect(shouldHideChampionInsightOnGameStart()).toBe(false)
+  })
+
+  it('only enables always-on-top when the user has enabled it', () => {
+    expect(shouldKeepChampionInsightOnTop()).toBe(false)
+    expect(mocks.get).toHaveBeenCalledWith('championInsight.alwaysOnTop')
+    mocks.get.mockReturnValue(true)
+    expect(shouldKeepChampionInsightOnTop()).toBe(true)
+    mocks.get.mockReturnValue(false)
+    expect(shouldKeepChampionInsightOnTop()).toBe(false)
   })
 })
