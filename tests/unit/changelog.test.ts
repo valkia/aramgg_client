@@ -7,12 +7,12 @@ import {
 
 describe('changelog entries', () => {
   it('includes the 0.2.11 augment and logging announcement', () => {
-    const latestEntry = LOCAL_CHANGELOG_ENTRIES[0]
+    const entry = LOCAL_CHANGELOG_ENTRIES.find((entry) => entry.version === '0.2.11')
 
-    expect(latestEntry.version).toBe('0.2.11')
-    expect(latestEntry.date).toBe('2026-08-09')
-    expect(latestEntry.title).toBe('海克斯胜率回归与日志优化')
-    expect(latestEntry.changes).toEqual(expect.arrayContaining([
+    expect(entry?.version).toBe('0.2.11')
+    expect(entry?.date).toBe('2026-08-09')
+    expect(entry?.title).toBe('海克斯胜率回归与日志优化')
+    expect(entry?.changes).toEqual(expect.arrayContaining([
       expect.stringContaining('胜率展示'),
       expect.stringContaining('海克斯浮窗'),
       expect.stringContaining('高频诊断日志'),
