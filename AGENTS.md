@@ -55,6 +55,8 @@ Pull requests should include a short summary, test results, screenshots or scree
 
 ## Release Guidelines
 
+Windows release CI must run `npm run test:packaged-windows` after packaging and before installer upload/publication. Keep its report and logs on failure. This launches the real packaged main/preload/renderer with isolated data and background game/network work disabled; do not replace its readiness observations with mocked windows or synthetic ready signals. See `docs/RELEASE_WINDOW_SMOKE.md` for coverage and local commands.
+
 The GitHub release workflow runs on Node `22.18.0` with npm 10, installs with `npm ci --ignore-scripts`, and validates that a `v*` tag matches `package.json` version.
 
 After dependency or lockfile changes, verify the lockfile with `npx -p npm@10 npm ci --ignore-scripts` before publishing. Use the existing `npm run release:*` scripts so `npm version` creates the version commit and annotated tag; avoid ad hoc lightweight release tags. If a bad release tag must be cleaned up, delete the intended local and remote tags explicitly and recreate only the confirmed version tag.

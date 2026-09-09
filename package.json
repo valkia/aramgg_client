@@ -18,6 +18,7 @@
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
+    "test:packaged-windows": "node scripts/test-packaged-windows.mjs",
     "test:augment-ocr": "node tests/electron/test-augment-ocr-fixtures.js",
     "test:screenshots": "node tests/electron/test-screenshot-analysis.js",
     "release:patch": "npm version patch -m \"chore: release v%s\"",

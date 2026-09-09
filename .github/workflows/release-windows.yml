@@ -108,6 +108,18 @@ jobs:
             }
           }
 
+      - name: Smoke test packaged Windows application
+        timeout-minutes: 4
+        run: npm run test:packaged-windows
+
+      - name: Upload packaged smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aramgg-client-window-smoke
+          if-no-files-found: warn
+          path: build/release-smoke/
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:

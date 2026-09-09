@@ -138,7 +138,7 @@ const itemSetPreloadDataByChampionId = new Map()
 /**
  * 初始化应用
  */
-export async function init() {
+export async function init({ startBackgroundServices = true } = {}) {
     logger.info(`${'='.repeat(50)}`)
     logger.info(`ARAMGG助手启动中...`)
     logger.info(`${'='.repeat(50)}`)
@@ -164,9 +164,11 @@ export async function init() {
         appDataDir: getAppDataDir(),
         logFile: logger.getCurrentLogFile(),
     })
-    logDiagnosticSnapshot('startup').catch((error) => {
-        logger.warn('[diagnostics] startup snapshot failed:', error.message)
-    })
+    if (startBackgroundServices) {
+        logDiagnosticSnapshot('startup').catch((error) => {
+            logger.warn('[diagnostics] startup snapshot failed:', error.message)
+        })
+    }
 
     const mainWindow = await createMainWindow(isDev, devServerUrl)
     const [popupWindow, floatingWindow, augmentSidePanelWindow] = await Promise.all([
@@ -182,6 +184,11 @@ export async function init() {
         augmentSidePanel: !!augmentSidePanelWindow,
         tray: true,
     })
+    // Release smoke still uses real IPC, packaged assets, windows and tray.
+    // It must not start game polling, capture, uploads or automatic updates.
+    if (!startBackgroundServices) {
+        return { mainWindow, popupWindow, toggleMainWindow }
+    }
     startPerformanceMonitor()
 
     initializeAppUpdateService({ isDev })

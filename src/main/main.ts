@@ -4,6 +4,12 @@ import os from 'os'
 import path from 'path'
 import { configureAppPaths } from './modules/app-paths.ts'
 
+// Explicit CLI opt-in only; the normal startup path never loads the smoke harness.
+const releaseSmoke = process.env.ARAMGG_RELEASE_SMOKE_TEST === '1' &&
+    process.argv.includes('--release-smoke-test')
+    ? await import('./diagnostics/release-smoke.ts').then(({ createReleaseSmoke }) => createReleaseSmoke())
+    : null
+
 function getBootstrapLogFile(): string {
     const appDataRoot = process.env.APPDATA
         ? path.join(process.env.APPDATA, 'aramgg_client')
@@ -186,7 +192,13 @@ if (!gotSingleInstanceLock) {
     })
 
     // Some APIs can only be used after Electron is ready.
-    app.whenReady().then(init).catch((error) => {
+    app.whenReady().then(async () => {
+        if (releaseSmoke) {
+            await releaseSmoke.run(() => init({ startBackgroundServices: false }))
+        } else {
+            await init()
+        }
+    }).catch((error) => {
         writeBootstrapError('app initialization failed', error)
         logger.error('[app] initialization failed:', error)
     })
