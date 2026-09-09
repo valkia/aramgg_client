@@ -31,7 +31,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { PackageCheck } from 'lucide-vue-next'
-import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
+import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()

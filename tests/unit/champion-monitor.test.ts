@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   showPopup: vi.fn(),
   handlers: new Set<(state: ChampionMonitorState) => void>(),
 }))
-vi.mock('../../src/renderer/native/electron-api.js', () => ({
+vi.mock('../../src/renderer/native/electron-api.ts', () => ({
   hasElectronAPI: () => true,
   electronAPI: {
     lcu: { getChampionMonitorState: mocks.getState, getChampionId: mocks.getChampionId, getChampSelectSnapshot: mocks.getSnapshot },

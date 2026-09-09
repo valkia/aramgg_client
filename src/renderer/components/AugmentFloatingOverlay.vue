@@ -68,7 +68,7 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { X } from 'lucide-vue-next'
-import { electronAPI } from '../native/electron-api.js'
+import { electronAPI } from '../native/electron-api.ts'
 import { sortAugmentsByDetectedOrder } from '../service/augment-order.js'
 import {
   getAugmentKey,

@@ -1,3 +1,5 @@
+import type { ElectronAPI } from '../../shared/ipc-contract.ts'
+
 const getElectronAPI = () => window.electronAPI
 
 export const hasElectronAPI = () => !!getElectronAPI()
@@ -10,13 +12,14 @@ export const requireElectronAPI = () => {
   return api
 }
 
-export const electronAPI = {
+export const electronAPI: ElectronAPI = {
   store: {
     get: (...args) => requireElectronAPI().store.get(...args),
     set: (...args) => requireElectronAPI().store.set(...args),
     delete: (...args) => requireElectronAPI().store.delete(...args),
   },
   windows: {
+    ready: () => requireElectronAPI().windows.ready(),
     showPopup: (...args) => requireElectronAPI().windows.showPopup(...args),
     hidePopup: (...args) => requireElectronAPI().windows.hidePopup(...args),
     hideFloating: (...args) => requireElectronAPI().windows.hideFloating(...args),
@@ -71,6 +74,7 @@ export const electronAPI = {
     submit: (...args) => requireElectronAPI().feedback.submit(...args),
   },
   lcu: {
+    getChampionMonitorState: () => requireElectronAPI().lcu.getChampionMonitorState(),
     getChampionId: (...args) => requireElectronAPI().lcu.getChampionId(...args),
     getStatus: (...args) => requireElectronAPI().lcu.getStatus(...args),
     getCurrentSession: (...args) => requireElectronAPI().lcu.getCurrentSession(...args),

@@ -116,7 +116,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { MessageSquareText, Plus, Send, X } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import type { FeedbackCategory, SupportedDataLocale } from '../../shared/ipc-contract.ts'
-import { electronAPI } from '../native/electron-api.js'
+import { electronAPI } from '../native/electron-api.ts'
 import {
   compressFeedbackImage,
   formatFeedbackImageBytes,

@@ -138,7 +138,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { electronAPI } from '../native/electron-api.js'
+import { electronAPI } from '../native/electron-api.ts'
 
 const isRunning = ref(false)
 const isLoading = ref(false)

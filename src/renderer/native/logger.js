@@ -2,7 +2,7 @@
  * 渲染进程日志模块
  * 提供统一的日志记录和错误上报功能
  */
-import { electronAPI, hasElectronAPI } from './electron-api.js'
+import { electronAPI, hasElectronAPI } from './electron-api.ts'
 
 /**
  * 发送错误到主进程

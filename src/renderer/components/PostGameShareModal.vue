@@ -57,7 +57,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { CheckCircle2, CircleAlert, Copy, Download, X } from 'lucide-vue-next'
-import { electronAPI } from '../native/electron-api.js'
+import { electronAPI } from '../native/electron-api.ts'
 import { trackAnalyticsEvent } from '../services/analytics.ts'
 import { useI18n } from 'vue-i18n'
 

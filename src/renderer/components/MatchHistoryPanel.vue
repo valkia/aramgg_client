@@ -151,7 +151,7 @@ import type {
   HextechAramMatchHistoryPage,
   HextechAramMatchResult,
 } from '../../shared/ipc-contract.ts'
-import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
+import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
 
 const PAGE_SIZE = 10
 

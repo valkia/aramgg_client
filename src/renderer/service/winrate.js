@@ -1,5 +1,5 @@
 import log from '@/native/logger.js';
-import { electronAPI, hasElectronAPI } from '@/native/electron-api.js'
+import { electronAPI, hasElectronAPI } from '@/native/electron-api.ts'
 /**
  * 胜率查询服务
  * 功能：从不同数据源获取英雄的胜率、选择率等信息

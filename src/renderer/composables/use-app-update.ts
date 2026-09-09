@@ -1,6 +1,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, type Ref } from 'vue'
 import type { AppUpdateState, ClientVersionInfo, Unsubscribe } from '../../shared/ipc-contract.ts'
-import { electronAPI } from '../native/electron-api.js'
+import { electronAPI } from '../native/electron-api.ts'
 import { useI18n } from 'vue-i18n'
 
 export function useAppUpdate(versionInfo: Ref<ClientVersionInfo | null>) {

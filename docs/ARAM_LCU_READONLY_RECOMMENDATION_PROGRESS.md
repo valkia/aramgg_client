@@ -28,7 +28,7 @@
 
 - 主进程 LCU 服务：[src/main/services/lcu/lcu-service.ts](../src/main/services/lcu/lcu-service.ts)
 - LCU IPC handlers：[src/main/services/lcu/ipc-handlers.ts](../src/main/services/lcu/ipc-handlers.ts)
-- 渲染进程 Electron API 代理：[src/renderer/native/electron-api.js](../src/renderer/native/electron-api.js)
+- 渲染进程 Electron API 代理：[src/renderer/native/electron-api.ts](../src/renderer/native/electron-api.ts)
 - 游戏流程编排：[src/main/modules/app-config.ts](../src/main/modules/app-config.ts)
 - 游戏会话纯状态机：[src/main/services/game-session/game-session-machine.ts](../src/main/services/game-session/game-session-machine.ts)
 - 自动截图服务：[src/main/auto-screenshot-service.ts](../src/main/auto-screenshot-service.ts)

@@ -115,7 +115,7 @@ import {
     RefreshCw,
     Swords,
 } from 'lucide-vue-next'
-import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
+import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps({

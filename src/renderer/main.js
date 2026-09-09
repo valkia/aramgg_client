@@ -3,7 +3,7 @@ import App from './App.vue'
 import './styles/index.css'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
-import { electronAPI, hasElectronAPI } from './native/electron-api.js'
+import { electronAPI, hasElectronAPI } from './native/electron-api.ts'
 import { initRendererAnalytics, trackErrorEvent, trackPageView, trackAnalyticsEvent } from './services/analytics.ts'
 import { i18n, setAppLocale } from './i18n/index.ts'
 

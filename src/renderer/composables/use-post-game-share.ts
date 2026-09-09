@@ -1,6 +1,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, type Ref } from 'vue'
 import type { LooseRecord, Unsubscribe } from '../../shared/ipc-contract.ts'
-import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
+import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
 import { trackAnalyticsEvent } from '../services/analytics.ts'
 import { useI18n } from 'vue-i18n'
 

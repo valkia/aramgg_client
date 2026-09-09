@@ -38,7 +38,7 @@
 <script setup>
 import { ref, onBeforeUnmount, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
-import { electronAPI, hasElectronAPI } from '../native/electron-api.js'
+import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
 import { Play, Radar, Square } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 

@@ -45,7 +45,7 @@ TypeScript 文件通过 `typescript-eslint` parser 解析；类型正确性仍�
 | Electron LCU 服务 | `src/main/services/lcu/*.ts` |
 | 主进程数据加载 | `src/main/data-loader.ts` |
 | Renderer/IPC 信任边界 | `src/main/security/*.ts` |
-| Electron API renderer 声明 | `src/renderer/native/electron-api.d.ts` |
+| Electron API renderer 转发实现（直接检查 ElectronAPI 契约） | `src/renderer/native/electron-api.ts` |
 | App path/logger/store 运行时模块 | `src/main/modules/{app-paths,app-store,logger}.ts` |
 | ARAM bench 推荐 | `src/main/services/aram/bench-recommendation.ts` |
 | 游戏会话状态机 | `src/main/services/game-session/game-session-machine.ts` |

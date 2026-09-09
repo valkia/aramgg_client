@@ -490,7 +490,7 @@ import {
   getItemIconUrl as getFallbackItemIconUrl,
   getSpellIconUrl,
 } from '../service/cdn'
-import { electronAPI } from '../native/electron-api.js'
+import { electronAPI } from '../native/electron-api.ts'
 import { sortAugmentsByDetectedOrder } from '../service/augment-order.js'
 import { rankAugmentRecommendations } from '../../shared/augment-ranking.ts'
 import {

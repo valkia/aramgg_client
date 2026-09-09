@@ -46,7 +46,7 @@ GET /lol-gameflow/v1/gameflow-phase
 - 海克斯右侧推荐列表：`src/main/modules/window-manager.ts` 的 `createAugmentSidePanelWindow()` 和 renderer 路由 `/augment-side-panel`
 - 窗口偏好：主界面 `OverlayPreferences` 写入 electron-store，由 `src/main/modules/user-preferences.ts` 读取
 - 席位推荐组件：`src/renderer/components/AramBenchRecommendation.vue`
-- Renderer 事件监听：`src/preload/preload.ts`、`src/renderer/native/electron-api.js`
+- Renderer 事件监听：`src/preload/preload.ts`、`src/renderer/native/electron-api.ts`
 
 `app-config.ts` 将每次 LCU phase 输入 `GameSessionCoordinator`。状态机先映射为 `client-ready`、`champ-select`、`game-loading`、`in-progress` 或 `post-game`，再返回需要执行的阶段入口效果；同一 phase 的重复事件不会重复启动服务、创建窗口或清理状态。窗口、LCU、截图和 OCR 调用仍留在主进程副作用层，状态转换本身不依赖 Electron。
 

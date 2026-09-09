@@ -403,7 +403,7 @@ import {
 } from './ui/select/index.js'
 import { useAppUpdate } from '../composables/use-app-update.ts'
 import { usePostGameShare } from '../composables/use-post-game-share.ts'
-import { electronAPI } from '../native/electron-api.js'
+import { electronAPI } from '../native/electron-api.ts'
 import { trackAnalyticsEvent } from '../services/analytics.ts'
 import { useI18n } from 'vue-i18n'
 import {

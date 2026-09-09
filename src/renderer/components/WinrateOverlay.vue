@@ -114,7 +114,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { getWinrateLevel } from '../service/winrate'
-import { electronAPI } from '../native/electron-api.js'
+import { electronAPI } from '../native/electron-api.ts'
 
 const visible = ref(false)
 const loading = ref(false)
