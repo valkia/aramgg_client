@@ -16,6 +16,7 @@ import {
     resolveCaptureModeAfterAnalysis,
     resolveFullOcrBackoffUntil,
     resolveGameflowCaptureInterval,
+    resolveGameflowNextCaptureDelay,
     shouldQueueFullCapture,
     shouldActivateSelectionCapture,
 } from './auto-screenshot-policy.ts'
@@ -374,6 +375,13 @@ class AutoScreenshotService {
         return !this.gameflowPhase || this.gameflowPhase === 'InProgress' || this.gameflowPhase === 'None'
     }
 
+    _isCurrentAnalysisRun(runId) {
+        return this.isRunning &&
+            runId === this.runId &&
+            this.enableAnalysis &&
+            this.isAnalysisAllowedByGameflow()
+    }
+
     clearAugmentState(reason = 'gameflow-cleared') {
         const previousIds = this.lastDetectedAugmentIds
         const ageMs = this.lastDetectedAugmentAt ? Date.now() - this.lastDetectedAugmentAt : null
@@ -405,7 +413,7 @@ class AutoScreenshotService {
      * @private
      */
     _scheduleNextCapture(delayMs = this.interval, runId = this.runId) {
-        if (!this.isRunning || this.intervalId) {
+        if (!this.isRunning || runId !== this.runId || this.intervalId) {
             return
         }
 
@@ -418,10 +426,21 @@ class AutoScreenshotService {
             const cycleStart = performance.now()
 
             await this._captureScreenshot(runId)
+            if (!this.isRunning || runId !== this.runId) {
+                return
+            }
 
             const elapsed = performance.now() - cycleStart
             const activeInterval = this._getCurrentCaptureInterval()
-            const nextDelay = Math.max(0, activeInterval - elapsed)
+            const nextDelay = this.controlOwner === 'gameflow'
+                ? resolveGameflowNextCaptureDelay({
+                    mode: this.captureMode,
+                    pendingFullCapture: this.pendingFullCapture,
+                    fullOcrCooldownUntil: this.fullOcrCooldownUntil,
+                    intervalMs: activeInterval,
+                    elapsedMs: elapsed,
+                })
+                : Math.max(0, activeInterval - elapsed)
             this._scheduleNextCapture(nextDelay, runId)
         }, delayMs)
     }
@@ -610,37 +629,53 @@ class AutoScreenshotService {
      * @private
      */
     async _analyzeGateScreenshot(imageBuffer, runId = this.runId) {
-        const gateResult = await analyzeScreenshotGate(imageBuffer)
-        if (!gateResult.success) {
-            logger.debug('Augment selection gate analysis failed', {
-                error: gateResult.error,
+        try {
+            const gateResult = await analyzeScreenshotGate(imageBuffer)
+            if (!this._isCurrentAnalysisRun(runId)) {
+                logger.debug('Discarded stale augment selection gate result', {
+                    runId,
+                    currentRunId: this.runId,
+                })
+                return
+            }
+            if (!gateResult.success) {
+                logger.debug('Augment selection gate analysis failed', {
+                    error: gateResult.error,
+                })
+                this.candidateStreak = 0
+                this.pendingFullCapture = false
+                return
+            }
+
+            const gateLikely = gateResult.likely === true
+            const rerollVisible = gateResult.rerollVisible === true
+            this.candidateStreak = resolveCandidateStreak({
+                gateLikely,
+                rerollVisible,
+                currentStreak: this.candidateStreak,
             })
+            this.pendingFullCapture = shouldQueueFullCapture({
+                candidateStreak: this.candidateStreak,
+                fullOcrCooldownUntil: this.fullOcrCooldownUntil,
+                now: Date.now(),
+            })
+
+            logger.debug('Augment selection gate frame analyzed', {
+                runId,
+                likely: gateLikely,
+                rerollVisible,
+                candidateStreak: this.candidateStreak,
+                pendingFullCapture: this.pendingFullCapture,
+                durationMs: gateResult.durationMs,
+            })
+        } catch (error) {
+            if (!this._isCurrentAnalysisRun(runId)) {
+                return
+            }
+            logger.error('Augment selection gate analysis error:', error)
             this.candidateStreak = 0
             this.pendingFullCapture = false
-            return
         }
-
-        const gateLikely = gateResult.likely === true
-        const rerollVisible = gateResult.rerollVisible === true
-        this.candidateStreak = resolveCandidateStreak({
-            gateLikely,
-            rerollVisible,
-            currentStreak: this.candidateStreak,
-        })
-        this.pendingFullCapture = shouldQueueFullCapture({
-            candidateStreak: this.candidateStreak,
-            fullOcrCooldownUntil: this.fullOcrCooldownUntil,
-            now: Date.now(),
-        })
-
-        logger.debug('Augment selection gate frame analyzed', {
-            runId,
-            likely: gateLikely,
-            rerollVisible,
-            candidateStreak: this.candidateStreak,
-            pendingFullCapture: this.pendingFullCapture,
-            durationMs: gateResult.durationMs,
-        })
     }
 
     /**
@@ -699,8 +734,8 @@ class AutoScreenshotService {
                 this.isAnalysisAllowedByGameflow()
             ) {
                 const startTime = performance.now()
-                await this._analyzeScreenshot(currentBuffer)
-                if (!this.isRunning || runId !== this.runId) {
+                await this._analyzeScreenshot(currentBuffer, runId)
+                if (!this._isCurrentAnalysisRun(runId)) {
                     break
                 }
                 this.lastAnalysisDuration = performance.now() - startTime
@@ -726,12 +761,19 @@ class AutoScreenshotService {
      * 内部方法：分析截图
      * @private
      */
-    async _analyzeScreenshot(imageBuffer) {
+    async _analyzeScreenshot(imageBuffer, runId = this.runId) {
         try {
             this.analysisCount++
             const analysisStart = performance.now()
             const analysisResult = await analyzeScreenshot(imageBuffer)
             const analysisDuration = performance.now() - analysisStart
+            if (!this._isCurrentAnalysisRun(runId)) {
+                logger.debug('Discarded stale augment OCR result', {
+                    runId,
+                    currentRunId: this.runId,
+                })
+                return
+            }
 
             if (!analysisResult.success) {
                 this._logAnalysisMiss('analysis-failed', {
@@ -761,7 +803,7 @@ class AutoScreenshotService {
             }
 
             if (cardCount > 0 && cardCount < 3) {
-                this._savePartialOcrScreenshot(imageBuffer, analysisResult, analysisDuration)
+                this._savePartialOcrScreenshot(imageBuffer, analysisResult, analysisDuration, runId)
             }
 
             // ✅ 严格的通知条件：
@@ -801,7 +843,7 @@ class AutoScreenshotService {
                             ...analysisResult.analysis,
                             augments: normalizedAugments,
                         },
-                    })
+                    }, runId)
                 } else {
                     // 与上次相同，跳过通知
                     this.lastDetectedAugmentAt = Date.now()
@@ -836,7 +878,7 @@ class AutoScreenshotService {
                                 cardCount: mergedAugments.length,
                                 partialUpdate: true,
                             },
-                        })
+                        }, runId)
                         return
                     }
 
@@ -879,7 +921,7 @@ class AutoScreenshotService {
                                     partialUpdate: true,
                                     partialReason: initialPartial.reason,
                                 },
-                            })
+                            }, runId)
                             return
                         }
                     }
@@ -936,6 +978,9 @@ class AutoScreenshotService {
                 }
             }
         } catch (error) {
+            if (!this._isCurrentAnalysisRun(runId)) {
+                return
+            }
             this._returnToGateAfterFullOcrMiss('analysis-error')
             logger.error('Auto screenshot analysis error:', error)
         }
@@ -1075,7 +1120,7 @@ class AutoScreenshotService {
         logger.debug(`Augment analysis not accepted: reason=${reason}, count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${Number(details.durationMs || 0).toFixed(1)}ms, repeats=${this.analysisMissRepeatCount}, augments=${getAugmentSummary(details.augments)}`)
     }
 
-    _savePartialOcrScreenshot(imageBuffer, analysisResult, analysisDuration) {
+    _savePartialOcrScreenshot(imageBuffer, analysisResult, analysisDuration, runId = this.runId) {
         const now = Date.now()
         if (this.partialOcrSaveInFlight || now - this.lastPartialOcrSaveAt < PARTIAL_OCR_SAVE_INTERVAL_MS) {
             return
@@ -1093,13 +1138,20 @@ class AutoScreenshotService {
             try {
                 await fs.ensureDir(dir)
                 await fs.writeFile(filePath, imageBuffer)
+                if (!this._isCurrentAnalysisRun(runId)) {
+                    return
+                }
                 this.partialOcrSaveCount++
                 logger.info(`Saved partial OCR screenshot: count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, path=${filePath}, augments=${getAugmentSummary(augments)}`)
                 await this._cleanupPartialOcrScreenshots(dir)
             } catch (error) {
-                logger.warn('Failed to save partial OCR screenshot:', error.message)
+                if (this._isCurrentAnalysisRun(runId)) {
+                    logger.warn('Failed to save partial OCR screenshot:', error.message)
+                }
             } finally {
-                this.partialOcrSaveInFlight = false
+                if (runId === this.runId) {
+                    this.partialOcrSaveInFlight = false
+                }
             }
         })()
     }
@@ -1237,12 +1289,11 @@ class AutoScreenshotService {
         }
     }
 
-    async _sendAugmentDetectedPayload(winrateData, notifyMode = 'detected') {
+    async _sendAugmentDetectedPayload(winrateData, notifyMode = 'detected', expectedRunId = this.runId) {
         try {
-            if (!this.isRunning || !this._isCurrentAugmentPayload(winrateData)) return
-            const runId = this.runId
+            if (!this.isRunning || expectedRunId !== this.runId || !this._isCurrentAugmentPayload(winrateData)) return
             await ensureAugmentOverlayWindows()
-            if (!this.isRunning || runId !== this.runId || !this._isCurrentAugmentPayload(winrateData)) return
+            if (!this.isRunning || expectedRunId !== this.runId || !this._isCurrentAugmentPayload(winrateData)) return
             if (this._isManualHiddenAugmentSuppressed(winrateData)) {
                 return
             }
@@ -1316,8 +1367,11 @@ class AutoScreenshotService {
      * 通知所有窗口有新的海克斯检测
      * @private
      */
-    async _notifyAugmentDetected(analysisResult) {
+    async _notifyAugmentDetected(analysisResult, runId = this.runId) {
         try {
+            if (!this._isCurrentAnalysisRun(runId)) {
+                return
+            }
             // 从store中获取缓存的英雄ID
             const championId = store.get('lastSelectedChampionId')
 
@@ -1354,7 +1408,7 @@ class AutoScreenshotService {
 
             const shouldEnrichWinrate = !!championId && getPayloadAugmentIds(baseWinrateData.augments).length > 0
             if (!shouldEnrichWinrate) {
-                this._sendAugmentDetectedPayload(baseWinrateData)
+                this._sendAugmentDetectedPayload(baseWinrateData, 'detected', runId)
                 return
             }
 
@@ -1364,25 +1418,31 @@ class AutoScreenshotService {
                 enrichPromise,
                 wait(AUGMENT_WINRATE_INLINE_WAIT_MS).then(() => timeoutToken),
             ])
+            if (!this._isCurrentAnalysisRun(runId)) {
+                return
+            }
 
             if (quickPayload && quickPayload !== timeoutToken) {
-                this._sendAugmentDetectedPayload(quickPayload, 'main-winrate-inline')
+                this._sendAugmentDetectedPayload(quickPayload, 'main-winrate-inline', runId)
                 return
             }
 
             this._sendAugmentDetectedPayload({
                 ...baseWinrateData,
                 winratePending: true,
-            }, 'main-winrate-pending')
+            }, 'main-winrate-pending', runId)
 
             enrichPromise.then((enrichedPayload) => {
-                if (!enrichedPayload || !this._isCurrentAugmentPayload(enrichedPayload)) {
+                if (!this._isCurrentAnalysisRun(runId) ||
+                    !enrichedPayload || !this._isCurrentAugmentPayload(enrichedPayload)) {
                     return
                 }
 
-                this._sendAugmentDetectedPayload(enrichedPayload, 'main-winrate-late')
+                this._sendAugmentDetectedPayload(enrichedPayload, 'main-winrate-late', runId)
             }).catch(error => {
-                logger.warn('Late augment winrate enrichment failed:', error.message)
+                if (this._isCurrentAnalysisRun(runId)) {
+                    logger.warn('Late augment winrate enrichment failed:', error.message)
+                }
             })
         } catch (error) {
             logger.error('Failed to notify windows:', error)

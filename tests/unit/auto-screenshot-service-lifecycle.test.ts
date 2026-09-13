@@ -141,6 +141,83 @@ describe.sequential('automatic screenshot service lifecycle', () => {
     expect(send).not.toHaveBeenCalled()
   })
 
+  it('does not deliver a stale detection into a restarted run with matching ids', async () => {
+    const service = createRunningIdleService()
+    const payload = { augments: [{ id: 1 }, { id: 2 }, { id: 3 }] }
+    service.lastDetectedAugmentIds = ['1', '2', '3']
+    const staleRunId = service.runId
+
+    service.runId++
+    await service._sendAugmentDetectedPayload(payload, 'detected', staleRunId)
+
+    expect(mocks.prepareWindows).not.toHaveBeenCalled()
+  })
+
+  it('does not let a stale run occupy the restarted capture timer', () => {
+    const service = createRunningIdleService()
+    const staleRunId = service.runId
+
+    service.runId++
+    service._scheduleNextCapture(0, staleRunId)
+
+    expect(service.intervalId).toBeNull()
+  })
+
+  it('ignores a gate result that finishes after the run has restarted', async () => {
+    const service = createRunningIdleService()
+    let resolveGate!: (value: any) => void
+    mocks.analyzeScreenshotGate.mockReturnValue(new Promise(resolve => { resolveGate = resolve }))
+    const staleRunId = service.runId
+    const pending = service._analyzeGateScreenshot(Buffer.from('gate-frame'), staleRunId)
+
+    service.runId++
+    service.candidateStreak = 1
+    service.pendingFullCapture = false
+    resolveGate({ success: true, likely: true, rerollVisible: true, durationMs: 10 })
+    await pending
+
+    expect(service.candidateStreak).toBe(1)
+    expect(service.pendingFullCapture).toBe(false)
+  })
+
+  it('ignores an OCR result that finishes after the run has restarted', async () => {
+    const service = createRunningIdleService()
+    let resolveAnalysis!: (value: any) => void
+    mocks.analyzeScreenshot.mockReturnValue(new Promise(resolve => { resolveAnalysis = resolve }))
+    const notify = vi.spyOn(service, '_notifyAugmentDetected').mockImplementation(() => {})
+    const staleRunId = service.runId
+    const pending = service._analyzeScreenshot(Buffer.from('full-frame'), staleRunId)
+
+    service.runId++
+    service.captureMode = 'idle'
+    service.lastDetectedAugmentIds = []
+    service.lastDetectedAugments = []
+    service.detectionCount = 0
+    resolveAnalysis({
+      success: true,
+      timestamp: Date.now(),
+      analysis: {
+        cardCount: 3,
+        confidence: 0.95,
+        isAugmentPhase: true,
+        augments: [{ id: 1 }, { id: 2 }, { id: 3 }],
+        slotDiagnostics: [],
+        augmentGate: {
+          ocrSkippedReason: null,
+          titleActivity: { likely: true },
+          rerollButtons: { visible: true },
+        },
+      },
+    })
+    await pending
+
+    expect(service.captureMode).toBe('idle')
+    expect(service.lastDetectedAugmentIds).toEqual([])
+    expect(service.lastDetectedAugments).toEqual([])
+    expect(service.detectionCount).toBe(0)
+    expect(notify).not.toHaveBeenCalled()
+  })
+
   it('consumes a queued full capture before starting OCR', async () => {
     const service = createRunningIdleService()
     const imageBuffer = Buffer.from('full-frame')

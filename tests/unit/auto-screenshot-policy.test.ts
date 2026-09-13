@@ -10,6 +10,7 @@ import {
   resolveCaptureModeAfterAnalysis,
   resolveFullOcrBackoffUntil,
   resolveGameflowCaptureInterval,
+  resolveGameflowNextCaptureDelay,
   SELECTION_CANDIDATE_STREAK_THRESHOLD,
   shouldQueueFullCapture,
   shouldActivateSelectionCapture,
@@ -103,6 +104,41 @@ describe('automatic screenshot policy', () => {
       fullOcrCooldownUntil: now,
       now,
     })).toBe('full')
+  })
+
+  it('runs a queued full capture immediately after gate confirmation', () => {
+    const now = 1000
+
+    expect(resolveGameflowNextCaptureDelay({
+      mode: 'idle',
+      pendingFullCapture: true,
+      fullOcrCooldownUntil: 0,
+      now,
+      intervalMs: GAMEFLOW_IDLE_CAPTURE_INTERVAL_MS,
+      elapsedMs: 520,
+    })).toBe(0)
+    expect(resolveGameflowNextCaptureDelay({
+      mode: 'idle',
+      pendingFullCapture: false,
+      now,
+      intervalMs: GAMEFLOW_IDLE_CAPTURE_INTERVAL_MS,
+      elapsedMs: 520,
+    })).toBe(GAMEFLOW_IDLE_CAPTURE_INTERVAL_MS - 520)
+    expect(resolveGameflowNextCaptureDelay({
+      mode: 'idle',
+      pendingFullCapture: true,
+      fullOcrCooldownUntil: now + FULL_OCR_BACKOFF_MS,
+      now,
+      intervalMs: GAMEFLOW_IDLE_CAPTURE_INTERVAL_MS,
+      elapsedMs: 520,
+    })).toBe(GAMEFLOW_IDLE_CAPTURE_INTERVAL_MS - 520)
+    expect(resolveGameflowNextCaptureDelay({
+      mode: 'active-selection',
+      pendingFullCapture: true,
+      now,
+      intervalMs: GAMEFLOW_ACTIVE_CAPTURE_INTERVAL_MS,
+      elapsedMs: 120,
+    })).toBe(GAMEFLOW_ACTIVE_CAPTURE_INTERVAL_MS - 120)
   })
 
   it('tracks consecutive gate candidates and queues full capture at the threshold', () => {

@@ -16,6 +16,31 @@ export function resolveGameflowCaptureInterval(
     return mode === 'active-selection' ? activeIntervalMs : idleIntervalMs
 }
 
+export function resolveGameflowNextCaptureDelay({
+    mode,
+    pendingFullCapture,
+    fullOcrCooldownUntil = 0,
+    now = Date.now(),
+    intervalMs,
+    elapsedMs,
+}: {
+    mode: AutomaticCaptureMode
+    pendingFullCapture: boolean
+    fullOcrCooldownUntil?: number
+    now?: number
+    intervalMs: number
+    elapsedMs: number
+}): number {
+    const fullCaptureReady = mode === 'idle' && resolveCaptureStage({
+        mode,
+        pendingFullCapture,
+        fullOcrCooldownUntil,
+        now,
+    }) === 'full'
+
+    return fullCaptureReady ? 0 : Math.max(0, intervalMs - elapsedMs)
+}
+
 export function resolveCaptureModeAfterAnalysis({
     currentMode,
     confirmedSelectionUi,
