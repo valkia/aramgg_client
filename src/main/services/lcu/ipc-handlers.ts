@@ -15,6 +15,7 @@ import {
   getAramBenchRecommendation,
 } from '../aram/bench-recommendation.ts'
 import { trustedIpcMain as ipcMain } from '../../security/trusted-ipc.ts'
+import { loadChampionStatsForRecommendation } from '../aram/bench-recommendation-data.ts'
 
 const LCU_READ_TIMEOUT_MS = 8 * 1000
 let lastAramBenchRecommendationLogSignature = ''
@@ -46,47 +47,6 @@ const getLcuServiceFromStore = async () => {
       ? null
       : '未从运行中的客户端发现 LCU',
   }
-}
-
-const loadChampionStatsForRecommendation = async (
-  championIds: number[]
-): Promise<Record<string, any>> => {
-  if (!championIds.length) {
-    return {}
-  }
-
-  const { loadChampionStats, loadChampionName } = await import('../../data-loader.ts')
-  const entries = await Promise.all(
-    championIds.map(async (championId) => {
-      try {
-        const [stats, championName] = await Promise.all([
-          loadChampionStats(championId),
-          loadChampionName(championId),
-        ])
-
-        return [
-          String(championId),
-          {
-            ...stats,
-            ...championName,
-            championId,
-          },
-        ] as const
-      } catch (error) {
-        const err = error as Error
-        logger.warn(`[LCU] Failed to load ARAM stats for champion ${championId}:`, err.message)
-        return [
-          String(championId),
-          {
-            championId,
-            nameCN: `英雄 ${championId}`,
-          },
-        ] as const
-      }
-    })
-  )
-
-  return Object.fromEntries(entries)
 }
 
 /**

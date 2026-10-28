@@ -108,13 +108,17 @@ describe('ARAM recommendation panel', () => {
   })
 
   it('degrades all-missing statistics to a candidate list and retains the missing-current explanation', async () => {
-    const view = render(recommendation({}, {}))
+    const view = render(recommendation({ myTeam: [{ cellId: 1, championId: 63 }, { cellId: 2, championId: 103 }] }, {}))
     expect(view.get('.decision-line').text()).toContain('暂不作强度判断')
-    expect(view.findAll('.candidate-row')).toHaveLength(2)
+    expect(view.findAll('.candidate-row')).toHaveLength(3)
+    expect(view.find('.candidate-row.recommended').exists()).toBe(false)
+    expect(view.findAll('.candidate-row.current')).toHaveLength(1)
+    expect(view.findAll('.candidate-row.teammate')).toHaveLength(1)
     expect(view.get('.data-warning').text()).toContain('所有候选均缺少统计')
     await view.setProps({ previewRecommendation: recommendation({ selfChampionId: null }, {}) })
     expect(view.get('.decision-line').text()).toContain('尚未读取到当前英雄')
     expect(view.findAll('.candidate-row')).toHaveLength(1)
+    expect(view.find('.candidate-row.recommended').exists()).toBe(false)
   })
 
   it('updates decision states as candidates disappear or the session ends', async () => {

@@ -291,7 +291,7 @@ const refresh = async (showLoading = true) => {
 }
 
 const isRecommended = (candidate) =>
-    recommended.value && candidate.championId === recommended.value.championId
+    !hasNoStats.value && recommended.value && candidate.championId === recommended.value.championId
 
 const candidateSourceLabel = (candidate) =>
     candidateSourceLabels.value[candidate?.source] || candidate?.sourceLabel || t('bench.sourceCandidate')
