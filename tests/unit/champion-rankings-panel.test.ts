@@ -74,9 +74,22 @@ describe('champion rankings panel', () => {
     expect(view.text()).not.toContain('暂无英雄数据')
     await view.findAll('button').find((button) => button.text() === '清除搜索')!.trigger('click')
     expect(view.findAll('tbody tr')).toHaveLength(2)
-    await view.get('img').trigger('error')
-    expect(view.find('img').exists()).toBe(false)
-    expect(view.get('tbody').text()).toContain('阿狸')
+  })
+
+  it('uses the supplied champion icon and a generic fallback for missing or failed images', async () => {
+    const view = render()
+    await flushPromises()
+    const [ahri, brand] = view.findAll('tbody th')
+    expect(ahri.get('img').attributes('src')).toBe(fixture().champions[0].iconUrl)
+    expect(ahri.find('[aria-hidden="true"]').exists()).toBe(false)
+    expect(brand.find('img').exists()).toBe(false)
+    expect(brand.get('[aria-hidden="true"]').text()).toBe('')
+    expect(brand.get('[aria-hidden="true"] svg').exists()).toBe(true)
+    await ahri.get('img').trigger('error')
+    expect(ahri.find('img').exists()).toBe(false)
+    expect(ahri.get('[aria-hidden="true"]').text()).toBe('')
+    expect(ahri.get('[aria-hidden="true"] svg').exists()).toBe(true)
+    expect(ahri.text()).toContain('阿狸')
   })
 
   it('distinguishes loading, load failure, empty data and keeps loaded data on retry failure', async () => {

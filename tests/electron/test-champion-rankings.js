@@ -49,6 +49,7 @@ try {
     assert.equal(result.champions[0].name, expected)
     assert.equal(result.champions[0].numGames, null)
     assert.equal(result.champions[0].winRate, 0.5732)
+    assert.ok(result.champions.slice(0, 173).every((champion) => champion.iconUrl === `https://cdn.dtodo.cn/hextech/champion-icons/${champion.championId}.png`), 'Real source champion icons must survive the local index and rankings mapper')
     const stats = await loadChampionStatsForRecommendation([67, 900001, 900002, 900003, 999999])
     const recommendation = getAramBenchRecommendation({
       gameflowPhase: 'ChampSelect', selfChampionId: 67,

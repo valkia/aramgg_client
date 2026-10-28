@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RefreshCw } from 'lucide-vue-next'
+import { RefreshCw, UserRound } from 'lucide-vue-next'
 import type { ChampionRankingEntry, ChampionRankings } from '../../shared/ipc-contract.ts'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
 import { filterChampionRankings, sortChampionRankings, type ChampionSortKey, type ChampionSortDirection } from '../services/champion-rankings.ts'
@@ -145,7 +145,7 @@ onBeforeUnmount(() => { active = false; requestSequence += 1; openSequence += 1 
               <th scope="row" class="px-2 py-2 text-left font-normal">
                 <button type="button" class="flex w-full min-w-0 items-center gap-1.5 rounded text-left focus-visible:outline-primary disabled:opacity-50" :disabled="opening" :aria-label="t('championRankings.openDetails', { name: name(row) })" :title="[name(row), row.title, row.alias, rowEvidence(row)].filter(Boolean).join(' · ')" @click="openDetails(row)">
                   <img v-if="row.iconUrl && !failedIcons.has(row.championId)" :src="row.iconUrl" alt="" class="size-6 shrink-0 rounded object-cover" loading="lazy" @error="failedIcons.add(row.championId)" />
-                  <span v-else class="flex size-6 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground" aria-hidden="true">{{ name(row).slice(0, 1) }}</span>
+                  <span v-else class="flex size-6 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground" aria-hidden="true"><UserRound class="size-4" /></span>
                   <span class="min-w-0 truncate font-medium">{{ name(row) }}</span>
                   <span class="sr-only">{{ rowEvidence(row) }}</span>
                 </button>

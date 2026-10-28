@@ -26,6 +26,11 @@
 
 ### 执行记录
 
+- 追加反馈（2026-10-28，待处理）：先核验并修正英雄榜头像，复用已有英雄图标，不用姓名首字作为常规头像；完成审阅、验证和独立提交后，再核验 26.16–26.21 补丁及趋势的真实数据覆盖与当前详情数据来源。若缺少这些版本的可用数据，按用户要求移除该功能；若已有数据，则修正陈旧展示原因并说明证据。继续按 GPT-6.1 Sol / xhigh 子代理串行处理，并在本文件记录结果。
+
+- 头像反馈核验与修正（2026-10-28，已由主代理审阅）：真实三语 bundled 索引各 173 个英雄均已有 `https://cdn.dtodo.cn/hextech/champion-icons/{id}.png`，`mapChampionRankings` 与本地 data-loader 原样保留，生产榜单原有 `<img>` 已使用该地址。此前导航截图的文字头像由忽略目录 `navigation.ts` 刻意将全部 `iconUrl` 清空造成，不能据此认定生产图标失效。本次去掉该预览清空逻辑；生产代码仅把缺少地址或图片加载失败后的姓名首字降级改为现有 Lucide `UserRound` 通用图标，正常情况继续使用真实英雄图标，不改数据源、IPC、网络请求方式或其他功能。
+- 头像反馈验证：榜单 mapper 与组件两个单测文件共 20 项通过，覆盖三语真实索引全部图标地址保留、组件使用源 URL、缺图／加载错误降为无文字通用图标且保留英雄名称；隔离 `test-champion-rankings.js` 在禁止网络的真实三语索引 → data-loader → 榜单链路中验证各 173 个图标地址保留，通过且未访问真实用户数据或 LCU。主代理全量 `npm run test:unit` 为 407 通过、1 项同一既有 `onnxruntime-native-path.test.ts:40` 路径断言失败，`npm run lint`、`npm run type-check`、`npm run build` 通过；`git diff --check` 通过。主代理在 IAB 472×752 实际挂载完整 Display，使用真实本地英雄索引与真实远程图片，确认首 8 个英雄 `img.complete=true`、`naturalWidth=128`、地址为既有 CDN 图标，无横向溢出或 console warn/error；截图 `.runtime/rank-analysis-preview/navigation-real-icons-zh-472.jpg`。连接状态为模拟未连接，该预览不代表真实 LCU 或 Windows 打包验收。本项未提交、push、merge 或发布；补丁／趋势后续反馈仍待处理。
+
 - 开始前：工作区干净，HEAD `721cebb`。现有全量单测 252 通过、1 项已知 macOS／Windows 路径断言失败（详见验证章节）；lint、类型检查、构建均通过。
 - 第 1 项实现：参考上游 `AssetTooltipContent.vue` / `RecordCard.vue`，在战绩列表与十人详情共用说明浮层。现有查询 DTO 透传当前语言本地装备说明、海克斯说明及稀有度；固定一次标签加载使用的语言，兼容旧装备包装中内容相同的语言别名，不新增 IPC、逐项远端请求或符文内容，存储与上传 schema 不变。
 - 第 1 项交互与安全：复用已安装的 Reka Tooltip，支持鼠标悬停、真实 DOM 键盘焦点、Escape 与失焦关闭；翻页加载、筛选移除、收起详情、窗口失焦、隐藏、窗口尺寸改变和组件卸载均关闭。浮层使用视口碰撞定位、宽高上限、长词换行与内容滚动。说明先转为纯文本，再通过 Vue 插值显示，不使用上游 `v-html`；名称、说明和稀有度缺失时显示三语降级文案。

@@ -20,6 +20,8 @@ describe('champion ranking index', () => {
       pickRate: 0.1388, numGames: null, gamePatch: '16.15', statsDate: '2026-07-30', source: 'tencent', region: 'CN',
     })
     expect(result.champions.every((row) => row.numGames === null)).toBe(true)
+    expect(result.champions.map((row) => row.iconUrl)).toEqual(payload.data.map((row: { iconUrl: string }) => row.iconUrl))
+    expect(result.champions.every((row) => row.iconUrl === `https://cdn.dtodo.cn/hextech/champion-icons/${row.championId}.png`)).toBe(true)
   })
 
   it('preserves real zeroes and fractional rates while rejecting invalid or missing scalars', () => {
