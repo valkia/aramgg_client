@@ -14,8 +14,8 @@
 | 4 | 详情统计与对比条补全 | 治疗、推塔伤害、分均经济／补兵、召唤师技能；缺失显示 —，统计不改变海克斯队列范围 | 已完成并审阅 | `0ff9f54`；相关 50 项通过；全量 305 通过、1 项既有失败；lint / 类型 / 构建 / 隔离 SGP 检查通过 |
 | 5 | 独立战绩详情窗口 | 点击打开／聚焦对应对局，宽屏表格、窄屏可读；受信任 IPC、窗口生命周期与显示器边界；不加入缩放功能 | 已完成并审阅 | `b60a862`；相关 41 项通过；全量 329 通过、1 项既有失败；lint / 类型 / 构建 / 隔离 SGP / macOS 真实 Electron 窗口验证通过 |
 | 6 | 海克斯英雄排行榜与搜索 | 使用 ARAMGG 本地优先、按语言隔离的数据；按强度／胜率／登场率／场次排序并打开现有英雄详情；不引入排位分路或 Ban 率 | 已完成并审阅 | `da8eeed`；相关 39 项通过；全量 362 通过、1 项既有失败；lint / 类型 / 构建 / 隔离三语索引 / macOS 真实 Electron 手动详情入口验证通过 |
-| 7 | 主窗口分区导航与连接状态 | 战绩、英雄、设置清晰分区；真实客户端连接／选人／游戏阶段；保留语言切换事务与原有设置能力 | 已完成并审阅 | 相关 32 项通过；全量 382 通过、1 项既有失败；lint / 类型 / 构建通过；主代理三语真实 Display 合成桥接预览通过 |
-| 8 | 海克斯模式平衡说明 | 核验队列 2400 可用来源，展示造成／承受伤害、治疗、护盾等确有依据的修正；不能把队列 450 数据冒充海克斯修正 | 待开发 | — |
+| 7 | 主窗口分区导航与连接状态 | 战绩、英雄、设置清晰分区；真实客户端连接／选人／游戏阶段；保留语言切换事务与原有设置能力 | 已完成并审阅 | `255c109`；相关 32 项通过；全量 382 通过、1 项既有失败；lint / 类型 / 构建通过；主代理三语真实 Display 合成桥接预览通过 |
+| 8 | 海克斯模式平衡说明 | 核验队列 2400 可用来源，展示造成／承受伤害、治疗、护盾等确有依据的修正；不能把队列 450 数据冒充海克斯修正 | 已审阅；缺少可靠模式数据，展示未实现 | 三语本地数据／上游取数链路／官方补丁／版本化游戏配置已核验，详见下方；未新增空面板或 IPC |
 | 9 | 版本改动与强度趋势 | 分开展示可核验的补丁改动与历史统计趋势；版本／模式匹配、来源明确；无历史快照不伪造趋势 | 待开发 | — |
 
 排除项：玩家备注、玩家颜色标签、备注备份；符文推荐／方案／应用；界面缩放；浅色主题；回放；其他玩家搜索；十人近期战绩扩展；AI 复盘／自然语言搜索；自动选禁、自动排队、自动接收及关系推断。
@@ -64,6 +64,29 @@
 - 第 7 项状态与安全：核验现有 `lcu.getStatus()` 的真实端点探测、`getGameflowPhase()` 和主进程 WebSocket＋既有一秒兜底监控后，增加独立只读 `LcuConnectionState` 快照和事件，完成 shared 契约 → preload → renderer facade → trusted IPC 链路。renderer 订阅后只读取一次缓存，之后由主进程已有监控推送，不新增轮询、认证／阶段请求或账号字段；不以游戏目录或上次英雄 ID 推断连接。主进程只接受现有共享类型的 11 个已知字符串阶段；无效／失败响应清空阶段并显示暂不可核验，确认认证不可用显示未连接，WebSocket 关闭先清阶段等待兜底核验，初始化或轮询异常亦降级。状态变化才增加 revision 并广播，renderer 拒绝旧／重复 revision，忽略卸载后响应；较慢兜底请求不能覆盖其间较新的 WebSocket 阶段或断开事件。认证发现仍优先运行中客户端，游戏目录保留为明确标注的高级兜底，不改 LCU 写入、偏好 allowlist、窗口安全或生产上传边界。
 - 第 7 项验证：六个相关单测文件 32 项通过，覆盖真实主进程监控的连接／阶段、断线清理、初始化／轮询异常、未知响应、变化去重与慢轮询竞态、renderer 旧初始快照／卸载／读取失败、无轮询计时器、真实 preload＋facade 读取和事件解绑、trusted IPC 缓存读取不触发 LCU、三语阶段与键、左右键／Home／End 焦点、完整 Display 中真实战绩分页／筛选与榜单搜索／排序／滚动保留、离线进入设置和语言准备期间导航可用。全量 `npm run test:unit` 为 382 通过、1 项同一既有 `onnxruntime-native-path.test.ts:40` macOS／Windows 路径断言失败；`npm run lint`、`npm run type-check`、`npm run build` 与差异检查通过。最终为旧轮询的异常拒绝补充同一 WebSocket 代次保护后，主进程监控 10 项和构建再次通过，未重复全量。构建仅有既有 `@vueuse/core` PURE 注释位置警告。
 - 第 7 项浏览器与平台边界：忽略目录的 `navigation.html`／`navigation.ts` 实际挂载完整 Display，使用内存合成桥接、合成战绩和真实三语 bundled 173 英雄索引；偏好仅写内存，禁用真实 LCU／账户、外部窗口／shell／反馈等写入，图标禁用避免远端素材读取。主代理确认 472×752 简中、384×752 英文设置与繁中英雄／设置的 document 和面板均无横向溢出，warn/error 为空；胜负筛选与 AHRI 搜索跨分区保留，合成 InProgress → Disconnected 推送清掉游戏中标签，End 键选中并聚焦设置。截图 `.runtime/rank-analysis-preview/navigation-history-zh-472.jpg`、`navigation-settings-en-384.jpg`。该预览与单测不代表真实 LCU、Windows 打包或设备验收；本项未重复运行无关的详情窗口 smoke，经主代理审阅，随本功能独立中文提交，未 push、merge 或发布。
+
+### 第 8 项来源核验与数据缺口（2026-10-28）
+
+结论：本轮未建立可核验的队列 2400 英雄最终平衡快照，详情展示尚未实现。已有来源可以证明海克斯存在独立调整，但不能完整给出当前每个英雄的造成／承受伤害、治疗和护盾修正。没有将普通 ARAM 数值迁入，也没有新增永远为空的面板、IPC 或无真实数据消费者的架构。本项记录完成来源调查，不代表功能验收完成；后续可独立推进第 9 项。
+
+| 核验对象 | 实际证据与可用范围 | 对本项的限制 |
+| --- | --- | --- |
+| 三语 bundled `16.15.2` | `champions.json` 与各语言全部 173 份分片详情均已逐份解析。详情顶层仅有 `champion`、`augments`、`items`、`augmentTrios`、`build`、`builds`、`relatedBlogs`；没有平衡修正字段。数据补丁 `16.15`、统计日期 `2026-07-30`，不是当前线上版本声明。 | 详情中的 `build.queueId` 与 `builds[].queueId` 为既有 450 出装来源标识，不能据此生成 2400 平衡修正。未修改现有出装功能。 |
+| 上游参考 SHA `3878348ed516252083d1fc3fde606affe0e2ce6c` | [`useAramBalance.ts`](https://github.com/wnzzer/rank-analysis/blob/3878348ed516252083d1fc3fde606affe0e2ce6c/rank-analysis-app/src/composables/useAramBalance.ts) 同时允许 450／2400，但只以英雄 ID 缓存；[`command/fandom.rs`](https://github.com/wnzzer/rank-analysis/blob/3878348ed516252083d1fc3fde606affe0e2ce6c/rank-analysis-app/src-tauri/src/command/fandom.rs) 查询共用缓存；[`fandom/api.rs`](https://github.com/wnzzer/rank-analysis/blob/3878348ed516252083d1fc3fde606affe0e2ce6c/rank-analysis-app/src-tauri/src/fandom/api.rs) 从 Fandom `Module:ChampionData/data` 的 `stats.aram` 读取，缺少伤害字段还会补 `1.0`。 | 调用方允许 2400 不等于数据适用 2400；该链路没有模式、补丁匹配或海克斯覆盖层证据。不能复制其缺数据即默认 100%／“平衡”的语义。 |
+| Riot 官方 [26.15 公告](https://www.leagueoflegends.com/en-us/news/game-updates/league-of-legends-patch-26-15-notes/)的 ARAM: Mayhem 章节 | 官方明确改变海克斯的伤害修正适用范围，并移除许多既有英雄修正；部分明确的补丁后数值包括 Ahri 治疗 100%、Annie 护盾 100%、Ekko 造成伤害 105%、Kog'Maw 造成伤害 90%。这些只是该补丁明确列出的字段。 | 公告是变更记录，不是所有英雄的最终配置；未列出不代表 100%。同页承伤同时使用 `5% → 0%`、`-10% → 0%` 等记法，不能统一按乘数转换。公开版本 `26.15` 与本地 `16.15` 的对应关系未建立可机器验证契约，不能仅按尾号自动匹配。 |
+| Riot 官方 [26.20 公告](https://www.leagueoflegends.com/en-us/news/game-updates/league-of-legends-patch-26-20-notes/) | ARAM: Mayhem 与 ARAM 分设章节；Mayhem 对 Swain 明确列出承伤 105% → 100%、治疗 95% → 100%，另有英雄技能级调整。 | 后续版本仍有独立调整，进一步说明不能把 26.15 片段标成当前完整快照，也不能把同页普通 ARAM 章节合并进海克斯。技能级改动不等同于全英雄伤害／治疗乘数。 |
+| CommunityDragon 版本化游戏配置 | 只读解析 [`16.15/game/maps/modespecificdata/kiwi.bin.json`](https://raw.communitydragon.org/16.15/game/maps/modespecificdata/kiwi.bin.json)、[`aram.bin.json`](https://raw.communitydragon.org/16.15/game/maps/modespecificdata/aram.bin.json) 及 [`Ahri 角色配置`](https://raw.communitydragon.org/16.15/game/data/characters/ahri/ahri.bin.json)。Kiwi 含 1,391 个对象，主要为 218 个 AugmentData、393 个 SpellObject、619 个 VFX；Ahri 可读的 ARAM 上下文属于 ItemRecommendationOverride。 | 在已查配置中未建立英雄 ID → 2400 最终平衡值的已解码表，也未验证 Kiwi 的全量继承／覆盖顺序。文件与字段存在未解码哈希，不能将“未找到可读字段”解释成官方无修正或证明所有公开源都缺失。未把游戏内部不明字段当作数值来源。 |
+
+本轮 CommunityDragon 文件核验 SHA256：Kiwi `b89480111dcaaed0188f7ef7dd205e3369ff366429b9e6656d74b52b844237cf`，ARAM `28fa9931673d9ec81eb7dbfae0a598eafb6c9d8332ef7dde76aa3412bc62661e`，Ahri `3b204f1ae0e15c369024327032a02044aa6842b95fa665ec015ce1dea6cb329f`。文件仅存临时目录，没有加入应用或打包资源；版本目录也不等同于已证实的某日线上生效状态。
+
+解除本项缺口需要实际数据源满足以下契约，再接入现有本地优先、按语言隔离的数据加载链路；本轮只记录要求，未预先定义未使用的运行时类型：
+
+- 数据必须显式标明 `queueId: 2400`／海克斯模式、英雄 ID、游戏引擎补丁、公开公告补丁、区域、生效或核验日期、来源 URL 与源版本／哈希。公开／引擎补丁映射需要上游元数据或明确核验，不靠字符串替换推断。
+- 对造成伤害、承受伤害、治疗、护盾分别提供最终乘数（例如 `1.05`），标明是否已合并普通 ARAM 基础层与海克斯覆盖层，以及适用对象／限制。技能急速等加减标量要另标单位；特殊技能调整保留独立语义，不混入全局乘数。
+- 每个字段独立区分已确认 `1.0`、未知 `null` 和缺失；未列出的英雄／字段不补 100%，无记录不显示“平衡”。部分覆盖必须明确范围，不能凭增益和削弱的条数生成“总体增强／削弱”。
+- 快照需与当前详情数据版本匹配并完整校验后激活；不让前台详情依赖远端请求，不以新数据覆写其他语言或把历史快照标作当前。UI 可显示真实可用字段及其版本／来源，缺失单独说明；无可靠数据时保持现有详情可用。
+
+验证边界：本轮完成三语 519 份实际详情、三个索引、指定上游源码链路及上述公开来源的只读核验；仅修改本记录，`git diff --check` 通过。没有运行时改动，因此未重复单测／lint／类型／构建或窗口 smoke；最近代码验证仍为第 7 项的 382 通过、1 项既有路径断言失败。未接触真实用户数据或 LCU，调查记录经主代理审阅，随独立 docs 提交；未 push、merge 或发布。
 
 本次将适合海克斯大乱斗战绩的交互适配到现有 Electron / Vue / i18n 结构：
 
