@@ -33,6 +33,7 @@
 
     <MatchHistoryOverview v-if="page?.matches.length" :matches="page.matches" />
     <PlayerNotesPanel />
+    <MatchEncounters v-if="page?.matches.length" :matches="page.matches" :loading="loading" @select-game="openEncounter" />
 
     <div v-if="page?.matches.length" class="mt-3 space-y-2">
       <div class="flex flex-wrap items-end gap-2">
@@ -138,7 +139,7 @@
             <small v-else>{{ t('matchHistory.noItems') }}</small>
           </div>
         </div>
-        <MatchScoreboard :match="match" />
+        <MatchScoreboard :ref="(instance) => setScoreboardRef(match.gameId, instance)" :match="match" />
       </article>
     </div>
 
@@ -170,7 +171,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, provide, ref } from 'vue'
+import { computed, nextTick, onMounted, provide, ref, type ComponentPublicInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-vue-next'
 import type {
@@ -183,6 +184,7 @@ import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
 import MatchHistoryOverview from './MatchHistoryOverview.vue'
 import MatchScoreboard from './MatchScoreboard.vue'
 import PlayerNotesPanel from './PlayerNotesPanel.vue'
+import MatchEncounters from './MatchEncounters.vue'
 import { createPlayerNotesStore, PLAYER_NOTES_KEY } from '../services/player-notes-store.ts'
 
 const PAGE_SIZE = 10
@@ -194,6 +196,7 @@ const loading = ref(false)
 const status = ref('')
 const championFilter = ref(0)
 const resultFilter = ref<HextechAramMatchResult | 'all'>('all')
+const scoreboards = new Map<number, InstanceType<typeof MatchScoreboard>>()
 const results: HextechAramMatchResult[] = ['win', 'loss', 'remake']
 const champions = computed(() => [...new Map((page.value?.matches || []).map((match) => [match.championId, match])).values()])
 const hasFilters = computed(() => championFilter.value !== 0 || resultFilter.value !== 'all')
@@ -205,6 +208,18 @@ const visibleMatches = computed(() => (page.value?.matches || []).filter((match)
 function resetFilters(): void {
   championFilter.value = 0
   resultFilter.value = 'all'
+}
+
+function setScoreboardRef(gameId: number, instance: Element | ComponentPublicInstance | null): void {
+  if (instance) scoreboards.set(gameId, instance as InstanceType<typeof MatchScoreboard>)
+  else scoreboards.delete(gameId)
+}
+
+async function openEncounter(gameId: number): Promise<void> {
+  if (loading.value || !page.value?.matches.some((match) => match.gameId === gameId)) return
+  resetFilters()
+  await nextTick()
+  await scoreboards.get(gameId)?.open()
 }
 
 function formatTime(timestamp: number): string {

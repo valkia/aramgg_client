@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import MatchHistoryPanel from '../../src/renderer/components/MatchHistoryPanel.vue'
+import MatchEncounters from '../../src/renderer/components/MatchEncounters.vue'
 import { messages } from '../../src/renderer/i18n/messages.ts'
 import type { HextechAramMatchHistoryPage } from '../../src/shared/ipc-contract.ts'
 
@@ -88,5 +89,23 @@ describe('match history filters', () => {
     await flushPromises()
     expect(wrapper.attributes('aria-busy')).toBe('false')
     expect(wrapper.text()).toContain('Page performance')
+  })
+
+  it('opens a selected encounter even when filters hid it, and can reopen it after manual collapse', async () => {
+    render()
+    await flushPromises()
+    await wrapper.findAll('select')[1].setValue('loss')
+    expect(wrapper.findAll('article')).toHaveLength(1)
+    wrapper.getComponent(MatchEncounters).vm.$emit('selectGame', 3)
+    await flushPromises()
+    expect(wrapper.findAll('article')).toHaveLength(3)
+    const disclosure = wrapper.findAll('article')[0].get('details')
+    expect((disclosure.element as HTMLDetailsElement).open).toBe(true)
+    ;(disclosure.element as HTMLDetailsElement).open = false
+    await disclosure.trigger('toggle')
+    wrapper.getComponent(MatchEncounters).vm.$emit('selectGame', 3)
+    await flushPromises()
+    expect((disclosure.element as HTMLDetailsElement).open).toBe(true)
+    expect(queryCurrent).toHaveBeenCalledTimes(1)
   })
 })
