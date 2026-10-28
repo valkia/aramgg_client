@@ -55,6 +55,10 @@ export const electronAPI: ElectronAPI = {
     get: (...args) => requireElectronAPI().winrate.get(...args),
     loadChampionData: (...args) => requireElectronAPI().winrate.loadChampionData(...args),
   },
+  champions: {
+    getRankings: () => requireElectronAPI().champions.getRankings(),
+    openDetail: (championId) => requireElectronAPI().champions.openDetail(championId),
+  },
   autoScreenshot: {
     start: (...args) => requireElectronAPI().autoScreenshot.start(...args),
     stop: (...args) => requireElectronAPI().autoScreenshot.stop(...args),

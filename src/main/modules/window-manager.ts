@@ -53,6 +53,7 @@ const RENDERER_CONTENT_SECURITY_POLICY = [
 let mainWindow: BrowserWindow | null = null
 let popupWindow: BrowserWindow | null = null
 let popupGameflowPhase: GameflowPhase | null = null
+let popupOpenedManually = false
 let floatingWindow: BrowserWindow | null = null
 let augmentSidePanelWindow: BrowserWindow | null = null
 let mainWindowCloseAllowed = false
@@ -197,6 +198,9 @@ export function applyAugmentSidePanelWindowLayout() {
 }
 
 export function applyPopupWindowPreferences(phase: GameflowPhase | null = popupGameflowPhase): void {
+    if (phase !== popupGameflowPhase && (phase === 'GameStart' || phase === 'InProgress')) {
+        popupOpenedManually = false
+    }
     popupGameflowPhase = phase
     if (!popupWindow || popupWindow.isDestroyed()) {
         return
@@ -204,10 +208,19 @@ export function applyPopupWindowPreferences(phase: GameflowPhase | null = popupG
 
     setOverlayAlwaysOnTop(popupWindow, shouldKeepChampionInsightOnTop(), 'popup')
     const inGame = phase === 'GameStart' || phase === 'InProgress'
-    if ((!shouldShowChampionDetails() || (inGame && shouldHideChampionInsightOnGameStart())) &&
+    if (!popupOpenedManually && (!shouldShowChampionDetails() || (inGame && shouldHideChampionInsightOnGameStart())) &&
         popupWindow.isVisible()) {
         popupWindow.hide()
     }
+}
+
+export function showPopupWindowManually(): void {
+    if (!popupWindow || popupWindow.isDestroyed()) return
+    popupOpenedManually = true
+    if (popupWindow.isMinimized()) popupWindow.restore()
+    applyPopupWindowLayout()
+    popupWindow.show()
+    popupWindow.focus()
 }
 
 function setOverlayAlwaysOnTop(
@@ -606,6 +619,10 @@ export const createPopupWindow = async (
     })
     applyPopupWindowPreferences()
     popupWindow.on('show', () => applyPopupWindowPreferences())
+    popupWindow.on('hide', () => {
+        // macOS may deliver an earlier hide after a new explicit show.
+        if (!popupWindow?.isVisible()) popupOpenedManually = false
+    })
     attachWindowDiagnostics('popup', popupWindow)
 
     if (process.platform === 'linux') {
@@ -616,6 +633,7 @@ export const createPopupWindow = async (
 
     popupWindow.on('closed', () => {
         logger.info('Popup window closed')
+        popupOpenedManually = false
         popupWindow = null
     })
 

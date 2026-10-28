@@ -103,6 +103,10 @@ const electronAPI: ElectronAPI = {
     get: (data) => ipcRenderer.invoke('get-winrate', data),
     loadChampionData: (championId) => ipcRenderer.invoke('load-champion-data', championId),
   },
+  champions: {
+    getRankings: () => ipcRenderer.invoke('champions-get-rankings'),
+    openDetail: (championId) => ipcRenderer.invoke('champions-open-detail', championId),
+  },
   autoScreenshot: {
     start: (config) => ipcRenderer.invoke('auto-screenshot-start', config),
     stop: () => ipcRenderer.invoke('auto-screenshot-stop'),

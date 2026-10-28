@@ -9,6 +9,8 @@ import {
   resolveTrustedClientDataUrl,
 } from '../shared/client-data-security.ts'
 import { rankAugmentRecommendations } from '../shared/augment-ranking.ts'
+import { mapChampionRankings } from './services/champion-rankings.ts'
+import type { ChampionRankings } from '../shared/ipc-contract.ts'
 
 declare const fetch: any
 
@@ -2533,6 +2535,22 @@ export async function loadChampionRoster(
   return extractList(championsPayload, 'champions')
     .map((champion) => mapPublicChampionStats(champion, meta))
     .filter((champion) => champion.championId && Number(champion.championId) > 0)
+}
+
+export async function loadChampionRankings(
+  requestedLocale: SupportedDataLocale = activeDataLocale
+): Promise<ChampionRankings> {
+  const locale = normalizeDataLocale(requestedLocale)
+  const dataSet = await getActiveDataSet(locale)
+  if (dataSet.locale !== locale) throw new Error(`Champion rankings are unavailable for ${locale}`)
+  // Keep index and metadata bound to this dataset even if a background refresh activates another.
+  const payload = await fetchVersionedDataFile(
+    dataSet.dataVersion,
+    'champions.json',
+    findManifestPath(dataSet.manifest, 'champions.json'),
+    { locale: dataSet.locale }
+  )
+  return mapChampionRankings(payload, { ...dataSet.config, locale, dataVersion: dataSet.dataVersion })
 }
 
 export async function getChampionDetailData(

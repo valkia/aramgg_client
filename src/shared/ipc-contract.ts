@@ -12,6 +12,34 @@ export type AppStoreKey =
 
 export type SupportedDataLocale = 'zh-CN' | 'zh-TW' | 'en-US'
 
+export interface ChampionRankingEntry {
+  championId: number
+  name: string
+  alias: string
+  title: string
+  iconUrl: string | null
+  tier: number | null
+  winRate: number | null
+  pickRate: number | null
+  numGames: number | null
+  gamePatch: string
+  statsDate: string
+  source: string
+  region: string
+}
+
+export interface ChampionRankings {
+  locale: SupportedDataLocale
+  dataVersion: string
+  gamePatch: string
+  generatedAt: string
+  champions: ChampionRankingEntry[]
+}
+
+export interface ChampionRankingsResult extends OperationResult {
+  data?: ChampionRankings
+}
+
 export type FeedbackCategory = 'suggestion' | 'question' | 'bug' | 'other'
 
 export interface FeedbackSubmissionPayload {
@@ -475,6 +503,10 @@ export interface ElectronAPI {
   winrate: {
     get(data: LooseRecord): Promise<OperationResult & { augments?: LooseRecord[]; timing?: LooseRecord }>
     loadChampionData(championId: number): Promise<OperationResult & { data?: LooseRecord }>
+  }
+  champions: {
+    getRankings(): Promise<ChampionRankingsResult>
+    openDetail(championId: number): Promise<OperationResult>
   }
   autoScreenshot: {
     start(config?: LooseRecord): Promise<LooseRecord>

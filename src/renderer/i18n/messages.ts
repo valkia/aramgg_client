@@ -2,9 +2,11 @@ import type { SupportedDataLocale } from '../../shared/ipc-contract.ts'
 import { matchAnalysisMessages } from './match-analysis.ts'
 import { benchEvidenceMessages } from './bench-evidence.ts'
 import { matchDetailMessages } from './match-detail.ts'
+import { championRankingsMessages } from './champion-rankings.ts'
 
 export const messages = {
   'zh-CN': {
+    championRankings: championRankingsMessages['zh-CN'],
     matchAnalysis: matchAnalysisMessages['zh-CN'],
     matchDetail: matchDetailMessages['zh-CN'],
     common: {
@@ -368,6 +370,7 @@ export const messages = {
     },
   },
   'en-US': {
+    championRankings: championRankingsMessages['en-US'],
     matchAnalysis: matchAnalysisMessages['en-US'],
     matchDetail: matchDetailMessages['en-US'],
     common: {
@@ -412,6 +415,7 @@ export const messages = {
     },
   },
   'zh-TW': {
+    championRankings: championRankingsMessages['zh-TW'],
     matchAnalysis: matchAnalysisMessages['zh-TW'],
     matchDetail: matchDetailMessages['zh-TW'],
     common: {
