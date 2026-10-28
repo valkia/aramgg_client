@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import MatchScoreboard from '../../src/renderer/components/MatchScoreboard.vue'
+import MatchAssetTooltip from '../../src/renderer/components/MatchAssetTooltip.vue'
 import { messages } from '../../src/renderer/i18n/messages.ts'
 import type { HextechAramMatchHistoryMatch } from '../../src/shared/ipc-contract.ts'
 
@@ -33,6 +34,14 @@ describe('match scoreboard disclosure', () => {
     expect(wrapper.text()).not.toContain('Top team damage')
     expect(wrapper.text()).not.toContain('NaN')
     expect(wrapper.text()).toContain('Item #1001')
+    expect(wrapper.findAllComponents(MatchAssetTooltip)).toHaveLength(20)
+    await wrapper.getComponent(MatchAssetTooltip).get('[tabindex]').trigger('focus')
+    await flushPromises()
+    expect(document.querySelector('.match-asset-tooltip')).not.toBeNull()
+    ;(disclosure.element as HTMLDetailsElement).open = false
+    await disclosure.trigger('toggle')
+    await flushPromises()
+    expect(document.querySelector('.match-asset-tooltip')).toBeNull()
     wrapper.unmount()
   })
 })

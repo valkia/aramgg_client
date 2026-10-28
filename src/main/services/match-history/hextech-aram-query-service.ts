@@ -5,7 +5,7 @@ import type {
   HextechAramMatchHistoryQuery,
   HextechAramMatchParticipant,
 } from '../../../shared/ipc-contract.ts'
-import { loadAugmentDetail, loadChampionRoster, loadItems } from '../../data-loader.ts'
+import { getDataLocale, loadAugmentDetail, loadChampionRoster, loadItems } from '../../data-loader.ts'
 import logger from '../../modules/logger.ts'
 import type LCUService from '../lcu/lcu-service.ts'
 import { normalizeGame } from './local-match-history-service.ts'
@@ -23,6 +23,8 @@ type AnyRecord = Record<string, unknown>
 type AssetLabel = {
   name?: string
   iconUrl?: string
+  description?: string
+  rarity?: string
 }
 
 export type HextechAramQueryLabels = {
@@ -106,6 +108,8 @@ function toAsset(id: number, labels?: ReadonlyMap<number, AssetLabel>): HextechA
     id,
     ...(label?.name ? { name: label.name } : {}),
     ...(label?.iconUrl ? { iconUrl: label.iconUrl } : {}),
+    ...(label?.description ? { description: label.description } : {}),
+    ...(label?.rarity ? { rarity: label.rarity } : {}),
   }
 }
 
@@ -191,10 +195,17 @@ function toParticipants(
   })
 }
 
-function getLocalizedItemName(item: AnyRecord): string {
-  if (typeof item.name === 'string') return item.name
-  if (!isRecord(item.name)) return ''
-  return asString(item.name.zh_CN) || asString(item.name.zh_cn) || asString(item.name.en_us)
+function getLocalizedAssetText(value: unknown, locale: string): string {
+  if (typeof value === 'string') return value.trim()
+  if (!isRecord(value)) return ''
+  const keys = [locale, locale.replace('-', '_'), locale.replace('-', '_').toLowerCase()]
+  for (const key of keys) {
+    const text = asString(value[key])
+    if (text) return text
+  }
+  // Legacy item wrappers repeat the selected dataset's text under fixed locale aliases.
+  const texts = Object.values(value).map(asString).filter(Boolean)
+  return texts.length && texts.every((text) => text === texts[0]) ? texts[0] : ''
 }
 
 export function normalizeHextechAramQuery(
@@ -296,10 +307,11 @@ export class HextechAramQueryService {
 
   private async loadLabels(): Promise<HextechAramQueryLabels> {
     try {
+      const locale = getDataLocale()
       const [champions, augmentsById, items] = await Promise.all([
-        loadChampionRoster(),
-        loadAugmentDetail(),
-        loadItems(),
+        loadChampionRoster(locale),
+        loadAugmentDetail(locale),
+        loadItems(locale),
       ])
       return {
         champions: new Map(champions.map((champion: AnyRecord) => [
@@ -314,13 +326,16 @@ export class HextechAramQueryService {
           return [Number(id), {
             name: asString(augment.name),
             iconUrl: asString(augment.iconUrl),
+            description: getLocalizedAssetText(augment.description, locale) || getLocalizedAssetText(augment.tooltip, locale),
+            rarity: asString(augment.rarity),
           }]
         })),
         items: new Map(items.map((value: unknown) => {
           const item = isRecord(value) ? value : {}
           return [Number(item.id), {
-            name: getLocalizedItemName(item),
+            name: getLocalizedAssetText(item.name, locale),
             iconUrl: asString(item.iconUrl),
+            description: getLocalizedAssetText(item.description, locale),
           }]
         })),
       }

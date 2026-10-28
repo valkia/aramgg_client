@@ -109,6 +109,8 @@ export interface HextechAramMatchHistoryAsset extends LooseRecord {
   id: number
   name?: string
   iconUrl?: string
+  description?: string
+  rarity?: string
 }
 
 export type HextechAramMatchResult = 'win' | 'loss' | 'remake'

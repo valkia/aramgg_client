@@ -96,8 +96,8 @@ describe('Hextech ARAM match-history query', () => {
       queriedAt: 1_000,
       labels: {
         champions: new Map([[103, { name: '阿狸', iconUrl: 'https://example.com/ahri.png' }]]),
-        augments: new Map([[18, { name: '海克斯强化' }]]),
-        items: new Map([[223047, { name: '终局装备' }]]),
+        augments: new Map([[18, { name: '海克斯强化', description: '强化说明', rarity: 'kPrismatic' }]]),
+        items: new Map([[223047, { name: '终局装备', description: '<mainText>装备说明</mainText>' }]]),
       },
     })
 
@@ -117,8 +117,11 @@ describe('Hextech ARAM match-history query', () => {
       championName: '阿狸',
       championIconUrl: 'https://example.com/ahri.png',
     })
-    expect(page.matches[1].augments[0]).toEqual({ id: 18, name: '海克斯强化' })
-    expect(page.matches[1].items[0]).toEqual({ id: 223047, name: '终局装备' })
+    expect(page.matches[1].augments[0]).toEqual({ id: 18, name: '海克斯强化', description: '强化说明', rarity: 'kPrismatic' })
+    expect(page.matches[1].items[0]).toEqual({ id: 223047, name: '终局装备', description: '<mainText>装备说明</mainText>' })
+    expect(page.matches[1].participants?.[0].augments).toEqual(page.matches[1].augments)
+    expect(page.matches[1].participants?.[0].items).toEqual(page.matches[1].items)
+    expect(page.matches[1].items[1]).toEqual({ id: 2003 })
   })
 
   it('marks aborted and early-surrender matches as remakes', () => {

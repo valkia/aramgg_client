@@ -4,6 +4,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import MatchHistoryPanel from '../../src/renderer/components/MatchHistoryPanel.vue'
 import MatchEncounters from '../../src/renderer/components/MatchEncounters.vue'
+import MatchAssetTooltip from '../../src/renderer/components/MatchAssetTooltip.vue'
 import { messages } from '../../src/renderer/i18n/messages.ts'
 import type { HextechAramMatchHistoryPage } from '../../src/shared/ipc-contract.ts'
 
@@ -107,5 +108,31 @@ describe('match history filters', () => {
     await flushPromises()
     expect((disclosure.element as HTMLDetailsElement).open).toBe(true)
     expect(queryCurrent).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes asset descriptions while a page request is pending and when a filter removes the match', async () => {
+    queryCurrent.mockResolvedValueOnce({ success: true, data: { ...page, matches: page.matches.map((match, index) => ({
+      ...match, augments: index === 0 ? [{ id: 18, name: 'Lotus', description: 'Local description', rarity: 'kGold' }] : [],
+    })) } })
+    render()
+    await flushPromises()
+    const trigger = () => wrapper.getComponent(MatchAssetTooltip).get('[tabindex]')
+    await trigger().trigger('focus')
+    await flushPromises()
+    expect(document.querySelector('.match-asset-tooltip')?.textContent).toContain('Local description')
+    let resolve!: (value: unknown) => void
+    queryCurrent.mockReturnValueOnce(new Promise((done) => { resolve = done }))
+    await button('下一页').trigger('click')
+    await flushPromises()
+    expect(document.querySelector('.match-asset-tooltip')).toBeNull()
+    expect(trigger().attributes('tabindex')).toBe('-1')
+    resolve({ success: false, error: 'offline' })
+    await flushPromises()
+    await trigger().trigger('focus')
+    await flushPromises()
+    expect(document.querySelector('.match-asset-tooltip')).not.toBeNull()
+    await wrapper.findAll('select')[1].setValue('loss')
+    await flushPromises()
+    expect(document.querySelector('.match-asset-tooltip')).toBeNull()
   })
 })

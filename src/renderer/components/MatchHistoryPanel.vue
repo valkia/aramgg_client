@@ -102,12 +102,13 @@
                 :key="augment.id"
                 class="match-asset"
                 role="listitem"
-                :title="assetName(augment, 'augment')"
               >
-                <span class="match-asset-icon" aria-hidden="true">
-                  <img v-if="augment.iconUrl" :src="augment.iconUrl" alt="" />
-                  <span v-else class="match-asset-placeholder">?</span>
-                </span>
+                <MatchAssetTooltip :asset="augment" kind="augment" :disabled="loading">
+                  <span class="match-asset-icon" aria-hidden="true">
+                    <img v-if="augment.iconUrl" :src="augment.iconUrl" alt="" />
+                    <span v-else class="match-asset-placeholder">?</span>
+                  </span>
+                </MatchAssetTooltip>
                 <span class="match-asset-name">{{ assetName(augment, 'augment') }}</span>
               </span>
             </div>
@@ -126,19 +127,20 @@
                 :key="`${item.id}:${index}`"
                 class="match-asset"
                 role="listitem"
-                :title="assetName(item, 'item')"
               >
-                <span class="match-asset-icon" aria-hidden="true">
-                  <img v-if="item.iconUrl" :src="item.iconUrl" alt="" />
-                  <span v-else class="match-asset-placeholder">?</span>
-                </span>
+                <MatchAssetTooltip :asset="item" kind="item" :disabled="loading">
+                  <span class="match-asset-icon" aria-hidden="true">
+                    <img v-if="item.iconUrl" :src="item.iconUrl" alt="" />
+                    <span v-else class="match-asset-placeholder">?</span>
+                  </span>
+                </MatchAssetTooltip>
                 <span class="match-asset-name">{{ assetName(item, 'item') }}</span>
               </span>
             </div>
             <small v-else>{{ t('matchHistory.noItems') }}</small>
           </div>
         </div>
-        <MatchScoreboard :ref="(instance) => setScoreboardRef(match.gameId, instance)" :match="match" />
+        <MatchScoreboard :ref="(instance) => setScoreboardRef(match.gameId, instance)" :match="match" :loading="loading" />
       </article>
     </div>
 
@@ -183,6 +185,7 @@ import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
 import MatchHistoryOverview from './MatchHistoryOverview.vue'
 import MatchScoreboard from './MatchScoreboard.vue'
 import MatchEncounters from './MatchEncounters.vue'
+import MatchAssetTooltip from './MatchAssetTooltip.vue'
 
 const PAGE_SIZE = 10
 

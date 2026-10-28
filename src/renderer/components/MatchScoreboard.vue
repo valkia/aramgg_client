@@ -49,9 +49,11 @@
             <div v-for="kind in assetKinds" :key="kind" class="mt-2">
               <p class="mb-1 text-xs text-muted-foreground">{{ t(`matchHistory.${kind}`) }}</p>
               <ul v-if="player[kind].length" class="flex flex-wrap gap-1" :aria-label="t(`matchHistory.${kind}`)">
-                <li v-for="(asset, index) in player[kind]" :key="`${asset.id}:${index}`" :title="assetName(asset, kind)" class="flex h-7 min-w-7 items-center justify-center overflow-hidden rounded border border-border bg-muted">
-                  <img v-if="asset.iconUrl" :src="asset.iconUrl" :alt="assetName(asset, kind)" class="h-7 w-7 object-contain" loading="lazy" />
-                  <span v-else class="max-w-24 truncate px-1 text-xs text-muted-foreground">{{ assetName(asset, kind) }}</span>
+                <li v-for="(asset, index) in player[kind]" :key="`${asset.id}:${index}`" class="flex min-h-7 min-w-7 items-center justify-center rounded border border-border bg-muted">
+                  <MatchAssetTooltip :asset="asset" :kind="kind === 'items' ? 'item' : 'augment'" :disabled="loading">
+                    <img v-if="asset.iconUrl" :src="asset.iconUrl" alt="" class="h-7 w-7 rounded object-contain" loading="lazy" />
+                    <span v-else class="max-w-24 truncate px-1 text-xs text-muted-foreground">{{ assetName(asset, kind) }}</span>
+                  </MatchAssetTooltip>
                 </li>
               </ul>
               <p v-else class="text-xs text-muted-foreground">{{ t(kind === 'items' ? 'matchHistory.noItems' : 'matchHistory.noAugments') }}</p>
@@ -69,8 +71,9 @@ import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { HextechAramMatchHistoryAsset, HextechAramMatchHistoryMatch } from '../../shared/ipc-contract.ts'
 import { buildScoreboardTeams } from '../services/match-history-insights.ts'
+import MatchAssetTooltip from './MatchAssetTooltip.vue'
 
-const props = defineProps<{ match: HextechAramMatchHistoryMatch }>()
+const props = defineProps<{ match: HextechAramMatchHistoryMatch; loading?: boolean }>()
 const { t, locale } = useI18n()
 const expanded = ref(false)
 const disclosure = ref<HTMLDetailsElement>()
