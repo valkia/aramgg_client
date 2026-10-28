@@ -31,6 +31,8 @@
       <small>{{ t('matchHistory.queriedAt', { time: formatTime(page.queriedAt) }) }}</small>
     </div>
 
+    <MatchHistoryOverview v-if="page?.matches.length" :matches="page.matches" />
+
     <div v-if="loading && !page" class="match-history-loading" role="status">
       <RefreshCw class="match-history-loading-icon spinning" aria-hidden="true" />
       <span>{{ t('matchHistory.querying') }}</span>
@@ -152,6 +154,7 @@ import type {
   HextechAramMatchResult,
 } from '../../shared/ipc-contract.ts'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
+import MatchHistoryOverview from './MatchHistoryOverview.vue'
 
 const PAGE_SIZE = 10
 
