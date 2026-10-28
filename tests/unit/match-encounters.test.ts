@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { HextechAramMatchHistoryMatch, HextechAramMatchParticipant } from '../../src/shared/ipc-contract.ts'
 import { buildMatchEncounters } from '../../src/renderer/services/match-encounters.ts'
+import { getMatchHistoryPlayerKey } from '../../src/main/services/match-history/player-identity.ts'
 
 function player(id: number, overrides: Partial<HextechAramMatchParticipant> = {}): HextechAramMatchParticipant {
   return { participantId: id, playerKey: `HN1:${id.toString(16).padStart(64, '0')}`, teamId: 100, playerName: 'Same name', isCurrentPlayer: id === 1,
@@ -13,6 +14,17 @@ function match(id: number, overrides: Partial<HextechAramMatchHistoryMatch> = {}
 }
 
 describe('repeated encounters on the loaded page', () => {
+  it('uses stable region-scoped opaque keys and rejects missing identities', () => {
+    const key = getMatchHistoryPlayerKey('HN1', 'player-0001')!
+    expect(key).toMatch(/^HN1:[a-f0-9]{64}$/)
+    expect(key).not.toContain('player-0001')
+    expect(getMatchHistoryPlayerKey('hn1', 'player-0001')).toBe(key)
+    expect(getMatchHistoryPlayerKey('HN10', 'player-0001')).not.toBe(key)
+    expect(getMatchHistoryPlayerKey('HN1', 'player-0002')).not.toBe(key)
+    expect(getMatchHistoryPlayerKey('UNKNOWN', 'player-0001')).toBeUndefined()
+    expect(getMatchHistoryPlayerKey('HN1', null)).toBeUndefined()
+  })
+
   it('tracks changing teams, my results and the encountered player score without counting a game twice', () => {
     const newest = match(3, { result: 'remake', participants: [player(1), player(2, { teamId: 200, playerName: 'Newest name', kills: 1 })] })
     const result = buildMatchEncounters([match(1), newest, match(2, { result: 'loss' }), newest])

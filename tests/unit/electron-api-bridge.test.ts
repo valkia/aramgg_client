@@ -74,22 +74,4 @@ describe('real renderer facade and preload bridge', () => {
     electronAPI.windows.ready()
     expect(ipc.send).toHaveBeenCalledExactlyOnceWith('renderer-ready')
   })
-
-  it('routes note edits through the typed preload methods', async () => {
-    const note = { playerKey: `HN1:${'a'.repeat(64)}`, playerName: 'Player', label: 'friendly' as const, text: 'Teamwork' }
-    await electronAPI.playerNotes.save(note)
-    expect(ipc.invoke).toHaveBeenCalledWith('player-notes-save', note)
-    await electronAPI.playerNotes.remove(note.playerKey)
-    expect(ipc.invoke).toHaveBeenCalledWith('player-notes-remove', note.playerKey)
-    await electronAPI.playerNotes.list()
-    expect(ipc.invoke).toHaveBeenCalledWith('player-notes-list')
-    await electronAPI.playerNotes.exportBackup()
-    expect(ipc.invoke).toHaveBeenCalledWith('player-notes-export')
-    await electronAPI.playerNotes.previewImport()
-    expect(ipc.invoke).toHaveBeenCalledWith('player-notes-import-preview')
-    await electronAPI.playerNotes.applyImport('preview-token')
-    expect(ipc.invoke).toHaveBeenCalledWith('player-notes-import-apply', 'preview-token')
-    await electronAPI.playerNotes.cancelImport('preview-token')
-    expect(ipc.invoke).toHaveBeenCalledWith('player-notes-import-cancel', 'preview-token')
-  })
 })

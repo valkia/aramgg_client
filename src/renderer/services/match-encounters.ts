@@ -1,5 +1,8 @@
 import type { HextechAramMatchHistoryMatch, HextechAramMatchResult } from '../../shared/ipc-contract.ts'
-import { isPlayerKey } from '../../shared/player-notes.ts'
+
+function isPlayerKey(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Z0-9-]{2,24}:[a-f0-9]{64}$/.test(value)
+}
 
 export interface MatchEncounter {
   gameId: number

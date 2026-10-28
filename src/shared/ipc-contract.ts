@@ -113,33 +113,6 @@ export interface HextechAramMatchHistoryAsset extends LooseRecord {
 
 export type HextechAramMatchResult = 'win' | 'loss' | 'remake'
 
-export type PlayerNoteLabel = 'friendly' | 'neutral' | 'caution' | 'avoid'
-export interface PlayerNoteDraft {
-  playerKey: string
-  playerName: string
-  label: PlayerNoteLabel
-  text: string
-}
-export interface PlayerNote extends PlayerNoteDraft {
-  updatedAt: number
-}
-export interface PlayerNotesResult extends OperationResult {
-  notes?: PlayerNote[]
-}
-export interface PlayerNotesFileResult extends OperationResult {
-  canceled?: boolean
-}
-export interface PlayerNotesImportPreview {
-  token: string
-  total: number
-  added: number
-  kept: number
-  samples: PlayerNote[]
-}
-export interface PlayerNotesImportPreviewResult extends PlayerNotesFileResult {
-  preview?: PlayerNotesImportPreview
-}
-
 export interface HextechAramMatchParticipant {
   participantId: number
   playerKey?: string
@@ -476,15 +449,6 @@ export interface ElectronAPI {
   matchHistory: {
     getLocalSummary(): Promise<LocalMatchHistorySummaryResult>
     queryCurrent(payload?: HextechAramMatchHistoryQuery): Promise<HextechAramMatchHistoryQueryResult>
-  }
-  playerNotes: {
-    list(): Promise<PlayerNotesResult>
-    save(note: PlayerNoteDraft): Promise<PlayerNotesResult>
-    remove(playerKey: string): Promise<PlayerNotesResult>
-    exportBackup(): Promise<PlayerNotesFileResult>
-    previewImport(): Promise<PlayerNotesImportPreviewResult>
-    applyImport(token: string): Promise<PlayerNotesResult>
-    cancelImport(token: string): Promise<OperationResult>
   }
   feedback: {
     submit(payload: FeedbackSubmissionPayload): Promise<FeedbackSubmissionResult>

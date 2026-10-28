@@ -12,7 +12,7 @@ import { normalizeGame } from './local-match-history-service.ts'
 import { isHextechAramGame } from './statistics.ts'
 import { SgpMatchHistoryService } from './sgp-match-history-service.ts'
 import type { StoredMatchHistoryGame } from './types.ts'
-import { getPlayerNoteKey } from './player-identity.ts'
+import { getMatchHistoryPlayerKey } from './player-identity.ts'
 
 export const DEFAULT_HEXTECH_ARAM_QUERY_COUNT = 10
 export const MAX_HEXTECH_ARAM_QUERY_COUNT = 20
@@ -167,7 +167,7 @@ function toParticipants(
     const neutralMinions = optionalStat(stats?.neutralMinionsKilled)
     return {
       participantId: participant.participantId,
-      playerKey: getPlayerNoteKey(game.platformId, participant.puuid),
+      playerKey: getMatchHistoryPlayerKey(game.platformId, participant.puuid),
       teamId: participant.teamId,
       playerName: formatPlayerName(participant.gameName, participant.tagLine),
       isCurrentPlayer: participant.puuid === currentPuuid,

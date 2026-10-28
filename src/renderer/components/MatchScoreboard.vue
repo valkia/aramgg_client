@@ -30,7 +30,6 @@
                 <p class="mt-0.5 text-muted-foreground">{{ t('matchAnalysis.participation', { value: percent(player.killParticipation) }) }}</p>
               </div>
             </div>
-            <PlayerNoteEditor v-if="player.playerKey && !player.isCurrentPlayer" :player-key="player.playerKey" :player-name="player.playerName" />
             <div v-if="player.isTopDamage || player.tripleKills || player.quadraKills || player.pentaKills" class="mt-2 flex flex-wrap gap-1 text-xs text-primary">
               <span v-if="player.isTopDamage" class="rounded border border-primary/30 px-1.5 py-0.5">{{ t('matchAnalysis.topDamage') }}</span>
               <template v-for="kind in multiKills" :key="kind">
@@ -70,7 +69,6 @@ import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { HextechAramMatchHistoryAsset, HextechAramMatchHistoryMatch } from '../../shared/ipc-contract.ts'
 import { buildScoreboardTeams } from '../services/match-history-insights.ts'
-import PlayerNoteEditor from './PlayerNoteEditor.vue'
 
 const props = defineProps<{ match: HextechAramMatchHistoryMatch }>()
 const { t, locale } = useI18n()

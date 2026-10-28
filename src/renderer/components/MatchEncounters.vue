@@ -6,10 +6,9 @@
       <p v-if="!analysis.players.length" class="text-xs text-muted-foreground">{{ t('matchAnalysis.noEncounters') }}</p>
       <ul class="max-h-[28rem] space-y-2 overflow-y-auto">
         <li v-for="player in analysis.players" :key="player.playerKey" class="rounded border border-border p-3">
-          <p class="break-words text-sm font-semibold text-foreground">{{ player.playerName || t('playerNotes.unknownPlayer') }}</p>
+          <p class="break-words text-sm font-semibold text-foreground">{{ player.playerName || t('matchAnalysis.unknownPlayer') }}</p>
           <p class="mt-1 text-xs text-primary">{{ t('matchAnalysis.encounterTeams', { same: player.sameTeam, opponents: player.opponents }) }}</p>
           <p class="mt-1 text-xs text-muted-foreground">{{ t('matchAnalysis.encounterRecord', { wins: player.wins, losses: player.losses, remakes: player.remakes }) }}</p>
-          <PlayerNoteEditor :player-key="player.playerKey" :player-name="player.playerName" />
           <details class="mt-2 border-t border-border pt-2">
             <summary class="cursor-pointer py-1 text-xs text-primary">{{ t('matchAnalysis.encounterGames', { count: player.encounters.length }) }}</summary>
             <ul class="mt-1 space-y-1">
@@ -32,7 +31,6 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { HextechAramMatchHistoryMatch } from '../../shared/ipc-contract.ts'
 import { buildMatchEncounters } from '../services/match-encounters.ts'
-import PlayerNoteEditor from './PlayerNoteEditor.vue'
 
 const props = defineProps<{ matches: HextechAramMatchHistoryMatch[]; loading: boolean }>()
 defineEmits<{ selectGame: [gameId: number] }>()

@@ -8,7 +8,6 @@ import logger from '../../modules/logger.ts'
 import { trustedIpcMain as ipcMain } from '../../security/trusted-ipc.ts'
 import { getHextechAramQueryService } from './hextech-aram-query-service.ts'
 import { getLocalMatchHistoryService } from './local-match-history-service.ts'
-import { registerPlayerNotesIpcHandlers } from './player-notes-ipc.ts'
 
 function getService() {
   return getLocalMatchHistoryService(getLCUServiceInstance())
@@ -28,8 +27,6 @@ async function getSummaryFailure(error: unknown): Promise<LocalMatchHistorySumma
 }
 
 export function registerMatchHistoryIpcHandlers(): void {
-  registerPlayerNotesIpcHandlers()
-
   ipcMain.handle('match-history-get-local-summary', async () => {
     try {
       return {

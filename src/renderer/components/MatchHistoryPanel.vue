@@ -32,7 +32,6 @@
     </div>
 
     <MatchHistoryOverview v-if="page?.matches.length" :matches="page.matches" />
-    <PlayerNotesPanel />
     <MatchEncounters v-if="page?.matches.length" :matches="page.matches" :loading="loading" @select-game="openEncounter" />
 
     <div v-if="page?.matches.length" class="mt-3 space-y-2">
@@ -171,7 +170,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, provide, ref, type ComponentPublicInstance } from 'vue'
+import { computed, nextTick, onMounted, ref, type ComponentPublicInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-vue-next'
 import type {
@@ -183,14 +182,11 @@ import type {
 import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
 import MatchHistoryOverview from './MatchHistoryOverview.vue'
 import MatchScoreboard from './MatchScoreboard.vue'
-import PlayerNotesPanel from './PlayerNotesPanel.vue'
 import MatchEncounters from './MatchEncounters.vue'
-import { createPlayerNotesStore, PLAYER_NOTES_KEY } from '../services/player-notes-store.ts'
 
 const PAGE_SIZE = 10
 
 const { t } = useI18n()
-provide(PLAYER_NOTES_KEY, createPlayerNotesStore(electronAPI.playerNotes))
 const page = ref<HextechAramMatchHistoryPage | null>(null)
 const loading = ref(false)
 const status = ref('')
