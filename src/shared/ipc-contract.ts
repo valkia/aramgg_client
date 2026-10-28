@@ -126,6 +126,19 @@ export interface PlayerNote extends PlayerNoteDraft {
 export interface PlayerNotesResult extends OperationResult {
   notes?: PlayerNote[]
 }
+export interface PlayerNotesFileResult extends OperationResult {
+  canceled?: boolean
+}
+export interface PlayerNotesImportPreview {
+  token: string
+  total: number
+  added: number
+  kept: number
+  samples: PlayerNote[]
+}
+export interface PlayerNotesImportPreviewResult extends PlayerNotesFileResult {
+  preview?: PlayerNotesImportPreview
+}
 
 export interface HextechAramMatchParticipant {
   participantId: number
@@ -468,6 +481,10 @@ export interface ElectronAPI {
     list(): Promise<PlayerNotesResult>
     save(note: PlayerNoteDraft): Promise<PlayerNotesResult>
     remove(playerKey: string): Promise<PlayerNotesResult>
+    exportBackup(): Promise<PlayerNotesFileResult>
+    previewImport(): Promise<PlayerNotesImportPreviewResult>
+    applyImport(token: string): Promise<PlayerNotesResult>
+    cancelImport(token: string): Promise<OperationResult>
   }
   feedback: {
     submit(payload: FeedbackSubmissionPayload): Promise<FeedbackSubmissionResult>

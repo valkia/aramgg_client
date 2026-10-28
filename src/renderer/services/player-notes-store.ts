@@ -36,9 +36,18 @@ export function createPlayerNotesStore(api: ElectronAPI['playerNotes']) {
     try { apply(await operation()); return true } catch { error.value = true; return false }
     finally { busy.value = false }
   }
+  async function fileOperation<T>(operation: () => Promise<T>): Promise<T> {
+    if (busy.value || loading.value) throw new Error('Player notes are busy')
+    busy.value = true
+    try { return await operation() } finally { busy.value = false }
+  }
   return { notes, byKey, loaded, loading, busy, error, load,
     save: (note: PlayerNoteDraft) => mutate(() => api.save(note)),
     remove: (key: string) => mutate(() => api.remove(key)),
+    exportBackup: () => fileOperation(() => api.exportBackup()),
+    previewImport: () => fileOperation(() => api.previewImport()),
+    applyImport: (token: string) => mutate(() => api.applyImport(token)),
+    cancelImport: (token: string) => api.cancelImport(token),
   }
 }
 

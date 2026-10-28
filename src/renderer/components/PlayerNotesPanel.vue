@@ -8,6 +8,7 @@
         {{ t('playerNotes.loadFailed') }} <button type="button" class="min-h-8 underline" :disabled="store.busy.value || store.loading.value" @click="store.load(true)">{{ t('playerNotes.retry') }}</button>
       </div>
       <div v-if="store.loaded.value" class="space-y-2">
+        <PlayerNotesBackup />
         <div class="flex flex-wrap gap-2">
           <label class="min-w-32 flex-1 text-xs text-muted-foreground">{{ t('playerNotes.search') }}<input v-model="search" type="search" :placeholder="t('playerNotes.searchPlaceholder')" class="mt-1 h-9 w-full rounded border border-border bg-background px-2 text-foreground" /></label>
           <label class="min-w-28 flex-1 text-xs text-muted-foreground">{{ t('playerNotes.label') }}<select v-model="label" class="mt-1 h-9 w-full rounded border border-border bg-background px-2 text-foreground"><option value="all">{{ t('playerNotes.allLabels') }}</option><option v-for="value in PLAYER_NOTE_LABELS" :key="value" :value="value">{{ t(`playerNotes.${value}`) }}</option></select></label>
@@ -32,6 +33,7 @@ import type { PlayerNoteLabel } from '../../shared/ipc-contract.ts'
 import { PLAYER_NOTE_LABELS } from '../../shared/player-notes.ts'
 import { PLAYER_NOTES_KEY } from '../services/player-notes-store.ts'
 import PlayerNoteEditor from './PlayerNoteEditor.vue'
+import PlayerNotesBackup from './PlayerNotesBackup.vue'
 
 const store = inject(PLAYER_NOTES_KEY, undefined)
 const { t } = useI18n()

@@ -8,7 +8,8 @@ import { getConfigDir } from '../../modules/app-paths.ts'
 export async function readBoundedNotesFile(filePath: string): Promise<string> {
   const file = await open(filePath, 'r')
   try {
-    if ((await file.stat()).size > MAX_NOTES_FILE_BYTES) throw new Error('Player notes file is too large')
+    const stat = await file.stat()
+    if (!stat.isFile() || stat.size > MAX_NOTES_FILE_BYTES) throw new Error('Invalid player notes file')
     const buffer = Buffer.alloc(MAX_NOTES_FILE_BYTES + 1)
     let length = 0
     while (length < buffer.length) {
@@ -74,6 +75,14 @@ export class PlayerNotesService {
   remove(playerKey: unknown): Promise<PlayerNote[]> {
     if (!isPlayerKey(playerKey)) throw new Error('Invalid player key')
     return this.mutate((notes) => notes.filter((note) => note.playerKey !== playerKey))
+  }
+
+  mergeMissing(payload: unknown): Promise<PlayerNote[]> {
+    const incoming = parseNotes(payload)
+    return this.mutate((notes) => {
+      const existing = new Set(notes.map((note) => note.playerKey))
+      return [...notes, ...incoming.filter((note) => !existing.has(note.playerKey))]
+    })
   }
 }
 
