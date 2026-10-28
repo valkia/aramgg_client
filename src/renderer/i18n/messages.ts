@@ -3,9 +3,11 @@ import { matchAnalysisMessages } from './match-analysis.ts'
 import { benchEvidenceMessages } from './bench-evidence.ts'
 import { matchDetailMessages } from './match-detail.ts'
 import { championRankingsMessages } from './champion-rankings.ts'
+import { mainNavigationMessages } from './main-navigation.ts'
 
 export const messages = {
   'zh-CN': {
+    mainNavigation: mainNavigationMessages['zh-CN'],
     championRankings: championRankingsMessages['zh-CN'],
     matchAnalysis: matchAnalysisMessages['zh-CN'],
     matchDetail: matchDetailMessages['zh-CN'],
@@ -370,6 +372,7 @@ export const messages = {
     },
   },
   'en-US': {
+    mainNavigation: mainNavigationMessages['en-US'],
     championRankings: championRankingsMessages['en-US'],
     matchAnalysis: matchAnalysisMessages['en-US'],
     matchDetail: matchDetailMessages['en-US'],
@@ -415,6 +418,7 @@ export const messages = {
     },
   },
   'zh-TW': {
+    mainNavigation: mainNavigationMessages['zh-TW'],
     championRankings: championRankingsMessages['zh-TW'],
     matchAnalysis: matchAnalysisMessages['zh-TW'],
     matchDetail: matchDetailMessages['zh-TW'],

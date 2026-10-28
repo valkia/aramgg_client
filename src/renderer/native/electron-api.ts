@@ -80,6 +80,7 @@ export const electronAPI: ElectronAPI = {
     submit: (...args) => requireElectronAPI().feedback.submit(...args),
   },
   lcu: {
+    getConnectionState: () => requireElectronAPI().lcu.getConnectionState(),
     getChampionMonitorState: () => requireElectronAPI().lcu.getChampionMonitorState(),
     getChampionId: (...args) => requireElectronAPI().lcu.getChampionId(...args),
     getStatus: (...args) => requireElectronAPI().lcu.getStatus(...args),

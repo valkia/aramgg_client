@@ -12,6 +12,7 @@ const validEvents = new Set<ElectronEventChannel>([
   'winrate-updated',
   'auto-screenshot-taken',
   'game-phase-changed',
+  'lcu-connection-changed',
   'champion-monitor-changed',
   'champ-select-start',
   'item-set-auto-apply-completed',
@@ -128,6 +129,7 @@ const electronAPI: ElectronAPI = {
     submit: (payload) => ipcRenderer.invoke('feedback-submit', payload),
   },
   lcu: {
+    getConnectionState: () => ipcRenderer.invoke('lcu-get-connection-state'),
     getChampionMonitorState: () => ipcRenderer.invoke('lcu-get-champion-monitor-state'),
     getChampionId: () => ipcRenderer.invoke('get-champion-id'),
     getStatus: () => ipcRenderer.invoke('lcu-get-status'),

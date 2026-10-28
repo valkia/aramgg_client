@@ -418,6 +418,12 @@ export interface GamePhaseChangedPayload {
   prevPhase: GameflowPhase | null
 }
 
+export interface LcuConnectionState {
+  connection: 'checking' | 'connected' | 'disconnected' | 'unavailable'
+  phase: GameflowPhase | null
+  revision: number
+}
+
 export interface ChampionMonitorState {
   phase: GameflowPhase | null
   selectedChampionId: number | null
@@ -441,6 +447,7 @@ export interface ElectronEventMap {
   'winrate-updated': [payload: LooseRecord]
   'auto-screenshot-taken': [payload: LooseRecord]
   'game-phase-changed': [payload: GamePhaseChangedPayload]
+  'lcu-connection-changed': [payload: LcuConnectionState]
   'champion-monitor-changed': [payload: ChampionMonitorState]
   'champ-select-start': [payload?: LooseRecord]
   'item-set-auto-apply-completed': [payload: LooseRecord]
@@ -529,6 +536,7 @@ export interface ElectronAPI {
     submit(payload: FeedbackSubmissionPayload): Promise<FeedbackSubmissionResult>
   }
   lcu: {
+    getConnectionState(): Promise<LcuConnectionState>
     getChampionMonitorState(): Promise<ChampionMonitorState>
     getChampionId(): Promise<LcuChampionIdResult>
     getStatus(): Promise<LcuStatusResult>
