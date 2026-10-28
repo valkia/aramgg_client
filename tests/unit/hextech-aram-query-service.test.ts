@@ -6,6 +6,7 @@ import {
   normalizeHextechAramQuery,
 } from '../../src/main/services/match-history/hextech-aram-query-service.ts'
 import type { StoredMatchHistoryGame } from '../../src/main/services/match-history/types.ts'
+import { normalizeGame } from '../../src/main/services/match-history/local-match-history-service.ts'
 
 const currentPuuid = '11111111-1111-1111-1111-111111111111'
 
@@ -134,5 +135,51 @@ describe('Hextech ARAM match-history query', () => {
 
     expect(page.matches[0].result).toBe('remake')
     expect(page.hasMore).toBe(false)
+  })
+
+  it('maps all ten players by participant ID, with localized assets and no renderer PUUIDs', () => {
+    const rawGame = {
+      gameId: 10, gameCreation: 1_000, gameMode: 'KIWI', queueId: 2400,
+      participants: Array.from({ length: 10 }, (_, index) => ({
+        participantId: index + 1, puuid: index === 0 ? currentPuuid : `other-player-${index}`,
+        riotIdGameName: `Player ${index + 1}`, riotIdTagline: 'CN1',
+        championId: 103, teamId: index < 5 ? 100 : 200, win: index < 5,
+        kills: 10, deaths: 2, assists: 8, totalDamageDealtToChampions: (index + 1) * 1000,
+        totalDamageTaken: 12_000, goldEarned: 10_000, totalMinionsKilled: 50, neutralMinionsKilled: 2,
+        pentaKills: index === 0 ? 1 : 0, tripleKills: 2, quadraKills: 0,
+        item0: 1001, playerAugment1: 18,
+      })).reverse(),
+    }
+    const normalized = normalizeGame(rawGame, 'HN1', 2_000)!
+    const page = buildHextechAramMatchHistoryPage({
+      games: [normalized], rawGames: [rawGame], currentPuuid, playerName: 'Player 1#CN1',
+      platformId: 'HN1', startIndex: 0, count: 10, scannedCount: 1, queriedAt: 2_000,
+      labels: { champions: new Map([[103, { name: '阿狸' }]]), augments: new Map([[18, { name: '海克斯' }]]) },
+    })
+    expect(page.matches[0].participants).toHaveLength(10)
+    expect(page.matches[0].participants?.find((player) => player.isCurrentPlayer)).toMatchObject({
+      participantId: 1, playerName: 'Player 1#CN1', championName: '阿狸', result: 'win',
+      damageToChampions: 1_000, damageTaken: 12_000, goldEarned: 10_000, minionsKilled: 52,
+      pentaKills: 1, augments: [{ id: 18, name: '海克斯' }], items: [{ id: 1001 }],
+    })
+    expect(JSON.stringify(page)).not.toContain(currentPuuid)
+    expect(normalized.participants[0]).not.toHaveProperty('goldEarned')
+  })
+
+  it('keeps unavailable or invalid detailed metrics null, including legacy history', () => {
+    const options = {
+      games: [game()], currentPuuid, playerName: '', platformId: 'HN10',
+      startIndex: 0, count: 10, scannedCount: 1, queriedAt: 1_000,
+    }
+    expect(buildHextechAramMatchHistoryPage(options).matches[0].participants?.[0]).toMatchObject({
+      damageToChampions: null, goldEarned: null, minionsKilled: null,
+    })
+    const page = buildHextechAramMatchHistoryPage({ ...options, rawGames: [{ gameId: 1, participants: [{
+      participantId: 1, stats: { totalDamageDealtToChampions: -1, totalDamageTaken: '0', goldEarned: '',
+        totalMinionsKilled: 2, neutralMinionsKilled: null, pentaKills: Infinity, tripleKills: true },
+    }] }] })
+    expect(page.matches[0].participants?.[0]).toMatchObject({
+      damageToChampions: null, damageTaken: 0, goldEarned: null, minionsKilled: null, pentaKills: null, tripleKills: null,
+    })
   })
 })

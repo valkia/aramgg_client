@@ -113,6 +113,29 @@ export interface HextechAramMatchHistoryAsset extends LooseRecord {
 
 export type HextechAramMatchResult = 'win' | 'loss' | 'remake'
 
+export interface HextechAramMatchParticipant {
+  participantId: number
+  teamId: number
+  playerName: string
+  isCurrentPlayer: boolean
+  championId: number
+  championName?: string
+  championIconUrl?: string
+  result: HextechAramMatchResult
+  kills: number
+  deaths: number
+  assists: number
+  damageToChampions: number | null
+  damageTaken: number | null
+  goldEarned: number | null
+  minionsKilled: number | null
+  tripleKills: number | null
+  quadraKills: number | null
+  pentaKills: number | null
+  items: HextechAramMatchHistoryAsset[]
+  augments: HextechAramMatchHistoryAsset[]
+}
+
 export interface HextechAramMatchHistoryMatch extends LooseRecord {
   gameId: number
   gameCreation: number
@@ -127,6 +150,7 @@ export interface HextechAramMatchHistoryMatch extends LooseRecord {
   result: HextechAramMatchResult
   augments: HextechAramMatchHistoryAsset[]
   items: HextechAramMatchHistoryAsset[]
+  participants?: HextechAramMatchParticipant[]
 }
 
 export interface HextechAramMatchHistoryPage extends LooseRecord {

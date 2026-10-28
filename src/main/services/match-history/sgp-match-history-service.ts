@@ -98,6 +98,14 @@ function compactParticipant(value: unknown): AnyRecord | null {
     kills: value.kills,
     deaths: value.deaths,
     assists: value.assists,
+    totalDamageDealtToChampions: value.totalDamageDealtToChampions,
+    totalDamageTaken: value.totalDamageTaken,
+    goldEarned: value.goldEarned,
+    totalMinionsKilled: value.totalMinionsKilled,
+    neutralMinionsKilled: value.neutralMinionsKilled,
+    tripleKills: value.tripleKills,
+    quadraKills: value.quadraKills,
+    pentaKills: value.pentaKills,
     item0: value.item0,
     item1: value.item1,
     item2: value.item2,
@@ -114,7 +122,7 @@ function compactParticipant(value: unknown): AnyRecord | null {
   }
 }
 
-/** Drop large challenge/mission/damage fields before leaving the SGP layer. */
+/** Keep only identity, inventory and scalar scoreboard stats; omit challenge/mission payloads. */
 function compactSummary(value: AnyRecord): AnyRecord {
   return {
     gameId: value.gameId,

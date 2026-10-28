@@ -137,6 +137,7 @@
             <small v-else>{{ t('matchHistory.noItems') }}</small>
           </div>
         </div>
+        <MatchScoreboard :match="match" />
       </article>
     </div>
 
@@ -179,6 +180,7 @@ import type {
 } from '../../shared/ipc-contract.ts'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
 import MatchHistoryOverview from './MatchHistoryOverview.vue'
+import MatchScoreboard from './MatchScoreboard.vue'
 
 const PAGE_SIZE = 10
 

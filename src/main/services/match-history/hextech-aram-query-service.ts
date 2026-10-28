@@ -3,6 +3,7 @@ import type {
   HextechAramMatchHistoryMatch,
   HextechAramMatchHistoryPage,
   HextechAramMatchHistoryQuery,
+  HextechAramMatchParticipant,
 } from '../../../shared/ipc-contract.ts'
 import { loadAugmentDetail, loadChampionRoster, loadItems } from '../../data-loader.ts'
 import logger from '../../modules/logger.ts'
@@ -39,6 +40,7 @@ type BuildPageOptions = {
   scannedCount: number
   queriedAt: number
   labels?: HextechAramQueryLabels
+  rawGames?: unknown[]
 }
 
 function isRecord(value: unknown): value is AnyRecord {
@@ -110,6 +112,7 @@ function toMatch(
   game: StoredMatchHistoryGame,
   currentPuuid: string,
   labels: HextechAramQueryLabels,
+  rawGame?: unknown,
 ): HextechAramMatchHistoryMatch | null {
   if (!isHextechAramGame(game)) return null
 
@@ -132,7 +135,58 @@ function toMatch(
     result: isRemake ? 'remake' : participant.win ? 'win' : 'loss',
     augments: participant.augments.map((id) => toAsset(id, labels.augments)),
     items: participant.items.map((id) => toAsset(id, labels.items)),
+    participants: toParticipants(game, rawGame, currentPuuid, labels),
   }
+}
+
+function optionalStat(value: unknown): number | null {
+  if (typeof value !== 'number' && typeof value !== 'string') return null
+  if (typeof value === 'string' && !value.trim()) return null
+  const number = Number(value)
+  return Number.isSafeInteger(number) && number >= 0 ? number : null
+}
+
+function toParticipants(
+  game: StoredMatchHistoryGame,
+  rawGame: unknown,
+  currentPuuid: string,
+  labels: HextechAramQueryLabels,
+): HextechAramMatchParticipant[] {
+  const rawParticipants = isRecord(rawGame) && Array.isArray(rawGame.participants)
+    ? rawGame.participants.filter(isRecord)
+    : []
+  const rawById = new Map(rawParticipants.map((entry) => [Number(entry.participantId), entry]))
+  const isRemake = game.endOfGameResult.startsWith('Abort_')
+    || game.participants.some((entry) => entry.gameEndedInEarlySurrender)
+  return game.participants.map((participant) => {
+    const raw = rawById.get(participant.participantId)
+    const stats = raw && isRecord(raw.stats) ? raw.stats : raw
+    const champion = labels.champions?.get(participant.championId)
+    const laneMinions = optionalStat(stats?.totalMinionsKilled)
+    const neutralMinions = optionalStat(stats?.neutralMinionsKilled)
+    return {
+      participantId: participant.participantId,
+      teamId: participant.teamId,
+      playerName: formatPlayerName(participant.gameName, participant.tagLine),
+      isCurrentPlayer: participant.puuid === currentPuuid,
+      championId: participant.championId,
+      ...(champion?.name ? { championName: champion.name } : {}),
+      ...(champion?.iconUrl ? { championIconUrl: champion.iconUrl } : {}),
+      result: isRemake ? 'remake' : participant.win ? 'win' : 'loss',
+      kills: participant.kills,
+      deaths: participant.deaths,
+      assists: participant.assists,
+      damageToChampions: optionalStat(stats?.totalDamageDealtToChampions),
+      damageTaken: optionalStat(stats?.totalDamageTaken),
+      goldEarned: optionalStat(stats?.goldEarned),
+      minionsKilled: laneMinions !== null && neutralMinions !== null ? laneMinions + neutralMinions : null,
+      tripleKills: optionalStat(stats?.tripleKills),
+      quadraKills: optionalStat(stats?.quadraKills),
+      pentaKills: optionalStat(stats?.pentaKills),
+      items: participant.items.map((id) => toAsset(id, labels.items)),
+      augments: participant.augments.map((id) => toAsset(id, labels.augments)),
+    }
+  })
 }
 
 function getLocalizedItemName(item: AnyRecord): string {
@@ -161,12 +215,13 @@ export function buildHextechAramMatchHistoryPage(
 ): HextechAramMatchHistoryPage {
   const labels = options.labels || {}
   const seenGameIds = new Set<number>()
+  const rawByGameId = new Map((options.rawGames || []).filter(isRecord).map((game) => [Number(game.gameId), game]))
   const matches = [...options.games]
     .sort((left, right) => right.gameCreation - left.gameCreation)
     .flatMap((game) => {
       if (seenGameIds.has(game.gameId)) return []
       seenGameIds.add(game.gameId)
-      const match = toMatch(game, options.currentPuuid, labels)
+      const match = toMatch(game, options.currentPuuid, labels, rawByGameId.get(game.gameId))
       return match ? [match] : []
     })
 
@@ -233,6 +288,7 @@ export class HextechAramQueryService {
       scannedCount: rawGames.length,
       queriedAt,
       labels,
+      rawGames,
     })
   }
 

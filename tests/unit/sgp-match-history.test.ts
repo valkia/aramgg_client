@@ -78,6 +78,20 @@ describe('SGP match-history collection', () => {
     expect(getSgpMatchHistoryOrigin('HN10')).toBe('https://hn10-k8s-sgp.lol.qq.com:21019')
   })
 
+  it('retains only the scoreboard scalar fields without copying bulky challenges', async () => {
+    vi.mocked(axios.get).mockResolvedValue({ data: { games: [{ json: {
+      gameId: 123, participants: [{ participantId: 1, totalDamageDealtToChampions: 20_000,
+        totalDamageTaken: 10_000, goldEarned: 12_000, totalMinionsKilled: 42,
+        neutralMinionsKilled: 0, tripleKills: 2, quadraKills: 1, pentaKills: 0,
+        challenges: { huge: 'payload' }, missions: { large: 'payload' },
+      }],
+    } }] } })
+    const games = await new SgpMatchHistoryService(createLcuService()).getHextechAramSummaries(puuid, 'HN1', 0, 10)
+    expect(games[0]).toMatchObject({ participants: [{ totalDamageDealtToChampions: 20_000, totalDamageTaken: 10_000, goldEarned: 12_000, totalMinionsKilled: 42, neutralMinionsKilled: 0, tripleKills: 2, quadraKills: 1, pentaKills: 0 }] })
+    expect(JSON.stringify(games)).not.toContain('payload')
+    expect(axios.get).toHaveBeenCalledTimes(1)
+  })
+
   it('normalizes flat SGP SUMMARY participants without per-game LCU requests', () => {
     const game = normalizeGame({
       gameId: 123,
