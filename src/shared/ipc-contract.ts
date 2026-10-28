@@ -113,8 +113,23 @@ export interface HextechAramMatchHistoryAsset extends LooseRecord {
 
 export type HextechAramMatchResult = 'win' | 'loss' | 'remake'
 
+export type PlayerNoteLabel = 'friendly' | 'neutral' | 'caution' | 'avoid'
+export interface PlayerNoteDraft {
+  playerKey: string
+  playerName: string
+  label: PlayerNoteLabel
+  text: string
+}
+export interface PlayerNote extends PlayerNoteDraft {
+  updatedAt: number
+}
+export interface PlayerNotesResult extends OperationResult {
+  notes?: PlayerNote[]
+}
+
 export interface HextechAramMatchParticipant {
   participantId: number
+  playerKey?: string
   teamId: number
   playerName: string
   isCurrentPlayer: boolean
@@ -448,6 +463,11 @@ export interface ElectronAPI {
   matchHistory: {
     getLocalSummary(): Promise<LocalMatchHistorySummaryResult>
     queryCurrent(payload?: HextechAramMatchHistoryQuery): Promise<HextechAramMatchHistoryQueryResult>
+  }
+  playerNotes: {
+    list(): Promise<PlayerNotesResult>
+    save(note: PlayerNoteDraft): Promise<PlayerNotesResult>
+    remove(playerKey: string): Promise<PlayerNotesResult>
   }
   feedback: {
     submit(payload: FeedbackSubmissionPayload): Promise<FeedbackSubmissionResult>

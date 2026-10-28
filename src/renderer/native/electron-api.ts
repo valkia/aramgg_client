@@ -70,6 +70,11 @@ export const electronAPI: ElectronAPI = {
     getLocalSummary: (...args) => requireElectronAPI().matchHistory.getLocalSummary(...args),
     queryCurrent: (...args) => requireElectronAPI().matchHistory.queryCurrent(...args),
   },
+  playerNotes: {
+    list: () => requireElectronAPI().playerNotes.list(),
+    save: (note) => requireElectronAPI().playerNotes.save(note),
+    remove: (playerKey) => requireElectronAPI().playerNotes.remove(playerKey),
+  },
   feedback: {
     submit: (...args) => requireElectronAPI().feedback.submit(...args),
   },

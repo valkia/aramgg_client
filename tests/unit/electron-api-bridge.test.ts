@@ -74,4 +74,14 @@ describe('real renderer facade and preload bridge', () => {
     electronAPI.windows.ready()
     expect(ipc.send).toHaveBeenCalledExactlyOnceWith('renderer-ready')
   })
+
+  it('routes note edits through the typed preload methods', async () => {
+    const note = { playerKey: `HN1:${'a'.repeat(64)}`, playerName: 'Player', label: 'friendly' as const, text: 'Teamwork' }
+    await electronAPI.playerNotes.save(note)
+    expect(ipc.invoke).toHaveBeenCalledWith('player-notes-save', note)
+    await electronAPI.playerNotes.remove(note.playerKey)
+    expect(ipc.invoke).toHaveBeenCalledWith('player-notes-remove', note.playerKey)
+    await electronAPI.playerNotes.list()
+    expect(ipc.invoke).toHaveBeenCalledWith('player-notes-list')
+  })
 })

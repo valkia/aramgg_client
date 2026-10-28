@@ -118,6 +118,11 @@ const electronAPI: ElectronAPI = {
     getLocalSummary: () => ipcRenderer.invoke('match-history-get-local-summary'),
     queryCurrent: (payload) => ipcRenderer.invoke('match-history-query-current', payload),
   },
+  playerNotes: {
+    list: () => ipcRenderer.invoke('player-notes-list'),
+    save: (note) => ipcRenderer.invoke('player-notes-save', note),
+    remove: (playerKey) => ipcRenderer.invoke('player-notes-remove', playerKey),
+  },
   feedback: {
     submit: (payload) => ipcRenderer.invoke('feedback-submit', payload),
   },

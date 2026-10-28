@@ -2,12 +2,14 @@ import type {
   HextechAramMatchHistoryQuery,
   HextechAramMatchHistoryQueryResult,
   LocalMatchHistorySummaryResult,
+  PlayerNotesResult,
 } from '../../../shared/ipc-contract.ts'
 import { getLCUServiceInstance } from '../lcu/lcu-service.ts'
 import logger from '../../modules/logger.ts'
 import { trustedIpcMain as ipcMain } from '../../security/trusted-ipc.ts'
 import { getHextechAramQueryService } from './hextech-aram-query-service.ts'
 import { getLocalMatchHistoryService } from './local-match-history-service.ts'
+import { playerNotesService } from './player-notes-service.ts'
 
 function getService() {
   return getLocalMatchHistoryService(getLCUServiceInstance())
@@ -27,6 +29,15 @@ async function getSummaryFailure(error: unknown): Promise<LocalMatchHistorySumma
 }
 
 export function registerMatchHistoryIpcHandlers(): void {
+  const notesResult = async (operation: () => Promise<NonNullable<PlayerNotesResult['notes']>>): Promise<PlayerNotesResult> => {
+    try { return { success: true, notes: await operation() } } catch {
+      return { success: false, error: 'Player notes operation failed' }
+    }
+  }
+  ipcMain.handle('player-notes-list', () => notesResult(() => playerNotesService.list()))
+  ipcMain.handle('player-notes-save', (_event, payload: unknown) => notesResult(() => playerNotesService.save(payload)))
+  ipcMain.handle('player-notes-remove', (_event, playerKey: unknown) => notesResult(() => playerNotesService.remove(playerKey)))
+
   ipcMain.handle('match-history-get-local-summary', async () => {
     try {
       return {
