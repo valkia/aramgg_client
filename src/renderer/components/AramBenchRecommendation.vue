@@ -32,22 +32,20 @@
         </div>
 
         <div v-else class="recommendation-body">
+            <div class="recommendation-evidence" aria-live="polite">
+                <p class="decision-line">{{ decisionMessage }}</p>
+                <p v-if="hasNoStats" class="data-warning">{{ t('bench.noStats') }}</p>
+                <p v-else-if="hasLimitedComparison" class="data-warning">{{ t('bench.limitedComparison') }}</p>
+                <p v-if="hasTeammates" class="evidence-note">{{ t('bench.teammateNote') }}</p>
+            </div>
             <div
+                v-if="topCandidates.length"
                 class="candidate-scroller"
                 :class="{
                     'can-scroll-left': canScrollLeft,
                     'can-scroll-right': canScrollRight,
                 }"
             >
-                <button
-                    v-if="compact && canScrollLeft"
-                    class="candidate-scroll-nav left"
-                    type="button"
-                    :aria-label="t('bench.scrollLeft')"
-                    @click="scrollCandidates(-1)"
-                >
-                    <ChevronLeft class="candidate-scroll-icon" />
-                </button>
                 <div
                     ref="candidateListRef"
                     class="candidate-list"
@@ -86,20 +84,42 @@
                             <div class="stat-line">
                                 <div>{{ t('bench.winRate', { value: formatPercent(candidate.winRate) }) }}</div>
                                 <div>{{ t('bench.pickRate', { value: formatPercent(candidate.pickRate) }) }}</div>
+                                <div>{{ t('bench.samples', { count: formatGames(candidate.games) }) }}</div>
+                                <div>{{ t('bench.tier', { value: formatTier(candidate.tier) }) }}</div>
                             </div>
+                            <p v-if="missingStats(candidate).length" class="candidate-warning">
+                                {{ t('bench.missingFields', { fields: missingStats(candidate).join(t('bench.fieldSeparator')) }) }}
+                            </p>
+                            <p v-if="candidate.games === 0" class="candidate-warning">{{ t('bench.zeroSamples') }}</p>
                         </div>
                     </article>
                 </div>
-                <button
-                    v-if="compact && canScrollRight"
-                    class="candidate-scroll-nav right"
-                    type="button"
-                    :aria-label="t('bench.scrollRight')"
-                    @click="scrollCandidates(1)"
-                >
-                    <ChevronRight class="candidate-scroll-icon" />
-                </button>
+                <div v-if="compact && (canScrollLeft || canScrollRight)" class="candidate-navigation">
+                    <button
+                        class="candidate-scroll-nav"
+                        type="button"
+                        :disabled="!canScrollLeft"
+                        :aria-label="t('bench.scrollLeft')"
+                        @click="scrollCandidates(-1)"
+                    >
+                        <ChevronLeft class="candidate-scroll-icon" />
+                    </button>
+                    <button
+                        class="candidate-scroll-nav"
+                        type="button"
+                        :disabled="!canScrollRight"
+                        :aria-label="t('bench.scrollRight')"
+                        @click="scrollCandidates(1)"
+                    >
+                        <ChevronRight class="candidate-scroll-icon" />
+                    </button>
+                </div>
             </div>
+            <details v-if="topCandidates.length" class="evidence-method">
+                <summary>{{ t('bench.methodTitle') }}</summary>
+                <p>{{ t('bench.methodDescription') }}</p>
+                <p>{{ t('bench.sampleDescription') }}</p>
+            </details>
         </div>
     </section>
 </template>
@@ -129,7 +149,7 @@ const props = defineProps({
     },
 })
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const recommendation = ref(null)
 const loading = ref(false)
@@ -175,6 +195,20 @@ const emptyMessage = computed(() => {
 
 const topCandidates = computed(() => recommendation.value?.candidates || [])
 const recommended = computed(() => recommendation.value?.recommendedChampion || null)
+const numberFormatter = computed(() => new Intl.NumberFormat(locale.value))
+const hasTeammates = computed(() => topCandidates.value.some((candidate) => candidate.source === 'teammate'))
+const hasNoStats = computed(() => topCandidates.value.length > 0 && topCandidates.value.every((candidate) => missingStats(candidate).length === 4))
+const hasLimitedComparison = computed(() => [recommendation.value?.currentChampion, recommended.value]
+    .some((candidate) => candidate && (missingStats(candidate).length > 0 || candidate.games === 0)))
+const decisionMessage = computed(() => {
+    const key = recommendation.value?.decisionReason
+    if (hasNoStats.value && key !== 'no-current-champion') return t('bench.decisions.noStats')
+    const knownReasons = ['no-candidates', 'no-current-champion', 'no-alternatives', 'current-best', 'small-difference', 'teammate-higher', 'bench-higher']
+    return t(`bench.decisions.${knownReasons.includes(key) ? key : 'reference'}`, {
+        current: recommendation.value?.currentChampion?.name || '',
+        recommended: recommended.value?.name || '',
+    })
+})
 const candidateSourceLabels = computed(() => ({
     current: t('bench.sourceCurrent'),
     bench: t('bench.sourceBench'),
@@ -263,9 +297,18 @@ const candidateSourceLabel = (candidate) =>
     candidateSourceLabels.value[candidate?.source] || candidate?.sourceLabel || t('bench.sourceCandidate')
 
 const formatPercent = (value) => {
-    if (value == null || Number.isNaN(Number(value))) return '--'
-    return `${(Number(value) * 100).toFixed(1)}%`
+    if (!Number.isFinite(value) || value < 0 || value > 1) return '—'
+    return `${(value * 100).toFixed(1)}%`
 }
+
+const formatGames = (value) => Number.isSafeInteger(value) && value >= 0 ? numberFormatter.value.format(value) : '—'
+const formatTier = (value) => Number.isInteger(value) && value > 0 ? value : '—'
+const missingStats = (candidate) => [
+    ...(formatPercent(candidate.winRate) === '—' ? [t('bench.fields.winRate')] : []),
+    ...(formatPercent(candidate.pickRate) === '—' ? [t('bench.fields.pickRate')] : []),
+    ...(formatGames(candidate.games) === '—' ? [t('bench.fields.games')] : []),
+    ...(formatTier(candidate.tier) === '—' ? [t('bench.fields.tier')] : []),
+]
 
 const updateCandidateScrollState = () => {
     const candidateList = candidateListRef.value
@@ -538,6 +581,67 @@ h3 {
     gap: 10px;
 }
 
+.recommendation-evidence {
+    display: grid;
+    gap: 4px;
+    padding: 9px 10px;
+    border-left: 2px solid var(--lol-primary);
+    border-radius: var(--radius-sm);
+    background: var(--lol-bg-2);
+    overflow-wrap: anywhere;
+}
+
+.decision-line,
+.data-warning,
+.evidence-note,
+.candidate-warning,
+.evidence-method p {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.decision-line {
+    color: var(--lol-ivory);
+    font-weight: 700;
+}
+
+.data-warning,
+.candidate-warning {
+    color: var(--lol-gold-2);
+}
+
+.evidence-note,
+.evidence-method {
+    color: var(--lol-muted);
+}
+
+.candidate-warning {
+    margin-top: 5px;
+    overflow-wrap: anywhere;
+}
+
+.evidence-method {
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.evidence-method summary {
+    width: fit-content;
+    cursor: pointer;
+    color: var(--lol-primary-2);
+}
+
+.evidence-method summary:focus-visible {
+    outline: 2px solid var(--lol-primary);
+    outline-offset: 2px;
+}
+
+.evidence-method p {
+    margin-top: 5px;
+    overflow-wrap: anywhere;
+}
+
 .candidate-scroller {
     position: relative;
     min-width: 0;
@@ -687,6 +791,8 @@ h3 {
 }
 
 .stat-line {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     flex-wrap: wrap;
     gap: 6px 10px;
     color: #bacac6;
@@ -770,11 +876,12 @@ h3 {
 }
 
 .aram-panel.compact .candidate-row {
-    flex: 0 0 88px;
+    flex: 0 0 156px;
     display: grid;
     grid-template-rows: auto auto;
     gap: 7px;
     align-items: center;
+    align-content: start;
     scroll-snap-align: start;
     scroll-snap-stop: normal;
 }
@@ -787,11 +894,19 @@ h3 {
 
 .aram-panel.compact .candidate-title {
     margin-bottom: 0;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.aram-panel.compact .candidate-title strong {
+    width: 100%;
 }
 
 .aram-panel.compact .stat-line {
     gap: 4px 8px;
     font-size: 10px;
+    margin-top: 5px;
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .aram-panel.compact .score-box {
@@ -805,44 +920,41 @@ h3 {
     min-height: 58px;
 }
 
+.candidate-navigation {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 2px;
+}
+
 .candidate-scroll-nav {
-    position: absolute;
-    z-index: 2;
-    top: 50%;
-    width: 40px;
-    height: 40px;
+    width: 28px;
+    height: 28px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: rgba(4, 15, 24, 0.94);
-    box-shadow:
-        0 0 0 1px rgba(226, 192, 143, 0.28),
-        0 5px 14px rgba(0, 0, 0, 0.34);
-    color: #e2c08f;
+    border: 1px solid var(--lol-border);
+    border-radius: var(--radius-sm);
+    background: var(--lol-bg-2);
+    color: var(--lol-primary-2);
     cursor: pointer;
-    translate: 0 -50%;
     transition-property: background-color, color, box-shadow, scale;
     transition-duration: 150ms;
     transition-timing-function: ease-out;
 }
 
-.candidate-scroll-nav.left {
-    left: 2px;
-}
-
-.candidate-scroll-nav.right {
-    right: 2px;
-}
-
-.candidate-scroll-nav:hover {
+.candidate-scroll-nav:hover:not(:disabled) {
     background: rgba(31, 43, 53, 0.98);
     box-shadow:
         0 0 0 1px rgba(226, 192, 143, 0.5),
         0 6px 18px rgba(0, 0, 0, 0.42);
     color: #f4ecdc;
+}
+
+.candidate-scroll-nav:disabled {
+    opacity: 0.35;
+    cursor: default;
 }
 
 .candidate-scroll-nav:active {

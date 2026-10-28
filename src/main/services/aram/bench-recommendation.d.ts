@@ -1,4 +1,5 @@
 import type { ChampSelectSnapshot, GameflowPhase } from '../lcu/types.ts'
+import type { AramRecommendationDecisionReason } from '../../../shared/ipc-contract.ts'
 
 export type AramBenchRecommendationStatus =
   | 'ready'
@@ -31,6 +32,7 @@ export interface AramBenchRecommendation {
   readOnly: true
   status: AramBenchRecommendationStatus
   reason: string | null
+  decisionReason: AramRecommendationDecisionReason | null
   gameflowPhase: GameflowPhase | null
   benchEnabled: boolean
   currentChampion: AramBenchCandidate | null

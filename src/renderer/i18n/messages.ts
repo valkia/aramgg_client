@@ -1,5 +1,6 @@
 import type { SupportedDataLocale } from '../../shared/ipc-contract.ts'
 import { matchAnalysisMessages } from './match-analysis.ts'
+import { benchEvidenceMessages } from './bench-evidence.ts'
 
 export const messages = {
   'zh-CN': {
@@ -212,6 +213,7 @@ export const messages = {
       autoEnabledWaiting: '自动配置已开启，检测到当前英雄后会写入游戏推荐',
     },
     bench: {
+      ...benchEvidenceMessages['zh-CN'],
       title: '席位推荐',
       refreshTitle: '刷新推荐',
       reading: '读取中',
@@ -390,6 +392,7 @@ export const messages = {
       title: 'BUILD RECOMMENDATIONS', autoApplyTitle: 'Configure items for the current champion by default', autoApplyDescription: "When enabled, ARAMGG builds are written to the in-game shop recommendations after a champion and build data are loaded. When disabled, use the manual action in champion details.", configuring: 'Configuring', waitingForData: 'Waiting for build data', currentChampion: 'current champion build', multipleSets: '{count} builds', configure: 'Configure {target}', reconfigure: 'Reconfigure {target}', autoAppliedMultiple: 'Automatically added {count} recommended builds', appliedMultiple: 'Added {count} recommended builds', autoApplied: 'Automatically added the recommended build', applied: 'Added the recommended build', autoConfiguring: 'Configuring items automatically...', configuringNow: 'Configuring items...', configurationFailed: 'Item configuration failed', autoEnabledWaiting: 'Automatic configuration is enabled and will run when the current champion is detected',
     },
     bench: {
+      ...benchEvidenceMessages['en-US'],
       title: 'Bench recommendations', refreshTitle: 'Refresh recommendations', reading: 'Loading', refreshing: 'Refreshing', readOnly: 'Read-only advice', noBench: 'No bench', noChampion: 'No champion', noCandidates: 'No candidates', waitingSelection: 'Waiting for selection', apiUnavailable: 'Electron API is unavailable', waitingClient: 'Waiting for the client', waitingChampSelect: 'Waiting for champion select', sourceCurrent: 'Current', sourceBench: 'Bench', sourceTeammate: 'Teammate', sourceCandidate: 'Candidate', winRate: 'Win {value}', pickRate: 'Pick {value}', timeout: 'Bench data took longer than {seconds} seconds', loadFailed: 'Failed to load recommendations', candidateList: 'Bench candidate list', scrollLeft: 'See more bench candidates to the left', scrollRight: 'See more bench candidates to the right',
     },
     augment: {
@@ -432,6 +435,7 @@ export const messages = {
       title: '出裝推薦', autoApplyTitle: '預設設定目前英雄裝備', autoApplyDescription: '開啟後，選到英雄並載入出裝資料時，自動將該英雄的 ARAMGG 出裝寫入遊戲商店推薦。關閉後不會自動寫入，可在英雄詳情中手動設定。', configuring: '設定中', waitingForData: '等待出裝資料', currentChampion: '目前英雄裝備', multipleSets: '{count} 套裝備', configure: '設定 {target}', reconfigure: '重新設定 {target}', autoAppliedMultiple: '已自動寫入 {count} 套遊戲推薦', appliedMultiple: '已寫入 {count} 套遊戲推薦', autoApplied: '已自動寫入遊戲推薦', applied: '已寫入遊戲推薦', autoConfiguring: '正在自動設定裝備...', configuringNow: '正在設定裝備...', configurationFailed: '裝備設定失敗', autoEnabledWaiting: '自動設定已開啟，偵測到目前英雄後會寫入遊戲推薦',
     },
     bench: {
+      ...benchEvidenceMessages['zh-TW'],
       title: '席位推薦', refreshTitle: '重新整理推薦', reading: '讀取中', refreshing: '重新整理中', readOnly: '唯讀建議', noBench: '無席位', noChampion: '未選英雄', noCandidates: '暫無英雄', waitingSelection: '等待選角', apiUnavailable: 'Electron API 無法使用', waitingClient: '等待客戶端連線', waitingChampSelect: '等待進入選角階段', sourceCurrent: '目前', sourceBench: '席位', sourceTeammate: '隊友', sourceCandidate: '候選', winRate: '勝率 {value}', pickRate: '選取 {value}', timeout: '席位資料讀取超過 {seconds} 秒', loadFailed: '推薦讀取失敗', candidateList: '席位候選清單', scrollLeft: '向左查看更多席位候選', scrollRight: '向右查看更多席位候選',
     },
     augment: {

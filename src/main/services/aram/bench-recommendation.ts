@@ -1,6 +1,7 @@
 import type {
   AramBenchRecommendation,
   AramRecommendationCandidate,
+  AramRecommendationDecisionReason,
   GameflowPhase,
 } from '../../../shared/ipc-contract.ts'
 
@@ -55,7 +56,7 @@ function toInteger(value: unknown): number | null {
 }
 
 function toNullableNumber(value: unknown): number | null {
-  if (value == null || value === '') {
+  if ((typeof value !== 'number' && typeof value !== 'string') || String(value).trim() === '') {
     return null
   }
 
@@ -65,7 +66,7 @@ function toNullableNumber(value: unknown): number | null {
 
 function normalizeRate(value: unknown): number | null {
   const numberValue = toNullableNumber(value)
-  if (numberValue == null) {
+  if (numberValue == null || numberValue < 0 || numberValue > 100) {
     return null
   }
 
@@ -111,14 +112,6 @@ function getChampionDisplayName(championId: number, stats: ChampionStats | null)
   )
 }
 
-function getAvailableStatsFields(stats: ChampionStats | null): string[] {
-  if (!stats) {
-    return []
-  }
-
-  return ['winRate', 'pickRate', 'numGames', 'tier', 'iconUrl'].filter((field) => stats[field] != null)
-}
-
 function getCandidateSourceLabel(source: CandidateSource): string {
   return CANDIDATE_SOURCE_LABELS[source]
 }
@@ -126,8 +119,10 @@ function getCandidateSourceLabel(source: CandidateSource): string {
 function scoreChampionStats(stats: ChampionStats | null) {
   const winRate = normalizeRate(getStatsField(stats, ['winRate', 'win_rate']))
   const pickRate = normalizeRate(getStatsField(stats, ['pickRate', 'pick_rate']))
-  const games = toNullableNumber(getStatsField(stats, ['numGames', 'games', 'playCount', 'num_games']))
-  const tier = toNullableNumber(stats?.tier)
+  const rawGames = toNullableNumber(getStatsField(stats, ['numGames', 'games', 'playCount', 'num_games']))
+  const games = rawGames != null && Number.isSafeInteger(rawGames) && rawGames >= 0 ? rawGames : null
+  const rawTier = toNullableNumber(stats?.tier)
+  const tier = rawTier != null && Number.isInteger(rawTier) && rawTier > 0 ? rawTier : null
 
   const winRateScore = winRate ?? 0.5
   const pickRateScore = pickRate ?? 0
@@ -196,7 +191,13 @@ function buildCandidate(
     score: scoredStats.score,
     confidence: scoredStats.confidence,
     dataAvailable: scoredStats.dataAvailable,
-    availableStatsFields: getAvailableStatsFields(stats),
+    availableStatsFields: [
+      ...(scoredStats.winRate != null ? ['winRate'] : []),
+      ...(scoredStats.pickRate != null ? ['pickRate'] : []),
+      ...(scoredStats.games != null ? ['numGames'] : []),
+      ...(scoredStats.tier != null ? ['tier'] : []),
+      ...(stats?.iconUrl ? ['iconUrl'] : []),
+    ],
     reasons,
   }
 }
@@ -301,6 +302,7 @@ function buildBaseRecommendation(
     readOnly: true,
     status,
     reason,
+    decisionReason: status === NO_CANDIDATES_STATUS ? 'no-candidates' : null,
     gameflowPhase: snapshot?.gameflowPhase || null,
     benchEnabled: snapshot?.benchEnabled === true,
     currentChampion: null,
@@ -396,6 +398,7 @@ export function getAramBenchRecommendation(
   if (!currentChampion) {
     return {
       ...buildBaseRecommendation(snapshot, NO_CURRENT_STATUS, 'no-current-champion'),
+      decisionReason: 'no-current-champion',
       recommendedChampion,
       candidates,
       confidence: recommendedChampion?.confidence || 0,
@@ -410,14 +413,21 @@ export function getAramBenchRecommendation(
   const noAlternativeCandidates = alternativeCandidateCount === 0
   const status = noAlternativeCandidates ? NO_BENCH_STATUS : READY_STATUS
   const reasons = []
+  let decisionReason: AramRecommendationDecisionReason
 
   if (noAlternativeCandidates) {
+    decisionReason = 'no-alternatives'
     reasons.push('没有可用席位或队友已选英雄，建议保留当前英雄')
   } else if (!recommendedChampion || recommendedChampion.championId === currentChampion.championId || deltaScore < 0.015) {
+    decisionReason = !recommendedChampion || recommendedChampion.championId === currentChampion.championId
+      ? 'current-best'
+      : 'small-difference'
     reasons.push(`${currentChampion.name} 当前评分最高或差距很小，建议保留`)
   } else if (recommendedChampion.source === 'teammate') {
+    decisionReason = 'teammate-higher'
     reasons.push(`${recommendedChampion.name} 是队友已选英雄，综合评分高于当前英雄，可作为只读沟通参考`)
   } else {
+    decisionReason = 'bench-higher'
     reasons.push(`${getCandidateFocusName(recommendedChampion)} 综合评分高于当前英雄，建议优先关注`)
   }
 
@@ -433,6 +443,7 @@ export function getAramBenchRecommendation(
     readOnly: true,
     status,
     reason: null,
+    decisionReason,
     gameflowPhase: snapshot.gameflowPhase,
     benchEnabled: snapshot.benchEnabled || benchChampionIds.length > 0,
     currentChampion,

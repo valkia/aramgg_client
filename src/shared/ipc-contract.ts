@@ -282,15 +282,28 @@ export interface AramRecommendationCandidate extends LooseRecord {
   winRate: number | null
   pickRate: number | null
   games: number | null
+  tier: number | null
+  dataAvailable: boolean
   score: number
+  /** Weighted field availability, not a statistical confidence or win probability. */
   confidence: number
   reasons: string[]
 }
+
+export type AramRecommendationDecisionReason =
+  | 'no-candidates'
+  | 'no-current-champion'
+  | 'no-alternatives'
+  | 'current-best'
+  | 'small-difference'
+  | 'teammate-higher'
+  | 'bench-higher'
 
 export interface AramBenchRecommendation extends LooseRecord {
   readOnly: true
   status: string
   reason: string | null
+  decisionReason: AramRecommendationDecisionReason | null
   gameflowPhase: GameflowPhase | null
   currentChampion: AramRecommendationCandidate | null
   recommendedChampion: AramRecommendationCandidate | null
