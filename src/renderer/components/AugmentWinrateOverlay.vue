@@ -106,6 +106,13 @@
             </div>
           </section>
 
+          <PatchTrendsPanel
+            v-if="!isSidePanel && championId"
+            :evidence="patchEvidence"
+            :champion-id="Number(championId)"
+            :augment-names="patchAugmentNames"
+          />
+
           <section v-if="!isSidePanel && championBlogs.length" class="related-blogs">
             <div class="section-title-row compact">
               <h3>{{ t('augment.relatedGuides') }}</h3>
@@ -511,6 +518,7 @@ import {
 } from '../service/overlay-formatters.ts'
 import { useAugmentTooltip } from '../composables/use-augment-tooltip.ts'
 import AramBenchRecommendation from './AramBenchRecommendation.vue'
+import PatchTrendsPanel from './PatchTrendsPanel.vue'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps({
@@ -539,6 +547,8 @@ const champSelectMode = ref(false)
 
 // 英雄数据
 const championStats = ref(null)
+const patchEvidence = ref(null)
+const patchAugmentNames = computed(() => Object.fromEntries(augmentBase.value.filter(augment => augment?.name).map(augment => [Number(augment.id), augment.name])))
 const augmentBase = ref([])
 const augmentStats = ref({})
 const buildData = ref(null)
@@ -873,6 +883,7 @@ const mapChampionAugmentRows = (augments = [], statsById = {}) => {
 }
 
 const applyFallbackChampionData = (data) => {
+  patchEvidence.value = null
   championStats.value = {
     championId: String(data?.championId || championId.value || ''),
     id: data?.championId || championId.value || null,
@@ -995,6 +1006,7 @@ const showOverlay = async (data) => {
   championDataLoading.value = false
   error.value = null
   championStats.value = null
+  patchEvidence.value = null
   buildData.value = null
   itemsData.value = {}
   championLinks.value = {}
@@ -1108,6 +1120,7 @@ const showOverlay = async (data) => {
         championLinks: linksData,
       } = result.data
       championStats.value = stats
+      patchEvidence.value = result.data.patchEvidence || null
       augmentBase.value = augments
       augmentStats.value = augStats
       buildData.value = { builds: Array.isArray(builds) ? builds : [] }
@@ -1218,6 +1231,7 @@ const closeOverlay = (reason = 'manual') => {
   visible.value = false
   championNameData.value = null
   championStats.value = null
+  patchEvidence.value = null
   championDataLoading.value = false
   champSelectMode.value = false
   benchPreviewRecommendation.value = null

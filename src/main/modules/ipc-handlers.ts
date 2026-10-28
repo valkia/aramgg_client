@@ -1006,6 +1006,7 @@ export function registerIpcHandlers(isDev: boolean): void {
                     dataVersion: detail.dataVersion,
                     data: {
                         stats: detail.stats,
+                        patchEvidence: detail.patchEvidence,
                         augments: detail.augmentBase,
                         augmentStats: detail.augments,
                         augmentTrios: detail.augmentTrios,

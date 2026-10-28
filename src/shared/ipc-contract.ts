@@ -1,3 +1,5 @@
+import type { ChampionPatchEvidence } from './patch-evidence.ts'
+
 export type Unsubscribe = () => void
 
 export type AppStoreKey =
@@ -509,7 +511,7 @@ export interface ElectronAPI {
   }
   winrate: {
     get(data: LooseRecord): Promise<OperationResult & { augments?: LooseRecord[]; timing?: LooseRecord }>
-    loadChampionData(championId: number): Promise<OperationResult & { data?: LooseRecord }>
+    loadChampionData(championId: number): Promise<OperationResult & { locale?: SupportedDataLocale; dataVersion?: string; data?: LooseRecord & { patchEvidence?: ChampionPatchEvidence | null } }>
   }
   champions: {
     getRankings(): Promise<ChampionRankingsResult>
