@@ -14,6 +14,7 @@ function match(gameId: number): HextechAramMatchHistoryMatch {
       participantId: index + 1, teamId: 100, playerName: '', isCurrentPlayer: index === 0,
       championId: 103, result: 'win', kills: 2, deaths: 1, assists: 4, participationStats: { kills: 2, assists: 4 },
       damageToChampions: 12_000, damageTaken: null, goldEarned: 1_000, minionsKilled: null,
+      totalHeal: null, damageToTurrets: null, spell1Id: null, spell2Id: null,
       tripleKills: null, quadraKills: null, pentaKills: null, items: [], augments: [],
     })),
   }

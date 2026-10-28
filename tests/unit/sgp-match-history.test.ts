@@ -83,11 +83,13 @@ describe('SGP match-history collection', () => {
       gameId: 123, participants: [{ participantId: 1, totalDamageDealtToChampions: 20_000,
         totalDamageTaken: 10_000, goldEarned: 12_000, totalMinionsKilled: 42,
         neutralMinionsKilled: 0, tripleKills: 2, quadraKills: 1, pentaKills: 0,
+        totalHeal: 3_000, damageDealtToTurrets: 700, summoner1Id: 4, summoner2Id: 32, spell1Id: 4, spell2Id: 32,
         challenges: { huge: 'payload' }, missions: { large: 'payload' },
       }],
     } }] } })
     const games = await new SgpMatchHistoryService(createLcuService()).getHextechAramSummaries(puuid, 'HN1', 0, 10)
     expect(games[0]).toMatchObject({ participants: [{ totalDamageDealtToChampions: 20_000, totalDamageTaken: 10_000, goldEarned: 12_000, totalMinionsKilled: 42, neutralMinionsKilled: 0, tripleKills: 2, quadraKills: 1, pentaKills: 0 }] })
+    expect(games[0]).toMatchObject({ participants: [{ totalHeal: 3_000, damageDealtToTurrets: 700, summoner1Id: 4, summoner2Id: 32, spell1Id: 4, spell2Id: 32 }] })
     expect(JSON.stringify(games)).not.toContain('payload')
     expect(axios.get).toHaveBeenCalledTimes(1)
   })

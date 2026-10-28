@@ -6,6 +6,7 @@ import { getMatchHistoryPlayerKey } from '../../src/main/services/match-history/
 function player(id: number, overrides: Partial<HextechAramMatchParticipant> = {}): HextechAramMatchParticipant {
   return { participantId: id, playerKey: `HN1:${id.toString(16).padStart(64, '0')}`, teamId: 100, playerName: 'Same name', isCurrentPlayer: id === 1,
     championId: 103, result: 'win', kills: 8, deaths: 2, assists: 12, damageToChampions: null, damageTaken: null,
+    totalHeal: null, damageToTurrets: null, spell1Id: null, spell2Id: null,
     goldEarned: null, minionsKilled: null, tripleKills: 0, quadraKills: 0, pentaKills: 0, items: [], augments: [], ...overrides }
 }
 function match(id: number, overrides: Partial<HextechAramMatchHistoryMatch> = {}): HextechAramMatchHistoryMatch {

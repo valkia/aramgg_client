@@ -83,7 +83,13 @@ function summarizePerformance(matches: readonly HextechAramMatchHistoryMatch[]) 
   return { damage: average(damage), participation: average(participation), gold: average(gold), goldShare: average(goldShare) }
 }
 
-export function buildScoreboardTeams(participants: readonly HextechAramMatchParticipant[]) {
+export function perMinute(value: number | null, gameDuration: number) {
+  if (!isStat(value) || !Number.isFinite(gameDuration) || gameDuration <= 0) return null
+  const rate = value / gameDuration * 60
+  return Number.isFinite(rate) ? rate : null
+}
+
+export function buildScoreboardTeams(participants: readonly HextechAramMatchParticipant[], gameDuration = 0) {
   const teams = new Map<number, HextechAramMatchParticipant[]>()
   for (const participant of participants) {
     const team = teams.get(participant.teamId) || []
@@ -91,27 +97,45 @@ export function buildScoreboardTeams(participants: readonly HextechAramMatchPart
     teams.set(participant.teamId, team)
   }
   return [...teams.entries()].map(([teamId, players]) => {
-    // Incomplete SGP responses must not turn one visible player into "100% of the team".
+    // A repeated identity or conflicting result cannot establish a complete team.
     const complete = players.length === 5 && (teamId === 100 || teamId === 200)
-    const total = (key: 'damageToChampions' | 'damageTaken' | 'goldEarned') =>
-      complete && players.every((player) => player[key] !== null)
-        ? players.reduce((sum, player) => sum + player[key]!, 0)
-        : null
-    const damage = total('damageToChampions')
-    const gold = total('goldEarned')
-    const kills = players.reduce((sum, player) => sum + player.kills, 0)
+      && players.every((player) => Number.isSafeInteger(player.participantId) && player.participantId > 0
+        && participants.filter((entry) => entry.participantId === player.participantId).length === 1
+        && (!player.playerKey || participants.filter((entry) => entry.playerKey === player.playerKey).length === 1)
+        && player.result === players[0].result)
+    const total = (values: (number | null | undefined)[]) => {
+      if (!complete || !values.every(isStat)) return null
+      const sum = values.reduce((sum, value) => sum + value, 0)
+      return Number.isSafeInteger(sum) ? sum : null
+    }
+    const damage = total(players.map((player) => player.damageToChampions))
+    const taken = total(players.map((player) => player.damageTaken))
+    const heal = total(players.map((player) => player.totalHeal))
+    const gold = total(players.map((player) => player.goldEarned))
+    const kills = total(players.map((player) => player.participationStats?.kills))
+    const share = (value: number | null, sum: number | null) =>
+      isStat(value) && sum !== null && sum > 0 ? value / sum * 100 : null
     const topDamage = damage !== null && damage > 0 ? Math.max(...players.map((player) => player.damageToChampions!)) : null
     return {
       teamId,
       isCurrentTeam: players.some((player) => player.isCurrentPlayer),
       result: players.every((player) => player.result === players[0].result) ? players[0].result : null,
-      complete, kills, damage, gold,
-      players: [...players].sort((a, b) => a.participantId - b.participantId).map((player) => ({
-        ...player,
-        damageShare: damage !== null && damage > 0 && player.damageToChampions !== null ? player.damageToChampions / damage * 100 : null,
-        killParticipation: complete && kills > 0 ? Math.min(100, (player.kills + player.assists) / kills * 100) : null,
-        isTopDamage: topDamage !== null && player.damageToChampions === topDamage,
-      })),
+      complete, kills, damage, taken, heal, gold,
+      players: [...players].sort((a, b) => a.participantId - b.participantId).map((player) => {
+        const rawKills = player.participationStats?.kills
+        const assists = player.participationStats?.assists
+        const takedowns = isStat(rawKills) && isStat(assists) ? rawKills + assists : null
+        return {
+          ...player,
+          damageShare: share(player.damageToChampions, damage),
+          takenShare: share(player.damageTaken, taken),
+          healShare: share(player.totalHeal, heal),
+          goldPerMinute: perMinute(player.goldEarned, gameDuration),
+          csPerMinute: perMinute(player.minionsKilled, gameDuration),
+          killParticipation: kills !== null && kills > 0 && takedowns !== null && takedowns <= kills ? takedowns / kills * 100 : null,
+          isTopDamage: topDamage !== null && player.damageToChampions === topDamage,
+        }
+      }),
     }
   }).sort((a, b) => Number(b.isCurrentTeam) - Number(a.isCurrentTeam) || a.teamId - b.teamId)
 }

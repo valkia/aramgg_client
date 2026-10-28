@@ -10,7 +10,7 @@
           <h4 class="text-sm font-bold text-foreground">{{ teamName(team.teamId, team.isCurrentTeam) }}</h4>
           <span v-if="team.result" class="text-xs font-semibold" :class="team.result === 'win' ? 'text-[var(--lol-success)]' : 'text-muted-foreground'">{{ t(resultKeys[team.result]) }}</span>
           <p class="w-full text-xs text-muted-foreground">
-            {{ t('matchAnalysis.teamTotals', { kills: team.kills, gold: number(team.gold) }) }}
+            {{ t('matchAnalysis.teamTotals', { kills: number(team.kills), gold: number(team.gold) }) }}
           </p>
           <p v-if="!team.complete" class="text-xs text-muted-foreground">{{ t('matchAnalysis.incompleteTeam') }}</p>
         </header>
@@ -37,15 +37,24 @@
               </template>
             </div>
             <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs tabular-nums">
-              <div>
-                <dt class="text-muted-foreground">{{ t('matchAnalysis.damage') }}</dt>
-                <dd class="mt-1 text-foreground">{{ number(player.damageToChampions) }} <span class="text-primary">{{ percent(player.damageShare) }}</span></dd>
-                <div v-if="player.damageShare !== null" class="mt-1 h-1 overflow-hidden rounded bg-muted" aria-hidden="true"><div class="h-full bg-primary" :style="{ width: `${player.damageShare}%` }" /></div>
+              <div v-for="metric in comparisonMetrics" :key="metric.value" class="min-w-0" :data-metric="metric.value">
+                <dt class="break-words text-muted-foreground">{{ t(`matchAnalysis.${metric.label}`) }}</dt>
+                <dd class="mt-1 text-foreground">{{ number(player[metric.value]) }} <span class="text-primary">{{ percent(player[metric.share]) }}</span></dd>
+                <div v-if="player[metric.share] !== null" class="mt-1 h-1 overflow-hidden rounded bg-muted" aria-hidden="true"><div class="h-full" :class="metric.color" :style="{ width: `${player[metric.share]}%` }" /></div>
               </div>
-              <div><dt class="text-muted-foreground">{{ t('matchAnalysis.taken') }}</dt><dd class="mt-1 text-foreground">{{ number(player.damageTaken) }}</dd></div>
-              <div><dt class="text-muted-foreground">{{ t('matchAnalysis.gold') }}</dt><dd class="mt-1 text-foreground">{{ number(player.goldEarned) }}</dd></div>
-              <div><dt class="text-muted-foreground">{{ t('matchAnalysis.cs') }}</dt><dd class="mt-1 text-foreground">{{ number(player.minionsKilled) }}</dd></div>
+              <div data-metric="damageToTurrets"><dt class="text-muted-foreground">{{ t('matchAnalysis.turretDamage') }}</dt><dd class="mt-1 text-foreground">{{ number(player.damageToTurrets) }}</dd></div>
+              <div data-metric="goldEarned"><dt class="text-muted-foreground">{{ t('matchAnalysis.gold') }}</dt><dd class="mt-1 text-foreground">{{ number(player.goldEarned) }}<span class="mt-0.5 block text-muted-foreground">{{ t('matchAnalysis.goldPerMinute', { value: rate(player.goldPerMinute) }) }}</span></dd></div>
+              <div data-metric="minionsKilled"><dt class="text-muted-foreground">{{ t('matchAnalysis.cs') }}</dt><dd class="mt-1 text-foreground">{{ number(player.minionsKilled) }}<span class="mt-0.5 block text-muted-foreground">{{ t('matchAnalysis.csPerMinute', { value: rate(player.csPerMinute) }) }}</span></dd></div>
             </dl>
+            <div class="mt-3">
+              <p class="mb-1 text-xs text-muted-foreground">{{ t('matchAnalysis.summonerSpells') }}</p>
+              <ul class="flex flex-wrap gap-2 text-xs" :aria-label="t('matchAnalysis.summonerSpells')">
+                <li v-for="(spellId, index) in [player.spell1Id, player.spell2Id]" :key="`${index}:${spellId}`" class="flex min-w-0 max-w-full items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-1">
+                  <img v-if="validSpellId(spellId)" :src="getSpellIconUrl(spellId)" alt="" class="h-6 w-6 shrink-0 rounded" loading="lazy" @error="hideImage" />
+                  <span class="break-words text-foreground">{{ spellName(spellId) }}</span>
+                </li>
+              </ul>
+            </div>
             <div v-for="kind in assetKinds" :key="kind" class="mt-2">
               <p class="mb-1 text-xs text-muted-foreground">{{ t(`matchHistory.${kind}`) }}</p>
               <ul v-if="player[kind].length" class="flex flex-wrap gap-1" :aria-label="t(`matchHistory.${kind}`)">
@@ -71,10 +80,11 @@ import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { HextechAramMatchHistoryAsset, HextechAramMatchHistoryMatch } from '../../shared/ipc-contract.ts'
 import { buildScoreboardTeams } from '../services/match-history-insights.ts'
+import { getSpellIconUrl } from '../service/cdn.js'
 import MatchAssetTooltip from './MatchAssetTooltip.vue'
 
 const props = defineProps<{ match: HextechAramMatchHistoryMatch; loading?: boolean }>()
-const { t, locale } = useI18n()
+const { t, te, locale } = useI18n()
 const expanded = ref(false)
 const disclosure = ref<HTMLDetailsElement>()
 const summary = ref<HTMLElement>()
@@ -87,14 +97,27 @@ async function open() {
   summary.value?.scrollIntoView({ block: 'start' })
 }
 defineExpose({ open })
-const teams = computed(() => buildScoreboardTeams(props.match.participants || []))
+const teams = computed(() => buildScoreboardTeams(props.match.participants || [], props.match.gameDuration))
 const hasCurrentTeam = computed(() => teams.value.some((team) => team.isCurrentTeam))
 const resultKeys = { win: 'matchHistory.victory', loss: 'matchHistory.defeat', remake: 'matchHistory.remake' }
 const assetKinds = ['augments', 'items'] as const
 const multiKills = ['pentaKills', 'quadraKills', 'tripleKills'] as const
+const comparisonMetrics = [
+  { value: 'damageToChampions', share: 'damageShare', label: 'damage', color: 'bg-primary' },
+  { value: 'damageTaken', share: 'takenShare', label: 'taken', color: 'bg-foreground/50' },
+  { value: 'totalHeal', share: 'healShare', label: 'healing', color: 'bg-[var(--lol-success)]' },
+] as const
 function onToggle(event: Event) { expanded.value = (event.target as HTMLDetailsElement).open }
-function number(value: number | null) { return value === null ? '—' : new Intl.NumberFormat(locale.value).format(value) }
+function number(value: number | null | undefined) { return typeof value !== 'number' || !Number.isFinite(value) ? '—' : new Intl.NumberFormat(locale.value).format(value) }
 function percent(value: number | null) { return value === null ? '—' : `${value.toFixed(0)}%` }
+function rate(value: number | null) { return value === null ? '—' : new Intl.NumberFormat(locale.value, { maximumFractionDigits: 1 }).format(value) }
+function validSpellId(id: number | null | undefined): id is number { return typeof id === 'number' && Number.isSafeInteger(id) && id > 0 }
+function spellName(id: number | null | undefined) {
+  if (!validSpellId(id)) return '—'
+  const key = `matchAnalysis.spellNames.${id}`
+  return te(key) ? t(key) : t('matchAnalysis.spellFallback', { id })
+}
+function hideImage(event: Event) { (event.target as HTMLImageElement).hidden = true }
 function teamName(id: number, current: boolean) {
   if ((id === 100 || id === 200) && hasCurrentTeam.value) return t(current ? 'matchAnalysis.ourTeam' : 'matchAnalysis.enemyTeam')
   return t('matchAnalysis.team', { id })

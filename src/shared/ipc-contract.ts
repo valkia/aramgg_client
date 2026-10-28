@@ -132,8 +132,12 @@ export interface HextechAramMatchParticipant {
   participationStats?: { kills: number | null; assists: number | null }
   damageToChampions: number | null
   damageTaken: number | null
+  totalHeal: number | null
+  damageToTurrets: number | null
   goldEarned: number | null
   minionsKilled: number | null
+  spell1Id: number | null
+  spell2Id: number | null
   tripleKills: number | null
   quadraKills: number | null
   pentaKills: number | null

@@ -40,6 +40,7 @@ describe('match history filters', () => {
         participantId: 1, teamId: 100, playerName: 'Test', isCurrentPlayer: true,
         championId: match.championId, result: match.result, kills: match.kills, deaths: match.deaths, assists: match.assists,
         damageToChampions: match.gameId * 10_000, damageTaken: null, goldEarned: 1_000, minionsKilled: null,
+        totalHeal: null, damageToTurrets: null, spell1Id: null, spell2Id: null,
         tripleKills: null, quadraKills: null, pentaKills: null, items: [], augments: [],
       }],
     })) } })

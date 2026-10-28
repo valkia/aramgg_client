@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { HextechAramMatchHistoryMatch, HextechAramMatchParticipant } from '../../src/shared/ipc-contract.ts'
-import { buildScoreboardTeams, summarizeMatches } from '../../src/renderer/services/match-history-insights.ts'
+import { buildScoreboardTeams, perMinute, summarizeMatches } from '../../src/renderer/services/match-history-insights.ts'
 
 function match(gameId: number, result: HextechAramMatchHistoryMatch['result'], overrides = {}): HextechAramMatchHistoryMatch {
   return { gameId, gameCreation: gameId * 1000, gameDuration: 900, gameVersion: '16.21', championId: 103, kills: 8, deaths: 2, assists: 12, result, items: [], augments: [], ...overrides }
@@ -138,7 +138,8 @@ function players(): HextechAramMatchParticipant[] {
     participantId: index + 1, teamId: index < 5 ? 100 : 200, playerName: `Player ${index}`,
     isCurrentPlayer: index === 7, championId: 103, result: index < 5 ? 'win' : 'loss',
     kills: 2, deaths: 1, assists: 4, damageToChampions: index < 5 ? 100 : 200,
-    damageTaken: 200, goldEarned: 1000, minionsKilled: 20,
+    damageTaken: 200, totalHeal: 50, damageToTurrets: 500, goldEarned: 1000, minionsKilled: 20,
+    spell1Id: 4, spell2Id: 32, participationStats: { kills: 2, assists: 4 },
     tripleKills: 0, quadraKills: 0, pentaKills: 0, items: [], augments: [],
   }))
 }
@@ -158,6 +159,59 @@ describe('match scoreboard', () => {
     unknown[2].damageToChampions = null
     expect(buildScoreboardTeams(unknown)[0].players[0]).toMatchObject({ damageShare: null, isTopDamage: false, killParticipation: 60 })
     const zeros = players().slice(0, 5).map((player) => ({ ...player, damageToChampions: 0, kills: 0, assists: 0 }))
+    zeros.forEach((player) => { player.participationStats = { kills: 0, assists: 0 } })
     expect(buildScoreboardTeams(zeros)[0].players[0]).toMatchObject({ damageShare: null, killParticipation: null, isTopDamage: false })
+  })
+
+  it('compares damage taken and total healing only within a valid team and computes rates from seconds', () => {
+    const list = players()
+    list[0].damageTaken = 400
+    list[0].totalHeal = 0
+    const player = buildScoreboardTeams(list, 600)[1].players[0]
+    expect(player).toMatchObject({ takenShare: 400 / 1200 * 100, healShare: 0, goldPerMinute: 100, csPerMinute: 2 })
+    list[1].totalHeal = null
+    expect(buildScoreboardTeams(list, 600)[1].players[0]).toMatchObject({ takenShare: 400 / 1200 * 100, healShare: null })
+    list.slice(0, 5).forEach((entry) => { entry.totalHeal = 0 })
+    expect(buildScoreboardTeams(list, 600)[1].players[0].healShare).toBeNull()
+  })
+
+  it('rejects ambiguous team membership, invalid values and overflowing totals for comparison bars', () => {
+    const changes = [
+      (list: HextechAramMatchParticipant[]) => { list.push({ ...list[0] }) },
+      (list: HextechAramMatchParticipant[]) => { list[5].participantId = list[0].participantId },
+      (list: HextechAramMatchParticipant[]) => { list[0].playerKey = list[1].playerKey = 'HN1:duplicate' },
+      (list: HextechAramMatchParticipant[]) => { list[1].result = 'loss' },
+      (list: HextechAramMatchParticipant[]) => { list[0].teamId = 0 },
+    ]
+    for (const change of changes) {
+      const list = players()
+      change(list)
+      const player = buildScoreboardTeams(list, 600).flatMap((team) => team.players).find((entry) => entry.participantId === 1)!
+      expect(player).toMatchObject({ damageShare: null, takenShare: null, healShare: null, killParticipation: null, isTopDamage: false })
+    }
+    for (const value of [NaN, Infinity, -1, Number.MAX_SAFE_INTEGER]) {
+      const list = players()
+      list[0].damageTaken = value
+      expect(buildScoreboardTeams(list)[1].players[0].takenShare).toBeNull()
+    }
+  })
+
+  it('keeps raw missing or contradictory participation unavailable rather than using normalized zero or capping it', () => {
+    const list = players().slice(0, 5)
+    list[0].participationStats = { kills: 2, assists: null }
+    expect(buildScoreboardTeams(list)[0].players[0].killParticipation).toBeNull()
+    list[0].participationStats = { kills: 2, assists: 20 }
+    expect(buildScoreboardTeams(list)[0].players[0].killParticipation).toBeNull()
+    list[1].participationStats = { kills: null, assists: 4 }
+    expect(buildScoreboardTeams(list)[0].kills).toBeNull()
+    expect(buildScoreboardTeams(list)[0].players.every((entry) => entry.killParticipation === null)).toBe(true)
+  })
+
+  it('preserves real zero rates and rejects absent, nonfinite or nonpositive duration and invalid numerators', () => {
+    expect(perMinute(0, 600)).toBe(0)
+    expect(perMinute(52, 900)).toBeCloseTo(3.4666667)
+    for (const duration of [0, -1, Infinity, NaN, Number.MIN_VALUE]) expect(perMinute(10, duration)).toBeNull()
+    for (const value of [null, NaN, Infinity, -1, 1.5]) expect(perMinute(value, 600)).toBeNull()
+    expect(buildScoreboardTeams(players())[0].players[0]).toMatchObject({ goldPerMinute: null, csPerMinute: null })
   })
 })

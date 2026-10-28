@@ -169,6 +169,11 @@ function toParticipants(
     const champion = labels.champions?.get(participant.championId)
     const laneMinions = optionalStat(stats?.totalMinionsKilled)
     const neutralMinions = optionalStat(stats?.neutralMinionsKilled)
+    const spellId = (slot: 1 | 2) => {
+      const id = optionalStat(raw?.[`summoner${slot}Id`] ?? raw?.[`spell${slot}Id`] ?? stats?.[`summoner${slot}Id`] ?? stats?.[`spell${slot}Id`])
+      return id !== null && id > 0 ? id : null
+    }
+    const minionsKilled = laneMinions !== null && neutralMinions !== null ? laneMinions + neutralMinions : null
     return {
       participantId: participant.participantId,
       playerKey: getMatchHistoryPlayerKey(game.platformId, participant.puuid),
@@ -185,8 +190,12 @@ function toParticipants(
       participationStats: { kills: optionalStat(stats?.kills), assists: optionalStat(stats?.assists) },
       damageToChampions: optionalStat(stats?.totalDamageDealtToChampions),
       damageTaken: optionalStat(stats?.totalDamageTaken),
+      totalHeal: optionalStat(stats?.totalHeal),
+      damageToTurrets: optionalStat(stats?.damageDealtToTurrets),
       goldEarned: optionalStat(stats?.goldEarned),
-      minionsKilled: laneMinions !== null && neutralMinions !== null ? laneMinions + neutralMinions : null,
+      minionsKilled: Number.isSafeInteger(minionsKilled) ? minionsKilled : null,
+      spell1Id: spellId(1),
+      spell2Id: spellId(2),
       tripleKills: optionalStat(stats?.tripleKills),
       quadraKills: optionalStat(stats?.quadraKills),
       pentaKills: optionalStat(stats?.pentaKills),

@@ -13,6 +13,7 @@ const names = ['鞋子', 'Boots', '鞋子']
 const descriptions = ['移动速度', 'Move speed', '跑速']
 const puuid = '11111111-1111-1111-1111-111111111111'
 const attemptedUrls = []
+const summaryRequests = []
 
 async function writeJson(filePath, payload) {
   await mkdir(path.dirname(filePath), { recursive: true })
@@ -46,13 +47,29 @@ try {
   const { default: logger } = await import('../../src/main/modules/logger.ts')
   mock.method(logger, 'warn', () => {})
   const { loadItems, setDataLocale } = await import('../../src/main/data-loader.ts')
-  const { SgpMatchHistoryService } = await import('../../src/main/services/match-history/sgp-match-history-service.ts')
-  mock.method(SgpMatchHistoryService.prototype, 'getHextechAramSummaries', async () => [{
-    gameId: 1, gameCreation: 1_000, gameDuration: 900, gameMode: 'KIWI', queueId: 2400,
-    participants: [{ participantId: 1, puuid, championId: 103, teamId: 100, win: true, item0: 1001, item1: 9999, playerAugment1: 18 }],
-  }])
+  const { default: axios } = await import('axios')
+  // Exercise the real SGP compaction + query mapping while blocking the network boundary.
+  mock.method(axios, 'get', async (url, options) => {
+    assert.equal(url, `https://hn1-k8s-sgp.lol.qq.com:21019/match-history-query/v1/products/lol/player/${puuid}/SUMMARY`)
+    assert.deepEqual(options.params, { startIndex: 0, count: 10, tag: 'q_2400', tagsQueryType: 'AND' })
+    summaryRequests.push(url)
+    return { data: { games: [{ json: {
+      gameId: 1, gameCreation: 1_000, gameDuration: 900, gameMode: 'KIWI', queueId: 2400,
+      participants: Array.from({ length: 10 }, (_, index) => ({
+        participantId: index + 1, puuid: index === 0 ? puuid : `other-player-${index}`, championId: 103,
+        teamId: index < 5 ? 100 : 200, win: index < 5, item0: 1001, item1: 9999, playerAugment1: 18,
+        kills: 2, deaths: 1, assists: 4, totalDamageDealtToChampions: 1_000, totalDamageTaken: 2_000,
+        totalHeal: 300, totalHealsOnTeammates: 50, damageDealtToTurrets: 700, damageDealtToBuildings: 900,
+        goldEarned: 6_000, totalMinionsKilled: 45, neutralMinionsKilled: 0, summoner1Id: 4, summoner2Id: 32,
+      })),
+    } }] } }
+  })
   const { HextechAramQueryService } = await import('../../src/main/services/match-history/hextech-aram-query-service.ts')
-  const service = new HextechAramQueryService({ getCurrentSummoner: async () => ({ puuid, platformId: 'HN1' }) })
+  const { buildScoreboardTeams } = await import('../../src/renderer/services/match-history-insights.ts')
+  const service = new HextechAramQueryService({
+    getCurrentSummoner: async () => ({ puuid, platformId: 'HN1' }),
+    getEntitlementsAccessToken: async () => 'isolated-fixture-token',
+  })
 
   for (const [index, locale] of locales.entries()) {
     setDataLocale(locale)
@@ -66,9 +83,16 @@ try {
     ])
     assert.deepEqual(match.participants[0].items, match.items)
     assert.deepEqual(match.participants[0].augments, match.augments)
+    assert.equal(match.participants.length, 10)
+    const player = buildScoreboardTeams(match.participants, match.gameDuration)[0].players[0]
+    for (const [key, expected] of Object.entries({ totalHeal: 300, damageToTurrets: 700, spell1Id: 4, spell2Id: 32,
+      damageShare: 20, takenShare: 20, healShare: 20, goldPerMinute: 400, csPerMinute: 3, killParticipation: 60 })) {
+      assert.equal(player[key], expected, key)
+    }
   }
+  assert.equal(summaryRequests.length, locales.length, 'Only one existing SGP SUMMARY request per page; no per-match requests')
   assert.ok(attemptedUrls.every((url) => /\/config(?:\?|$)/.test(url)), 'Only background config checks may attempt network access')
-  console.log('Match-history local asset fixtures passed for zh-CN, en-US and zh-TW; no live LCU, user data or asset requests.')
+  console.log('Match-history local assets and ten-player SGP scoreboard fixtures passed for zh-CN, en-US and zh-TW; no live LCU, user data or asset requests.')
 } finally {
   mock.restoreAll()
   process.chdir(originalCwd)
