@@ -5,6 +5,9 @@ export const matchAnalysisMessages = {
     averageScore: '场均 {kills} / {deaths} / {assists}', trend: '本页走势 · 左侧最新',
     winStreak: '本页连续 {count} 胜', lossStreak: '本页连续 {count} 负',
     noCompleted: '本页暂无有效对局',
+    championFilter: '英雄', resultFilter: '胜负', allChampions: '全部英雄', allResults: '全部结果',
+    resetFilters: '清除筛选', filterScope: '筛选当前页 · 显示 {count} / {total} 场；翻页后重置筛选。',
+    noFilteredMatches: '本页没有符合条件的对局',
   },
   'en-US': {
     overview: 'Page performance', scope: 'Based on {count} completed matches on this page. Remakes are excluded from win rate and KDA.',
@@ -12,6 +15,9 @@ export const matchAnalysisMessages = {
     averageScore: 'Average {kills} / {deaths} / {assists}', trend: 'Page results · newest first',
     winStreak: '{count} consecutive wins on this page', lossStreak: '{count} consecutive losses on this page',
     noCompleted: 'No completed matches on this page',
+    championFilter: 'Champion', resultFilter: 'Result', allChampions: 'All champions', allResults: 'All results',
+    resetFilters: 'Clear filters', filterScope: 'This page only · Showing {count} / {total} matches. Filters reset on page load.',
+    noFilteredMatches: 'No matches on this page meet these filters',
   },
   'zh-TW': {
     overview: '本頁表現', scope: '僅統計本頁 {count} 場有效對局，重開不計入勝率與 KDA。',
@@ -19,5 +25,8 @@ export const matchAnalysisMessages = {
     averageScore: '場均 {kills} / {deaths} / {assists}', trend: '本頁走勢 · 左側最新',
     winStreak: '本頁連續 {count} 勝', lossStreak: '本頁連續 {count} 負',
     noCompleted: '本頁暫無有效對局',
+    championFilter: '英雄', resultFilter: '勝負', allChampions: '全部英雄', allResults: '全部結果',
+    resetFilters: '清除篩選', filterScope: '篩選目前頁面 · 顯示 {count} / {total} 場；翻頁後重設篩選。',
+    noFilteredMatches: '本頁沒有符合條件的對局',
   },
 }

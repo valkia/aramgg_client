@@ -1,5 +1,5 @@
 <template>
-  <section class="match-history-panel">
+  <section class="match-history-panel" :aria-busy="loading">
     <header class="match-history-header">
       <div>
         <p class="section-kicker">{{ t('matchHistory.title') }}</p>
@@ -33,14 +33,37 @@
 
     <MatchHistoryOverview v-if="page?.matches.length" :matches="page.matches" />
 
-    <div v-if="loading && !page" class="match-history-loading" role="status">
-      <RefreshCw class="match-history-loading-icon spinning" aria-hidden="true" />
-      <span>{{ t('matchHistory.querying') }}</span>
+    <div v-if="page?.matches.length" class="mt-3 space-y-2">
+      <div class="flex flex-wrap items-end gap-2">
+        <label class="min-w-32 flex-1 text-xs text-muted-foreground">
+          {{ t('matchAnalysis.championFilter') }}
+          <select v-model="championFilter" :disabled="loading" class="mt-1 block h-9 w-full rounded border border-border bg-card px-2 text-foreground focus-visible:outline-primary">
+            <option :value="0">{{ t('matchAnalysis.allChampions') }}</option>
+            <option v-for="champion in champions" :key="champion.championId" :value="champion.championId">{{ championName(champion) }}</option>
+          </select>
+        </label>
+        <label class="min-w-28 flex-1 text-xs text-muted-foreground">
+          {{ t('matchAnalysis.resultFilter') }}
+          <select v-model="resultFilter" :disabled="loading" class="mt-1 block h-9 w-full rounded border border-border bg-card px-2 text-foreground focus-visible:outline-primary">
+            <option value="all">{{ t('matchAnalysis.allResults') }}</option>
+            <option v-for="result in results" :key="result" :value="result">{{ resultLabel(result) }}</option>
+          </select>
+        </label>
+        <button type="button" class="h-9 rounded border border-border px-3 text-xs text-primary disabled:opacity-40" :disabled="loading || !hasFilters" @click="resetFilters">{{ t('matchAnalysis.resetFilters') }}</button>
+      </div>
+      <p class="text-xs text-muted-foreground" aria-live="polite">{{ t('matchAnalysis.filterScope', { count: visibleMatches.length, total: page.matches.length }) }}</p>
     </div>
 
-    <div v-else-if="page?.matches.length" class="recent-match-list">
+    <div v-if="loading && !page" class="mt-3" role="status">
+      <p class="text-xs text-muted-foreground">{{ t('matchHistory.querying') }}</p>
+      <div class="mt-2 space-y-2" aria-hidden="true">
+        <div v-for="index in 3" :key="index" class="h-24 w-full animate-pulse rounded bg-muted motion-reduce:animate-none" />
+      </div>
+    </div>
+
+    <div v-else-if="visibleMatches.length" class="recent-match-list" :class="{ 'opacity-50 pointer-events-none': loading }" :inert="loading">
       <article
-        v-for="match in page.matches"
+        v-for="match in visibleMatches"
         :key="match.gameId"
         class="recent-match"
         :class="match.result"
@@ -118,7 +141,8 @@
     </div>
 
     <p v-else-if="page && !loading" class="match-history-empty">
-      {{ t('matchHistory.noMatches') }}
+      {{ hasFilters ? t('matchAnalysis.noFilteredMatches') : t('matchHistory.noMatches') }}
+      <button v-if="hasFilters" type="button" class="ml-2 text-primary underline" @click="resetFilters">{{ t('matchAnalysis.resetFilters') }}</button>
     </p>
 
     <footer v-if="page" class="match-history-pagination">
@@ -144,7 +168,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-vue-next'
 import type {
@@ -162,6 +186,20 @@ const { t } = useI18n()
 const page = ref<HextechAramMatchHistoryPage | null>(null)
 const loading = ref(false)
 const status = ref('')
+const championFilter = ref(0)
+const resultFilter = ref<HextechAramMatchResult | 'all'>('all')
+const results: HextechAramMatchResult[] = ['win', 'loss', 'remake']
+const champions = computed(() => [...new Map((page.value?.matches || []).map((match) => [match.championId, match])).values()])
+const hasFilters = computed(() => championFilter.value !== 0 || resultFilter.value !== 'all')
+const visibleMatches = computed(() => (page.value?.matches || []).filter((match) =>
+  (!championFilter.value || match.championId === championFilter.value)
+  && (resultFilter.value === 'all' || match.result === resultFilter.value),
+))
+
+function resetFilters(): void {
+  championFilter.value = 0
+  resultFilter.value = 'all'
+}
 
 function formatTime(timestamp: number): string {
   return new Intl.DateTimeFormat(undefined, {
@@ -218,6 +256,7 @@ async function queryPage(startIndex: number): Promise<void> {
       return
     }
     page.value = result.data
+    resetFilters()
   } catch (error) {
     status.value = t('matchHistory.queryFailed', {
       error: error instanceof Error ? error.message : String(error),
