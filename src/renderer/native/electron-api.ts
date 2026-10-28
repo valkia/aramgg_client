@@ -69,6 +69,8 @@ export const electronAPI: ElectronAPI = {
   matchHistory: {
     getLocalSummary: (...args) => requireElectronAPI().matchHistory.getLocalSummary(...args),
     queryCurrent: (...args) => requireElectronAPI().matchHistory.queryCurrent(...args),
+    openDetail: (...args) => requireElectronAPI().matchHistory.openDetail(...args),
+    getDetailSnapshot: () => requireElectronAPI().matchHistory.getDetailSnapshot(),
   },
   feedback: {
     submit: (...args) => requireElectronAPI().feedback.submit(...args),

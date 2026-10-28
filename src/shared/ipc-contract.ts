@@ -163,6 +163,9 @@ export interface HextechAramMatchHistoryMatch extends LooseRecord {
 }
 
 export interface HextechAramMatchHistoryPage extends LooseRecord {
+  /** Ephemeral main-process selection capability; absent outside a live main-window query. */
+  snapshotId?: string
+  locale?: SupportedDataLocale
   playerName: string
   platformId: string
   queriedAt: number
@@ -181,6 +184,23 @@ export interface HextechAramMatchHistoryQuery extends LooseRecord {
 
 export interface HextechAramMatchHistoryQueryResult extends OperationResult {
   data?: HextechAramMatchHistoryPage
+}
+
+export interface MatchDetailSelection {
+  snapshotId: string
+  gameId: number
+}
+
+export interface MatchDetailSnapshot {
+  match: HextechAramMatchHistoryMatch
+  playerName: string
+  platformId: string
+  locale: SupportedDataLocale
+  queriedAt: number
+}
+
+export interface MatchDetailSnapshotResult extends OperationResult {
+  data?: MatchDetailSnapshot
 }
 
 export interface ClientVersionInfo extends LooseRecord {
@@ -470,6 +490,8 @@ export interface ElectronAPI {
   matchHistory: {
     getLocalSummary(): Promise<LocalMatchHistorySummaryResult>
     queryCurrent(payload?: HextechAramMatchHistoryQuery): Promise<HextechAramMatchHistoryQueryResult>
+    openDetail(selection: MatchDetailSelection): Promise<OperationResult>
+    getDetailSnapshot(): Promise<MatchDetailSnapshotResult>
   }
   feedback: {
     submit(payload: FeedbackSubmissionPayload): Promise<FeedbackSubmissionResult>

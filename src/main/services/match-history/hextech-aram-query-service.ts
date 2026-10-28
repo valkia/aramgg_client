@@ -4,6 +4,7 @@ import type {
   HextechAramMatchHistoryPage,
   HextechAramMatchHistoryQuery,
   HextechAramMatchParticipant,
+  SupportedDataLocale,
 } from '../../../shared/ipc-contract.ts'
 import { getDataLocale, loadAugmentDetail, loadChampionRoster, loadItems } from '../../data-loader.ts'
 import logger from '../../modules/logger.ts'
@@ -13,6 +14,7 @@ import { isHextechAramGame } from './statistics.ts'
 import { SgpMatchHistoryService } from './sgp-match-history-service.ts'
 import type { StoredMatchHistoryGame } from './types.ts'
 import { getMatchHistoryPlayerKey } from './player-identity.ts'
+import { MatchDetailSnapshotExpiredError, sameMatchDetailContext, type MatchDetailContext } from './match-detail-snapshots.ts'
 
 export const DEFAULT_HEXTECH_ARAM_QUERY_COUNT = 10
 export const MAX_HEXTECH_ARAM_QUERY_COUNT = 20
@@ -271,22 +273,32 @@ export class HextechAramQueryService {
   async queryCurrent(
     query?: HextechAramMatchHistoryQuery,
   ): Promise<HextechAramMatchHistoryPage> {
-    const range = normalizeHextechAramQuery(query)
+    return (await this.queryCurrentWithContext(query)).page
+  }
+
+  async getCurrentContext(): Promise<MatchDetailContext> {
+    const { context } = await this.resolveCurrentPlayer(getDataLocale())
+    if (context.locale !== getDataLocale()) throw new MatchDetailSnapshotExpiredError()
+    return context
+  }
+
+  private async resolveCurrentPlayer(locale: SupportedDataLocale) {
     const currentSummoner = await this.lcuService.getCurrentSummoner()
     if (!isRecord(currentSummoner) || !isValidPuuid(currentSummoner.puuid)) {
       throw new Error('请先登录英雄联盟客户端')
     }
-
     const currentPuuid = currentSummoner.puuid
     let platformId = normalizePlatformId(currentSummoner.platformId ?? currentSummoner.currentPlatformId)
-    if (!platformId) {
-      platformId = getBootstrapPlatformId(
-        await this.lcuService.getCurrentSummonerMatchHistory(0, 0),
-      )
-    }
-    if (!platformId) {
-      throw new Error('无法识别当前账号所在区服')
-    }
+    if (!platformId) platformId = getBootstrapPlatformId(await this.lcuService.getCurrentSummonerMatchHistory(0, 0))
+    const accountKey = getMatchHistoryPlayerKey(platformId, currentPuuid)
+    if (!accountKey) throw new Error('无法识别当前账号所在区服')
+    return { currentSummoner, currentPuuid, context: { accountKey, platformId, locale } }
+  }
+
+  async queryCurrentWithContext(query?: HextechAramMatchHistoryQuery): Promise<{ page: HextechAramMatchHistoryPage; context: MatchDetailContext }> {
+    const range = normalizeHextechAramQuery(query)
+    const { currentSummoner, currentPuuid, context } = await this.resolveCurrentPlayer(getDataLocale())
+    const { platformId, locale } = context
 
     const rawGames = await this.sgpMatchHistoryService.getHextechAramSummaries(
       currentPuuid,
@@ -299,9 +311,12 @@ export class HextechAramQueryService {
       const normalized = normalizeGame(game, platformId, queriedAt)
       return normalized ? [normalized] : []
     })
-    const labels = await this.loadLabels()
+    const labels = await this.loadLabels(locale)
+    if (!sameMatchDetailContext(context, await this.getCurrentContext())) {
+      throw new MatchDetailSnapshotExpiredError()
+    }
 
-    return buildHextechAramMatchHistoryPage({
+    const page = buildHextechAramMatchHistoryPage({
       games: normalizedGames,
       currentPuuid,
       playerName: getPlayerName(currentSummoner),
@@ -313,11 +328,11 @@ export class HextechAramQueryService {
       labels,
       rawGames,
     })
+    return { page, context }
   }
 
-  private async loadLabels(): Promise<HextechAramQueryLabels> {
+  private async loadLabels(locale: SupportedDataLocale): Promise<HextechAramQueryLabels> {
     try {
-      const locale = getDataLocale()
       const [champions, augmentsById, items] = await Promise.all([
         loadChampionRoster(locale),
         loadAugmentDetail(locale),

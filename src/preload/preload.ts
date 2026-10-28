@@ -117,6 +117,8 @@ const electronAPI: ElectronAPI = {
   matchHistory: {
     getLocalSummary: () => ipcRenderer.invoke('match-history-get-local-summary'),
     queryCurrent: (payload) => ipcRenderer.invoke('match-history-query-current', payload),
+    openDetail: (selection) => ipcRenderer.invoke('match-history-open-detail', selection),
+    getDetailSnapshot: () => ipcRenderer.invoke('match-history-get-detail-snapshot'),
   },
   feedback: {
     submit: (payload) => ipcRenderer.invoke('feedback-submit', payload),

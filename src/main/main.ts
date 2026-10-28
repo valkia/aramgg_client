@@ -128,6 +128,7 @@ function setupMainProcessErrorHandling(): void {
 
     app.on('before-quit', () => {
         logger.info('[app] before-quit')
+        windowManager.closeMatchDetailWindows()
         import('./services/analytics-service.ts').then(({ markAnalyticsAppCleanExit }) => {
             markAnalyticsAppCleanExit()
         }).catch(() => {})

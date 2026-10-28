@@ -140,6 +140,12 @@
             <small v-else>{{ t('matchHistory.noItems') }}</small>
           </div>
         </div>
+        <div class="mt-3 flex justify-end">
+          <button type="button" class="flex items-center gap-1.5 rounded border border-border px-3 py-2 text-xs text-primary disabled:opacity-40" :disabled="loading || !page?.snapshotId || opening.has(match.gameId)" @click="openDetail(match.gameId)">
+            <ExternalLink class="h-3.5 w-3.5" aria-hidden="true" />
+            {{ t(opening.has(match.gameId) ? 'matchDetail.opening' : 'matchDetail.open') }}
+          </button>
+        </div>
         <MatchScoreboard :ref="(instance) => setScoreboardRef(match.gameId, instance)" :match="match" :loading="loading" />
       </article>
     </div>
@@ -172,9 +178,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, type ComponentPublicInstance } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, type ComponentPublicInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from 'lucide-vue-next'
 import type {
   HextechAramMatchHistoryAsset,
   HextechAramMatchHistoryMatch,
@@ -193,6 +199,11 @@ const { t } = useI18n()
 const page = ref<HextechAramMatchHistoryPage | null>(null)
 const loading = ref(false)
 const status = ref('')
+const opening = ref(new Set<number>())
+let querySequence = 0
+let localeReloadPending = false
+let active = true
+let unsubscribeLocale: (() => void) | undefined
 const championFilter = ref(0)
 const resultFilter = ref<HextechAramMatchResult | 'all'>('all')
 const scoreboards = new Map<number, InstanceType<typeof MatchScoreboard>>()
@@ -219,6 +230,19 @@ async function openEncounter(gameId: number): Promise<void> {
   resetFilters()
   await nextTick()
   await scoreboards.get(gameId)?.open()
+}
+
+async function openDetail(gameId: number): Promise<void> {
+  if (loading.value || opening.value.has(gameId) || !page.value?.snapshotId || !hasElectronAPI()) return
+  opening.value.add(gameId)
+  try {
+    const result = await electronAPI.matchHistory.openDetail({ snapshotId: page.value.snapshotId, gameId })
+    if (!result.success) status.value = t('matchDetail.openFailed')
+  } catch {
+    status.value = t('matchDetail.openFailed')
+  } finally {
+    opening.value.delete(gameId)
+  }
 }
 
 function formatTime(timestamp: number): string {
@@ -265,29 +289,51 @@ async function queryPage(startIndex: number): Promise<void> {
   }
 
   loading.value = true
+  const sequence = ++querySequence
   status.value = ''
   try {
     const result = await electronAPI.matchHistory.queryCurrent({
       startIndex,
       count: PAGE_SIZE,
     })
+    if (sequence !== querySequence || !active) return
     if (!result.success || !result.data) {
-      status.value = t('matchHistory.queryFailed', { error: result.error || '' })
+      status.value = result.errorCode === 'snapshot-invalid'
+        ? t('matchDetail.expired')
+        : t('matchHistory.queryFailed', { error: result.error || '' })
       return
     }
     page.value = result.data
     resetFilters()
   } catch (error) {
+    if (sequence !== querySequence || !active) return
     status.value = t('matchHistory.queryFailed', {
       error: error instanceof Error ? error.message : String(error),
     })
   } finally {
     loading.value = false
+    if (localeReloadPending && active) {
+      localeReloadPending = false
+      void queryPage(0)
+    }
   }
 }
 
 onMounted(() => {
+  if (hasElectronAPI()) unsubscribeLocale = electronAPI.events.on('locale-changed', () => {
+    querySequence += 1
+    page.value = null
+    status.value = ''
+    resetFilters()
+    if (loading.value) localeReloadPending = true
+    else void queryPage(0)
+  })
   void queryPage(0)
+})
+onBeforeUnmount(() => {
+  active = false
+  querySequence += 1
+  unsubscribeLocale?.()
 })
 </script>
 

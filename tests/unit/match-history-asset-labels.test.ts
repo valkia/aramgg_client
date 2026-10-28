@@ -15,6 +15,7 @@ const puuid = '11111111-1111-1111-1111-111111111111'
 const lcu = { getCurrentSummoner: vi.fn().mockResolvedValue({ puuid, platformId: 'HN1' }) } as unknown as LCUService
 
 beforeEach(() => {
+  vi.mocked(lcu.getCurrentSummoner).mockResolvedValue({ puuid, platformId: 'HN1' })
   localData.loadChampionRoster.mockResolvedValue([])
   getSummaries.mockResolvedValue([{
     gameId: 1, gameCreation: 1_000, gameDuration: 900, gameMode: 'KIWI', queueId: 2400,
@@ -55,5 +56,25 @@ describe('local match-history asset labels', () => {
     const match = (await new HextechAramQueryService(lcu).queryCurrent()).matches[0]
     expect(match.items).toEqual([{ id: 1001 }])
     expect(match.augments).toEqual([{ id: 18 }, { id: 42 }])
+  })
+
+  it('rejects an account change while a page query is in progress', async () => {
+    localData.getDataLocale.mockReturnValue('zh-CN')
+    vi.mocked(lcu.getCurrentSummoner)
+      .mockResolvedValueOnce({ puuid, platformId: 'HN1' })
+      .mockResolvedValueOnce({ puuid: '22222222-2222-2222-2222-222222222222', platformId: 'HN1' })
+    await expect(new HextechAramQueryService(lcu).queryCurrent()).rejects.toThrow('account or language changed')
+    expect(getSummaries).toHaveBeenCalledTimes(1)
+  })
+
+  it('pins label loading to the starting language and rejects a language change before capture', async () => {
+    localData.getDataLocale.mockReturnValue('zh-CN')
+    localData.loadChampionRoster.mockImplementationOnce(async () => {
+      localData.getDataLocale.mockReturnValue('en-US')
+      return []
+    })
+    await expect(new HextechAramQueryService(lcu).queryCurrent()).rejects.toThrow('account or language changed')
+    for (const loader of [localData.loadChampionRoster, localData.loadAugmentDetail, localData.loadItems]) expect(loader).toHaveBeenCalledWith('zh-CN')
+    expect(getSummaries).toHaveBeenCalledTimes(1)
   })
 })

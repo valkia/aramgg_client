@@ -1,10 +1,12 @@
 import type { SupportedDataLocale } from '../../shared/ipc-contract.ts'
 import { matchAnalysisMessages } from './match-analysis.ts'
 import { benchEvidenceMessages } from './bench-evidence.ts'
+import { matchDetailMessages } from './match-detail.ts'
 
 export const messages = {
   'zh-CN': {
     matchAnalysis: matchAnalysisMessages['zh-CN'],
+    matchDetail: matchDetailMessages['zh-CN'],
     common: {
       cancel: '取消',
       close: '关闭',
@@ -367,6 +369,7 @@ export const messages = {
   },
   'en-US': {
     matchAnalysis: matchAnalysisMessages['en-US'],
+    matchDetail: matchDetailMessages['en-US'],
     common: {
       cancel: 'Cancel', close: 'Close', current: 'Current', exit: 'Exit', hide: 'Hide', loading: 'Loading...', minimize: 'Minimize', refresh: 'Refresh', unknown: 'Unknown', unknownError: 'Unknown error',
     },
@@ -410,6 +413,7 @@ export const messages = {
   },
   'zh-TW': {
     matchAnalysis: matchAnalysisMessages['zh-TW'],
+    matchDetail: matchDetailMessages['zh-TW'],
     common: {
       cancel: '取消', close: '關閉', current: '目前', exit: '退出', hide: '隱藏', loading: '載入中...', minimize: '最小化', refresh: '重新整理', unknown: '未知', unknownError: '未知錯誤',
     },

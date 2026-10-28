@@ -9,14 +9,14 @@ import MatchHistoryOverview from '../../src/renderer/components/MatchHistoryOver
 import { messages } from '../../src/renderer/i18n/messages.ts'
 import type { HextechAramMatchHistoryPage } from '../../src/shared/ipc-contract.ts'
 
-const { queryCurrent } = vi.hoisted(() => ({ queryCurrent: vi.fn() }))
+const { queryCurrent, openDetail, onEvent } = vi.hoisted(() => ({ queryCurrent: vi.fn(), openDetail: vi.fn(), onEvent: vi.fn(() => vi.fn()) }))
 vi.mock('../../src/renderer/native/electron-api.ts', () => ({
   hasElectronAPI: () => true,
-  electronAPI: { matchHistory: { queryCurrent } },
+  electronAPI: { matchHistory: { queryCurrent, openDetail }, events: { on: onEvent } },
 }))
 
 const page: HextechAramMatchHistoryPage = {
-  playerName: 'Test#CN1', platformId: 'HN1', queriedAt: 1_000, startIndex: 0, count: 10,
+  playerName: 'Test#CN1', platformId: 'HN1', queriedAt: 1_000, startIndex: 0, count: 10, snapshotId: 'page-one', locale: 'zh-CN',
   returnedCount: 3, hasPrevious: false, hasMore: true,
   matches: [
     { gameId: 3, championId: 103, championName: '阿狸', result: 'win' },
@@ -25,7 +25,7 @@ const page: HextechAramMatchHistoryPage = {
   ].map((match) => ({ ...match, result: match.result as 'win' | 'loss' | 'remake', gameCreation: match.gameId * 1_000, gameDuration: 900, gameVersion: '16.21', kills: 8, deaths: 2, assists: 12, items: [], augments: [] })),
 }
 let wrapper: VueWrapper
-beforeEach(() => { queryCurrent.mockReset(); queryCurrent.mockResolvedValue({ success: true, data: page }) })
+beforeEach(() => { queryCurrent.mockReset(); queryCurrent.mockResolvedValue({ success: true, data: page }); openDetail.mockReset(); openDetail.mockResolvedValue({ success: true }); onEvent.mockClear() })
 afterEach(() => { wrapper?.unmount() })
 function render(locale = 'zh-CN') {
   wrapper = mount(MatchHistoryPanel, { global: { plugins: [createI18n({ legacy: false, locale, messages })] } })
@@ -34,6 +34,41 @@ function render(locale = 'zh-CN') {
 function button(text: string) { return wrapper.findAll('button').find((candidate) => candidate.text() === text)! }
 
 describe('match history filters', () => {
+  it('opens a separate detail with only the page capability and game ID and deduplicates pending clicks', async () => {
+    let finish!: (value: unknown) => void
+    openDetail.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    render('en-US')
+    await flushPromises()
+    const opener = wrapper.get('article').findAll('button').find((candidate) => candidate.text() === 'Open in separate window')!
+    await opener.trigger('click')
+    expect(openDetail).toHaveBeenCalledWith({ snapshotId: 'page-one', gameId: 3 })
+    expect(opener.attributes('disabled')).toBeDefined()
+    await opener.trigger('click')
+    expect(openDetail).toHaveBeenCalledTimes(1)
+    finish({ success: false, error: 'untranslated internal error' })
+    await flushPromises()
+    expect(wrapper.text()).toContain('up to 4 detail windows')
+    expect(wrapper.text()).not.toContain('untranslated internal error')
+    expect(wrapper.get('details').exists()).toBe(true)
+  })
+
+  it('discards a slow old-language page and queries the new language after it finishes', async () => {
+    let finish!: (value: unknown) => void
+    queryCurrent.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    render()
+    await flushPromises()
+    const callback = (onEvent.mock.calls.at(-1) as any)[1]
+    callback({ locale: 'en-US' })
+    finish({ success: true, data: page })
+    await flushPromises()
+    expect(queryCurrent).toHaveBeenCalledTimes(2)
+    expect(queryCurrent).toHaveBeenLastCalledWith({ startIndex: 0, count: 10 })
+    expect(wrapper.findAll('article')).toHaveLength(3)
+    const unsubscribe = onEvent.mock.results.at(-1)!.value
+    wrapper.unmount()
+    expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+
   it('keeps page performance on the original page when filters hide some or all matches', async () => {
     queryCurrent.mockResolvedValueOnce({ success: true, data: { ...page, matches: page.matches.map((match) => ({
       ...match, participants: [{

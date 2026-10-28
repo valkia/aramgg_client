@@ -10,8 +10,9 @@ import {
 import { changeDataLocale } from '../modules/data-locale-controller.ts'
 import store from '../modules/app-store.ts'
 import logger from '../modules/logger.ts'
-import { applyPopupWindowPreferences, notifyAllWindows } from '../modules/window-manager.ts'
+import { applyPopupWindowPreferences, closeMatchDetailWindows, notifyAllWindows } from '../modules/window-manager.ts'
 import { trustedIpcMain as ipcMain } from '../security/trusted-ipc.ts'
+import { matchDetailSnapshots } from '../services/match-history/match-detail-snapshots.ts'
 
 const APP_LOCALE_KEY = 'app.locale'
 const RENDERER_STORE_KEYS = new Set<AppStoreKey>([
@@ -90,7 +91,11 @@ export function registerPreferencesIpcHandlers(): void {
       prepare: prepareDataLocale,
       persist: (preparedLocale) => store.set(APP_LOCALE_KEY, preparedLocale),
       activate: setDataLocale,
-      notify: (payload) => notifyAllWindows('locale-changed', payload),
+      notify: (payload) => {
+        matchDetailSnapshots.clear()
+        closeMatchDetailWindows()
+        notifyAllWindows('locale-changed', payload)
+      },
     })
 
     logger.info('[locale] data locale changed', {
