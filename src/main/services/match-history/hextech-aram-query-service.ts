@@ -182,6 +182,7 @@ function toParticipants(
       kills: participant.kills,
       deaths: participant.deaths,
       assists: participant.assists,
+      participationStats: { kills: optionalStat(stats?.kills), assists: optionalStat(stats?.assists) },
       damageToChampions: optionalStat(stats?.totalDamageDealtToChampions),
       damageTaken: optionalStat(stats?.totalDamageTaken),
       goldEarned: optionalStat(stats?.goldEarned),

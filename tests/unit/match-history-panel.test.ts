@@ -5,6 +5,7 @@ import { createI18n } from 'vue-i18n'
 import MatchHistoryPanel from '../../src/renderer/components/MatchHistoryPanel.vue'
 import MatchEncounters from '../../src/renderer/components/MatchEncounters.vue'
 import MatchAssetTooltip from '../../src/renderer/components/MatchAssetTooltip.vue'
+import MatchHistoryOverview from '../../src/renderer/components/MatchHistoryOverview.vue'
 import { messages } from '../../src/renderer/i18n/messages.ts'
 import type { HextechAramMatchHistoryPage } from '../../src/shared/ipc-contract.ts'
 
@@ -33,6 +34,28 @@ function render(locale = 'zh-CN') {
 function button(text: string) { return wrapper.findAll('button').find((candidate) => candidate.text() === text)! }
 
 describe('match history filters', () => {
+  it('keeps page performance on the original page when filters hide some or all matches', async () => {
+    queryCurrent.mockResolvedValueOnce({ success: true, data: { ...page, matches: page.matches.map((match) => ({
+      ...match, participants: [{
+        participantId: 1, teamId: 100, playerName: 'Test', isCurrentPlayer: true,
+        championId: match.championId, result: match.result, kills: match.kills, deaths: match.deaths, assists: match.assists,
+        damageToChampions: match.gameId * 10_000, damageTaken: null, goldEarned: 1_000, minionsKilled: null,
+        tripleKills: null, quadraKills: null, pentaKills: null, items: [], augments: [],
+      }],
+    })) } })
+    render()
+    await flushPromises()
+    const original = wrapper.getComponent(MatchHistoryOverview).text()
+    expect(original).toContain('25,000')
+    await wrapper.findAll('select')[1].setValue('win')
+    expect(wrapper.findAll('article')).toHaveLength(1)
+    expect(wrapper.getComponent(MatchHistoryOverview).text()).toBe(original)
+    await wrapper.findAll('select')[0].setValue('266')
+    expect(wrapper.findAll('article')).toHaveLength(0)
+    expect(wrapper.getComponent(MatchHistoryOverview).text()).toBe(original)
+    expect(queryCurrent).toHaveBeenCalledTimes(1)
+  })
+
   it('combines champion and result filters locally and restores matches on reset', async () => {
     render()
     await flushPromises()

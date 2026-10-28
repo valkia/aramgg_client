@@ -128,6 +128,8 @@ export interface HextechAramMatchParticipant {
   kills: number
   deaths: number
   assists: number
+  // Query-only raw values; display K/D/A may already have missing values normalized to zero.
+  participationStats?: { kills: number | null; assists: number | null }
   damageToChampions: number | null
   damageTaken: number | null
   goldEarned: number | null
