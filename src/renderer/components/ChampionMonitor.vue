@@ -18,7 +18,16 @@
                     <Play v-else class="btn-icon" />
                     {{ isMonitoring ? t('monitor.stop') : t('monitor.start') }}
                 </Button>
+                <Button class="toggle-btn toggle-inactive" :disabled="!selectedChampionId || openingGuide" @click="openCurrentGuide">
+                    {{ t('monitor.openGuide') }}
+                </Button>
+                <Button class="toggle-btn toggle-inactive" v-if="tabStatus.supported" @click="toggleTabGuide()">
+                    {{ t(tabStatus.enabled ? 'monitor.disableTab' : 'monitor.enableTab') }}
+                </Button>
             </div>
+            <Button v-if="tabStatus.enabled && !tabStatus.authorized" @click="toggleTabGuide(true)">{{ t('monitor.authorizeTab') }}</Button>
+            <p v-if="tabStatus.supported">{{ t('monitor.tabHint') }}</p>
+            <p v-if="guideMessage" role="status">{{ guideMessage }}</p>
 
             <!-- 状态信息 -->
             <div v-if="selectedChampionId || lastChampionId" class="champion-info">
@@ -43,6 +52,28 @@ import { Play, Radar, Square } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
+const openingGuide = ref(false)
+const guideMessage = ref('')
+const tabStatus = ref({ supported: false, enabled: false, authorized: false })
+async function openCurrentGuide() {
+    openingGuide.value = true
+    guideMessage.value = ''
+    try {
+        const result = await electronAPI.windows.showCurrentChampion()
+        if (!result.success) guideMessage.value = t('monitor.guideUnavailable')
+    } catch { guideMessage.value = t('monitor.guideUnavailable') }
+    finally { openingGuide.value = false }
+}
+async function refreshTabStatus() {
+    try { if (hasElectronAPI()) tabStatus.value = await electronAPI.windows.getTabGuideStatus() }
+    catch { guideMessage.value = t('monitor.guideUnavailable') }
+}
+async function toggleTabGuide(enable = !tabStatus.value.enabled) {
+    try {
+        tabStatus.value = await electronAPI.windows.setTabGuideEnabled(enable)
+        guideMessage.value = enable && !tabStatus.value.authorized ? t('monitor.tabPermission') : ''
+    } catch { guideMessage.value = t('monitor.guideUnavailable') }
+}
 const isMonitoring = ref(false)
 const selectedChampionId = ref(null)
 const lastChampionId = ref(null)
@@ -85,8 +116,8 @@ function toggleChampionMonitor() {
     else void startChampionMonitor()
 }
 
-onMounted(() => { void startChampionMonitor() })
-onBeforeUnmount(stopChampionMonitor)
+onMounted(() => { void startChampionMonitor(); void refreshTabStatus(); window.addEventListener('focus', refreshTabStatus) })
+onBeforeUnmount(() => { stopChampionMonitor(); window.removeEventListener('focus', refreshTabStatus) })
 </script>
 
 <style scoped>
@@ -175,6 +206,7 @@ onBeforeUnmount(stopChampionMonitor)
 
 .monitor-controls {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
 }
 
@@ -184,7 +216,7 @@ onBeforeUnmount(stopChampionMonitor)
     justify-content: center;
     gap: 6px;
     min-width: 0;
-    width: 100%;
+    flex: 1 1 auto;
     padding: 9px 8px;
     border: 1px solid transparent;
     border-radius: 4px;

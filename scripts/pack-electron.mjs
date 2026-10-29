@@ -260,9 +260,14 @@ async function main() {
     process.exit(buildResult.code ?? 1)
   }
 
-  await cleanRootPackageArtifacts(packageVersion)
+  const isMacPack = process.argv.includes('--mac')
+  if (!isMacPack) await cleanRootPackageArtifacts(packageVersion)
 
-  const packResult = await run('electron-builder', ['--publish', 'never'], {
+  const platformArgs = isMacPack ? ['--mac'] : []
+  if (process.env.ELECTRON_CACHE) {
+    platformArgs.push(`--config.electronDownload.cache=${path.resolve(process.env.ELECTRON_CACHE)}`)
+  }
+  const packResult = await run('electron-builder', [...platformArgs, '--publish', 'never'], {
     env: packEnv,
     stdio: ['ignore', 'pipe', 'pipe'],
   })

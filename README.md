@@ -1,3 +1,5 @@
+> macOS / Apple silicon 预览支持由 **ironieser** 贡献。构建、权限、Tab 局内速查及验证范围见 [macOS 说明](./docs/MACOS.md)。目前未发布正式 Mac 安装包。
+
 <p align="center">
   <img src="./assets/readme/hero.svg" width="100%" alt="ARAMGG 助手：只读 LCU 选人建议、本地海克斯 OCR 与游戏内推荐浮窗" />
 </p>

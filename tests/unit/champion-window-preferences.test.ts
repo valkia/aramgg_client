@@ -8,18 +8,33 @@ const mocks = vi.hoisted(() => ({
 vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events')
   class Window extends EventEmitter {
+    static getAllWindows() { return [] }
     visible = false
+    destroyed = false
     url = ''
     options: any
     setAlwaysOnTop = vi.fn()
+    setIgnoreMouseEvents = vi.fn()
+    showInactive() { this.show() }
+    moveTop = vi.fn()
+    setBounds = vi.fn()
+    isVisibleOnAllWorkspaces() { return false }
+    setVisibleOnAllWorkspaces = vi.fn()
     hide = vi.fn(() => { this.visible = false })
     webContents = Object.assign(new EventEmitter(), {
       getURL: () => this.url,
+      send: vi.fn(),
       setWindowOpenHandler: vi.fn(),
       openDevTools: vi.fn(),
     })
     constructor(options: any) { super(); this.options = options }
-    isDestroyed() { return false }
+    isDestroyed() { return this.destroyed }
+    setClosable(value: boolean) { this.options.closable = value }
+    close() {
+      if (process.platform === 'darwin' && this.options.closable === false) return
+      this.destroyed = true
+      this.emit('closed')
+    }
     isVisible() { return this.visible }
     show() { this.visible = true; this.emit('show') }
     loadURL(url: string) { this.url = url; return Promise.resolve() }
@@ -63,15 +78,23 @@ async function setup() {
 }
 
 describe('champion window preferences', () => {
+  it('allows the hidden detail window to close when quitting', async () => {
+    const { manager, popup } = await setup()
+    expect(popup.isVisible()).toBe(false)
+    manager.allowMainWindowClose()
+    popup.close()
+    expect(popup.isDestroyed()).toBe(true)
+    expect(manager.getPopupWindow()).toBe(null)
+  })
   it('creates an unpinned window by default and applies saved pinning on each show', async () => {
     const { popup } = await setup()
     expect((popup as any).options.alwaysOnTop).toBe(false)
     popup.show()
-    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String))
+    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String), ...(process.platform === 'darwin' ? [0] : []))
     mocks.store.set('championInsight.alwaysOnTop', true)
     popup.hide()
     popup.show()
-    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(true, expect.any(String))
+    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(true, expect.any(String), ...(process.platform === 'darwin' ? [1] : []))
   })
 
   it.each(['GameStart', 'InProgress'] as const)('hides on %s by default without destroying the window', async phase => {
@@ -99,8 +122,20 @@ describe('champion window preferences', () => {
     for (const phase of ['GameStart', 'InProgress'] as const) {
       manager.applyPopupWindowPreferences(phase)
       expect(popup.isVisible()).toBe(true)
-      expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(pinned, expect.any(String))
+      expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(pinned, expect.any(String), ...(process.platform === 'darwin' ? [pinned ? 1 : 0] : []))
     }
+  })
+
+  it('restores the current game hero immediately when close-in-game is turned off', async () => {
+    const { manager, popup } = await setup()
+    const state = await import('../../src/main/modules/champion-monitor-state.ts')
+    state.setChampionMonitorPhase('InProgress')
+    state.setChampionMonitorChampion(112)
+    manager.applyPopupWindowPreferences('InProgress')
+    expect(popup.isVisible()).toBe(false)
+    await mocks.handlers.get('store-set')!({}, 'championInsight.hideOnGameStart', false)
+    expect(popup.isVisible()).toBe(true)
+    expect(popup.webContents.send).toHaveBeenCalledWith('for-popup', expect.objectContaining({ championId: 112 }))
   })
 
   it('applies setting changes immediately through IPC and restores defaults on deletion', async () => {
@@ -109,19 +144,19 @@ describe('champion window preferences', () => {
     popup.show()
     manager.applyPopupWindowPreferences('InProgress')
     const set = mocks.handlers.get('store-set')!
-    set({}, 'championInsight.alwaysOnTop', true)
-    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(true, expect.any(String))
+    await set({}, 'championInsight.alwaysOnTop', true)
+    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(true, expect.any(String), ...(process.platform === 'darwin' ? [1] : []))
     expect(popup.isVisible()).toBe(true)
-    set({}, 'championInsight.alwaysOnTop', false)
-    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String))
-    set({}, 'championInsight.alwaysOnTop', true)
+    await set({}, 'championInsight.alwaysOnTop', false)
+    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String), ...(process.platform === 'darwin' ? [0] : []))
+    await set({}, 'championInsight.alwaysOnTop', true)
     mocks.handlers.get('store-delete')!({}, 'championInsight.alwaysOnTop')
-    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String))
-    set({}, 'championInsight.alwaysOnTop', true)
-    set({}, 'championInsight.hideOnGameStart', true)
+    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String), ...(process.platform === 'darwin' ? [0] : []))
+    await set({}, 'championInsight.alwaysOnTop', true)
+    await set({}, 'championInsight.hideOnGameStart', true)
     expect(popup.isVisible()).toBe(false)
-    set({}, 'championInsight.hideOnGameStart', false)
+    await set({}, 'championInsight.hideOnGameStart', false)
     expect(popup.isVisible()).toBe(false)
-    expect(() => set({}, 'championInsight.unrecognized', true)).toThrow('Unsupported renderer store key')
+    await expect(set({}, 'championInsight.unrecognized', true)).rejects.toThrow('Unsupported renderer store key')
   })
 })

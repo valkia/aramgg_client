@@ -1,3 +1,5 @@
+> macOS / Apple silicon preview support contributed by **ironieser**. See the [macOS guide](./docs/MACOS.md) for building, permissions, the hold-Tab guide and validation limits. No production Mac installer is published yet.
+
 <p align="center">
   <img src="./assets/readme/hero.svg" width="100%" alt="ARAMGG Assistant with read-only LCU guidance, local Augment OCR, and in-game recommendation overlays" />
 </p>

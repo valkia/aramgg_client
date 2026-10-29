@@ -3,10 +3,10 @@
     <div
       v-if="visible"
       class="augment-overlay"
-      :class="{ 'side-panel-mode': isSidePanel }"
+      :class="{ 'side-panel-mode': isSidePanel, 'in-game-guide-mode': inGameGuide }"
     >
       <header class="insight-titlebar">
-        <h1>{{ isSidePanel ? t('augment.recommendation') : t('augment.championDetails') }}</h1>
+        <h1>{{ inGameGuide ? t('inGameGuide.title') : isSidePanel ? t('augment.recommendation') : t('augment.championDetails') }}</h1>
         <div class="window-controls">
           <button v-if="isSidePanel" class="window-control" type="button" :aria-label="t('common.minimize')" @click="closeOverlay('manual')">
             <Minus class="window-icon" />
@@ -27,6 +27,11 @@
       <div v-else-if="error" class="error-state">
         <p>{{ error }}</p>
       </div>
+
+      <InGameGuide v-else-if="inGameGuide && contentVisible"
+        :champion-id="Number(championId)" :champion-name="championName"
+        :route="buildRoutes[0]" :augments="displayAugments" :loading="championDataLoading"
+        :item-name="getItemName" :item-icon="getItemIconUrl" />
 
       <!-- 主内容区 -->
       <div v-else-if="contentVisible" class="overlay-content">
@@ -511,6 +516,7 @@ import {
 } from '../service/overlay-formatters.ts'
 import { useAugmentTooltip } from '../composables/use-augment-tooltip.ts'
 import AramBenchRecommendation from './AramBenchRecommendation.vue'
+import InGameGuide from './InGameGuide.vue'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps({
@@ -524,6 +530,7 @@ const { t } = useI18n()
 
 const DEFAULT_ACTIVE_TAB = 'augments'
 const visible = ref(false)
+const inGameGuide = ref(false)
 const loading = ref(false)
 const championDataLoading = ref(false)
 const error = ref(null)
@@ -972,6 +979,7 @@ const getItemIconUrl = (itemId) => itemIconById.value.get(String(itemId)) || get
  * 显示浮窗
  */
 const showOverlay = async (data) => {
+  inGameGuide.value = !isSidePanel.value && (data?.presentation === 'in-game' || data?.dataSource === 'in-progress')
   if (data && !data.pending && !data.error) {
     lastOverlayPayload = data
   }
@@ -1315,6 +1323,7 @@ onMounted(() => {
   }))
 
   unsubscribeEvents.push(electronAPI.events.on('augment-detected', (data) => {
+    if (inGameGuide.value) return
     logOverlayInfo('augment-detected received', {
       championId: data?.championId || null,
       augmentCount: Array.isArray(data?.augments) ? data.augments.length : 0,
@@ -1348,6 +1357,7 @@ onMounted(() => {
       return
     }
 
+    inGameGuide.value = true
     logOverlayInfo('game-in-progress received; champion insight visibility handled by main process')
   }))
 
@@ -1404,6 +1414,16 @@ defineExpose({
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.augment-overlay.in-game-guide-mode {
+  width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+}
+
+.in-game-guide-mode .insight-titlebar h1 {
+  font-size: 14px;
 }
 
 .overlay-fade-enter-active,

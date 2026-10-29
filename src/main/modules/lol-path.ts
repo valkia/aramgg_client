@@ -1,7 +1,7 @@
 import path from 'path'
 import { readdir, stat } from 'fs/promises'
 
-export type LeagueInstallLayout = 'client-directory' | 'root-client'
+export type LeagueInstallLayout = 'client-directory' | 'root-client' | 'mac-bundle'
 
 export type LeagueInstallInfo = {
   normalizedPath: string
@@ -12,6 +12,7 @@ export type LeagueInstallInfo = {
 }
 
 const LOL_CHILD_DIRECTORY_NAMES = [
+  'League of Legends.app',
   'League of Legends',
   'LeagueOfLegends',
   '英雄联盟',
@@ -41,6 +42,8 @@ async function fileExists(filePath: string): Promise<boolean> {
 }
 
 async function getLeagueInstallLayout(normalizedPath: string): Promise<LeagueInstallLayout | null> {
+  const macClient = path.join(normalizedPath, 'Contents', 'LoL', 'LeagueClient.app', 'Contents', 'MacOS', 'LeagueClient')
+  if (await fileExists(macClient)) return 'mac-bundle'
   if (await directoryExists(path.join(normalizedPath, 'LeagueClient'))) {
     return 'client-directory'
   }
@@ -89,6 +92,8 @@ export async function findLeagueInstallChildPath(directoryPath: string): Promise
 export function getLeagueClientLogDirectoryCandidates(lolPath: string): string[] {
   const normalizedPath = normalizeLolPath(lolPath)
   return [
+    path.join(normalizedPath, 'Contents', 'LoL', 'Logs', 'LeagueClient Logs'),
+    path.join(normalizedPath, 'Contents', 'LoL'),
     path.join(normalizedPath, 'LeagueClient'),
     path.join(normalizedPath, 'Logs', 'LeagueClient Logs'),
     path.join(normalizedPath, 'Logs'),

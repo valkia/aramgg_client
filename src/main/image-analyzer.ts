@@ -32,6 +32,7 @@ import {
 import logger from './modules/logger.ts'
 import { ensureOnnxruntimeNativeDllPath } from './modules/onnxruntime-native-path.ts'
 import { discoverLcuAuthFromProcess } from './services/lcu/process-auth-discovery.ts'
+import { hasVisibleAugmentCardFrames } from './augment-card-frame.ts'
 
 sharp.concurrency(Number(process.env.ARAMGG_SHARP_CONCURRENCY) || 2)
 
@@ -1774,6 +1775,7 @@ async function recognizeAugmentsFromImage(imageBuffer) {
             titleActivity,
             rerollButtons: null,
             ocrSkippedReason: null,
+            cardFramesVisible: hasVisibleAugmentCardFrames(rawImage),
         }
 
         if (!titleActivity.likely) {

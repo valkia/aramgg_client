@@ -56,6 +56,7 @@ export function createReleaseSmoke() {
     return {
         async run(initialize: () => Promise<unknown>) {
             const snapshots: unknown[] = []
+            let ocr: { ids: number[]; names: string[] } | null = null
             let timeout: ReturnType<typeof setTimeout> | undefined
             await fs.mkdir(outputDir, { recursive: true })
             session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
@@ -116,6 +117,21 @@ export function createReleaseSmoke() {
                             await fs.writeFile(path.join(outputDir, `${route.slice(1)}.png`), screenshot.toPNG())
                             snapshots.push(snapshot)
                         }
+                        const fixture = process.env.ARAMGG_RELEASE_SMOKE_OCR_FIXTURE
+                        if (fixture) {
+                            const { analyzeScreenshot, shutdownImageAnalyzer } = await import('../image-analyzer.ts')
+                            try {
+                                const result = await analyzeScreenshot(await fs.readFile(fixture))
+                                if (!result.success || !('analysis' in result)) throw new Error('Packaged OCR analysis failed')
+                                const ids = result.analysis?.augments?.map((augment: { id: number }) => Number(augment.id)) || []
+                                if (!result.success || JSON.stringify(ids) !== '[1032,1390,1129]') {
+                                    throw new Error(`Packaged three-card OCR failed: ${JSON.stringify(ids)}`)
+                                }
+                                ocr = { ids, names: result.analysis.augments.map((augment: { name: string }) => augment.name) }
+                            } finally {
+                                await shutdownImageAnalyzer()
+                            }
+                        }
                         // Include delayed mount effects, not just the first IPC notification.
                         await new Promise((resolve) => setTimeout(resolve, 1000))
                         if (failures.length) throw new Error(failures.join('\n'))
@@ -132,7 +148,7 @@ export function createReleaseSmoke() {
                     passed: failures.length === 0, packaged: app.isPackaged,
                     version: app.getVersion(), platform: process.platform,
                     durationMs: Date.now() - startedAt, readyCount: ready.size,
-                    windows: snapshots, failures,
+                    windows: snapshots, ocr, failures,
                 }, null, 2))
                 app.exit(failures.length ? 1 : 0)
             }

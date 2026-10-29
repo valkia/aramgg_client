@@ -1,4 +1,5 @@
-import { spawn } from 'node:child_process'
+import { spawn, execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -14,7 +15,13 @@ let timedOut = false
 let stdout = ''
 let stderr = ''
 try {
-  await cp(source, destination, { recursive: true, verbatimSymlinks: true })
+  if (process.platform === 'darwin') {
+    // Preserve signed bundle links and metadata with the native macOS copier.
+    await promisify(execFile)('/usr/bin/ditto', [source, destination])
+    await promisify(execFile)('/usr/bin/codesign', ['--verify', '--deep', '--strict', destination])
+  } else {
+    await cp(source, destination, { recursive: true, verbatimSymlinks: true })
+  }
   const executable = process.platform === 'darwin'
     ? path.join(destination, 'Contents/MacOS/aramgg_client')
     : path.join(destination, 'aramgg_client.exe')
@@ -23,6 +30,7 @@ try {
   const env = { ...process.env, NODE_ENV: 'production', ARAMGG_RELEASE_SMOKE_TEST: '1',
     ARAMGG_RELEASE_SMOKE_OUTPUT: output, ARAMGG_RELEASE_SMOKE_DATA_DIR: userData,
     APPDATA: path.join(temporary, 'app-data') }
+  if (process.argv[4]) env.ARAMGG_RELEASE_SMOKE_OCR_FIXTURE = path.resolve(process.argv[4])
   delete env.ELECTRON_RUN_AS_NODE
   const child = spawn(executable, ['--release-smoke-test', `--user-data-dir=${userData}`], {
     cwd: temporary, env, stdio: ['ignore', 'pipe', 'pipe'],
@@ -38,10 +46,11 @@ try {
     }
   }, 75000)
   let code
+  let signal
   try {
     code = await new Promise((resolve, reject) => {
       child.once('error', reject)
-      child.once('close', resolve)
+      child.once('close', (exitCode, exitSignal) => { signal = exitSignal; resolve(exitCode) })
     })
   } finally {
     clearTimeout(timer)
@@ -50,7 +59,7 @@ try {
   try {
     report = JSON.parse(await readFile(path.join(output, 'report.json'), 'utf8'))
   } catch (error) {
-    throw new Error(`Packaged app produced no valid report: exit=${code}, timeout=${timedOut}. See ${output}/stderr.log`, { cause: error })
+    throw new Error(`Packaged app produced no valid report: exit=${code}, signal=${signal}, timeout=${timedOut}. See ${output}/stderr.log`, { cause: error })
   }
   const expectedRoutes = ['#/display', '#/augment-overlay', '#/floating-overlay', '#/augment-side-panel']
   if (timedOut || code !== 0 || !report.passed || !report.packaged ||

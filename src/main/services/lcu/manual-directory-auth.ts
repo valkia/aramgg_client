@@ -120,6 +120,7 @@ function shouldLogManualDiscoveryDiagnostic(normalizedPath: string): boolean {
 
 function getManualLockfileCandidates(normalizedPath: string): string[] {
   return [
+    path.join(normalizedPath, 'Contents', 'LoL', 'lockfile'),
     path.join(normalizedPath, 'lockfile'),
     path.join(normalizedPath, 'LeagueClient', 'lockfile'),
     path.resolve(normalizedPath, '..', 'lockfile'),

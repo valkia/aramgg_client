@@ -1,6 +1,8 @@
 import { execFile } from 'child_process'
-import { desktopCapturer, type DesktopCapturerSource, type Size } from 'electron'
+import { desktopCapturer, systemPreferences, type DesktopCapturerSource, type Size } from 'electron'
+import { findGameWindowSource, hasDarwinGameProcess } from './modules/game-window-source.ts'
 import logger from './modules/logger.ts'
+import { captureMacGameWindow, getMacGameWindowInfo } from './modules/mac-game-capture.ts'
 
 let lastCaptureSourceKey: string | null = null
 export const CAPTURE_THUMBNAIL_SIZE = { width: 1280, height: 720 }
@@ -30,38 +32,24 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): 
  * @param {Array} sources - desktopCapturer 返回的源列表
  * @returns {Object|null} 匹配的游戏窗口源，未找到返回 null
  */
-const findGameWindow = (sources: DesktopCapturerSource[]): DesktopCapturerSource | null => {
-    const candidates = sources.map(source => {
-        const name = source.name.toLowerCase()
-        const isOwnWindow =
-            name.includes('aramgg_client') ||
-            name.includes('lol_tips_client') ||
-            name.includes('champr')
+const findGameWindow = findGameWindowSource<DesktopCapturerSource>
 
-        if (isOwnWindow) {
-            return { source, score: 0 }
-        }
-
-        if (name.includes('league of legends') && name.includes('client')) {
-            return { source, score: 100 }
-        }
-
-        if (name.includes('league of legends') || name.includes('英雄联盟')) {
-            return { source, score: 80 }
-        }
-
-        if (name.includes('league') && name.includes('client')) {
-            return { source, score: 60 }
-        }
-
-        return { source, score: 0 }
-    })
-
-    candidates.sort((a, b) => b.score - a.score)
-    return candidates[0]?.score > 0 ? candidates[0].source : null
+function checkScreenRecordingPermission(): void {
+    if (process.platform === 'darwin' &&
+        systemPreferences.getMediaAccessStatus('screen') === 'denied') {
+        throw new Error('macOS Screen Recording permission is denied. Enable ARAMGG in System Settings > Privacy & Security > Screen Recording, then restart the app.')
+    }
 }
 
 const isLolGameProcessRunning = (): Promise<boolean | null> => {
+    if (process.platform === 'darwin') {
+        return new Promise<boolean | null>((resolve) => {
+            execFile('/bin/ps', ['-axww', '-o', 'comm='], { timeout: 3000 }, (error, stdout = '') => {
+                if (error) { resolve(null); return }
+                resolve(hasDarwinGameProcess(stdout))
+            })
+        })
+    }
     if (process.platform !== 'win32') {
         return Promise.resolve(null)
     }
@@ -101,6 +89,11 @@ const findScreenSource = (sources: DesktopCapturerSource[]): DesktopCapturerSour
  */
 export const getLolGameWindowId = async () => {
     try {
+        checkScreenRecordingPermission()
+        if (process.platform === 'darwin') {
+            const native = await getMacGameWindowInfo()
+            if (native) return native.success ? `window:${native.windowId}:0` : null
+        }
         const sources = await desktopCapturer.getSources({
             types: ['window'],
             thumbnailSize: { width: 0, height: 0 },
@@ -116,6 +109,16 @@ export const getLolGameWindowId = async () => {
 
 export const getLolGameWindowInfo = async () => {
     try {
+        checkScreenRecordingPermission()
+        if (process.platform === 'darwin') {
+            const native = await getMacGameWindowInfo()
+            if (native) return {
+                found: native.success,
+                id: native.success ? `window:${native.windowId}:0` : null,
+                name: native.success ? native.windowName : null,
+                error: native.error,
+            }
+        }
         const sources = await desktopCapturer.getSources({
             types: ['window'],
             thumbnailSize: { width: 0, height: 0 },
@@ -170,9 +173,24 @@ export const captureScreenshot = async (options: CaptureScreenshotOptions = {}) 
             timeoutMs = DEFAULT_CAPTURE_TIMEOUT_MS,
             thumbnailSize = CAPTURE_THUMBNAIL_SIZE,
         } = options || {}
+        checkScreenRecordingPermission()
         const timestamp = Date.now()
+        if (process.platform === 'darwin' && !preferScreen) {
+            const native = await captureMacGameWindow(thumbnailSize.width, thumbnailSize.height, timeoutMs)
+            if (native) {
+                if (!native.success || !native.buffer?.length) {
+                    return { success: false, error: native.error || 'Mac game capture returned no image' }
+                }
+                return {
+                    success: true, buffer: native.buffer, timestamp,
+                    hasLolWindow: true, captureMode: 'window' as const,
+                    windowName: native.windowName, width: native.width, height: native.height,
+                }
+            }
+        }
         const sourceTypes: Array<'screen' | 'window'> = preferScreen
             ? ['screen']
+            : process.platform === 'darwin' ? ['window']
             : ['window', 'screen']
 
         // 获取所有窗口和屏幕源
@@ -187,6 +205,9 @@ export const captureScreenshot = async (options: CaptureScreenshotOptions = {}) 
 
         // 查找游戏窗口
         const gameWindow = preferScreen ? null : findGameWindow(sources)
+        if (process.platform === 'darwin' && !preferScreen && !gameWindow) {
+            return { success: false, error: 'Mac game window unavailable; desktop fallback disabled' }
+        }
 
         // 确定截图源：优先游戏窗口，否则使用全屏
         let captureSource: DesktopCapturerSource | null = gameWindow

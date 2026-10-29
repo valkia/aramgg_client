@@ -560,6 +560,15 @@ export function setAppUpdateGamePhase(phase: string | null | undefined): UpdateS
 }
 
 export async function refreshAppUpdateConfig(options: RefreshOptions = {}): Promise<UpdateActionResult> {
+  // The upstream feed distributes Windows installers, not this local Mac port.
+  if (process.platform === 'darwin') {
+    setUpdateState({
+      phase: 'disabled', autoUpdateEnabled: false, feedUrl: '', feedConfigured: false,
+      manualDownloadUrl: '', available: false, downloaded: false, error: '',
+      message: 'Mac 本地测试版请重新构建更新',
+    })
+    return { success: true, data: getAppUpdateState() }
+  }
   let config: any = null
 
   try {

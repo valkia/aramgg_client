@@ -1791,15 +1791,15 @@ onBeforeUnmount(() => {
 .post-game-floating-share {
     position: absolute;
     right: 16px;
-    bottom: 130px;
+    bottom: 116px;
     z-index: 8;
-    width: 128px;
-    height: 44px;
+    width: 104px;
+    height: 32px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 0 16px 0 14px;
+    gap: 6px;
+    padding: 0 8px;
     border: 0;
     border-radius: 999px;
     color: #061116;
@@ -1810,8 +1810,8 @@ onBeforeUnmount(() => {
         0 14px 28px rgba(0, 0, 0, 0.34),
         0 0 22px rgba(155, 232, 220, 0.16);
     cursor: pointer;
-    font-size: 13px;
-    font-weight: 900;
+    font-size: 11px;
+    font-weight: 700;
     transition-property: scale, filter, box-shadow, opacity;
     transition-duration: 150ms;
     transition-timing-function: ease-out;
@@ -1835,8 +1835,8 @@ onBeforeUnmount(() => {
 }
 
 .post-game-floating-share .icon {
-    width: 17px;
-    height: 17px;
+    width: 14px;
+    height: 14px;
     flex: 0 0 auto;
 }
 

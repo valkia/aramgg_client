@@ -69,6 +69,9 @@ const electronAPI: ElectronAPI = {
   windows: {
     ready: () => ipcRenderer.send('renderer-ready'),
     showPopup: (data) => ipcRenderer.send('show-popup', data),
+    showCurrentChampion: () => ipcRenderer.invoke('show-current-champion'),
+    getTabGuideStatus: () => ipcRenderer.invoke('get-tab-guide-status'),
+    setTabGuideEnabled: (enabled) => ipcRenderer.invoke('set-tab-guide-enabled', enabled),
     hidePopup: (reason) => ipcRenderer.send('hide-popup', reason),
     hideFloating: (reason) => ipcRenderer.send('hide-floating', reason),
     hideAugmentSidePanel: (reason) => ipcRenderer.send('hide-augment-side-panel', reason),

@@ -10,7 +10,9 @@ export function useAppUpdate(versionInfo: Ref<ClientVersionInfo | null>) {
   let unsubscribe: Unsubscribe | null = null
 
   const manualUpdateDownloadUrl = computed(() =>
-    appUpdateState.value?.manualDownloadUrl || versionInfo.value?.downloadUrl || '')
+    appUpdateState.value
+      ? appUpdateState.value.manualDownloadUrl || ''
+      : versionInfo.value?.downloadUrl || '')
   const updatePhase = computed(() => appUpdateState.value?.phase || 'uninitialized')
   const updateDownloadDeferred = computed(() => Boolean(appUpdateState.value?.downloadDeferred))
   const updatePanelClass = computed(() => `phase-${updatePhase.value}`)
@@ -55,7 +57,7 @@ export function useAppUpdate(versionInfo: Ref<ClientVersionInfo | null>) {
   const canInstallUpdate = computed(() =>
     Boolean(appUpdateState.value?.canInstall) && !updateActionPending.value)
   const showCheckUpdateAction = computed(() =>
-    !['downloaded', 'installing'].includes(updatePhase.value))
+    !['disabled', 'downloaded', 'installing'].includes(updatePhase.value))
   const showInstallUpdateAction = computed(() =>
     ['downloaded', 'installing'].includes(updatePhase.value))
   const installUpdateTitle = computed(() =>

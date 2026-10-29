@@ -123,7 +123,7 @@ export const messages = {
       championDetailsTitle: '展示英雄详情',
       championDetailsDescription: '选人或英雄变化时展示独立的英雄详情窗口；关闭后仍保持英雄监控和其他后台功能。',
       hideDetailsTitle: '进游戏关闭英雄详情页',
-      hideDetailsDescription: '加载或进入游戏时自动隐藏英雄详情；关闭后保留窗口，是否置顶由下方开关控制。',
+      hideDetailsDescription: '加载或进入游戏时自动隐藏英雄详情；关闭后立即恢复当前英雄攻略，是否置顶由下方开关控制。',
       alwaysOnTopTitle: '英雄详情强制置顶',
       alwaysOnTopDescription: '让英雄详情保持在其他窗口上方，切换后立即生效；开启「进游戏关闭英雄详情页」时仍会自动隐藏。',
       topOverlayTitle: '展示海克斯顶部浮窗',
@@ -133,7 +133,16 @@ export const messages = {
       postGameShareTitle: '自动展示赛后海报',
       postGameShareDescription: '游戏结束后自动打开赛后海报；关闭后仍可在主页面手动生成和查看。',
     },
+    inGameGuide: { title: '局内速查', core: '核心装备', firstLevels: '前 6 级', augments: '海克斯优先参考', note: '按住 Tab 查看，松开隐藏。按当前英雄常用路线推荐，请结合本局调整。' },
     monitor: {
+      openGuide: '打开当前英雄攻略',
+      enableTab: '启用 Tab 攻略',
+      disableTab: '关闭 Tab 攻略',
+      authorizeTab: '授权 Tab 攻略',
+      tabHint: '仅在游戏前台生效：按住 Tab 显示攻略，松开隐藏，与游戏计分板一起显示。',
+      tabPermission: '请在系统设置 → 隐私与安全性 → 输入监控中允许 ARAMGG，然后重启助手。仅处理游戏中的 Tab，不记录输入内容。',
+      guideUnavailable: '当前英雄暂不可用，请进入选人或对局后重试。',
+
       title: '英雄监控',
       monitoring: '监控中',
       stopped: '未启动',
@@ -374,10 +383,19 @@ export const messages = {
     },
     preferences: {
       title: 'WINDOW PREFERENCES', fullscreenTitle: 'Fullscreen display', fullscreenDescription: 'The augment overlay is an always-on-top desktop window and may be hidden by exclusive fullscreen. Use borderless or windowed mode when you need the overlay.', championDetailsTitle: 'Show champion details', championDetailsDescription: 'Show the separate Champion Details window during champion select or champion changes. Champion monitoring and other background features remain active when disabled.',
-      hideDetailsTitle: 'Close champion details in game', hideDetailsDescription: 'Hide champion details when loading or entering a game. When disabled, keep the window open and use the setting below to control whether it stays on top.',
+      hideDetailsTitle: 'Close champion details in game', hideDetailsDescription: 'Hide champion details when loading or entering a game. Disabling this immediately restores the current champion guide. Use the setting below to keep it on top.',
       alwaysOnTopTitle: 'Keep champion details on top', alwaysOnTopDescription: 'Keep champion details above other windows. Changes take effect immediately. The window still hides in game when the close-in-game setting is enabled.', topOverlayTitle: 'Show the top augment overlay', topOverlayDescription: 'Show three augment recommendations at the top of the screen when an augment choice is detected.', sidePanelTitle: 'Show the right recommendation panel', sidePanelDescription: 'Show augment and build recommendations on the right side of the game when an augment choice is detected.', postGameShareTitle: 'Automatically show the post-game poster', postGameShareDescription: 'Open the poster automatically after a match. When disabled, it remains available from the main window.',
     },
+    inGameGuide: { title: 'In-game quick guide', core: 'Core items', firstLevels: 'Levels 1–6', augments: 'Augments to look for', note: 'Hold Tab to view; release to hide. Common champion build; adapt it to your match.' },
     monitor: {
+      openGuide: 'Open current champion guide',
+      enableTab: 'Enable Tab guide',
+      disableTab: 'Disable Tab guide',
+      authorizeTab: 'Authorize Tab guide',
+      tabHint: 'While League is in front, hold Tab to show the guide alongside the scoreboard. Release Tab to hide it.',
+      tabPermission: 'Allow ARAMGG under System Settings → Privacy & Security → Input Monitoring, then restart. Only in-game Tab presses are handled; typed text is not recorded.',
+      guideUnavailable: 'Current champion unavailable. Try again in champion select or in game.',
+
       title: 'CHAMPION MONITOR', monitoring: 'Monitoring', stopped: 'Stopped', stop: 'Stop monitoring', start: 'Start monitoring', currentSelection: 'Current selection', lastDetected: 'Last detected', championId: 'Champion ID: {id}',
     },
     matchHistory: {
@@ -415,10 +433,19 @@ export const messages = {
     },
     preferences: {
       title: '視窗偏好', fullscreenTitle: '全螢幕顯示說明', fullscreenDescription: '增幅裝置浮窗是桌面置頂視窗，獨佔全螢幕可能會遮擋它；需要顯示浮窗時，請將英雄聯盟影片設定切換為無邊框或視窗化。', championDetailsTitle: '顯示英雄詳情', championDetailsDescription: '選角或英雄變化時顯示獨立的英雄詳情視窗；關閉後仍保持英雄監控與其他後台功能。',
-      hideDetailsTitle: '進入遊戲時關閉英雄詳情頁', hideDetailsDescription: '載入或進入遊戲時自動隱藏英雄詳情；關閉後保留視窗，是否置頂由下方開關控制。',
+      hideDetailsTitle: '進入遊戲時關閉英雄詳情頁', hideDetailsDescription: '載入或進入遊戲時自動隱藏英雄詳情；關閉後立即恢復目前英雄攻略，是否置頂由下方開關控制。',
       alwaysOnTopTitle: '英雄詳情強制置頂', alwaysOnTopDescription: '讓英雄詳情保持在其他視窗上方，切換後立即生效；開啟「進入遊戲時關閉英雄詳情頁」時仍會自動隱藏。', topOverlayTitle: '顯示頂部增幅裝置浮窗', topOverlayDescription: '辨識到增幅裝置選擇時，在螢幕頂部顯示三張推薦。', sidePanelTitle: '顯示右側推薦清單', sidePanelDescription: '辨識到增幅裝置選擇時，在遊戲右側顯示增幅裝置與出裝推薦清單。', postGameShareTitle: '自動顯示賽後海報', postGameShareDescription: '遊戲結束後自動開啟賽後海報；關閉後仍可在主頁面手動產生和查看。',
     },
+    inGameGuide: { title: '局內速查', core: '核心裝備', firstLevels: '前 6 級', augments: '海克斯優先參考', note: '按住 Tab 查看，放開隱藏。依目前英雄常用路線推薦，請配合本局調整。' },
     monitor: {
+      openGuide: '開啟目前英雄攻略',
+      enableTab: '啟用 Tab 攻略',
+      disableTab: '關閉 Tab 攻略',
+      authorizeTab: '授權 Tab 攻略',
+      tabHint: '僅在遊戲前景生效：按住 Tab 顯示攻略，放開隱藏，與遊戲計分板一起顯示。',
+      tabPermission: '請在系統設定 → 隱私權與安全性 → 輸入監控中允許 ARAMGG，再重新啟動助手。僅處理遊戲中的 Tab，不記錄輸入內容。',
+      guideUnavailable: '目前英雄暫不可用，請進入選角或對局後重試。',
+
       title: '英雄監控', monitoring: '監控中', stopped: '未啟動', stop: '停止監控', start: '啟動監控', currentSelection: '目前選擇', lastDetected: '最後偵測', championId: '英雄 ID：{id}',
     },
     matchHistory: {

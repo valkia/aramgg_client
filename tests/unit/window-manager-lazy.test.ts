@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ windows: [] as any[], top: true, side: true }))
+vi.mock('../../src/main/modules/mac-game-capture.ts', () => ({ getMacCaptureDiagnostics: () => ({}) }))
 vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events')
   class Window extends EventEmitter {
@@ -20,7 +21,13 @@ vi.mock('electron', async () => {
     }
     isDestroyed() { return this.destroyed }
     isVisible() { return false }
-    setAlwaysOnTop() {}
+    isMinimized() { return false }
+    setAlwaysOnTop = vi.fn()
+    moveTop = vi.fn()
+    showInactive = vi.fn()
+    isVisibleOnAllWorkspaces() { return false }
+    setVisibleOnAllWorkspaces = vi.fn()
+    setIgnoreMouseEvents = vi.fn()
     loadURL(url: string) { this.url = url; return Promise.resolve() }
     destroy() { this.destroyed = true; this.webContents.emit('destroyed'); this.emit('closed') }
   }
@@ -51,6 +58,32 @@ afterEach(() => {
 })
 
 describe('auxiliary window loading', () => {
+  it('restores requested Mac panels despite occlusion and respects explicit hiding', async () => {
+    const manager = await import('../../src/main/modules/window-manager.ts')
+    const { markRendererReady } = await import('../../src/main/modules/renderer-ready.ts')
+    const loading = Promise.all([manager.ensureFloatingWindow(), manager.ensureAugmentSidePanelWindow()])
+    await Promise.resolve()
+    for (const window of mocks.windows) markRendererReady(window.webContents)
+    const [floating, side] = await loading
+    manager.raiseOverlayWindow(floating)
+    floating.moveTop.mockClear()
+    floating.showInactive.mockClear()
+    // Electron can report false while the game covers an explicitly shown panel.
+    floating.isVisible = () => false
+    manager.refreshVisibleMacAugmentOverlayOrder(1000)
+    manager.refreshVisibleMacAugmentOverlayOrder(2000)
+    manager.refreshVisibleMacAugmentOverlayOrder(2500)
+    expect(floating.moveTop).toHaveBeenCalledTimes(process.platform === 'darwin' ? 2 : 0)
+    expect(floating.showInactive).toHaveBeenCalledTimes(process.platform === 'darwin' ? 2 : 0)
+    expect(side.moveTop).not.toHaveBeenCalled()
+    floating.emit('hide')
+    manager.refreshVisibleMacAugmentOverlayOrder(5000)
+    manager.raiseOverlayWindow(floating)
+    floating.moveTop.mockClear()
+    mocks.top = false
+    manager.refreshVisibleMacAugmentOverlayOrder(7000)
+    expect(floating.moveTop).not.toHaveBeenCalled()
+  })
   it('loads the popup once and waits beyond page load until Vue has mounted', async () => {
     const manager = await import('../../src/main/modules/window-manager.ts')
     const { markRendererReady } = await import('../../src/main/modules/renderer-ready.ts')
@@ -86,6 +119,14 @@ describe('auxiliary window loading', () => {
       markRendererReady(window.webContents)
     }
     const [popup, floating, sidePanel] = await loading
+    if (process.platform === 'darwin') {
+      expect(floating.options.type).toBe('panel')
+      expect(sidePanel.options.type).toBe('panel')
+      expect(floating.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver', 1)
+      expect(sidePanel.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver', 1)
+      expect(floating.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true, { visibleOnFullScreen: true })
+      expect(floating.setIgnoreMouseEvents).toHaveBeenCalledWith(true, { forward: true })
+    }
     expect(floating.webContents.getURL()).toContain('#/floating-overlay')
     expect(sidePanel.webContents.getURL()).toContain('#/augment-side-panel')
     expect(await manager.ensureAugmentOverlayWindows()).toEqual([null, null])

@@ -32,30 +32,12 @@
         </div>
 
         <div v-else class="recommendation-body">
-            <div
-                class="candidate-scroller"
-                :class="{
-                    'can-scroll-left': canScrollLeft,
-                    'can-scroll-right': canScrollRight,
-                }"
-            >
-                <button
-                    v-if="compact && canScrollLeft"
-                    class="candidate-scroll-nav left"
-                    type="button"
-                    :aria-label="t('bench.scrollLeft')"
-                    @click="scrollCandidates(-1)"
-                >
-                    <ChevronLeft class="candidate-scroll-icon" />
-                </button>
+            <div class="candidate-scroller">
                 <div
-                    ref="candidateListRef"
                     class="candidate-list"
                     role="region"
                     :aria-label="t('bench.candidateList')"
                     :tabindex="compact ? 0 : undefined"
-                    @scroll.passive="updateCandidateScrollState"
-                    @wheel="handleCandidateWheel"
                 >
                     <article
                         v-for="candidate in topCandidates"
@@ -90,25 +72,15 @@
                         </div>
                     </article>
                 </div>
-                <button
-                    v-if="compact && canScrollRight"
-                    class="candidate-scroll-nav right"
-                    type="button"
-                    :aria-label="t('bench.scrollRight')"
-                    @click="scrollCandidates(1)"
-                >
-                    <ChevronRight class="candidate-scroll-icon" />
-                </button>
+
             </div>
         </div>
     </section>
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
-    ChevronLeft,
-    ChevronRight,
     CircleAlert,
     CircleDashed,
     LoaderCircle,
@@ -137,13 +109,9 @@ const error = ref('')
 const refreshTimer = ref(null)
 const previewMode = ref(false)
 const requestInFlight = ref(false)
-const candidateListRef = ref(null)
-const canScrollLeft = ref(false)
-const canScrollRight = ref(false)
 const unsubscribeEvents = []
 const BENCH_REFRESH_TIMEOUT_MS = 8 * 1000
 let mounted = false
-let candidateResizeObserver = null
 
 const isChampSelect = computed(() => recommendation.value?.gameflowPhase === 'ChampSelect')
 
@@ -267,57 +235,6 @@ const formatPercent = (value) => {
     return `${(Number(value) * 100).toFixed(1)}%`
 }
 
-const updateCandidateScrollState = () => {
-    const candidateList = candidateListRef.value
-    if (!props.compact || !candidateList) {
-        canScrollLeft.value = false
-        canScrollRight.value = false
-        return
-    }
-
-    const maxScrollLeft = Math.max(candidateList.scrollWidth - candidateList.clientWidth, 0)
-    canScrollLeft.value = candidateList.scrollLeft > 2
-    canScrollRight.value = candidateList.scrollLeft < maxScrollLeft - 2
-}
-
-const scrollCandidates = (direction) => {
-    const candidateList = candidateListRef.value
-    if (!candidateList) {
-        return
-    }
-
-    candidateList.scrollBy({
-        left: direction * Math.max(candidateList.clientWidth * 0.72, 96),
-        behavior: 'smooth',
-    })
-}
-
-const handleCandidateWheel = (event) => {
-    const candidateList = candidateListRef.value
-    if (!props.compact || !candidateList) {
-        return
-    }
-
-    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY)
-        ? event.deltaX
-        : event.deltaY
-    if (!delta) {
-        return
-    }
-
-    const maxScrollLeft = Math.max(candidateList.scrollWidth - candidateList.clientWidth, 0)
-    const canScrollInDirection = delta < 0
-        ? candidateList.scrollLeft > 0
-        : candidateList.scrollLeft < maxScrollLeft
-
-    if (!canScrollInDirection) {
-        return
-    }
-
-    event.preventDefault()
-    candidateList.scrollLeft += delta
-}
-
 watch(
     () => props.previewRecommendation,
     (data) => {
@@ -338,28 +255,6 @@ watch(
     { immediate: true }
 )
 
-watch(topCandidates, async () => {
-    await nextTick()
-    updateCandidateScrollState()
-})
-
-watch(candidateListRef, async (candidateList) => {
-    candidateResizeObserver?.disconnect()
-    candidateResizeObserver = null
-
-    await nextTick()
-    updateCandidateScrollState()
-
-    if (
-        candidateList &&
-        candidateList === candidateListRef.value &&
-        typeof ResizeObserver !== 'undefined'
-    ) {
-        candidateResizeObserver = new ResizeObserver(updateCandidateScrollState)
-        candidateResizeObserver.observe(candidateList)
-    }
-})
-
 onMounted(() => {
     mounted = true
 
@@ -376,7 +271,6 @@ onMounted(() => {
     }
     refreshTimer.value = setInterval(() => refresh(false), 3000)
 
-    nextTick(updateCandidateScrollState)
 })
 
 onBeforeUnmount(() => {
@@ -386,8 +280,6 @@ onBeforeUnmount(() => {
     }
 
     unsubscribeEvents.splice(0).forEach((unsubscribe) => unsubscribe())
-    candidateResizeObserver?.disconnect()
-    candidateResizeObserver = null
     mounted = false
 })
 </script>
@@ -760,23 +652,22 @@ h3 {
 }
 
 .aram-panel.compact .candidate-list {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    padding: 2px 3px 8px;
-    overscroll-behavior-inline: contain;
-    scroll-behavior: smooth;
-    scroll-snap-type: x proximity;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: 128px;
+    gap: 6px;
+    max-height: 396px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
 }
 
 .aram-panel.compact .candidate-row {
-    flex: 0 0 88px;
-    display: grid;
-    grid-template-rows: auto auto;
-    gap: 7px;
-    align-items: center;
-    scroll-snap-align: start;
-    scroll-snap-stop: normal;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    padding: 7px;
 }
 
 .aram-panel.compact .champion-mark {
@@ -786,7 +677,15 @@ h3 {
 }
 
 .aram-panel.compact .candidate-title {
-    margin-bottom: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    margin-bottom: 3px;
+}
+
+.aram-panel.compact .candidate-title strong {
+    max-width: 100%;
+    font-size: 11px;
 }
 
 .aram-panel.compact .stat-line {
@@ -805,67 +704,13 @@ h3 {
     min-height: 58px;
 }
 
-.candidate-scroll-nav {
-    position: absolute;
-    z-index: 2;
-    top: 50%;
-    width: 40px;
-    height: 40px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: rgba(4, 15, 24, 0.94);
-    box-shadow:
-        0 0 0 1px rgba(226, 192, 143, 0.28),
-        0 5px 14px rgba(0, 0, 0, 0.34);
-    color: #e2c08f;
-    cursor: pointer;
-    translate: 0 -50%;
-    transition-property: background-color, color, box-shadow, scale;
-    transition-duration: 150ms;
-    transition-timing-function: ease-out;
-}
-
-.candidate-scroll-nav.left {
-    left: 2px;
-}
-
-.candidate-scroll-nav.right {
-    right: 2px;
-}
-
-.candidate-scroll-nav:hover {
-    background: rgba(31, 43, 53, 0.98);
-    box-shadow:
-        0 0 0 1px rgba(226, 192, 143, 0.5),
-        0 6px 18px rgba(0, 0, 0, 0.42);
-    color: #f4ecdc;
-}
-
-.candidate-scroll-nav:active {
-    scale: 0.96;
-}
-
-.candidate-scroll-nav:focus-visible {
-    outline: 2px solid rgba(226, 192, 143, 0.82);
-    outline-offset: 2px;
-}
-
-.candidate-scroll-icon {
-    width: 17px;
-    height: 17px;
-}
-
 .aram-panel.compact .candidate-list:focus-visible {
     outline: 2px solid rgba(226, 192, 143, 0.72);
     outline-offset: 2px;
 }
 
 .aram-panel.compact .candidate-list::-webkit-scrollbar {
-    height: 7px;
+    width: 5px;
 }
 
 .aram-panel.compact .candidate-list::-webkit-scrollbar-track {

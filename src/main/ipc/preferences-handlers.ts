@@ -1,3 +1,5 @@
+import { showCurrentChampionGuide } from '../modules/champion-guide.ts'
+import { setPopupPresentation } from '../modules/window-manager.ts'
 import type { AppStoreKey, SupportedDataLocale } from '../../shared/ipc-contract.ts'
 import {
   DEFAULT_DATA_LOCALE,
@@ -59,11 +61,17 @@ export function registerPreferencesIpcHandlers(): void {
     return store.get(key)
   })
 
-  ipcMain.handle('store-set', (_event, key: unknown, value: unknown) => {
+  ipcMain.handle('store-set', async (_event, key: unknown, value: unknown) => {
     assertRendererStoreKey(key)
+    const previous = store.get(key)
     store.set(key, value)
     if (key.startsWith('championInsight.')) {
-      applyPopupWindowPreferences()
+      setPopupPresentation(false)
+      if (previous !== value && ((key === 'championInsight.showDetails' && value === true) ||
+          (key === 'championInsight.hideOnGameStart' && value === false) ||
+          (key === 'championInsight.alwaysOnTop' && value === true))) {
+        await showCurrentChampionGuide('preference')
+      }
     }
   })
 
