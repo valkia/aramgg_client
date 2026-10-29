@@ -165,3 +165,7 @@ npx -p npm@10 npm ci --ignore-scripts
 </p>
 
 </details>
+
+## 友情链接
+
+- [LINUX DO](https://linux.do/)
