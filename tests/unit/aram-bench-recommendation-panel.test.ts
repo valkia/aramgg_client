@@ -44,14 +44,16 @@ function render(data: AramBenchRecommendation | null, locale = 'zh-CN') {
 
 describe('ARAM recommendation panel', () => {
   it.each([
-    ['zh-CN', '席位中的 Lux 综合评分更高', '统计 2,400 场', '推荐依据与样本口径', '获胜概率'],
-    ['en-US', 'Lux on the bench scores higher', '2,400 games', 'Recommendation basis and samples', 'chance of winning'],
-    ['zh-TW', '席位中的 Lux 綜合評分更高', '統計 2,400 場', '推薦依據與樣本口徑', '獲勝機率'],
+    ['zh-CN', '席位中的 Lux 综合评分更高', '统计 2,400 场', '推荐与数据说明', '获胜概率'],
+    ['en-US', 'Lux on the bench scores higher', '2,400 games', 'Recommendation details', 'chance of winning'],
+    ['zh-TW', '席位中的 Lux 綜合評分更高', '統計 2,400 場', '推薦與資料說明', '獲勝機率'],
   ])('shows localized decision, samples and method without treating confidence as probability: %s', (locale, decision, samples, title, probability) => {
     const view = render(recommendation(), locale)
     expect(view.get('.decision-line').text()).toContain(decision)
     expect(view.text()).toContain(samples)
     expect(view.get('summary').text()).toBe(title)
+    expect(view.get('details').attributes('open')).toBeUndefined()
+    expect(view.get('.decision-line').element.closest('details')).toBe(view.get('details').element)
     expect(view.get('.evidence-method').text()).toContain(probability)
     expect(view.find('.data-warning').exists()).toBe(false)
     expect(view.text()).not.toContain('100.0%')
@@ -67,7 +69,7 @@ describe('ARAM recommendation panel', () => {
     }), 'en-US')
     expect(view.findAll('.candidate-row')).toHaveLength(12)
     expect(view.get('.decision-line').text()).toContain('held by a teammate')
-    expect(view.get('.evidence-note').text()).toContain('Discuss teammate-held champions first')
+    expect(view.findAll('.evidence-note').some((note) => note.text().includes('Discuss teammate-held champions first'))).toBe(true)
     expect(view.text()).not.toContain('综合评分')
     expect(view.get('[role="region"]').attributes('tabindex')).toBe('0')
     expect(view.findAll('button')).toHaveLength(1)
@@ -78,6 +80,7 @@ describe('ARAM recommendation panel', () => {
     })
     await list.trigger('scroll')
     const controls = view.get('.candidate-navigation').findAll('button')
+    expect(view.get('.candidate-navigation').element.parentElement).toBe(view.get('.recommendation-footer').element)
     expect(list.find('.candidate-navigation').exists()).toBe(false)
     expect(controls[0].attributes('disabled')).toBeDefined()
     expect(controls[1].attributes('disabled')).toBeUndefined()
@@ -98,13 +101,32 @@ describe('ARAM recommendation panel', () => {
     const rows = view.findAll('.candidate-row')
     const brand = rows.find((row) => row.text().includes('Brand'))!
     const lux = rows.find((row) => row.text().includes('Lux'))!
-    expect(brand.text()).toContain('— games')
-    expect(brand.get('.candidate-warning').text()).toBe('Missing or invalid: games, tier')
+    expect(brand.text()).not.toContain('games')
+    expect(brand.text()).toContain('Tier —')
     expect(lux.text()).toContain('0 games')
     expect(lux.text()).toContain('Win 0.0%')
-    expect(lux.get('.candidate-warning').text()).toBe('No game samples')
+    expect(view.find('.candidate-warning').exists()).toBe(false)
+    expect(view.get('.candidate-data-notes').text()).toContain('Brand: Missing or invalid: tier')
+    expect(view.get('.candidate-data-notes').text()).toContain('Lux: No game samples')
+    expect(view.get('summary').text()).toBe('Games unavailable · Details')
+    expect(view.get('.evidence-method').text()).toContain('Missing counts do not mean zero games')
     expect(view.get('.data-warning').text()).toContain('incomplete statistics')
     expect(view.text()).not.toContain('NaN')
+  })
+
+  it.each(['zh-CN', 'en-US', 'zh-TW'])('uses one shared note for unavailable game counts and keeps the cards concise: %s', (locale) => {
+    const view = render(recommendation({}, {
+      63: { name: 'Brand', winRate: 0.5, pickRate: 0.1, numGames: null, tier: 2 },
+      99: { name: 'Lux', winRate: 0.6, pickRate: 0.12, numGames: null, tier: 1 },
+    }), locale)
+    expect(view.findAll('details')).toHaveLength(1)
+    expect(view.get('details').attributes('open')).toBeUndefined()
+    expect(view.find('.candidate-data-notes').exists()).toBe(false)
+    for (const row of view.findAll('.candidate-row')) {
+      expect(row.findAll('.stat-line > div')).toHaveLength(3)
+      expect(row.text()).not.toMatch(/暂无|暫無|No game|— games/)
+    }
+    expect(view.text()).not.toContain('bench.')
   })
 
   it('degrades all-missing statistics to a candidate list and retains the missing-current explanation', async () => {

@@ -26,6 +26,22 @@
 
 ### 执行记录
 
+#### 界面反馈修正（2026-10-30）
+
+继续在当前分支使用 GPT-6.1 Sol / xhigh 子代理串行处理，每项完成审阅、相关验证与独立中文提交后再开始下一项。沿用现有深色金色界面与紧凑布局，不引入新视觉体系。
+
+| 顺序 | 本次修正 | 状态 |
+| --- | --- | --- |
+| 1 | 压缩席位推荐高度，核对全部显示“暂无对局”的原因，正确区分缺失场次与真实零场；保留全部候选和只读行为 | 已审阅，37 项针对性与隔离数据检查通过，独立提交 |
+| 2 | 将英雄详情中“版本改动与统计趋势”整块移入与“海克斯／出装”并列的第三个页签 | 待处理 |
+| 3 | 主窗口“设置”改名“主页”，移到最左并设为默认页；保留原设置与运行状态内容 | 待处理 |
+| 4 | 核对并统一本轮新增界面的颜色、字号、边框、圆角、按钮、间距与原界面样式 | 待处理 |
+
+- 反馈修正第 1 项：将原先默认展开的决策、数据不足、队友沟通说明，以及每卡缺失／零样本说明，合并到一个原生 `details` 入口。默认仅保留头像、名称、身份及双列胜率／登场率／梯队指标；已知场次单独跨列显示，未知场次隐藏，用入口短句“场次未提供 · 推荐说明”统一说明。全部候选仍能水平滚动，左右按钮与说明入口共用一行；展开后完整依据、逐英雄缺失字段和真实零场说明仍可阅读。没有裁剪候选或说明，没有新增推荐操作。
+- 第 1 项根因：正常 `lcu-get-aram-bench-recommendation` 已经使用 nullable 索引，`scoreChampionStats` 的 `toNullableNumber` 也拒绝 null，本轮未发现这条正常链路再次执行 `Number(null)`。残留来自诊断 `buildRandomBenchRecommendation`：它直接把 `loadChampionRoster` 的旧 `mapPublicChampionStats` 结果用于推荐；该 mapper 的 `toNumber(stats.games ?? stats.numGames)` 将缺失补成 0，绕过之前的推荐适配修复。现让诊断选出候选后调用同一个 `loadChampionStatsForRecommendation` 批量适配，保留真实 null／真实 0；不改旧详情消费语义、评分权重、排序或阈值。
+- 第 1 项针对性验证：推荐服务／数据适配／组件／两个真实 IPC 处理器和榜单 mapper 共 5 文件 37 项通过；新增 IPC 回归特意让旧 roster 带有补零值，再经实际注册的正常 LCU 与诊断 handler 读取 nullable 索引，确认源 null 与真实 0 分开、诊断事件原样返回、未调用 LCU 写入。组件覆盖三语统一缺场次说明、默认折叠、所有候选保留、真实 0 和缺失字段展开可读、滚动边界与只读刷新。`node --experimental-transform-types tests/electron/test-champion-rankings.js` 通过真实三语 bundled 索引 → 隔离 data-loader → 推荐适配／scorer 的离线链路；原 `test-aram-bench-recommendation.js` 与 `git diff --check` 通过，未接触真实用户数据或 LCU。
+- 第 1 项视觉验收：忽略目录新增 `bench-real.html`／`bench-real.ts`，读取既有 `.runtime/patch-version-audit/champions.{locale}.json` 的公开 `16.21.3` 快照，经真实 mapper／scorer 展示 8 个候选与源头像／null 场次；选人快照为模拟，不请求真实 LCU。主代理实测：696px 内容宽下，旧混合样本由 439px 降至约 232px；真实缺失场次样本面板为 217px，8 个候选完整、真实头像加载、无“暂无对局”，滚动按钮和展开说明有效。英文 360px 视口为 236.5px，无页面横向溢出；繁中 384px 同样通过。截图 `bench-real-compact-1030.jpg`；完整四项检查在所有反馈完成后统一执行，未 push、merge 或发布。
+
 - 追加反馈（2026-10-28，已处理）：先核验并修正英雄榜头像，复用已有英雄图标，不用姓名首字作为常规头像，已独立提交 `e456742`；随后核验 26.16–26.21 补丁及趋势的真实数据覆盖与当前详情数据来源。后续版本确有真实数据，功能保留；26.15 来自旧 bundled 预览，当前线上三语均已到 `16.21.3`。继续按 GPT-6.1 Sol / xhigh 子代理串行处理；本项只核验与更新真实数据预览，不修改业务逻辑，详见下方证据。
 
 - 头像反馈核验与修正（2026-10-28，已由主代理审阅）：真实三语 bundled 索引各 173 个英雄均已有 `https://cdn.dtodo.cn/hextech/champion-icons/{id}.png`，`mapChampionRankings` 与本地 data-loader 原样保留，生产榜单原有 `<img>` 已使用该地址。此前导航截图的文字头像由忽略目录 `navigation.ts` 刻意将全部 `iconUrl` 清空造成，不能据此认定生产图标失效。本次去掉该预览清空逻辑；生产代码仅把缺少地址或图片加载失败后的姓名首字降级改为现有 Lucide `UserRound` 通用图标，正常情况继续使用真实英雄图标，不改数据源、IPC、网络请求方式或其他功能。

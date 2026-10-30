@@ -32,12 +32,6 @@
         </div>
 
         <div v-else class="recommendation-body">
-            <div class="recommendation-evidence" aria-live="polite">
-                <p class="decision-line">{{ decisionMessage }}</p>
-                <p v-if="hasNoStats" class="data-warning">{{ t('bench.noStats') }}</p>
-                <p v-else-if="hasLimitedComparison" class="data-warning">{{ t('bench.limitedComparison') }}</p>
-                <p v-if="hasTeammates" class="evidence-note">{{ t('bench.teammateNote') }}</p>
-            </div>
             <div
                 v-if="topCandidates.length"
                 class="candidate-scroller"
@@ -84,16 +78,32 @@
                             <div class="stat-line">
                                 <div>{{ t('bench.winRate', { value: formatPercent(candidate.winRate) }) }}</div>
                                 <div>{{ t('bench.pickRate', { value: formatPercent(candidate.pickRate) }) }}</div>
-                                <div>{{ t('bench.samples', { count: formatGames(candidate.games) }) }}</div>
                                 <div>{{ t('bench.tier', { value: formatTier(candidate.tier) }) }}</div>
+                                <div v-if="hasGames(candidate)" class="sample-stat">{{ t('bench.samples', { count: formatGames(candidate.games) }) }}</div>
                             </div>
-                            <p v-if="missingStats(candidate).length" class="candidate-warning">
-                                {{ t('bench.missingFields', { fields: missingStats(candidate).join(t('bench.fieldSeparator')) }) }}
-                            </p>
-                            <p v-if="candidate.games === 0" class="candidate-warning">{{ t('bench.zeroSamples') }}</p>
                         </div>
                     </article>
                 </div>
+            </div>
+            <div class="recommendation-footer">
+                <details v-if="topCandidates.length" class="evidence-method">
+                    <summary>{{ t(hasUnknownGames ? 'bench.unknownGamesSummary' : 'bench.methodTitle') }}</summary>
+                    <div class="recommendation-evidence">
+                        <p class="decision-line">{{ decisionMessage }}</p>
+                        <p v-if="hasUnknownGames" class="evidence-note">{{ t('bench.unknownGamesDescription') }}</p>
+                        <p v-if="hasNoStats" class="data-warning">{{ t('bench.noStats') }}</p>
+                        <p v-else-if="hasLimitedComparison" class="data-warning">{{ t('bench.limitedComparison') }}</p>
+                        <p v-if="hasTeammates" class="evidence-note">{{ t('bench.teammateNote') }}</p>
+                        <p>{{ t('bench.methodDescription') }}</p>
+                        <p>{{ t('bench.sampleDescription') }}</p>
+                        <ul v-if="candidateDataNotes.length" class="candidate-data-notes">
+                            <li v-for="note in candidateDataNotes" :key="note.championId">
+                                <strong>{{ note.name }}</strong>{{ t('bench.noteSeparator') }}{{ note.text }}
+                            </li>
+                        </ul>
+                    </div>
+                </details>
+                <p v-else class="decision-line">{{ decisionMessage }}</p>
                 <div v-if="compact && (canScrollLeft || canScrollRight)" class="candidate-navigation">
                     <button
                         class="candidate-scroll-nav"
@@ -115,11 +125,6 @@
                     </button>
                 </div>
             </div>
-            <details v-if="topCandidates.length" class="evidence-method">
-                <summary>{{ t('bench.methodTitle') }}</summary>
-                <p>{{ t('bench.methodDescription') }}</p>
-                <p>{{ t('bench.sampleDescription') }}</p>
-            </details>
         </div>
     </section>
 </template>
@@ -197,6 +202,7 @@ const topCandidates = computed(() => recommendation.value?.candidates || [])
 const recommended = computed(() => recommendation.value?.recommendedChampion || null)
 const numberFormatter = computed(() => new Intl.NumberFormat(locale.value))
 const hasTeammates = computed(() => topCandidates.value.some((candidate) => candidate.source === 'teammate'))
+const hasUnknownGames = computed(() => topCandidates.value.some((candidate) => !hasGames(candidate)))
 const hasNoStats = computed(() => topCandidates.value.length > 0 && topCandidates.value.every((candidate) => missingStats(candidate).length === 4))
 const hasLimitedComparison = computed(() => [recommendation.value?.currentChampion, recommended.value]
     .some((candidate) => candidate && (missingStats(candidate).length > 0 || candidate.games === 0)))
@@ -302,6 +308,7 @@ const formatPercent = (value) => {
 }
 
 const formatGames = (value) => Number.isSafeInteger(value) && value >= 0 ? numberFormatter.value.format(value) : '—'
+const hasGames = (candidate) => formatGames(candidate.games) !== '—'
 const formatTier = (value) => Number.isInteger(value) && value > 0 ? value : '—'
 const missingStats = (candidate) => [
     ...(formatPercent(candidate.winRate) === '—' ? [t('bench.fields.winRate')] : []),
@@ -309,6 +316,13 @@ const missingStats = (candidate) => [
     ...(formatGames(candidate.games) === '—' ? [t('bench.fields.games')] : []),
     ...(formatTier(candidate.tier) === '—' ? [t('bench.fields.tier')] : []),
 ]
+const candidateDataNotes = computed(() => topCandidates.value.flatMap((candidate) => {
+    const fields = missingStats(candidate).filter((field) => field !== t('bench.fields.games'))
+    const notes = []
+    if (fields.length) notes.push(t('bench.missingFields', { fields: fields.join(t('bench.fieldSeparator')) }))
+    if (candidate.games === 0) notes.push(t('bench.zeroSamples'))
+    return notes.length ? [{ championId: candidate.championId, name: candidate.name, text: notes.join(t('bench.fieldSeparator')) }] : []
+}))
 
 const updateCandidateScrollState = () => {
     const candidateList = candidateListRef.value
@@ -581,9 +595,17 @@ h3 {
     gap: 10px;
 }
 
+.recommendation-footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px;
+}
+
 .recommendation-evidence {
     display: grid;
     gap: 4px;
+    margin-top: 6px;
     padding: 9px 10px;
     border-left: 2px solid var(--lol-primary);
     border-radius: var(--radius-sm);
@@ -594,7 +616,6 @@ h3 {
 .decision-line,
 .data-warning,
 .evidence-note,
-.candidate-warning,
 .evidence-method p {
     margin: 0;
     font-size: 11px;
@@ -606,8 +627,7 @@ h3 {
     font-weight: 700;
 }
 
-.data-warning,
-.candidate-warning {
+.data-warning {
     color: var(--lol-gold-2);
 }
 
@@ -616,18 +636,18 @@ h3 {
     color: var(--lol-muted);
 }
 
-.candidate-warning {
-    margin-top: 5px;
-    overflow-wrap: anywhere;
-}
-
 .evidence-method {
+    min-width: 0;
+    grid-column: 1 / -1;
+    grid-row: 1;
     font-size: 11px;
     line-height: 1.5;
 }
 
 .evidence-method summary {
     width: fit-content;
+    min-height: 24px;
+    padding-right: 68px;
     cursor: pointer;
     color: var(--lol-primary-2);
 }
@@ -638,7 +658,14 @@ h3 {
 }
 
 .evidence-method p {
-    margin-top: 5px;
+    overflow-wrap: anywhere;
+}
+
+.candidate-data-notes {
+    display: grid;
+    gap: 4px;
+    margin: 4px 0 0;
+    padding-left: 16px;
     overflow-wrap: anywhere;
 }
 
@@ -800,6 +827,10 @@ h3 {
     font-weight: 800;
 }
 
+.sample-stat {
+    grid-column: 1 / -1;
+}
+
 .score-box {
     flex: 0 0 48px;
     display: grid;
@@ -878,6 +909,7 @@ h3 {
 .aram-panel.compact .candidate-row {
     flex: 0 0 156px;
     display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
     grid-template-rows: auto auto;
     gap: 7px;
     align-items: center;
@@ -892,9 +924,14 @@ h3 {
     flex-basis: 34px;
 }
 
+.aram-panel.compact .candidate-main {
+    display: contents;
+}
+
 .aram-panel.compact .candidate-title {
     margin-bottom: 0;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: flex-start;
     gap: 4px;
 }
 
@@ -903,10 +940,9 @@ h3 {
 }
 
 .aram-panel.compact .stat-line {
+    grid-column: 1 / -1;
     gap: 4px 8px;
     font-size: 10px;
-    margin-top: 5px;
-    grid-template-columns: minmax(0, 1fr);
 }
 
 .aram-panel.compact .score-box {
@@ -921,15 +957,17 @@ h3 {
 }
 
 .candidate-navigation {
+    grid-column: 2;
+    grid-row: 1;
     display: flex;
     justify-content: flex-end;
     gap: 6px;
-    margin-top: 2px;
+    z-index: 1;
 }
 
 .candidate-scroll-nav {
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     display: inline-flex;
     align-items: center;
     justify-content: center;

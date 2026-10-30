@@ -43,6 +43,7 @@ import {
     loadChampionRoster,
 } from '../data-loader.ts'
 import { getAramBenchRecommendation } from '../services/aram/bench-recommendation.ts'
+import { loadChampionStatsForRecommendation } from '../services/aram/bench-recommendation-data.ts'
 import { registerPreferencesIpcHandlers } from '../ipc/preferences-handlers.ts'
 import { registerSystemIpcHandlers } from '../ipc/system-handlers.ts'
 import { registerFeedbackIpcHandlers } from '../ipc/feedback-handlers.ts'
@@ -338,10 +339,9 @@ async function buildRandomBenchRecommendation(currentChampionId: number | null =
         ]
         : sampleItems(champions, Math.min(TEST_BENCH_CHAMPION_COUNT, champions.length))
     const [currentChampion, ...benchChampions] = selectedChampions
-    const championStatsById = selectedChampions.reduce((result, champion) => {
-        result[champion.championId] = champion
-        return result
-    }, {})
+    const championStatsById = await loadChampionStatsForRecommendation(
+        selectedChampions.map((champion) => Number(champion.championId))
+    )
 
     return getAramBenchRecommendation(
         {
