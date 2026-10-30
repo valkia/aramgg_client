@@ -106,13 +106,6 @@
             </div>
           </section>
 
-          <PatchTrendsPanel
-            v-if="!isSidePanel && championId"
-            :evidence="patchEvidence"
-            :champion-id="Number(championId)"
-            :augment-names="patchAugmentNames"
-          />
-
           <section v-if="!isSidePanel && championBlogs.length" class="related-blogs">
             <div class="section-title-row compact">
               <h3>{{ t('augment.relatedGuides') }}</h3>
@@ -434,6 +427,19 @@
               </div>
               <div v-else class="empty-state">
                 <p>{{ t('augment.noBuilds') }}</p>
+              </div>
+            </div>
+
+            <!-- 版本改动 Tab -->
+            <div v-if="!isSidePanel && activeTab === 'patches'" class="tab-panel">
+              <PatchTrendsPanel
+                v-if="championId && patchEvidence"
+                :evidence="patchEvidence"
+                :champion-id="Number(championId)"
+                :augment-names="patchAugmentNames"
+              />
+              <div v-else class="empty-state" role="status">
+                <p>{{ championDataLoading ? t('augment.reading') : t('augment.noData') }}</p>
               </div>
             </div>
           </div>
@@ -764,6 +770,7 @@ const configureCurrentChampionItems = async (automatic = false) => {
 const tabs = computed(() => [
   { key: 'augments', label: t('augment.tabs.augments') },
   { key: 'builds', label: t('augment.tabs.builds') },
+  ...(!isSidePanel.value ? [{ key: 'patches', label: t('augment.tabs.patches') }] : []),
 ])
 
 // 稀有度选项
@@ -2514,7 +2521,7 @@ defineExpose({
 
 .tabs-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   padding: 14px 18px 0;
   background: transparent;
@@ -2522,6 +2529,7 @@ defineExpose({
 }
 
 .side-panel-mode .tabs-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   padding-top: 12px;
 }
 

@@ -32,8 +32,8 @@
 
 | 顺序 | 本次修正 | 状态 |
 | --- | --- | --- |
-| 1 | 压缩席位推荐高度，核对全部显示“暂无对局”的原因，正确区分缺失场次与真实零场；保留全部候选和只读行为 | 已审阅，37 项针对性与隔离数据检查通过，独立提交 |
-| 2 | 将英雄详情中“版本改动与统计趋势”整块移入与“海克斯／出装”并列的第三个页签 | 待处理 |
+| 1 | 压缩席位推荐高度，核对全部显示“暂无对局”的原因，正确区分缺失场次与真实零场；保留全部候选和只读行为 | 已审阅，37 项针对性与隔离数据检查通过，独立提交 `c9b51a4` |
+| 2 | 将英雄详情中“版本改动与统计趋势”整块移入与“海克斯／出装”并列的第三个页签 | 已审阅，18 项针对性检查与真实组件预览通过，独立提交 |
 | 3 | 主窗口“设置”改名“主页”，移到最左并设为默认页；保留原设置与运行状态内容 | 待处理 |
 | 4 | 核对并统一本轮新增界面的颜色、字号、边框、圆角、按钮、间距与原界面样式 | 待处理 |
 
@@ -41,6 +41,9 @@
 - 第 1 项根因：正常 `lcu-get-aram-bench-recommendation` 已经使用 nullable 索引，`scoreChampionStats` 的 `toNullableNumber` 也拒绝 null，本轮未发现这条正常链路再次执行 `Number(null)`。残留来自诊断 `buildRandomBenchRecommendation`：它直接把 `loadChampionRoster` 的旧 `mapPublicChampionStats` 结果用于推荐；该 mapper 的 `toNumber(stats.games ?? stats.numGames)` 将缺失补成 0，绕过之前的推荐适配修复。现让诊断选出候选后调用同一个 `loadChampionStatsForRecommendation` 批量适配，保留真实 null／真实 0；不改旧详情消费语义、评分权重、排序或阈值。
 - 第 1 项针对性验证：推荐服务／数据适配／组件／两个真实 IPC 处理器和榜单 mapper 共 5 文件 37 项通过；新增 IPC 回归特意让旧 roster 带有补零值，再经实际注册的正常 LCU 与诊断 handler 读取 nullable 索引，确认源 null 与真实 0 分开、诊断事件原样返回、未调用 LCU 写入。组件覆盖三语统一缺场次说明、默认折叠、所有候选保留、真实 0 和缺失字段展开可读、滚动边界与只读刷新。`node --experimental-transform-types tests/electron/test-champion-rankings.js` 通过真实三语 bundled 索引 → 隔离 data-loader → 推荐适配／scorer 的离线链路；原 `test-aram-bench-recommendation.js` 与 `git diff --check` 通过，未接触真实用户数据或 LCU。
 - 第 1 项视觉验收：忽略目录新增 `bench-real.html`／`bench-real.ts`，读取既有 `.runtime/patch-version-audit/champions.{locale}.json` 的公开 `16.21.3` 快照，经真实 mapper／scorer 展示 8 个候选与源头像／null 场次；选人快照为模拟，不请求真实 LCU。主代理实测：696px 内容宽下，旧混合样本由 439px 降至约 232px；真实缺失场次样本面板为 217px，8 个候选完整、真实头像加载、无“暂无对局”，滚动按钮和展开说明有效。英文 360px 视口为 236.5px，无页面横向溢出；繁中 384px 同样通过。截图 `bench-real-compact-1030.jpg`；完整四项检查在所有反馈完成后统一执行，未 push、merge 或发布。
+- 反馈修正第 2 项：将原统计区下方的完整 `PatchTrendsPanel` 移入现有 `tab-content`，完整详情窗按“海克斯／出装／版本改动”排列；沿用 `tab-btn`／`tab-panel` 与原暗金样式，仅将详情页签网格设为三列，右侧海克斯面板仍为原两个页签和两列。默认仍为海克斯，海克斯／出装页不挂载改动面板；读取或缺少证据时复用原“读取中／无可用数据”状态。三语页签齐全，未修改证据取数、推荐服务、IPC、LCU 写入或其他反馈项。
+- 第 2 项针对性验证：实际挂载 `AugmentWinrateOverlay` 与 `PatchTrendsPanel` 的组件用例覆盖三语页签顺序、默认页、整个面板仅存在于第三页签、切换不重复取数、侧面板仅两个页签及同英雄保留选择、换英雄／语言清空旧证据、读取中与取数失败降级、旧语言慢响应拒绝；与原趋势组件、三语结构和详情生命周期检查共 4 文件 21 项通过。改动源文件的定向 ESLint 与 `git diff --check` 通过；测试文件不在现有 ESLint 配置范围。完整 unit／lint／类型／构建留待全部反馈完成后统一执行。
+- 第 2 项预览：忽略目录新增 `overlay.html`／`overlay.ts`，挂载实际完整详情组件，以内存 bridge 模拟事件和选人，不访问真实用户数据或 LCU，不执行外部 shell／装备写入。默认使用三语完整 bundled `16.15.2`；`?latest=1` 使用已有简中阿狸完整公开 `16.21.3` 详情、同版本索引／augment 快照，未将旧统计改标签。子代理在 IAB 472×752 检查简中最新数据与英文 bundled 的三页签同一行、趋势处于第三页签、出装不显示趋势、无横向溢出或 warn/error；繁中 `?variant=side-panel&locale=zh-TW` 仅原两个页签。截图为 `detail-patch-tab-zh-472.png`／`detail-patch-tab-en-472.png`；这是实际组件的隔离浏览器预览，不代表 Windows 打包或真实 League 验收。
 
 - 追加反馈（2026-10-28，已处理）：先核验并修正英雄榜头像，复用已有英雄图标，不用姓名首字作为常规头像，已独立提交 `e456742`；随后核验 26.16–26.21 补丁及趋势的真实数据覆盖与当前详情数据来源。后续版本确有真实数据，功能保留；26.15 来自旧 bundled 预览，当前线上三语均已到 `16.21.3`。继续按 GPT-6.1 Sol / xhigh 子代理串行处理；本项只核验与更新真实数据预览，不修改业务逻辑，详见下方证据。
 
