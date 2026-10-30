@@ -85,10 +85,15 @@ describe('champion detail tabs', () => {
     expect(view.get('.tab-btn.active').text()).toBe(labels[0])
     expect(view.find('.augment-card').exists()).toBe(true)
     expect(view.findComponent(PatchTrendsPanel).exists()).toBe(false)
+    expect(view.findAll('.stat-strip .stat-box')).toHaveLength(2)
+    expect(view.get('.stat-strip').text()).toContain('52.7%')
+    expect(view.get('.stat-strip').text()).toContain('5.2%')
+    expect(view.get('.stat-strip').text()).not.toMatch(/场次|場次|Games/)
 
     await tabs[1].trigger('click')
     expect(view.find('.build-route').exists()).toBe(true)
     expect(view.findComponent(PatchTrendsPanel).exists()).toBe(false)
+    expect(view.get('.build-route').text()).toContain(locale === 'en-US' ? '100 games' : locale === 'zh-CN' ? '100 场' : '100 場')
 
     await tabs[2].trigger('click')
     const patch = view.getComponent(PatchTrendsPanel)

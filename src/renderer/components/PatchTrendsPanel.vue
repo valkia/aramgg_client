@@ -76,17 +76,16 @@ async function openSource(url: string): Promise<void> {
       <p v-if="previous?.tier !== null && previous?.tier !== undefined && data.current.tier !== null" class="mt-1">{{ t('patchEvidence.tierDelta', { before: previous.tier, after: data.current.tier }) }}</p>
       <p v-if="data.history.status !== 'ready'" class="mt-2 leading-relaxed text-muted-foreground" role="status">{{ t(`patchEvidence.${data.history.status}`) }}</p>
       <table class="analysis-table mt-3 w-full table-fixed border-collapse text-[11px] tabular-nums">
-        <colgroup><col class="w-[32%]" /><col class="w-[19%]" /><col class="w-[19%]" /><col class="w-[12%]" /><col class="w-[18%]" /></colgroup>
-        <thead><tr class="text-muted-foreground"><th v-for="key in ['patch', 'winRate', 'pickRate', 'tier', 'games']" :key="key" scope="col" class="break-words px-0.5 py-1 text-right font-normal first:text-left">{{ t(`patchEvidence.${key}`) }}</th></tr></thead>
+        <colgroup><col class="w-[36%]" /><col class="w-[24%]" /><col class="w-[24%]" /><col class="w-[16%]" /></colgroup>
+        <thead><tr class="text-muted-foreground"><th v-for="key in ['patch', 'winRate', 'pickRate', 'tier']" :key="key" scope="col" class="break-words px-0.5 py-1 text-right font-normal first:text-left">{{ t(`patchEvidence.${key}`) }}</th></tr></thead>
         <tbody><tr v-for="point in points" :key="`${point.gamePatch}:${point.date}`" class="border-t border-border">
           <th scope="row" class="px-0.5 py-2 text-left font-normal"><span>{{ point.publicPatch || point.gamePatch || '—' }}</span><span class="mt-0.5 block break-words text-[10px] text-muted-foreground">{{ point.date || '—' }}</span></th>
           <td class="px-0.5 text-right">{{ formatRate(point.winRate) }}</td><td class="px-0.5 text-right">{{ formatRate(point.pickRate) }}</td>
-          <td class="px-0.5 text-right">{{ point.tier === null ? '—' : `T${point.tier}` }}</td><td class="break-all px-0.5 text-right">{{ point.numGames === null ? '—' : new Intl.NumberFormat(locale).format(point.numGames) }}</td>
+          <td class="px-0.5 text-right">{{ point.tier === null ? '—' : `T${point.tier}` }}</td>
         </tr></tbody>
       </table>
       <p class="mt-2 leading-relaxed text-muted-foreground">{{ t('patchEvidence.historyScope') }}</p>
       <p class="mt-2 leading-relaxed text-muted-foreground">{{ t('patchEvidence.currentRecord') }}</p>
-      <p v-if="points.some(point => point.numGames === null)" class="mt-2 leading-relaxed text-muted-foreground">{{ t('patchEvidence.samplesUnknown') }}</p>
       <p class="mt-2 break-words text-[11px] text-muted-foreground">{{ t('patchEvidence.archive', { date: data.history.archivedAt }) }}</p>
       <button type="button" class="mt-2 rounded text-primary underline underline-offset-2 focus-visible:outline-primary" @click="openSource(data.history.sourceUrl)">{{ t('patchEvidence.archiveLink') }}</button>
     </details>

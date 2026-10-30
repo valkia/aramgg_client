@@ -24,7 +24,11 @@ describe('patch and trend detail surface', () => {
     expect(wrapper.text()).toContain('2026-07-30')
     expect(wrapper.get('[data-testid="trend-delta"]').text()).toContain('+0.53')
     expect(wrapper.findAll('tbody tr')).toHaveLength(2)
-    expect(wrapper.findAll('tbody tr').map((row) => row.findAll('td').at(-1)?.text())).toEqual(['—', '—'])
+    expect(wrapper.findAll('thead th')).toHaveLength(4)
+    expect(wrapper.findAll('tbody tr').map((row) => row.findAll('td').map((cell) => cell.text()))).toEqual([
+      ['52.19%', '5.29%', 'T4'], ['52.72%', '5.24%', 'T3'],
+    ])
+    expect(wrapper.text()).not.toMatch(/场次|場次|[Gg]ame|[Mm]atch count|[Ss]ample/)
     expect(wrapper.text()).not.toContain('patchEvidence.')
     expect(Object.keys(messages[locale].patchEvidence).sort()).toEqual(Object.keys(messages['en-US'].patchEvidence).sort())
   })
@@ -48,7 +52,7 @@ describe('patch and trend detail surface', () => {
     expect(wrapper.find('[data-testid="trend-delta"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('does not match')
     expect(wrapper.text()).toContain('No verified change archive')
-    expect(wrapper.findAll('tbody td').map((cell) => cell.text())).toEqual(['0.00%', '—', 'T3', '0'])
+    expect(wrapper.findAll('tbody td').map((cell) => cell.text())).toEqual(['0.00%', '—', 'T3'])
     await wrapper.setProps({ evidence: { ...data, history: { ...data.history, status: 'insufficient' } } })
     expect(wrapper.text()).toContain('Only one matching patch')
   })

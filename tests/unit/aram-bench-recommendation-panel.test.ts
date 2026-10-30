@@ -44,13 +44,16 @@ function render(data: AramBenchRecommendation | null, locale = 'zh-CN') {
 
 describe('ARAM recommendation panel', () => {
   it.each([
-    ['zh-CN', '席位中的 Lux 综合评分更高', '统计 2,400 场', '推荐与数据说明', '获胜概率'],
-    ['en-US', 'Lux on the bench scores higher', '2,400 games', 'Recommendation details', 'chance of winning'],
-    ['zh-TW', '席位中的 Lux 綜合評分更高', '統計 2,400 場', '推薦與資料說明', '獲勝機率'],
-  ])('shows localized decision, samples and method without treating confidence as probability: %s', (locale, decision, samples, title, probability) => {
+    ['zh-CN', '席位中的 Lux 综合评分更高', '推荐与数据说明', '获胜概率'],
+    ['en-US', 'Lux on the bench scores higher', 'Recommendation details', 'chance of winning'],
+    ['zh-TW', '席位中的 Lux 綜合評分更高', '推薦與資料說明', '獲勝機率'],
+  ])('shows localized strength metrics and method without game counts or probability claims: %s', (locale, decision, title, probability) => {
     const view = render(recommendation(), locale)
     expect(view.get('.decision-line').text()).toContain(decision)
-    expect(view.text()).toContain(samples)
+    expect(view.findAll('.stat-line > div')).toHaveLength(6)
+    expect(view.findAll('.stat-line')[0].text()).toContain('60.0%')
+    expect(view.findAll('.stat-line')[0].text()).toContain('12.0%')
+    expect(view.text()).not.toMatch(/场次|場次|[Gg]ames|[Ss]ample|2,400|1,200/)
     expect(view.get('summary').text()).toBe(title)
     expect(view.get('details').attributes('open')).toBeUndefined()
     expect(view.get('.decision-line').element.closest('details')).toBe(view.get('details').element)
@@ -93,7 +96,7 @@ describe('ARAM recommendation panel', () => {
     expect(lcuWrite).not.toHaveBeenCalled()
   })
 
-  it('shows missing fields and real zeroes separately, with no invented sample-sufficiency claim', () => {
+  it('preserves missing strength metrics and real zero rates without game-count messages', () => {
     const view = render(recommendation({}, {
       63: { name: 'Brand', winRate: 0.5, pickRate: 0.1, numGames: null, tier: null },
       99: { name: 'Lux', winRate: 0, pickRate: 0, numGames: 0, tier: 1 },
@@ -103,34 +106,37 @@ describe('ARAM recommendation panel', () => {
     const lux = rows.find((row) => row.text().includes('Lux'))!
     expect(brand.text()).not.toContain('games')
     expect(brand.text()).toContain('Tier —')
-    expect(lux.text()).toContain('0 games')
+    expect(lux.text()).not.toContain('games')
     expect(lux.text()).toContain('Win 0.0%')
     expect(view.find('.candidate-warning').exists()).toBe(false)
     expect(view.get('.candidate-data-notes').text()).toContain('Brand: Missing or invalid: tier')
-    expect(view.get('.candidate-data-notes').text()).toContain('Lux: No game samples')
-    expect(view.get('summary').text()).toBe('Games unavailable · Details')
-    expect(view.get('.evidence-method').text()).toContain('Missing counts do not mean zero games')
+    expect(view.get('.candidate-data-notes').text()).not.toContain('Lux')
+    expect(view.get('summary').text()).toBe('Recommendation details')
+    expect(view.text()).not.toMatch(/[Gg]ames|[Ss]amples/)
     expect(view.get('.data-warning').text()).toContain('incomplete statistics')
     expect(view.text()).not.toContain('NaN')
   })
 
-  it.each(['zh-CN', 'en-US', 'zh-TW'])('uses one shared note for unavailable game counts and keeps the cards concise: %s', (locale) => {
+  it.each(['zh-CN', 'en-US', 'zh-TW'])('does not warn about unknown or zero games when strength metrics are complete: %s', (locale) => {
     const view = render(recommendation({}, {
       63: { name: 'Brand', winRate: 0.5, pickRate: 0.1, numGames: null, tier: 2 },
-      99: { name: 'Lux', winRate: 0.6, pickRate: 0.12, numGames: null, tier: 1 },
+      99: { name: 'Lux', winRate: 0.6, pickRate: 0.12, numGames: 0, tier: 1 },
     }), locale)
     expect(view.findAll('details')).toHaveLength(1)
     expect(view.get('details').attributes('open')).toBeUndefined()
     expect(view.find('.candidate-data-notes').exists()).toBe(false)
+    expect(view.find('.data-warning').exists()).toBe(false)
+    expect(view.findAll('.candidate-row.recommended')).toHaveLength(1)
     for (const row of view.findAll('.candidate-row')) {
       expect(row.findAll('.stat-line > div')).toHaveLength(3)
       expect(row.text()).not.toMatch(/暂无|暫無|No game|— games/)
     }
+    expect(view.text()).not.toMatch(/场次|場次|[Gg]ames|[Ss]ample/)
     expect(view.text()).not.toContain('bench.')
   })
 
   it('degrades all-missing statistics to a candidate list and retains the missing-current explanation', async () => {
-    const view = render(recommendation({ myTeam: [{ cellId: 1, championId: 63 }, { cellId: 2, championId: 103 }] }, {}))
+    const view = render(recommendation({ myTeam: [{ cellId: 1, championId: 63 }, { cellId: 2, championId: 103 }] }, { 63: { numGames: 1_000 } }))
     expect(view.get('.decision-line').text()).toContain('暂不作强度判断')
     expect(view.findAll('.candidate-row')).toHaveLength(3)
     expect(view.find('.candidate-row.recommended').exists()).toBe(false)
@@ -141,6 +147,15 @@ describe('ARAM recommendation panel', () => {
     expect(view.get('.decision-line').text()).toContain('尚未读取到当前英雄')
     expect(view.findAll('.candidate-row')).toHaveLength(1)
     expect(view.find('.candidate-row.recommended').exists()).toBe(false)
+  })
+
+  it.each(['winRate', 'pickRate', 'tier'])('still warns when %s is missing from a comparison candidate', (field) => {
+    const view = render(recommendation({}, {
+      63: { name: 'Brand', winRate: 0.5, pickRate: 0.1, tier: 2, numGames: null, [field]: null },
+      99: { name: 'Lux', winRate: 0.6, pickRate: 0.12, tier: 1, numGames: null },
+    }), 'en-US')
+    expect(view.get('.data-warning').text()).toContain('incomplete statistics')
+    expect(view.get('.candidate-data-notes').text()).toContain({ winRate: 'win rate', pickRate: 'pick rate', tier: 'tier' }[field])
   })
 
   it('updates decision states as candidates disappear or the session ends', async () => {

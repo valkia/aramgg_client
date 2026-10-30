@@ -58,6 +58,13 @@ try {
     assert.equal(recommendation.currentChampion.name, expected)
     assert.equal(recommendation.currentChampion.games, null, 'Raw bundled null must survive real dataset reading and recommendation mapping')
     assert.equal(recommendation.currentChampion.winRate, 0.5732)
+    assert.equal(recommendation.currentChampion.dataAvailable, true)
+    assert.ok(Math.abs(recommendation.currentChampion.confidence - 1) < 1e-12, 'A complete real Tencent rate/tier record must not lose availability because games is null')
+    const knownCount = getAramBenchRecommendation({ gameflowPhase: 'ChampSelect', selfChampionId: 67 }, {
+      67: { ...stats['67'], numGames: 1_000_000 },
+    }).currentChampion
+    assert.equal(recommendation.currentChampion.score, knownCount.score)
+    assert.equal(recommendation.currentChampion.confidence, knownCount.confidence)
     const zero = recommendation.candidates.find((candidate) => candidate.championId === 900001)
     assert.equal(zero.games, 0)
     assert.equal(zero.winRate, 0)

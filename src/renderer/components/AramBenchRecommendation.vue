@@ -79,7 +79,6 @@
                                 <div>{{ t('bench.winRate', { value: formatPercent(candidate.winRate) }) }}</div>
                                 <div>{{ t('bench.pickRate', { value: formatPercent(candidate.pickRate) }) }}</div>
                                 <div>{{ t('bench.tier', { value: formatTier(candidate.tier) }) }}</div>
-                                <div v-if="hasGames(candidate)" class="sample-stat">{{ t('bench.samples', { count: formatGames(candidate.games) }) }}</div>
                             </div>
                         </div>
                     </article>
@@ -87,15 +86,13 @@
             </div>
             <div class="recommendation-footer">
                 <details v-if="topCandidates.length" class="evidence-method">
-                    <summary>{{ t(hasUnknownGames ? 'bench.unknownGamesSummary' : 'bench.methodTitle') }}</summary>
+                    <summary>{{ t('bench.methodTitle') }}</summary>
                     <div class="recommendation-evidence">
                         <p class="decision-line">{{ decisionMessage }}</p>
-                        <p v-if="hasUnknownGames" class="evidence-note">{{ t('bench.unknownGamesDescription') }}</p>
                         <p v-if="hasNoStats" class="data-warning">{{ t('bench.noStats') }}</p>
                         <p v-else-if="hasLimitedComparison" class="data-warning">{{ t('bench.limitedComparison') }}</p>
                         <p v-if="hasTeammates" class="evidence-note">{{ t('bench.teammateNote') }}</p>
                         <p>{{ t('bench.methodDescription') }}</p>
-                        <p>{{ t('bench.sampleDescription') }}</p>
                         <ul v-if="candidateDataNotes.length" class="candidate-data-notes">
                             <li v-for="note in candidateDataNotes" :key="note.championId">
                                 <strong>{{ note.name }}</strong>{{ t('bench.noteSeparator') }}{{ note.text }}
@@ -154,7 +151,7 @@ const props = defineProps({
     },
 })
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 
 const recommendation = ref(null)
 const loading = ref(false)
@@ -200,12 +197,10 @@ const emptyMessage = computed(() => {
 
 const topCandidates = computed(() => recommendation.value?.candidates || [])
 const recommended = computed(() => recommendation.value?.recommendedChampion || null)
-const numberFormatter = computed(() => new Intl.NumberFormat(locale.value))
 const hasTeammates = computed(() => topCandidates.value.some((candidate) => candidate.source === 'teammate'))
-const hasUnknownGames = computed(() => topCandidates.value.some((candidate) => !hasGames(candidate)))
-const hasNoStats = computed(() => topCandidates.value.length > 0 && topCandidates.value.every((candidate) => missingStats(candidate).length === 4))
+const hasNoStats = computed(() => topCandidates.value.length > 0 && topCandidates.value.every((candidate) => missingStats(candidate).length === 3))
 const hasLimitedComparison = computed(() => [recommendation.value?.currentChampion, recommended.value]
-    .some((candidate) => candidate && (missingStats(candidate).length > 0 || candidate.games === 0)))
+    .some((candidate) => candidate && missingStats(candidate).length > 0))
 const decisionMessage = computed(() => {
     const key = recommendation.value?.decisionReason
     if (hasNoStats.value && key !== 'no-current-champion') return t('bench.decisions.noStats')
@@ -307,21 +302,15 @@ const formatPercent = (value) => {
     return `${(value * 100).toFixed(1)}%`
 }
 
-const formatGames = (value) => Number.isSafeInteger(value) && value >= 0 ? numberFormatter.value.format(value) : '—'
-const hasGames = (candidate) => formatGames(candidate.games) !== '—'
 const formatTier = (value) => Number.isInteger(value) && value > 0 ? value : '—'
 const missingStats = (candidate) => [
     ...(formatPercent(candidate.winRate) === '—' ? [t('bench.fields.winRate')] : []),
     ...(formatPercent(candidate.pickRate) === '—' ? [t('bench.fields.pickRate')] : []),
-    ...(formatGames(candidate.games) === '—' ? [t('bench.fields.games')] : []),
     ...(formatTier(candidate.tier) === '—' ? [t('bench.fields.tier')] : []),
 ]
 const candidateDataNotes = computed(() => topCandidates.value.flatMap((candidate) => {
-    const fields = missingStats(candidate).filter((field) => field !== t('bench.fields.games'))
-    const notes = []
-    if (fields.length) notes.push(t('bench.missingFields', { fields: fields.join(t('bench.fieldSeparator')) }))
-    if (candidate.games === 0) notes.push(t('bench.zeroSamples'))
-    return notes.length ? [{ championId: candidate.championId, name: candidate.name, text: notes.join(t('bench.fieldSeparator')) }] : []
+    const fields = missingStats(candidate)
+    return fields.length ? [{ championId: candidate.championId, name: candidate.name, text: t('bench.missingFields', { fields: fields.join(t('bench.fieldSeparator')) }) }] : []
 }))
 
 const updateCandidateScrollState = () => {
@@ -825,10 +814,6 @@ h3 {
     color: #bacac6;
     font-size: 11px;
     font-weight: 800;
-}
-
-.sample-stat {
-    grid-column: 1 / -1;
 }
 
 .score-box {

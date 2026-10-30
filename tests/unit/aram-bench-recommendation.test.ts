@@ -15,23 +15,43 @@ const snapshot = (overrides = {}) => ({
 })
 
 describe('ARAM recommendation evidence', () => {
-  it('keeps the existing weights and reports a higher-scoring bench candidate', () => {
+  it('retains the relative strength weights without a game-count dimension', () => {
     const result = getAramBenchRecommendation(snapshot(), { 63: stats(), 99: stats(0.56) })
     expect(result.decisionReason).toBe('bench-higher')
     expect(result.recommendedChampion?.championId).toBe(99)
-    expect(result.recommendedChampion?.score).toBeCloseTo(0.56 * 0.74 + 0.1 * 0.08 + Math.log10(1_001) / 4 * 0.1 + 0.8 * 0.08)
-    expect(result.deltaScore).toBeCloseTo(0.06 * 0.74)
+    expect(result.recommendedChampion?.score).toBeCloseTo((0.56 * 0.74 + 0.1 * 0.08 + 0.8 * 0.08) / 0.9)
+    expect(result.deltaScore).toBeCloseTo(0.06 * 0.74 / 0.9)
     expect(result.readOnly).toBe(true)
   })
 
   it('distinguishes keeping the best current champion from a small positive difference', () => {
     expect(getAramBenchRecommendation(snapshot(), { 63: stats(0.6), 99: stats() }).decisionReason).toBe('current-best')
-    const close = getAramBenchRecommendation(snapshot(), { 63: stats(), 99: stats(0.5199) })
+    const close = getAramBenchRecommendation(snapshot(), { 63: stats(), 99: stats(0.518) })
     expect(close.recommendedChampion?.championId).toBe(99)
     expect(close.deltaScore).toBeGreaterThan(0)
     expect(close.deltaScore).toBeLessThan(0.015)
     expect(close.decisionReason).toBe('small-difference')
-    expect(getAramBenchRecommendation(snapshot(), { 63: stats(), 99: stats(0.521) }).decisionReason).toBe('bench-higher')
+    expect(getAramBenchRecommendation(snapshot(), { 63: stats(), 99: stats(0.519) }).decisionReason).toBe('bench-higher')
+  })
+
+  it.each([null, 0, 1, 1_000_000])('does not let game counts alone alter ranking or field availability: %s', (games) => {
+    const baseline = getAramBenchRecommendation(snapshot(), { 63: stats(), 99: stats(0.56) })
+    const result = getAramBenchRecommendation(snapshot(), {
+      63: { ...stats(), numGames: games }, 99: { ...stats(0.56), numGames: null },
+    })
+    expect(result.decisionReason).toBe(baseline.decisionReason)
+    expect(result.deltaScore).toBe(baseline.deltaScore)
+    expect(result.candidates.map(({ championId, score, confidence, dataAvailable }) => ({ championId, score, confidence, dataAvailable })))
+      .toEqual(baseline.candidates.map(({ championId, score, confidence, dataAvailable }) => ({ championId, score, confidence, dataAvailable })))
+    expect(result.currentChampion?.games).toBe(games)
+    expect(result.currentChampion?.confidence).toBeCloseTo(1)
+    expect(result.currentChampion?.reasons.join(' ')).not.toContain('样本')
+  })
+
+  it('requires strength metrics for available data and still lowers availability for missing metrics', () => {
+    const result = getAramBenchRecommendation(snapshot(), { 63: { numGames: 1_000 }, 99: { ...stats(), winRate: null } })
+    expect(result.currentChampion).toMatchObject({ games: 1_000, dataAvailable: false, score: 0.45 })
+    expect(result.candidates.find((candidate) => candidate.championId === 99)?.confidence).toBeLessThan(1)
   })
 
   it('keeps teammate candidates and distinguishes their discussion-only recommendation', () => {

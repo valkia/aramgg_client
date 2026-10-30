@@ -126,18 +126,17 @@ function scoreChampionStats(stats: ChampionStats | null) {
 
   const winRateScore = winRate ?? 0.5
   const pickRateScore = pickRate ?? 0
-  const sampleScore = games ? clamp01(Math.log10(games + 1) / 4) : 0
   const tierScore = tier ? clamp01((6 - Math.min(tier, 6)) / 5) : 0
 
-  const dataAvailable = winRate != null || pickRate != null || games != null || tier != null
+  // Counts remain source metadata; only rate/tier fields affect ranking and availability.
+  const dataAvailable = winRate != null || pickRate != null || tier != null
   const score = dataAvailable
-    ? clamp01(winRateScore * 0.74 + pickRateScore * 0.08 + sampleScore * 0.1 + tierScore * 0.08)
+    ? clamp01((winRateScore * 0.74 + pickRateScore * 0.08 + tierScore * 0.08) / 0.9)
     : 0.45
 
   let confidence = 0.15
   if (winRate != null) confidence += 0.45
   if (pickRate != null) confidence += 0.1
-  if (games != null && games > 0) confidence += 0.2
   if (tier != null) confidence += 0.1
 
   return {
@@ -146,7 +145,7 @@ function scoreChampionStats(stats: ChampionStats | null) {
     games,
     tier,
     score,
-    confidence: clamp01(confidence),
+    confidence: clamp01(confidence / 0.8),
     dataAvailable,
   }
 }
@@ -165,8 +164,8 @@ function buildCandidate(
   if (scoredStats.winRate != null) {
     reasons.push(`胜率 ${(scoredStats.winRate * 100).toFixed(1)}%`)
   }
-  if (scoredStats.games != null) {
-    reasons.push(`样本 ${Math.round(scoredStats.games)}`)
+  if (scoredStats.pickRate != null) {
+    reasons.push(`登场率 ${(scoredStats.pickRate * 100).toFixed(1)}%`)
   }
   if (scoredStats.tier != null) {
     reasons.push(`梯队 ${scoredStats.tier}`)

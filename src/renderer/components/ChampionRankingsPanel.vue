@@ -16,13 +16,12 @@ const direction = ref<ChampionSortDirection>('ascending')
 const failedIcons = ref(new Set<number>())
 const opening = ref(false)
 const openError = ref(false)
-const columns: ChampionSortKey[] = ['tier', 'winRate', 'pickRate', 'numGames']
+const columns: ChampionSortKey[] = ['tier', 'winRate', 'pickRate']
 let requestSequence = 0
 let openSequence = 0
 let active = true
 
 const rows = computed(() => sortChampionRankings(filterChampionRankings(data.value?.champions || [], keyword.value), sortKey.value, direction.value))
-const missingGames = computed(() => data.value?.champions.filter((row) => row.numGames === null).length || 0)
 const uniqueEvidence = (key: 'source' | 'region' | 'statsDate') => {
   const values = [...new Set(data.value?.champions.map((row) => row[key] || t('championRankings.unknown')) || [])]
   return values.map((value) => key === 'source' && value === 'tencent' ? t('championRankings.tencent') : value).join(', ')
@@ -45,7 +44,6 @@ function format(row: ChampionRankingEntry, key: ChampionSortKey): string {
   const value = row[key]
   if (value === null) return '—'
   if (key === 'tier') return `T${value}`
-  if (key === 'numGames') return new Intl.NumberFormat(locale.value).format(value)
   return new Intl.NumberFormat(locale.value, { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)
 }
 function sort(key: ChampionSortKey): void {
@@ -129,7 +127,7 @@ onBeforeUnmount(() => { active = false; requestSequence += 1; openSequence += 1 
       <p class="my-2 text-[11px] text-muted-foreground" aria-live="polite">{{ t('championRankings.count', { count: rows.length, total: data.champions.length }) }}</p>
       <div class="analysis-inset max-h-96 overflow-y-auto">
         <table class="analysis-table w-full table-fixed border-collapse text-[11px] tabular-nums">
-          <colgroup><col class="w-[34%]" /><col class="w-[12%]" /><col class="w-[18%]" /><col class="w-[18%]" /><col class="w-[18%]" /></colgroup>
+          <colgroup><col class="w-[42%]" /><col class="w-[14%]" /><col class="w-[22%]" /><col class="w-[22%]" /></colgroup>
           <thead class="sticky top-0 z-10">
             <tr>
               <th scope="col" class="px-2 py-2 text-left font-medium">{{ t('championRankings.hero') }}</th>
@@ -159,7 +157,6 @@ onBeforeUnmount(() => { active = false; requestSequence += 1; openSequence += 1 
       <details class="mt-2 text-[11px] text-muted-foreground">
         <summary class="analysis-disclosure cursor-pointer py-1">{{ t('championRankings.scope') }}</summary>
         <p class="mt-1 leading-relaxed">{{ t('championRankings.scopeHint') }}</p>
-        <p v-if="missingGames" class="mt-1">{{ t('championRankings.missingGames', { count: missingGames }) }}</p>
         <p class="mt-1 break-words">{{ evidence }}</p>
         <p class="mt-1 break-words">{{ t('championRankings.generatedAt', { value: data.generatedAt || t('championRankings.unknown') }) }}</p>
       </details>

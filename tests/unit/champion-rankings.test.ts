@@ -58,7 +58,7 @@ describe('champion ranking index', () => {
     expect(rows).toHaveLength(2)
   })
 
-  it.each(['tier', 'winRate', 'pickRate', 'numGames'] as const)('sorts %s with null last in both directions and stable ID ties', (key) => {
+  it.each(['tier', 'winRate', 'pickRate'] as const)('sorts %s with null last in both directions and stable ID ties', (key) => {
     const rows = mapped([make(3), make(2, { tier: 1, winRate: 0, pickRate: 0, games: 0 }), make(1, { tier: 1, winRate: 0, pickRate: 0, games: 0 }), make(4, { tier: 2, winRate: 1, pickRate: 1, games: 100 })])
     expect(sortChampionRankings(rows, key, 'ascending').map((row) => row.championId)).toEqual([1, 2, 4, 3])
     expect(sortChampionRankings(rows, key, 'descending').map((row) => row.championId)).toEqual([4, 1, 2, 3])

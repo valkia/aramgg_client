@@ -1,6 +1,6 @@
 import type { ChampionRankingEntry } from '../../shared/ipc-contract.ts'
 
-export type ChampionSortKey = 'tier' | 'winRate' | 'pickRate' | 'numGames'
+export type ChampionSortKey = 'tier' | 'winRate' | 'pickRate'
 export type ChampionSortDirection = 'ascending' | 'descending'
 
 const searchText = (value: string): string => value.normalize('NFKC').toLocaleLowerCase().trim()

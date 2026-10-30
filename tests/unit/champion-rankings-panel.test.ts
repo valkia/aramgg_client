@@ -30,19 +30,20 @@ afterEach(() => { wrapper?.unmount(); wrapper = undefined })
 
 describe('champion rankings panel', () => {
   it.each([
-    ['zh-CN', '海克斯英雄榜', '可离线查看', '未提供统计场次'],
-    ['en-US', 'ARAM: Mayhem champion rankings', 'available offline', 'no reported game count'],
-    ['zh-TW', '海克斯英雄榜', '可離線查看', '未提供統計場次'],
-  ] as const)('shows localized metadata, missing samples and real zeroes in %s', async (locale, heading, offline, missing) => {
+    ['zh-CN', '海克斯英雄榜', '可离线查看', ['梯队', '胜率', '登场率']],
+    ['en-US', 'ARAM: Mayhem champion rankings', 'available offline', ['Tier', 'Win rate', 'Pick rate']],
+    ['zh-TW', '海克斯英雄榜', '可離線查看', ['梯隊', '勝率', '登場率']],
+  ] as const)('shows localized strength metrics and omits game counts and sorting in %s', async (locale, heading, offline, columns) => {
     mocks.get.mockResolvedValue({ success: true, data: fixture(locale) })
     const view = render(locale)
     await flushPromises()
     expect(view.get('h2').text()).toBe(heading)
     expect(view.text()).toContain('16.21.5')
     expect(view.text()).toContain(offline)
-    expect(view.text()).toContain(missing)
-    expect(view.findAll('tbody tr')[0].findAll('td').map((cell) => cell.text())).toEqual(['T1', '55.0%', '10.0%', '—'])
-    expect(view.findAll('tbody tr')[1].findAll('td').map((cell) => cell.text())).toEqual(['—', '0.0%', '0.0%', '0'])
+    expect(view.text()).not.toMatch(/场次|場次|[Gg]ame count|Games|samples/)
+    expect(view.findAll('thead button').map((button) => button.text().replace(/ [↑↓↕]$/, ''))).toEqual(columns)
+    expect(view.findAll('tbody tr')[0].findAll('td').map((cell) => cell.text())).toEqual(['T1', '55.0%', '10.0%'])
+    expect(view.findAll('tbody tr')[1].findAll('td').map((cell) => cell.text())).toEqual(['—', '0.0%', '0.0%'])
     expect(view.text()).toContain('CN')
     expect(view.text()).toContain('2026-10-27')
     expect(view.text()).not.toContain('championRankings.')

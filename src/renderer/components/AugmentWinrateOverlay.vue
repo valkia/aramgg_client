@@ -100,10 +100,6 @@
               <span>{{ t('augment.pickRate') }}</span>
               <strong>{{ championDataLoading ? t('augment.reading') : formatPercent(championStats?.pickRate) }}</strong>
             </div>
-            <div class="stat-box">
-              <span>{{ t('augment.games') }}</span>
-              <strong>{{ championDataLoading ? t('augment.reading') : formatNumber(championStats?.numGames) }}</strong>
-            </div>
           </section>
 
           <section v-if="!isSidePanel && championBlogs.length" class="related-blogs">
@@ -2472,7 +2468,7 @@ defineExpose({
 
 .stat-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 12px 18px 0;
 }
