@@ -28,7 +28,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { History, Settings, Trophy } from 'lucide-vue-next'
+import { History, Home, Trophy } from 'lucide-vue-next'
 import { useLcuConnectionState } from '../composables/use-lcu-connection-state.ts'
 
 const props = defineProps<{ modelValue: string }>()
@@ -36,7 +36,7 @@ const emit = defineEmits<{ 'update:modelValue': [section: string] }>()
 const { t } = useI18n()
 const state = useLcuConnectionState()
 const sections = [
-  { id: 'history', icon: History }, { id: 'champions', icon: Trophy }, { id: 'settings', icon: Settings },
+  { id: 'home', icon: Home }, { id: 'history', icon: History }, { id: 'champions', icon: Trophy },
 ]
 const connectionHint = computed(() => t(`mainNavigation.${state.value.connection === 'disconnected'
   ? 'offline' : state.value.connection === 'checking' ? 'checkingHint' : 'unavailableHint'}`))

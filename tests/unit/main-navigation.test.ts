@@ -20,7 +20,7 @@ const state = (connection: LcuConnectionState['connection'], phase: LcuConnectio
 const emit = (value: LcuConnectionState) => mocks.listeners.forEach(listener => listener(value))
 function render(locale: SupportedDataLocale = 'zh-CN') {
   wrapper = mount(MainNavigation, {
-    attachTo: document.body, props: { modelValue: 'history', 'onUpdate:modelValue': (value) => wrapper?.setProps({ modelValue: value }) },
+    attachTo: document.body, props: { modelValue: 'home', 'onUpdate:modelValue': (value) => wrapper?.setProps({ modelValue: value }) },
     global: { plugins: [createI18n({ legacy: false, locale, messages })] },
   })
   return wrapper
@@ -30,13 +30,13 @@ afterEach(() => { wrapper?.unmount(); wrapper = undefined; vi.useRealTimers() })
 
 describe('main section navigation and connection status', () => {
   it.each([
-    ['zh-CN', '战绩', '英雄', '设置', '未连接', '选择英雄'],
-    ['en-US', 'History', 'Champions', 'Settings', 'Disconnected', 'Champion select'],
-    ['zh-TW', '戰績', '英雄', '設定', '未連線', '選擇英雄'],
-  ] as const)('keeps every section available offline and localizes real phases in %s', async (locale, history, champions, settings, disconnected, selecting) => {
+    ['zh-CN', '主页', '战绩', '英雄', '未连接', '选择英雄'],
+    ['en-US', 'Home', 'History', 'Champions', 'Disconnected', 'Champion select'],
+    ['zh-TW', '首頁', '戰績', '英雄', '未連線', '選擇英雄'],
+  ] as const)('keeps every section available offline and localizes real phases in %s', async (locale, home, history, champions, disconnected, selecting) => {
     const view = render(locale)
     await flushPromises()
-    expect(view.findAll('[role="tab"]').map(tab => tab.text())).toEqual([history, champions, settings])
+    expect(view.findAll('[role="tab"]').map(tab => tab.text())).toEqual([home, history, champions])
     expect(view.text()).toContain(disconnected)
     expect(view.findAll('[role="tab"]').every(tab => tab.attributes('disabled') === undefined)).toBe(true)
     emit(state('connected', 'ChampSelect', 2))
@@ -59,9 +59,12 @@ describe('main section navigation and connection status', () => {
     await tabs[0].trigger('keydown', { key: 'ArrowLeft' })
     expect(document.activeElement).toBe(tabs[2].element)
     expect(tabs[2].attributes('aria-selected')).toBe('true')
-    expect(tabs[2].attributes('aria-controls')).toBe('main-panel-settings')
+    expect(tabs[2].attributes('aria-controls')).toBe('main-panel-champions')
     await tabs[2].trigger('keydown', { key: 'Home' })
     expect(document.activeElement).toBe(tabs[0].element)
+    expect(tabs[0].attributes('id')).toBe('main-tab-home')
+    expect(tabs[0].attributes('aria-controls')).toBe('main-panel-home')
+    expect(tabs[0].attributes('aria-selected')).toBe('true')
     await tabs[0].trigger('keydown', { key: 'End' })
     expect(document.activeElement).toBe(tabs[2].element)
     await tabs[2].trigger('keydown', { key: 'ArrowRight' })

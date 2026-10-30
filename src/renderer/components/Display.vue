@@ -31,14 +31,14 @@
                 <ChampionRankingsPanel />
             </main>
             <main
-                v-show="activeSection === 'settings'" id="main-panel-settings"
-                class="hex-scroll" role="tabpanel" aria-labelledby="main-tab-settings" tabindex="0"
+                v-show="activeSection === 'home'" id="main-panel-home"
+                class="hex-scroll" role="tabpanel" aria-labelledby="main-tab-home" tabindex="0"
             >
                 <div class="status-strip">
                     <div class="status-header">
                         <div>
                             <span class="section-kicker">{{ t('display.runningStatus') }}</span>
-                            <h2>{{ t('mainNavigation.settings') }}</h2>
+                            <h2>{{ t('mainNavigation.home') }}</h2>
                         </div>
                         <Select
                             v-model="selectedLocale"
@@ -442,7 +442,7 @@ import {
 } from 'lucide-vue-next'
 
 const testStatus = ref(null)
-const activeSection = ref('history')
+const activeSection = ref('home')
 const { t } = useI18n()
 const versionInfo = ref(null)
 const showQuitConfirm = ref(false)

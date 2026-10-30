@@ -65,9 +65,27 @@ function render() {
 }
 
 describe('main window sections', () => {
+  it.each([
+    ['zh-CN', '主页', '战绩', '英雄'],
+    ['en-US', 'Home', 'History', 'Champions'],
+    ['zh-TW', '首頁', '戰績', '英雄'],
+  ] as const)('opens the first home tab with the existing running status in %s', async (locale, home, history, champions) => {
+    i18n.global.locale.value = locale
+    const view = render()
+    await flushPromises()
+    expect(view.findAll('[role="tab"]').map(tab => tab.text())).toEqual([home, history, champions])
+    expect(view.get('#main-tab-home').attributes('aria-selected')).toBe('true')
+    expect(view.get('#main-panel-home').isVisible()).toBe(true)
+    expect(view.get('#main-panel-home h2').text()).toBe(home)
+    expect(view.get('#main-panel-home .section-kicker').text()).toBe(i18n.global.t('display.runningStatus'))
+    expect(view.get('#main-panel-history').isVisible()).toBe(false)
+    expect(view.get('#main-panel-champions').isVisible()).toBe(false)
+  })
+
   it('keeps the real match page, filters, champion search, sort, and scroll across section switches', async () => {
     const view = render()
     await flushPromises()
+    await view.get('#main-tab-history').trigger('click')
     const history = view.getComponent(MatchHistoryPanel)
     const champions = view.getComponent(ChampionRankingsPanel)
     const historyPanel = view.get('#main-panel-history').element
@@ -82,7 +100,7 @@ describe('main window sections', () => {
     await champions.findAll('thead button')[1].trigger('click')
     const sort = champions.findAll('thead th')[2].attributes('aria-sort')
     view.get('#main-panel-champions').element.scrollTop = 80
-    await view.get('#main-tab-settings').trigger('click')
+    await view.get('#main-tab-home').trigger('click')
     await view.get('#main-tab-history').trigger('click')
     expect(view.getComponent(MatchHistoryPanel).element).toBe(history.element)
     expect(history.text()).toContain('第 2 页')
@@ -99,24 +117,29 @@ describe('main window sections', () => {
     expect(mocks.write).not.toHaveBeenCalled()
   })
 
-  it('keeps all existing settings and offline navigation without using a fallback path or last hero as connection evidence', async () => {
+  it('keeps all existing settings on home and navigation without using a fallback path or last hero as connection evidence', async () => {
     const view = render()
     await flushPromises()
-    await view.get('#main-tab-settings').trigger('click')
-    const settings = view.get('#main-panel-settings')
+    const home = view.get('#main-panel-home')
     expect(view.get('[data-connection]').attributes('data-connection')).toBe('disconnected')
-    expect(settings.findAll('[role="switch"]')).toHaveLength(7)
-    expect(settings.find('.header-locale-trigger').exists()).toBe(true)
+    expect(home.findAll('[role="switch"]')).toHaveLength(7)
+    expect(home.find('.header-locale-trigger').exists()).toBe(true)
     for (const text of ['赛后海报', '窗口预览', '海克斯浮窗', '英雄详情', '数据探测', '反馈建议', '更新日志', '日志目录']) {
-      expect(settings.text()).toContain(text)
+      expect(home.text()).toContain(text)
     }
-    expect(settings.find('.manual-path-input').exists()).toBe(false)
-    await settings.get('.game-directory-toggle').trigger('click'); await flushPromises()
-    expect((settings.get('.manual-path-input').element as HTMLInputElement).value).toBe('/fixture/fallback/League')
+    expect(home.find('.manual-path-input').exists()).toBe(false)
+    await home.get('.game-directory-toggle').trigger('click'); await flushPromises()
+    expect((home.get('.manual-path-input').element as HTMLInputElement).value).toBe('/fixture/fallback/League')
     expect(view.get('[data-connection]').attributes('data-connection')).toBe('disconnected')
-    for (const id of ['history', 'champions', 'settings']) {
+    emit('lcu-connection-changed', { connection: 'connected', phase: 'InProgress', revision: 2 })
+    await flushPromises()
+    for (const id of ['home', 'history', 'champions']) {
+      await view.get(`#main-tab-${id}`).trigger('click')
       expect(view.get(`#main-panel-${id}`).attributes('aria-labelledby')).toBe(`main-tab-${id}`)
+      expect(view.get('[data-connection]').attributes('data-connection')).toBe('connected')
+      expect(view.get('[role="status"]').text()).toContain('游戏进行中')
     }
+    expect(mocks.listeners.get('lcu-connection-changed')?.size).toBe(1)
   })
 
   it('waits for a committed locale before changing interface data and leaves navigation usable during preparation', async () => {
@@ -124,7 +147,6 @@ describe('main window sections', () => {
     mocks.localeSet.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
     const view = render()
     await flushPromises()
-    await view.get('#main-tab-settings').trigger('click')
     view.getComponent(Select).vm.$emit('update:modelValue', 'en-US')
     await flushPromises()
     expect(mocks.localeSet).toHaveBeenCalledExactlyOnceWith('en-US')
@@ -137,7 +159,7 @@ describe('main window sections', () => {
     emit('locale-changed', { locale: 'en-US', dataVersion: 'fixture-en' })
     await flushPromises()
     expect(view.get('#main-tab-champions').text()).toBe('Champions')
-    await view.get('#main-tab-settings').trigger('click')
+    await view.get('#main-tab-home').trigger('click')
     expect(view.get('.header-locale-trigger').attributes('disabled')).toBeUndefined()
     expect(view.get('.header-locale-trigger').text()).toContain('English')
   })
