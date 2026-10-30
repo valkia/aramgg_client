@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RefreshCw, UserRound } from 'lucide-vue-next'
+import { RefreshCw, Trophy, UserRound } from 'lucide-vue-next'
 import type { ChampionRankingEntry, ChampionRankings } from '../../shared/ipc-contract.ts'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
 import { filterChampionRankings, sortChampionRankings, type ChampionSortKey, type ChampionSortDirection } from '../services/champion-rankings.ts'
@@ -103,13 +103,13 @@ onBeforeUnmount(() => { active = false; requestSequence += 1; openSequence += 1 
 </script>
 
 <template>
-  <section class="mt-3 min-w-0 rounded border border-border bg-card p-3 text-foreground" :aria-busy="loading">
+  <section class="analysis-panel min-w-0 p-3" :aria-busy="loading">
     <header class="flex items-start justify-between gap-2">
       <div class="min-w-0">
-        <h2 class="m-0 text-sm font-semibold text-primary">{{ t('championRankings.title') }}</h2>
+        <h2 class="analysis-heading m-0 text-sm"><Trophy aria-hidden="true" />{{ t('championRankings.title') }}</h2>
         <p class="mt-1 text-xs text-muted-foreground">{{ t('championRankings.description') }}</p>
       </div>
-      <button type="button" class="flex size-8 shrink-0 items-center justify-center rounded border border-border text-primary focus-visible:outline-primary disabled:opacity-40" :disabled="loading" :aria-label="t('championRankings.retry')" :title="t('championRankings.retry')" @click="load">
+      <button type="button" class="analysis-control flex size-8 shrink-0 items-center justify-center" :disabled="loading" :aria-label="t('championRankings.retry')" :title="t('championRankings.retry')" @click="load">
         <RefreshCw class="size-3.5" :class="{ 'animate-spin motion-reduce:animate-none': loading }" aria-hidden="true" />
       </button>
     </header>
@@ -123,14 +123,14 @@ onBeforeUnmount(() => { active = false; requestSequence += 1; openSequence += 1 
     <p v-if="loading" class="mt-2 text-xs text-muted-foreground" role="status">{{ t('championRankings.loading') }}</p>
     <template v-if="data?.champions.length">
       <div class="mt-3 flex items-center gap-2">
-        <input v-model="keyword" type="search" class="h-8 min-w-0 flex-1 rounded border border-border bg-background px-2 text-xs text-foreground focus-visible:outline-primary" :placeholder="t('championRankings.search')" :aria-label="t('championRankings.search')" />
-        <button v-if="keyword" type="button" class="h-8 shrink-0 rounded border border-border px-2 text-xs text-primary focus-visible:outline-primary" @click="keyword = ''">{{ t('championRankings.clearSearch') }}</button>
+        <input v-model="keyword" type="search" class="analysis-control h-8 min-w-0 flex-1 px-2" :placeholder="t('championRankings.search')" :aria-label="t('championRankings.search')" />
+        <button v-if="keyword" type="button" class="analysis-control h-8 shrink-0 px-2" @click="keyword = ''">{{ t('championRankings.clearSearch') }}</button>
       </div>
       <p class="my-2 text-[11px] text-muted-foreground" aria-live="polite">{{ t('championRankings.count', { count: rows.length, total: data.champions.length }) }}</p>
-      <div class="max-h-96 overflow-y-auto rounded border border-border">
-        <table class="w-full table-fixed border-collapse text-[11px] tabular-nums">
+      <div class="analysis-inset max-h-96 overflow-y-auto">
+        <table class="analysis-table w-full table-fixed border-collapse text-[11px] tabular-nums">
           <colgroup><col class="w-[34%]" /><col class="w-[12%]" /><col class="w-[18%]" /><col class="w-[18%]" /><col class="w-[18%]" /></colgroup>
-          <thead class="sticky top-0 z-10 bg-card text-muted-foreground">
+          <thead class="sticky top-0 z-10">
             <tr>
               <th scope="col" class="px-2 py-2 text-left font-medium">{{ t('championRankings.hero') }}</th>
               <th v-for="key in columns" :key="key" scope="col" class="px-0.5 py-2 text-right font-medium" :aria-sort="sortKey === key ? direction : 'none'">
@@ -141,7 +141,7 @@ onBeforeUnmount(() => { active = false; requestSequence += 1; openSequence += 1 
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in rows" :key="row.championId" class="border-t border-border hover:bg-muted/40">
+            <tr v-for="row in rows" :key="row.championId" class="border-t">
               <th scope="row" class="px-2 py-2 text-left font-normal">
                 <button type="button" class="flex w-full min-w-0 items-center gap-1.5 rounded text-left focus-visible:outline-primary disabled:opacity-50" :disabled="opening" :aria-label="t('championRankings.openDetails', { name: name(row) })" :title="[name(row), row.title, row.alias, rowEvidence(row)].filter(Boolean).join(' · ')" @click="openDetails(row)">
                   <img v-if="row.iconUrl && !failedIcons.has(row.championId)" :src="row.iconUrl" alt="" class="size-6 shrink-0 rounded object-cover" loading="lazy" @error="failedIcons.add(row.championId)" />
@@ -157,7 +157,7 @@ onBeforeUnmount(() => { active = false; requestSequence += 1; openSequence += 1 
         <p v-if="!rows.length" class="m-0 px-3 py-5 text-center text-xs text-muted-foreground" role="status">{{ t('championRankings.noMatches') }}</p>
       </div>
       <details class="mt-2 text-[11px] text-muted-foreground">
-        <summary class="cursor-pointer rounded py-1 focus-visible:outline-primary">{{ t('championRankings.scope') }}</summary>
+        <summary class="analysis-disclosure cursor-pointer py-1">{{ t('championRankings.scope') }}</summary>
         <p class="mt-1 leading-relaxed">{{ t('championRankings.scopeHint') }}</p>
         <p v-if="missingGames" class="mt-1">{{ t('championRankings.missingGames', { count: missingGames }) }}</p>
         <p class="mt-1 break-words">{{ evidence }}</p>

@@ -1,6 +1,6 @@
 <template>
   <details ref="disclosure" class="mt-3 border-t border-border pt-2" @toggle="onToggle">
-    <summary ref="summary" class="cursor-pointer rounded py-2 text-xs font-semibold text-primary focus-visible:outline focus-visible:outline-primary">
+    <summary ref="summary" class="analysis-disclosure cursor-pointer py-2 text-xs font-semibold">
       {{ t('matchAnalysis.details') }} · {{ t('matchHistory.players', { count: match.participants?.length || 0 }) }}
     </summary>
     <MatchScoreboardContent v-if="expanded" :match="match" :loading="loading" />

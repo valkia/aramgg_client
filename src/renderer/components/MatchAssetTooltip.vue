@@ -15,7 +15,7 @@
           :side-offset="8"
           :collision-padding="12"
           hide-when-detached
-          class="match-asset-tooltip z-[100] overflow-y-auto rounded-md border border-border bg-popover p-3 text-xs text-popover-foreground shadow-xl"
+          class="match-asset-tooltip analysis-panel z-[100] overflow-y-auto p-3 text-xs"
           style="width: min(20rem, calc(100vw - 24px)); max-width: var(--reka-tooltip-content-available-width); max-height: min(24rem, var(--reka-tooltip-content-available-height)); overflow-wrap: anywhere"
         >
           <div class="flex items-start gap-2">
@@ -72,3 +72,7 @@ watch(open, (visible, _, onCleanup) => {
 })
 onDeactivated(close)
 </script>
+
+<style scoped>
+:global(.match-asset-tooltip) { background: var(--lol-panel-raised); border-color: var(--lol-border); box-shadow: var(--lol-shadow); }
+</style>

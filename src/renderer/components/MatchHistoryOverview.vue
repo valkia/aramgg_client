@@ -1,7 +1,7 @@
 <template>
-  <section class="mt-3 rounded-md border border-border bg-card/60 p-3" :aria-label="t('matchAnalysis.overview')">
+  <section class="analysis-panel mt-3 p-3" :aria-label="t('matchAnalysis.overview')">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <h3 class="text-sm font-semibold text-foreground">{{ t('matchAnalysis.overview') }}</h3>
+      <h3 class="analysis-heading text-sm"><ChartNoAxesCombined aria-hidden="true" />{{ t('matchAnalysis.overview') }}</h3>
       <span v-if="summary.streak >= 3" class="rounded border border-border px-2 py-1 text-xs" :class="summary.streakResult === 'win' ? 'text-[var(--lol-success)]' : 'text-[var(--lol-crimson)]'">
         {{ t(summary.streakResult === 'win' ? 'matchAnalysis.winStreak' : 'matchAnalysis.lossStreak', { count: summary.streak }) }}
       </span>
@@ -31,7 +31,7 @@
         </div>
       </dl>
       <details class="mt-2 text-xs leading-relaxed text-muted-foreground">
-        <summary class="cursor-pointer rounded py-1 text-primary focus-visible:outline focus-visible:outline-primary">{{ t('matchAnalysis.performanceMethod') }}</summary>
+        <summary class="analysis-disclosure cursor-pointer py-1">{{ t('matchAnalysis.performanceMethod') }}</summary>
         <p class="mt-1">{{ t('matchAnalysis.performanceMethodHint') }}</p>
       </details>
     </template>
@@ -50,6 +50,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ChartNoAxesCombined } from 'lucide-vue-next'
 import type { HextechAramMatchHistoryMatch } from '../../shared/ipc-contract.ts'
 import { summarizeMatches } from '../services/match-history-insights.ts'
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ChartNoAxesCombined } from 'lucide-vue-next'
 import type { ChampionPatchEvidence, PatchChangeRecord } from '../../shared/patch-evidence.ts'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
 
@@ -37,15 +38,15 @@ async function openSource(url: string): Promise<void> {
 </script>
 
 <template>
-  <section v-if="data" class="min-w-0 rounded border border-border bg-card p-3 text-foreground" :aria-label="t('patchEvidence.title')">
-    <h3 class="m-0 text-sm font-semibold text-primary">{{ t('patchEvidence.title') }}</h3>
+  <section v-if="data" class="analysis-panel min-w-0 p-3" :aria-label="t('patchEvidence.title')">
+    <h3 class="analysis-heading m-0 text-sm"><ChartNoAxesCombined aria-hidden="true" />{{ t('patchEvidence.title') }}</h3>
     <p class="mt-1 text-[11px] text-muted-foreground">{{ t('patchEvidence.scope') }}</p>
     <p class="mt-1 break-words text-[11px] text-muted-foreground">{{ data.current.publicPatch ? t('patchEvidence.version', { publicPatch: data.current.publicPatch, gamePatch: data.current.gamePatch }) : t('patchEvidence.unmapped', { gamePatch: data.current.gamePatch || '—' }) }}</p>
     <p class="mt-1 text-[11px] text-muted-foreground">{{ t('patchEvidence.date', { date: data.current.date || '—' }) }}</p>
     <p class="mt-1 break-words text-[11px] text-muted-foreground">{{ t('patchEvidence.source', { source: data.source === 'tencent' ? t('patchEvidence.tencent') : data.source || t('patchEvidence.unknown'), region: data.region || t('patchEvidence.unknown') }) }}</p>
 
-    <details class="mt-3 rounded border border-border p-2 text-xs" data-testid="patch-notes">
-      <summary class="cursor-pointer rounded font-medium text-primary focus-visible:outline-primary">{{ t('patchEvidence.notes') }}</summary>
+    <details class="analysis-inset mt-3 p-2 text-xs" data-testid="patch-notes">
+      <summary class="analysis-disclosure cursor-pointer font-semibold">{{ t('patchEvidence.notes') }}</summary>
       <p class="mt-2 leading-relaxed text-muted-foreground">{{ t('patchEvidence.noteScope') }}</p>
       <template v-if="data.notes">
         <p class="mt-2 text-[11px] text-muted-foreground">{{ t('patchEvidence.effective', { date: data.notes.effectiveDate, verified: data.notes.verifiedAt }) }}</p>
@@ -57,7 +58,7 @@ async function openSource(url: string): Promise<void> {
           </ul>
         </div>
         <details v-if="poolNotes.length" class="mt-3">
-          <summary class="cursor-pointer rounded font-medium focus-visible:outline-primary">{{ t('patchEvidence.poolChanges') }}</summary>
+          <summary class="analysis-disclosure cursor-pointer font-medium">{{ t('patchEvidence.poolChanges') }}</summary>
           <div class="mt-2 max-h-72 space-y-3 overflow-y-auto">
             <div v-for="(record, index) in poolNotes" :key="index">
               <h4 class="break-words font-medium">{{ title(record) }}</h4>
@@ -69,12 +70,12 @@ async function openSource(url: string): Promise<void> {
       <p v-else class="mt-2 leading-relaxed text-muted-foreground">{{ t('patchEvidence.noNotes') }}</p>
     </details>
 
-    <details class="mt-2 rounded border border-border p-2 text-xs" data-testid="patch-history">
-      <summary class="cursor-pointer rounded font-medium text-primary focus-visible:outline-primary">{{ t('patchEvidence.history') }}</summary>
+    <details class="analysis-inset mt-2 p-2 text-xs" data-testid="patch-history">
+      <summary class="analysis-disclosure cursor-pointer font-semibold">{{ t('patchEvidence.history') }}</summary>
       <p v-if="delta !== null && previous" class="mt-2 font-medium" data-testid="trend-delta">{{ t('patchEvidence.delta', { patch: previous.publicPatch || previous.gamePatch, value: delta }) }}</p>
       <p v-if="previous?.tier !== null && previous?.tier !== undefined && data.current.tier !== null" class="mt-1">{{ t('patchEvidence.tierDelta', { before: previous.tier, after: data.current.tier }) }}</p>
       <p v-if="data.history.status !== 'ready'" class="mt-2 leading-relaxed text-muted-foreground" role="status">{{ t(`patchEvidence.${data.history.status}`) }}</p>
-      <table class="mt-3 w-full table-fixed border-collapse text-[11px] tabular-nums">
+      <table class="analysis-table mt-3 w-full table-fixed border-collapse text-[11px] tabular-nums">
         <colgroup><col class="w-[32%]" /><col class="w-[19%]" /><col class="w-[19%]" /><col class="w-[12%]" /><col class="w-[18%]" /></colgroup>
         <thead><tr class="text-muted-foreground"><th v-for="key in ['patch', 'winRate', 'pickRate', 'tier', 'games']" :key="key" scope="col" class="break-words px-0.5 py-1 text-right font-normal first:text-left">{{ t(`patchEvidence.${key}`) }}</th></tr></thead>
         <tbody><tr v-for="point in points" :key="`${point.gamePatch}:${point.date}`" class="border-t border-border">

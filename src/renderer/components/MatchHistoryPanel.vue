@@ -38,19 +38,19 @@
       <div class="flex flex-wrap items-end gap-2">
         <label class="min-w-32 flex-1 text-xs text-muted-foreground">
           {{ t('matchAnalysis.championFilter') }}
-          <select v-model="championFilter" :disabled="loading" class="mt-1 block h-9 w-full rounded border border-border bg-card px-2 text-foreground focus-visible:outline-primary">
+          <select v-model="championFilter" :disabled="loading" class="analysis-control mt-1 block h-8 w-full px-2">
             <option :value="0">{{ t('matchAnalysis.allChampions') }}</option>
             <option v-for="champion in champions" :key="champion.championId" :value="champion.championId">{{ championName(champion) }}</option>
           </select>
         </label>
         <label class="min-w-28 flex-1 text-xs text-muted-foreground">
           {{ t('matchAnalysis.resultFilter') }}
-          <select v-model="resultFilter" :disabled="loading" class="mt-1 block h-9 w-full rounded border border-border bg-card px-2 text-foreground focus-visible:outline-primary">
+          <select v-model="resultFilter" :disabled="loading" class="analysis-control mt-1 block h-8 w-full px-2">
             <option value="all">{{ t('matchAnalysis.allResults') }}</option>
             <option v-for="result in results" :key="result" :value="result">{{ resultLabel(result) }}</option>
           </select>
         </label>
-        <button type="button" class="h-9 rounded border border-border px-3 text-xs text-primary disabled:opacity-40" :disabled="loading || !hasFilters" @click="resetFilters">{{ t('matchAnalysis.resetFilters') }}</button>
+        <button type="button" class="analysis-control h-8 px-3" :disabled="loading || !hasFilters" @click="resetFilters">{{ t('matchAnalysis.resetFilters') }}</button>
       </div>
       <p class="text-xs text-muted-foreground" aria-live="polite">{{ t('matchAnalysis.filterScope', { count: visibleMatches.length, total: page.matches.length }) }}</p>
     </div>
@@ -141,7 +141,7 @@
           </div>
         </div>
         <div class="mt-3 flex justify-end">
-          <button type="button" class="flex items-center gap-1.5 rounded border border-border px-3 py-2 text-xs text-primary disabled:opacity-40" :disabled="loading || !page?.snapshotId || opening.has(match.gameId)" @click="openDetail(match.gameId)">
+          <button type="button" class="analysis-control flex items-center gap-1.5 px-3 py-1.5" :disabled="loading || !page?.snapshotId || opening.has(match.gameId)" @click="openDetail(match.gameId)">
             <ExternalLink class="h-3.5 w-3.5" aria-hidden="true" />
             {{ t(opening.has(match.gameId) ? 'matchDetail.opening' : 'matchDetail.open') }}
           </button>

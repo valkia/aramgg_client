@@ -1,9 +1,9 @@
 <template>
     <div class="scoreboard-content mt-2 space-y-3" :class="{ 'scoreboard-wide': wide }">
       <p class="text-xs leading-relaxed text-muted-foreground">{{ t('matchAnalysis.metricsHint') }}</p>
-      <section v-for="team in teams" :key="team.teamId" class="overflow-hidden rounded-md border border-border bg-card/50" :aria-label="teamName(team.teamId, team.isCurrentTeam)">
-        <header class="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/50 p-3">
-          <h4 class="text-sm font-bold text-foreground">{{ teamName(team.teamId, team.isCurrentTeam) }}</h4>
+      <section v-for="team in teams" :key="team.teamId" class="analysis-panel overflow-hidden" :aria-label="teamName(team.teamId, team.isCurrentTeam)">
+        <header class="scoreboard-team-header flex flex-wrap items-center justify-between gap-2 border-b p-3">
+          <h4 class="analysis-heading text-sm"><Swords aria-hidden="true" />{{ teamName(team.teamId, team.isCurrentTeam) }}</h4>
           <span v-if="team.result" class="text-xs font-semibold" :class="team.result === 'win' ? 'text-[var(--lol-success)]' : 'text-muted-foreground'">{{ t(resultKeys[team.result]) }}</span>
           <p class="w-full text-xs text-muted-foreground">
             {{ t('matchAnalysis.teamTotals', { kills: number(team.kills), gold: number(team.gold) }) }}
@@ -47,7 +47,7 @@
             <div class="scoreboard-spells mt-3">
               <p class="mb-1 text-xs text-muted-foreground">{{ t('matchAnalysis.summonerSpells') }}</p>
               <ul class="flex flex-wrap gap-2 text-xs" :aria-label="t('matchAnalysis.summonerSpells')">
-                <li v-for="(spellId, index) in [player.spell1Id, player.spell2Id]" :key="`${index}:${spellId}`" class="flex min-w-0 max-w-full items-center gap-1.5 rounded border border-border bg-muted px-1.5 py-1">
+                <li v-for="(spellId, index) in [player.spell1Id, player.spell2Id]" :key="`${index}:${spellId}`" class="analysis-inset flex min-w-0 max-w-full items-center gap-1.5 px-1.5 py-1">
                   <img v-if="validSpellId(spellId)" :src="getSpellIconUrl(spellId)" alt="" class="h-6 w-6 shrink-0 rounded" loading="lazy" @error="hideImage" />
                   <span class="break-words text-foreground">{{ spellName(spellId) }}</span>
                 </li>
@@ -57,7 +57,7 @@
             <div v-for="kind in assetKinds" :key="kind" class="mt-2">
               <p class="mb-1 text-xs text-muted-foreground">{{ t(`matchHistory.${kind}`) }}</p>
               <ul v-if="player[kind].length" class="flex flex-wrap gap-1" :aria-label="t(`matchHistory.${kind}`)">
-                <li v-for="(asset, index) in player[kind]" :key="`${asset.id}:${index}`" class="flex min-h-7 min-w-7 items-center justify-center rounded border border-border bg-muted">
+                <li v-for="(asset, index) in player[kind]" :key="`${asset.id}:${index}`" class="analysis-inset flex min-h-7 min-w-7 items-center justify-center">
                   <MatchAssetTooltip :asset="asset" :kind="kind === 'items' ? 'item' : 'augment'" :disabled="loading">
                     <img v-if="asset.iconUrl" :src="asset.iconUrl" alt="" class="h-7 w-7 rounded object-contain" loading="lazy" />
                     <span v-else class="max-w-24 truncate px-1 text-xs text-muted-foreground">{{ assetName(asset, kind) }}</span>
@@ -77,6 +77,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Swords } from 'lucide-vue-next'
 import type { HextechAramMatchHistoryAsset, HextechAramMatchHistoryMatch } from '../../shared/ipc-contract.ts'
 import { buildScoreboardTeams } from '../services/match-history-insights.ts'
 import { getSpellIconUrl } from '../service/cdn.js'
@@ -115,6 +116,7 @@ function assetName(asset: HextechAramMatchHistoryAsset, kind: 'items' | 'augment
 
 <style scoped>
 .scoreboard-content { container-type: inline-size; }
+.scoreboard-team-header { border-color: var(--lol-border-soft); background: rgba(194, 156, 109, 0.06); }
 @container (min-width: 1000px) {
   .scoreboard-wide .scoreboard-player {
     display: grid;

@@ -55,12 +55,12 @@ function navigate(event: KeyboardEvent, index: number) {
 </script>
 
 <style scoped>
-.main-navigation { position: relative; z-index: 1; flex: 0 0 auto; border-bottom: 1px solid var(--lol-border-soft); background: var(--lol-surface); }
+.main-navigation { position: relative; z-index: 1; flex: 0 0 auto; border-bottom: 1px solid var(--lol-border-soft); background: linear-gradient(145deg, rgba(23, 31, 40, 0.96), rgba(11, 17, 23, 0.98)); }
 .section-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 8px 12px 0; }
 .section-tabs button { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; min-height: 38px; padding: 6px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--lol-muted); font-size: 12px; cursor: pointer; }
 .section-tabs button svg { width: 15px; height: 15px; flex: 0 0 auto; }
-.section-tabs button:hover { color: var(--lol-ivory); background: var(--lol-surface-2); }
-.section-tabs button[aria-selected='true'] { color: var(--lol-gold-2); border-color: var(--lol-border-soft); background: var(--lol-surface-2); }
+.section-tabs button:hover { color: var(--lol-ivory); background: rgba(194, 156, 109, 0.08); }
+.section-tabs button[aria-selected='true'] { color: var(--lol-gold-2); border-color: var(--lol-border); background: linear-gradient(145deg, rgba(31, 43, 53, 0.72), rgba(17, 29, 38, 0.64)); box-shadow: inset 0 0 12px rgba(194, 156, 109, 0.04); }
 .section-tabs button:focus-visible { outline: 2px solid var(--lol-gold-2); outline-offset: 2px; }
 .connection-status { padding: 9px 16px 10px; color: var(--lol-muted); font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
 .connection-heading { display: flex; align-items: center; flex-wrap: wrap; column-gap: 7px; row-gap: 2px; }
