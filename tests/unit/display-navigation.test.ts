@@ -56,7 +56,7 @@ beforeEach(() => {
   } })
   i18n = createI18n({ legacy: false, locale: 'zh-CN', messages })
 })
-afterEach(() => { wrapper?.unmount(); wrapper = undefined })
+afterEach(() => { wrapper?.unmount(); wrapper = undefined; vi.useRealTimers() })
 function render() {
   wrapper = mount(Display, { attachTo: document.body, global: {
     plugins: [i18n], stubs: { FeedbackWidget: true, PostGameShareModal: true },
@@ -140,6 +140,41 @@ describe('main window sections', () => {
       expect(view.get('[role="status"]').text()).toContain('游戏进行中')
     }
     expect(mocks.listeners.get('lcu-connection-changed')?.size).toBe(1)
+  })
+
+  it('refreshes the hidden history on game completion while keeping the selected section and champion search', async () => {
+    vi.useFakeTimers()
+    const view = render()
+    await flushPromises()
+    await view.get('#main-tab-history').trigger('click')
+    const history = view.getComponent(MatchHistoryPanel)
+    await history.findAll('button').find(button => button.text() === '下一页')!.trigger('click')
+    await flushPromises()
+    expect(history.text()).toContain('第 2 页')
+    await view.get('#main-tab-champions').trigger('click')
+    const champions = view.getComponent(ChampionRankingsPanel)
+    await champions.get('input').setValue('ahri')
+    mocks.query.mockResolvedValueOnce({ success: true, data: {
+      playerName: 'Fixture#CN1', platformId: 'HN1', queriedAt: 2, startIndex: 0, count: 10,
+      returnedCount: 1, hasPrevious: false, hasMore: true, locale: 'zh-CN', snapshotId: 'post-game',
+      matches: [{ gameId: 100, championId: 103, championName: 'Newly completed game', result: 'win',
+        gameCreation: 2000, gameDuration: 900, gameVersion: '16.21', kills: 2, deaths: 1, assists: 3, items: [], augments: [] }],
+    } })
+    emit('game-phase-changed', { phase: 'InProgress', prevPhase: 'GameStart' })
+    emit('game-phase-changed', { phase: 'EndOfGame', prevPhase: 'InProgress' })
+    await vi.advanceTimersByTimeAsync(1200)
+    await flushPromises()
+
+    expect(mocks.query).toHaveBeenCalledTimes(3)
+    expect(mocks.query).toHaveBeenLastCalledWith({ startIndex: 0, count: 10 })
+    expect(view.get('#main-tab-champions').attributes('aria-selected')).toBe('true')
+    expect(view.get('#main-panel-history').isVisible()).toBe(false)
+    expect((champions.get('input').element as HTMLInputElement).value).toBe('ahri')
+    await view.get('#main-tab-history').trigger('click')
+    expect(view.getComponent(MatchHistoryPanel).element).toBe(history.element)
+    expect(history.text()).toContain('第 1 页')
+    expect(history.get('article').text()).toContain('Newly completed game')
+    expect(mocks.write).not.toHaveBeenCalled()
   })
 
   it('waits for a committed locale before changing interface data and leaves navigation usable during preparation', async () => {

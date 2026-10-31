@@ -182,6 +182,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, type ComponentPubl
 import { useI18n } from 'vue-i18n'
 import { ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from 'lucide-vue-next'
 import type {
+  GamePhaseChangedPayload,
   HextechAramMatchHistoryAsset,
   HextechAramMatchHistoryMatch,
   HextechAramMatchHistoryPage,
@@ -194,6 +195,8 @@ import MatchEncounters from './MatchEncounters.vue'
 import MatchAssetTooltip from './MatchAssetTooltip.vue'
 
 const PAGE_SIZE = 10
+const POST_GAME_REFRESH_DELAY_MS = 1200
+const POST_GAME_PHASES = new Set(['WaitingForStats', 'PreEndOfGame', 'EndOfGame'])
 
 const { t } = useI18n()
 const page = ref<HextechAramMatchHistoryPage | null>(null)
@@ -201,9 +204,12 @@ const loading = ref(false)
 const status = ref('')
 const opening = ref(new Set<number>())
 let querySequence = 0
-let localeReloadPending = false
+let firstPageReloadPending = false
 let active = true
-let unsubscribeLocale: (() => void) | undefined
+let gameObserved = false
+let postGameRefreshScheduled = false
+let postGameRefreshTimer: ReturnType<typeof setTimeout> | undefined
+const subscriptions: (() => void)[] = []
 const championFilter = ref(0)
 const resultFilter = ref<HextechAramMatchResult | 'all'>('all')
 const scoreboards = new Map<number, InstanceType<typeof MatchScoreboard>>()
@@ -281,8 +287,37 @@ function resultLabel(result: HextechAramMatchResult): string {
   return t('matchHistory.defeat')
 }
 
+function requestFirstPageReload(): void {
+  if (!active) return
+  if (loading.value) firstPageReloadPending = true
+  else void queryPage(0)
+}
+
+function handleGamePhaseChanged({ phase, prevPhase }: GamePhaseChangedPayload): void {
+  if (!active) return
+  if (phase === 'ChampSelect' || phase === 'GameStart' || phase === 'InProgress') {
+    postGameRefreshScheduled = false
+    gameObserved = phase === 'InProgress'
+    return
+  }
+  if (phase && POST_GAME_PHASES.has(phase)) gameObserved = true
+  const returnedFromGame = (phase === 'None' || phase === 'Lobby') && (
+    gameObserved || prevPhase === 'InProgress' || (prevPhase !== null && POST_GAME_PHASES.has(prevPhase))
+  )
+  if (postGameRefreshScheduled || (phase !== 'EndOfGame' && !returnedFromGame)) return
+
+  postGameRefreshScheduled = true
+  gameObserved = false
+  if (postGameRefreshTimer) clearTimeout(postGameRefreshTimer)
+  // EndOfGame is later than WaitingForStats; allow a short buffer before the single SGP query.
+  postGameRefreshTimer = setTimeout(() => {
+    postGameRefreshTimer = undefined
+    requestFirstPageReload()
+  }, POST_GAME_REFRESH_DELAY_MS)
+}
+
 async function queryPage(startIndex: number): Promise<void> {
-  if (loading.value) return
+  if (!active || loading.value) return
   if (!hasElectronAPI()) {
     status.value = t('matchHistory.apiUnavailable')
     return
@@ -312,28 +347,31 @@ async function queryPage(startIndex: number): Promise<void> {
     })
   } finally {
     loading.value = false
-    if (localeReloadPending && active) {
-      localeReloadPending = false
+    if (firstPageReloadPending && active) {
+      firstPageReloadPending = false
       void queryPage(0)
     }
   }
 }
 
 onMounted(() => {
-  if (hasElectronAPI()) unsubscribeLocale = electronAPI.events.on('locale-changed', () => {
-    querySequence += 1
-    page.value = null
-    status.value = ''
-    resetFilters()
-    if (loading.value) localeReloadPending = true
-    else void queryPage(0)
-  })
+  if (hasElectronAPI()) subscriptions.push(
+    electronAPI.events.on('game-phase-changed', handleGamePhaseChanged),
+    electronAPI.events.on('locale-changed', () => {
+      querySequence += 1
+      page.value = null
+      status.value = ''
+      resetFilters()
+      requestFirstPageReload()
+    }),
+  )
   void queryPage(0)
 })
 onBeforeUnmount(() => {
   active = false
   querySequence += 1
-  unsubscribeLocale?.()
+  if (postGameRefreshTimer) clearTimeout(postGameRefreshTimer)
+  subscriptions.splice(0).forEach(unsubscribe => unsubscribe())
 })
 </script>
 

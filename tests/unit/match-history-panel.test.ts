@@ -7,7 +7,7 @@ import MatchEncounters from '../../src/renderer/components/MatchEncounters.vue'
 import MatchAssetTooltip from '../../src/renderer/components/MatchAssetTooltip.vue'
 import MatchHistoryOverview from '../../src/renderer/components/MatchHistoryOverview.vue'
 import { messages } from '../../src/renderer/i18n/messages.ts'
-import type { HextechAramMatchHistoryPage } from '../../src/shared/ipc-contract.ts'
+import type { GamePhaseChangedPayload, HextechAramMatchHistoryPage } from '../../src/shared/ipc-contract.ts'
 
 const { queryCurrent, openDetail, onEvent } = vi.hoisted(() => ({ queryCurrent: vi.fn(), openDetail: vi.fn(), onEvent: vi.fn(() => vi.fn()) }))
 vi.mock('../../src/renderer/native/electron-api.ts', () => ({
@@ -26,12 +26,20 @@ const page: HextechAramMatchHistoryPage = {
 }
 let wrapper: VueWrapper
 beforeEach(() => { queryCurrent.mockReset(); queryCurrent.mockResolvedValue({ success: true, data: page }); openDetail.mockReset(); openDetail.mockResolvedValue({ success: true }); onEvent.mockClear() })
-afterEach(() => { wrapper?.unmount() })
+afterEach(() => { wrapper?.unmount(); vi.useRealTimers() })
 function render(locale = 'zh-CN') {
   wrapper = mount(MatchHistoryPanel, { global: { plugins: [createI18n({ legacy: false, locale, messages })] } })
   return wrapper
 }
 function button(text: string) { return wrapper.findAll('button').find((candidate) => candidate.text() === text)! }
+function emit(channel: string, payload: unknown) {
+  const callback = (onEvent.mock.calls as any[]).find(([name]) => name === channel)?.[1]
+  expect(callback).toBeTypeOf('function')
+  callback(payload)
+}
+function phase(phase: GamePhaseChangedPayload['phase'], prevPhase: GamePhaseChangedPayload['prevPhase'] = null) {
+  emit('game-phase-changed', { phase, prevPhase })
+}
 
 describe('match history filters', () => {
   it('opens a separate detail with only the page capability and game ID and deduplicates pending clicks', async () => {
@@ -57,14 +65,14 @@ describe('match history filters', () => {
     queryCurrent.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
     render()
     await flushPromises()
-    const callback = (onEvent.mock.calls.at(-1) as any)[1]
-    callback({ locale: 'en-US' })
+    emit('locale-changed', { locale: 'en-US' })
     finish({ success: true, data: page })
     await flushPromises()
     expect(queryCurrent).toHaveBeenCalledTimes(2)
     expect(queryCurrent).toHaveBeenLastCalledWith({ startIndex: 0, count: 10 })
     expect(wrapper.findAll('article')).toHaveLength(3)
-    const unsubscribe = onEvent.mock.results.at(-1)!.value
+    const localeIndex = (onEvent.mock.calls as any[]).findIndex(([channel]) => channel === 'locale-changed')
+    const unsubscribe = onEvent.mock.results[localeIndex]!.value
     wrapper.unmount()
     expect(unsubscribe).toHaveBeenCalledOnce()
   })
@@ -193,5 +201,171 @@ describe('match history filters', () => {
     await wrapper.findAll('select')[1].setValue('loss')
     await flushPromises()
     expect(document.querySelector('.match-asset-tooltip')).toBeNull()
+  })
+})
+
+describe('post-game match history refresh', () => {
+  beforeEach(() => { vi.useFakeTimers() })
+
+  it('waits for EndOfGame, then refreshes page one, filters, list, and page performance exactly once', async () => {
+    render()
+    await flushPromises()
+    queryCurrent.mockResolvedValueOnce({ success: true, data: { ...page, startIndex: 10, hasPrevious: true } })
+    await button('下一页').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('select')[1].setValue('loss')
+    const oldPerformance = wrapper.getComponent(MatchHistoryOverview).text()
+    const latest = { ...page, returnedCount: 1, hasMore: false, snapshotId: 'new-game', matches: [
+      { ...page.matches[0], gameId: 4, championName: '赛后新对局', kills: 20, deaths: 1, assists: 30 },
+    ] }
+    queryCurrent.mockResolvedValueOnce({ success: true, data: latest })
+
+    phase('InProgress')
+    phase('WaitingForStats', 'InProgress')
+    await vi.advanceTimersByTimeAsync(10_000)
+    phase('PreEndOfGame', 'WaitingForStats')
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(queryCurrent).toHaveBeenCalledTimes(2)
+    phase('EndOfGame', 'PreEndOfGame')
+    await vi.advanceTimersByTimeAsync(1199)
+    expect(queryCurrent).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1)
+    await flushPromises()
+
+    expect(queryCurrent).toHaveBeenCalledTimes(3)
+    expect(queryCurrent).toHaveBeenLastCalledWith({ startIndex: 0, count: 10 })
+    expect(wrapper.text()).toContain('第 1 页')
+    expect(wrapper.findAll('article')).toHaveLength(1)
+    expect(wrapper.get('article').text()).toContain('赛后新对局')
+    expect(wrapper.findAll('select').map(select => (select.element as HTMLSelectElement).value)).toEqual(['0', 'all'])
+    expect(wrapper.getComponent(MatchHistoryOverview).props('matches')).toEqual(latest.matches)
+    expect(wrapper.getComponent(MatchHistoryOverview).text()).not.toBe(oldPerformance)
+    expect(wrapper.getComponent(MatchEncounters).props('matches')).toEqual(latest.matches)
+
+    phase('EndOfGame', 'PreEndOfGame')
+    phase('Lobby', 'EndOfGame')
+    phase('None', 'Lobby')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(queryCurrent).toHaveBeenCalledTimes(3)
+  })
+
+  it.each([
+    ['WaitingForStats', 'Lobby'], ['PreEndOfGame', 'None'], ['InProgress', 'Lobby'], ['InProgress', 'None'],
+  ] as const)('refreshes once when %s returns directly to %s without EndOfGame', async (previous, idle) => {
+    render()
+    await flushPromises()
+    phase(previous)
+    phase(idle, previous)
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(queryCurrent).toHaveBeenCalledTimes(2)
+    phase('EndOfGame', idle)
+    phase('Lobby', 'EndOfGame')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(queryCurrent).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses the observed previous phase if the renderer missed InProgress, without refreshing on startup or canceled selection', async () => {
+    render()
+    await flushPromises()
+    phase('Lobby')
+    phase('ChampSelect', 'Lobby')
+    phase('Lobby', 'ChampSelect')
+    phase('None', 'Lobby')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(queryCurrent).toHaveBeenCalledOnce()
+    phase('Lobby', 'InProgress')
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(queryCurrent).toHaveBeenCalledTimes(2)
+  })
+
+  it('resets deduplication for the next game without losing an already scheduled refresh', async () => {
+    render()
+    await flushPromises()
+    phase('EndOfGame')
+    phase('ChampSelect', 'EndOfGame')
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(queryCurrent).toHaveBeenCalledTimes(2)
+    phase('GameStart', 'ChampSelect')
+    phase('InProgress', 'GameStart')
+    phase('EndOfGame', 'InProgress')
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(queryCurrent).toHaveBeenCalledTimes(3)
+  })
+
+  it('queues page one if a manual page request is still in flight when the post-game timer fires', async () => {
+    render()
+    await flushPromises()
+    let finish!: (value: unknown) => void
+    queryCurrent.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+    await button('下一页').trigger('click')
+    phase('EndOfGame')
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(queryCurrent).toHaveBeenCalledTimes(2)
+    finish({ success: true, data: { ...page, startIndex: 10, hasPrevious: true } })
+    await flushPromises()
+    expect(queryCurrent).toHaveBeenCalledTimes(3)
+    expect(queryCurrent).toHaveBeenLastCalledWith({ startIndex: 0, count: 10 })
+    expect(wrapper.text()).toContain('第 1 页')
+  })
+
+  it('rejects a slow old-language automatic response and drains one queued reload in the committed language', async () => {
+    render()
+    await flushPromises()
+    let finish!: (value: unknown) => void
+    queryCurrent.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+    queryCurrent.mockResolvedValueOnce({ success: true, data: { ...page, locale: 'en-US', playerName: 'New locale' } })
+    phase('EndOfGame')
+    await vi.advanceTimersByTimeAsync(1200)
+    emit('locale-changed', { locale: 'en-US' })
+    await flushPromises()
+    expect(wrapper.findAll('article')).toHaveLength(0)
+    finish({ success: true, data: { ...page, playerName: 'Stale locale' } })
+    await flushPromises()
+    expect(queryCurrent).toHaveBeenCalledTimes(3)
+    expect(wrapper.text()).toContain('New locale')
+    expect(wrapper.text()).not.toContain('Stale locale')
+  })
+
+  it('retains the existing page on an invalidated account response and leaves manual retry available without polling', async () => {
+    render()
+    await flushPromises()
+    await wrapper.findAll('select')[1].setValue('loss')
+    queryCurrent.mockResolvedValueOnce({ success: false, errorCode: 'snapshot-invalid' })
+    phase('EndOfGame')
+    await vi.advanceTimersByTimeAsync(1200)
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('快照已失效')
+    expect(wrapper.findAll('article')).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(queryCurrent).toHaveBeenCalledTimes(2)
+    await wrapper.get('.match-history-refresh').trigger('click')
+    await flushPromises()
+    expect(queryCurrent).toHaveBeenCalledTimes(3)
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('cancels its delayed work and unsubscribes both events when unmounted', async () => {
+    render()
+    await flushPromises()
+    phase('EndOfGame')
+    const unsubscribes = onEvent.mock.results.map(result => result.value)
+    wrapper.unmount()
+    await vi.advanceTimersByTimeAsync(60_000)
+    phase('EndOfGame')
+    expect(queryCurrent).toHaveBeenCalledOnce()
+    expect(unsubscribes).toHaveLength(2)
+    unsubscribes.forEach(unsubscribe => expect(unsubscribe).toHaveBeenCalledOnce())
+  })
+
+  it('does not drain a queued automatic refresh after unmounting during a manual request', async () => {
+    let finish!: (value: unknown) => void
+    queryCurrent.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+    render()
+    phase('EndOfGame')
+    await vi.advanceTimersByTimeAsync(1200)
+    wrapper.unmount()
+    finish({ success: true, data: page })
+    await flushPromises()
+    expect(queryCurrent).toHaveBeenCalledOnce()
   })
 })
