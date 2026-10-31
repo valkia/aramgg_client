@@ -11,8 +11,7 @@ const archive = (): PatchEvidenceArchive => structuredClone(archiveData) as unkn
 
 describe('patch evidence and actual public history', () => {
   it.each(['zh-CN', 'en-US', 'zh-TW'] as const)('anchors all 173 real %s bundled records without using future or other-source snapshots', async (locale) => {
-    const prefix = locale === 'zh-CN' ? '' : `${locale}/`
-    const raw = JSON.parse(await readFile(new URL(`../../resources/client-data/versions/${prefix}16.15.2/champions.json`, import.meta.url), 'utf8'))
+    const raw = JSON.parse(await readFile(new URL(`../fixtures/champions-16.15.2/${locale}.json`, import.meta.url), 'utf8'))
     const rankings = mapChampionRankings(raw, { locale, dataVersion: '16.15.2' })
     for (const champion of rankings.champions) {
       const evidence = buildChampionPatchEvidence(champion, { locale, dataVersion: rankings.dataVersion })

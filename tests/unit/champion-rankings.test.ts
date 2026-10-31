@@ -9,8 +9,7 @@ const mapped = (rows: unknown[]) => mapChampionRankings({ champions: rows }, con
 
 describe('champion ranking index', () => {
   it.each(['zh-CN', 'en-US', 'zh-TW'] as const)('maps the actual bundled client-v1 payload in %s without inventing game samples', async (locale) => {
-    const prefix = locale === 'zh-CN' ? '' : `${locale}/`
-    const payload = JSON.parse(await readFile(new URL(`../../resources/client-data/versions/${prefix}16.15.2/champions.json`, import.meta.url), 'utf8'))
+    const payload = JSON.parse(await readFile(new URL(`../fixtures/champions-16.15.2/${locale}.json`, import.meta.url), 'utf8'))
     const result = mapChampionRankings(payload, { locale, dataVersion: '16.15.2' })
     expect(result).toMatchObject({ locale, dataVersion: '16.15.2', gamePatch: '16.15', generatedAt: '2026-07-31T04:59:23.717Z' })
     expect(result.champions).toHaveLength(payload.total)
