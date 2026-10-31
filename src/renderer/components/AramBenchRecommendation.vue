@@ -892,11 +892,12 @@ h3 {
 }
 
 .aram-panel.compact .candidate-row {
-    flex: 0 0 156px;
+    flex: 0 0 88px;
     display: grid;
-    grid-template-columns: 34px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto auto;
-    gap: 7px;
+    gap: 4px;
+    padding: 7px;
     align-items: center;
     align-content: start;
     scroll-snap-align: start;
@@ -910,24 +911,34 @@ h3 {
 }
 
 .aram-panel.compact .candidate-main {
-    display: contents;
+    display: grid;
+    gap: 3px;
 }
 
 .aram-panel.compact .candidate-title {
     margin-bottom: 0;
     flex-direction: column;
     align-items: flex-start;
-    gap: 4px;
+    gap: 2px;
 }
 
 .aram-panel.compact .candidate-title strong {
     width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.aram-panel.compact .source-tag {
+    max-width: 100%;
+    overflow-wrap: anywhere;
 }
 
 .aram-panel.compact .stat-line {
-    grid-column: 1 / -1;
-    gap: 4px 8px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
     font-size: 10px;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
 }
 
 .aram-panel.compact .score-box {
