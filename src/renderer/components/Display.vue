@@ -16,12 +16,29 @@
                 </div>
             </header>
 
-            <main class="hex-scroll">
+            <MainNavigation v-model="activeSection" />
+            <div class="main-sections">
+            <main
+                v-show="activeSection === 'history'" id="main-panel-history"
+                class="hex-scroll" role="tabpanel" aria-labelledby="main-tab-history" tabindex="0"
+            >
+                <MatchHistoryPanel />
+            </main>
+            <main
+                v-show="activeSection === 'champions'" id="main-panel-champions"
+                class="hex-scroll" role="tabpanel" aria-labelledby="main-tab-champions" tabindex="0"
+            >
+                <ChampionRankingsPanel />
+            </main>
+            <main
+                v-show="activeSection === 'home'" id="main-panel-home"
+                class="hex-scroll" role="tabpanel" aria-labelledby="main-tab-home" tabindex="0"
+            >
                 <div class="status-strip">
                     <div class="status-header">
                         <div>
                             <span class="section-kicker">{{ t('display.runningStatus') }}</span>
-                            <h2>{{ t('display.console') }}</h2>
+                            <h2>{{ t('mainNavigation.home') }}</h2>
                         </div>
                         <Select
                             v-model="selectedLocale"
@@ -76,11 +93,6 @@
                             <span>{{ t('display.dataVersion') }}</span>
                             <strong>{{ dataVersionLabel }}</strong>
                             <small>{{ dataLocaleStatusLabel }}</small>
-                        </div>
-                        <div class="lcu-status-card">
-                            <span>{{ t('display.lcuConnection') }}</span>
-                            <strong>{{ t('display.autoDiscover') }}</strong>
-                            <small>{{ manualLolPath ? t('display.runningClientWithFallback') : t('display.runningClient') }}</small>
                         </div>
                     </div>
 
@@ -138,12 +150,13 @@
                         :aria-expanded="showAdvancedLcuConfig"
                         @click="toggleAdvancedLcuConfig"
                     >
-                        <span>{{ t('display.gameDirectory') }}</span>
+                        <span>{{ t('mainNavigation.directory') }}</span>
                         <ChevronRight
                             class="game-directory-arrow"
                             :class="{ open: showAdvancedLcuConfig }"
                         />
                     </button>
+                    <p class="game-directory-hint">{{ t('mainNavigation.automatic') }}</p>
                     <p class="game-directory-hint">
                         {{ t('display.gameDirectoryAdminHint') }}
                     </p>
@@ -154,6 +167,7 @@
                                 v-model="manualLolPath"
                                 class="manual-path-input"
                                 type="text"
+                                :aria-label="t('mainNavigation.directory')"
                                 spellcheck="false"
                                 placeholder="C:\Riot Games\League of Legends"
                                 @blur="validateManualLolPath"
@@ -209,7 +223,6 @@
                     @post-game-auto-show-changed="setPostGameShareAutoShowEnabled"
                 />
                 <ChampionMonitor />
-                <MatchHistoryPanel />
 
                 <section class="post-game-panel">
                     <div class="section-header">
@@ -265,8 +278,6 @@
                         {{ testStatus.message }}
                     </div>
                 </section>
-            </main>
-
             <footer class="hex-footer">
                 <p>
                     {{ t('display.brand') }} v{{ clientVersionLabel }} -
@@ -297,6 +308,8 @@
                     </button>
                 </p>
             </footer>
+            </main>
+            </div>
 
             <div v-if="showQuitConfirm" class="app-modal-overlay" @click.self="cancelQuitApp">
                 <section class="app-modal" role="dialog" aria-modal="true" aria-labelledby="quit-title">
@@ -391,7 +404,9 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import ItemSetInstaller from './ItemSetInstaller.vue'
 import OverlayPreferences from './OverlayPreferences.vue'
 import ChampionMonitor from './ChampionMonitor.vue'
+import ChampionRankingsPanel from './ChampionRankingsPanel.vue'
 import MatchHistoryPanel from './MatchHistoryPanel.vue'
+import MainNavigation from './MainNavigation.vue'
 import FeedbackWidget from './FeedbackWidget.vue'
 import PostGameShareModal from './PostGameShareModal.vue'
 import {
@@ -427,6 +442,7 @@ import {
 } from 'lucide-vue-next'
 
 const testStatus = ref(null)
+const activeSection = ref('home')
 const { t } = useI18n()
 const versionInfo = ref(null)
 const showQuitConfirm = ref(false)
@@ -1102,6 +1118,13 @@ onBeforeUnmount(() => {
     height: 16px;
 }
 
+.main-sections {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
 .hex-scroll {
     position: relative;
     z-index: 1;
@@ -1110,6 +1133,7 @@ onBeforeUnmount(() => {
     flex-direction: column;
     gap: 12px;
     min-height: 0;
+    min-width: 0;
     overflow-y: auto;
     padding: 16px;
     background:
@@ -1305,7 +1329,7 @@ onBeforeUnmount(() => {
 
 .status-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
 }
 
@@ -2009,7 +2033,7 @@ onBeforeUnmount(() => {
     font-weight: 900;
     line-height: 1.25;
     letter-spacing: 0;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
 }
 
 .hex-footer .footer-feedback {

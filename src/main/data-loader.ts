@@ -9,6 +9,9 @@ import {
   resolveTrustedClientDataUrl,
 } from '../shared/client-data-security.ts'
 import { rankAugmentRecommendations } from '../shared/augment-ranking.ts'
+import { mapChampionRankings } from './services/champion-rankings.ts'
+import { buildChampionPatchEvidence } from './services/patch-evidence.ts'
+import type { ChampionRankings } from '../shared/ipc-contract.ts'
 
 declare const fetch: any
 
@@ -2242,7 +2245,23 @@ function mapPublicItem(item: any): any {
   }
 }
 
-export async function loadChampionStats(
+function mapChampionStatsWithEvidence(champion: any, meta: any, locale: SupportedDataLocale, statsMeta = meta): any {
+  const stats = mapPublicChampionStats(champion, statsMeta)
+  let patchEvidence = null
+  try {
+    // This client-v1 dataset is Mayhem-only. Reject any explicitly conflicting mode.
+    const declaredQueues = [champion?.queueId, champion?.stats?.queueId, meta?.queueId].filter((value) => value != null)
+    if (declaredQueues.some((value) => Number(value) !== 2400)) return { stats, patchEvidence: null }
+    const context = { locale, dataVersion: meta.dataVersion || '' }
+    const raw = mapChampionRankings({ data: [champion], meta }, context).champions[0]
+    patchEvidence = raw ? buildChampionPatchEvidence(raw, context) : null
+  } catch (error) {
+    logger.warn('[patch-evidence] evidence unavailable; champion detail retained:', error)
+  }
+  return { stats, patchEvidence }
+}
+
+async function loadChampionStatsWithEvidence(
   championId: string | number,
   requestedLocale: SupportedDataLocale = activeDataLocale
 ): Promise<any> {
@@ -2252,21 +2271,26 @@ export async function loadChampionStats(
   const champion = findChampionInList(champions, championId)
 
   if (champion) {
-    const stats = mapPublicChampionStats(champion, getPayloadMeta(championsPayload, dataSet.config))
-    if (stats.championId) {
-      return stats
-    }
+    const meta = getPayloadMeta(championsPayload, dataSet.config)
+    const result = mapChampionStatsWithEvidence(champion, meta, dataSet.locale)
+    if (result.stats.championId) return result
   }
 
   const detail = await loadChampionDetailPayload(championId, dataSet.locale)
   if (detail?.champion) {
-    const stats = mapPublicChampionStats(detail.champion, getPayloadMeta(detail, dataSet.config))
-    if (stats.championId) {
-      return stats
-    }
+    // A newer local shard can be returned here. Only its actual metadata may label evidence.
+    const result = mapChampionStatsWithEvidence(detail.champion, getPayloadMeta(detail), dataSet.locale, getPayloadMeta(detail, dataSet.config))
+    if (result.stats.championId) return result
   }
 
   throw new Error(`Champion stats not found for ID: ${championId}`)
+}
+
+export async function loadChampionStats(
+  championId: string | number,
+  requestedLocale: SupportedDataLocale = activeDataLocale
+): Promise<any> {
+  return (await loadChampionStatsWithEvidence(championId, requestedLocale)).stats
 }
 
 export async function loadChampionName(
@@ -2535,15 +2559,31 @@ export async function loadChampionRoster(
     .filter((champion) => champion.championId && Number(champion.championId) > 0)
 }
 
+export async function loadChampionRankings(
+  requestedLocale: SupportedDataLocale = activeDataLocale
+): Promise<ChampionRankings> {
+  const locale = normalizeDataLocale(requestedLocale)
+  const dataSet = await getActiveDataSet(locale)
+  if (dataSet.locale !== locale) throw new Error(`Champion rankings are unavailable for ${locale}`)
+  // Keep index and metadata bound to this dataset even if a background refresh activates another.
+  const payload = await fetchVersionedDataFile(
+    dataSet.dataVersion,
+    'champions.json',
+    findManifestPath(dataSet.manifest, 'champions.json'),
+    { locale: dataSet.locale }
+  )
+  return mapChampionRankings(payload, { ...dataSet.config, locale, dataVersion: dataSet.dataVersion })
+}
+
 export async function getChampionDetailData(
   championId: string | number,
   requestedLocale: SupportedDataLocale = activeDataLocale
 ): Promise<any> {
   const locale = normalizeDataLocale(requestedLocale)
   const dataSet = await getActiveDataSet(locale)
-  const [stats, augmentBase, augmentDetail, augments, augmentTrios, buildData, items, championName, championLinks] =
+  const [statsResult, augmentBase, augmentDetail, augments, augmentTrios, buildData, items, championName, championLinks] =
     await Promise.all([
-      loadChampionStats(championId, dataSet.locale),
+      loadChampionStatsWithEvidence(championId, dataSet.locale),
       loadAugmentBase(dataSet.locale),
       loadAugmentDetail(dataSet.locale),
       loadChampionAugments(championId, dataSet.locale),
@@ -2553,10 +2593,12 @@ export async function getChampionDetailData(
       loadChampionName(championId, dataSet.locale),
       loadChampionLinks(championId, dataSet.locale),
     ])
+  const { stats, patchEvidence } = statsResult
 
   return {
     locale: dataSet.locale,
     dataVersion: dataSet.dataVersion,
+    patchEvidence,
     stats: {
       ...stats,
       relatedBlogs: stats?.relatedBlogs?.length ? stats.relatedBlogs : championLinks?.relatedBlogs || [],

@@ -12,6 +12,7 @@ const validEvents = new Set<ElectronEventChannel>([
   'winrate-updated',
   'auto-screenshot-taken',
   'game-phase-changed',
+  'lcu-connection-changed',
   'champion-monitor-changed',
   'champ-select-start',
   'item-set-auto-apply-completed',
@@ -103,6 +104,10 @@ const electronAPI: ElectronAPI = {
     get: (data) => ipcRenderer.invoke('get-winrate', data),
     loadChampionData: (championId) => ipcRenderer.invoke('load-champion-data', championId),
   },
+  champions: {
+    getRankings: () => ipcRenderer.invoke('champions-get-rankings'),
+    openDetail: (championId) => ipcRenderer.invoke('champions-open-detail', championId),
+  },
   autoScreenshot: {
     start: (config) => ipcRenderer.invoke('auto-screenshot-start', config),
     stop: () => ipcRenderer.invoke('auto-screenshot-stop'),
@@ -117,11 +122,14 @@ const electronAPI: ElectronAPI = {
   matchHistory: {
     getLocalSummary: () => ipcRenderer.invoke('match-history-get-local-summary'),
     queryCurrent: (payload) => ipcRenderer.invoke('match-history-query-current', payload),
+    openDetail: (selection) => ipcRenderer.invoke('match-history-open-detail', selection),
+    getDetailSnapshot: () => ipcRenderer.invoke('match-history-get-detail-snapshot'),
   },
   feedback: {
     submit: (payload) => ipcRenderer.invoke('feedback-submit', payload),
   },
   lcu: {
+    getConnectionState: () => ipcRenderer.invoke('lcu-get-connection-state'),
     getChampionMonitorState: () => ipcRenderer.invoke('lcu-get-champion-monitor-state'),
     getChampionId: () => ipcRenderer.invoke('get-champion-id'),
     getStatus: () => ipcRenderer.invoke('lcu-get-status'),

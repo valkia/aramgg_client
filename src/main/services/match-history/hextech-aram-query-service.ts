@@ -3,14 +3,18 @@ import type {
   HextechAramMatchHistoryMatch,
   HextechAramMatchHistoryPage,
   HextechAramMatchHistoryQuery,
+  HextechAramMatchParticipant,
+  SupportedDataLocale,
 } from '../../../shared/ipc-contract.ts'
-import { loadAugmentDetail, loadChampionRoster, loadItems } from '../../data-loader.ts'
+import { getDataLocale, loadAugmentDetail, loadChampionRoster, loadItems } from '../../data-loader.ts'
 import logger from '../../modules/logger.ts'
 import type LCUService from '../lcu/lcu-service.ts'
 import { normalizeGame } from './local-match-history-service.ts'
 import { isHextechAramGame } from './statistics.ts'
 import { SgpMatchHistoryService } from './sgp-match-history-service.ts'
 import type { StoredMatchHistoryGame } from './types.ts'
+import { getMatchHistoryPlayerKey } from './player-identity.ts'
+import { MatchDetailSnapshotExpiredError, sameMatchDetailContext, type MatchDetailContext } from './match-detail-snapshots.ts'
 
 export const DEFAULT_HEXTECH_ARAM_QUERY_COUNT = 10
 export const MAX_HEXTECH_ARAM_QUERY_COUNT = 20
@@ -21,6 +25,8 @@ type AnyRecord = Record<string, unknown>
 type AssetLabel = {
   name?: string
   iconUrl?: string
+  description?: string
+  rarity?: string
 }
 
 export type HextechAramQueryLabels = {
@@ -39,6 +45,7 @@ type BuildPageOptions = {
   scannedCount: number
   queriedAt: number
   labels?: HextechAramQueryLabels
+  rawGames?: unknown[]
 }
 
 function isRecord(value: unknown): value is AnyRecord {
@@ -103,6 +110,8 @@ function toAsset(id: number, labels?: ReadonlyMap<number, AssetLabel>): HextechA
     id,
     ...(label?.name ? { name: label.name } : {}),
     ...(label?.iconUrl ? { iconUrl: label.iconUrl } : {}),
+    ...(label?.description ? { description: label.description } : {}),
+    ...(label?.rarity ? { rarity: label.rarity } : {}),
   }
 }
 
@@ -110,6 +119,7 @@ function toMatch(
   game: StoredMatchHistoryGame,
   currentPuuid: string,
   labels: HextechAramQueryLabels,
+  rawGame?: unknown,
 ): HextechAramMatchHistoryMatch | null {
   if (!isHextechAramGame(game)) return null
 
@@ -132,13 +142,82 @@ function toMatch(
     result: isRemake ? 'remake' : participant.win ? 'win' : 'loss',
     augments: participant.augments.map((id) => toAsset(id, labels.augments)),
     items: participant.items.map((id) => toAsset(id, labels.items)),
+    participants: toParticipants(game, rawGame, currentPuuid, labels),
   }
 }
 
-function getLocalizedItemName(item: AnyRecord): string {
-  if (typeof item.name === 'string') return item.name
-  if (!isRecord(item.name)) return ''
-  return asString(item.name.zh_CN) || asString(item.name.zh_cn) || asString(item.name.en_us)
+function optionalStat(value: unknown): number | null {
+  if (typeof value !== 'number' && typeof value !== 'string') return null
+  if (typeof value === 'string' && !value.trim()) return null
+  const number = Number(value)
+  return Number.isSafeInteger(number) && number >= 0 ? number : null
+}
+
+function toParticipants(
+  game: StoredMatchHistoryGame,
+  rawGame: unknown,
+  currentPuuid: string,
+  labels: HextechAramQueryLabels,
+): HextechAramMatchParticipant[] {
+  const rawParticipants = isRecord(rawGame) && Array.isArray(rawGame.participants)
+    ? rawGame.participants.filter(isRecord)
+    : []
+  const rawById = new Map(rawParticipants.map((entry) => [Number(entry.participantId), entry]))
+  const isRemake = game.endOfGameResult.startsWith('Abort_')
+    || game.participants.some((entry) => entry.gameEndedInEarlySurrender)
+  return game.participants.map((participant) => {
+    const raw = rawById.get(participant.participantId)
+    const stats = raw && isRecord(raw.stats) ? raw.stats : raw
+    const champion = labels.champions?.get(participant.championId)
+    const laneMinions = optionalStat(stats?.totalMinionsKilled)
+    const neutralMinions = optionalStat(stats?.neutralMinionsKilled)
+    const spellId = (slot: 1 | 2) => {
+      const id = optionalStat(raw?.[`summoner${slot}Id`] ?? raw?.[`spell${slot}Id`] ?? stats?.[`summoner${slot}Id`] ?? stats?.[`spell${slot}Id`])
+      return id !== null && id > 0 ? id : null
+    }
+    const minionsKilled = laneMinions !== null && neutralMinions !== null ? laneMinions + neutralMinions : null
+    return {
+      participantId: participant.participantId,
+      playerKey: getMatchHistoryPlayerKey(game.platformId, participant.puuid),
+      teamId: participant.teamId,
+      playerName: formatPlayerName(participant.gameName, participant.tagLine),
+      isCurrentPlayer: participant.puuid === currentPuuid,
+      championId: participant.championId,
+      ...(champion?.name ? { championName: champion.name } : {}),
+      ...(champion?.iconUrl ? { championIconUrl: champion.iconUrl } : {}),
+      result: isRemake ? 'remake' : participant.win ? 'win' : 'loss',
+      kills: participant.kills,
+      deaths: participant.deaths,
+      assists: participant.assists,
+      participationStats: { kills: optionalStat(stats?.kills), assists: optionalStat(stats?.assists) },
+      damageToChampions: optionalStat(stats?.totalDamageDealtToChampions),
+      damageTaken: optionalStat(stats?.totalDamageTaken),
+      totalHeal: optionalStat(stats?.totalHeal),
+      damageToTurrets: optionalStat(stats?.damageDealtToTurrets),
+      goldEarned: optionalStat(stats?.goldEarned),
+      minionsKilled: Number.isSafeInteger(minionsKilled) ? minionsKilled : null,
+      spell1Id: spellId(1),
+      spell2Id: spellId(2),
+      tripleKills: optionalStat(stats?.tripleKills),
+      quadraKills: optionalStat(stats?.quadraKills),
+      pentaKills: optionalStat(stats?.pentaKills),
+      items: participant.items.map((id) => toAsset(id, labels.items)),
+      augments: participant.augments.map((id) => toAsset(id, labels.augments)),
+    }
+  })
+}
+
+function getLocalizedAssetText(value: unknown, locale: string): string {
+  if (typeof value === 'string') return value.trim()
+  if (!isRecord(value)) return ''
+  const keys = [locale, locale.replace('-', '_'), locale.replace('-', '_').toLowerCase()]
+  for (const key of keys) {
+    const text = asString(value[key])
+    if (text) return text
+  }
+  // Legacy item wrappers repeat the selected dataset's text under fixed locale aliases.
+  const texts = Object.values(value).map(asString).filter(Boolean)
+  return texts.length && texts.every((text) => text === texts[0]) ? texts[0] : ''
 }
 
 export function normalizeHextechAramQuery(
@@ -161,12 +240,13 @@ export function buildHextechAramMatchHistoryPage(
 ): HextechAramMatchHistoryPage {
   const labels = options.labels || {}
   const seenGameIds = new Set<number>()
+  const rawByGameId = new Map((options.rawGames || []).filter(isRecord).map((game) => [Number(game.gameId), game]))
   const matches = [...options.games]
     .sort((left, right) => right.gameCreation - left.gameCreation)
     .flatMap((game) => {
       if (seenGameIds.has(game.gameId)) return []
       seenGameIds.add(game.gameId)
-      const match = toMatch(game, options.currentPuuid, labels)
+      const match = toMatch(game, options.currentPuuid, labels, rawByGameId.get(game.gameId))
       return match ? [match] : []
     })
 
@@ -193,22 +273,32 @@ export class HextechAramQueryService {
   async queryCurrent(
     query?: HextechAramMatchHistoryQuery,
   ): Promise<HextechAramMatchHistoryPage> {
-    const range = normalizeHextechAramQuery(query)
+    return (await this.queryCurrentWithContext(query)).page
+  }
+
+  async getCurrentContext(): Promise<MatchDetailContext> {
+    const { context } = await this.resolveCurrentPlayer(getDataLocale())
+    if (context.locale !== getDataLocale()) throw new MatchDetailSnapshotExpiredError()
+    return context
+  }
+
+  private async resolveCurrentPlayer(locale: SupportedDataLocale) {
     const currentSummoner = await this.lcuService.getCurrentSummoner()
     if (!isRecord(currentSummoner) || !isValidPuuid(currentSummoner.puuid)) {
       throw new Error('请先登录英雄联盟客户端')
     }
-
     const currentPuuid = currentSummoner.puuid
     let platformId = normalizePlatformId(currentSummoner.platformId ?? currentSummoner.currentPlatformId)
-    if (!platformId) {
-      platformId = getBootstrapPlatformId(
-        await this.lcuService.getCurrentSummonerMatchHistory(0, 0),
-      )
-    }
-    if (!platformId) {
-      throw new Error('无法识别当前账号所在区服')
-    }
+    if (!platformId) platformId = getBootstrapPlatformId(await this.lcuService.getCurrentSummonerMatchHistory(0, 0))
+    const accountKey = getMatchHistoryPlayerKey(platformId, currentPuuid)
+    if (!accountKey) throw new Error('无法识别当前账号所在区服')
+    return { currentSummoner, currentPuuid, context: { accountKey, platformId, locale } }
+  }
+
+  async queryCurrentWithContext(query?: HextechAramMatchHistoryQuery): Promise<{ page: HextechAramMatchHistoryPage; context: MatchDetailContext }> {
+    const range = normalizeHextechAramQuery(query)
+    const { currentSummoner, currentPuuid, context } = await this.resolveCurrentPlayer(getDataLocale())
+    const { platformId, locale } = context
 
     const rawGames = await this.sgpMatchHistoryService.getHextechAramSummaries(
       currentPuuid,
@@ -221,9 +311,12 @@ export class HextechAramQueryService {
       const normalized = normalizeGame(game, platformId, queriedAt)
       return normalized ? [normalized] : []
     })
-    const labels = await this.loadLabels()
+    const labels = await this.loadLabels(locale)
+    if (!sameMatchDetailContext(context, await this.getCurrentContext())) {
+      throw new MatchDetailSnapshotExpiredError()
+    }
 
-    return buildHextechAramMatchHistoryPage({
+    const page = buildHextechAramMatchHistoryPage({
       games: normalizedGames,
       currentPuuid,
       playerName: getPlayerName(currentSummoner),
@@ -233,15 +326,17 @@ export class HextechAramQueryService {
       scannedCount: rawGames.length,
       queriedAt,
       labels,
+      rawGames,
     })
+    return { page, context }
   }
 
-  private async loadLabels(): Promise<HextechAramQueryLabels> {
+  private async loadLabels(locale: SupportedDataLocale): Promise<HextechAramQueryLabels> {
     try {
       const [champions, augmentsById, items] = await Promise.all([
-        loadChampionRoster(),
-        loadAugmentDetail(),
-        loadItems(),
+        loadChampionRoster(locale),
+        loadAugmentDetail(locale),
+        loadItems(locale),
       ])
       return {
         champions: new Map(champions.map((champion: AnyRecord) => [
@@ -256,13 +351,16 @@ export class HextechAramQueryService {
           return [Number(id), {
             name: asString(augment.name),
             iconUrl: asString(augment.iconUrl),
+            description: getLocalizedAssetText(augment.description, locale) || getLocalizedAssetText(augment.tooltip, locale),
+            rarity: asString(augment.rarity),
           }]
         })),
         items: new Map(items.map((value: unknown) => {
           const item = isRecord(value) ? value : {}
           return [Number(item.id), {
-            name: getLocalizedItemName(item),
+            name: getLocalizedAssetText(item.name, locale),
             iconUrl: asString(item.iconUrl),
+            description: getLocalizedAssetText(item.description, locale),
           }]
         })),
       }

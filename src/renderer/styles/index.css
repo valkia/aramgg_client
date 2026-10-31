@@ -208,6 +208,91 @@
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
+  .analysis-panel {
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 4px;
+    background: linear-gradient(145deg, rgba(31, 43, 53, 0.62), rgba(7, 10, 13, 0.32));
+    box-shadow: inset 0 0 18px rgba(194, 156, 109, 0.04);
+    color: var(--lol-ivory);
+  }
+
+  .analysis-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--lol-gold-2);
+    font-weight: 800;
+    line-height: 1.4;
+  }
+
+  .analysis-heading > svg {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 auto;
+  }
+
+  .analysis-inset {
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 4px;
+    background: rgba(4, 15, 24, 0.36);
+  }
+
+  .analysis-control {
+    min-height: 32px;
+    border: 1px solid var(--lol-border);
+    border-radius: 4px;
+    background: rgba(4, 15, 24, 0.48);
+    color: var(--lol-ivory);
+    font-size: 12px;
+  }
+
+  button.analysis-control {
+    color: var(--lol-primary-2);
+    cursor: pointer;
+  }
+
+  .analysis-control:enabled:hover {
+    border-color: rgba(226, 192, 143, 0.4);
+    background: rgba(194, 156, 109, 0.1);
+  }
+
+  .analysis-control:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+
+  .analysis-control:focus-visible,
+  .analysis-disclosure:focus-visible {
+    outline: 2px solid var(--lol-gold-2);
+    outline-offset: 2px;
+  }
+
+  .analysis-disclosure {
+    border-radius: 4px;
+    color: var(--lol-primary-2);
+  }
+
+  .analysis-disclosure:hover {
+    color: var(--lol-gold-2);
+  }
+
+  .analysis-table {
+    color: var(--lol-ivory);
+  }
+
+  .analysis-table thead {
+    background: var(--lol-bg-2);
+    color: var(--lol-muted);
+  }
+
+  .analysis-table tbody tr {
+    border-color: var(--lol-border-soft);
+  }
+
+  .analysis-table tbody tr:hover {
+    background: rgba(194, 156, 109, 0.06);
+  }
+
   .tag {
     @apply inline-flex items-center gap-xs px-sm py-xs rounded-sm text-xs font-medium;
   }

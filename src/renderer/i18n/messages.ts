@@ -1,7 +1,18 @@
 import type { SupportedDataLocale } from '../../shared/ipc-contract.ts'
+import { matchAnalysisMessages } from './match-analysis.ts'
+import { benchEvidenceMessages } from './bench-evidence.ts'
+import { matchDetailMessages } from './match-detail.ts'
+import { championRankingsMessages } from './champion-rankings.ts'
+import { mainNavigationMessages } from './main-navigation.ts'
+import { patchEvidenceMessages } from './patch-evidence.ts'
 
 export const messages = {
   'zh-CN': {
+    patchEvidence: patchEvidenceMessages['zh-CN'],
+    mainNavigation: mainNavigationMessages['zh-CN'],
+    championRankings: championRankingsMessages['zh-CN'],
+    matchAnalysis: matchAnalysisMessages['zh-CN'],
+    matchDetail: matchDetailMessages['zh-CN'],
     common: {
       cancel: '取消',
       close: '关闭',
@@ -210,6 +221,7 @@ export const messages = {
       autoEnabledWaiting: '自动配置已开启，检测到当前英雄后会写入游戏推荐',
     },
     bench: {
+      ...benchEvidenceMessages['zh-CN'],
       title: '席位推荐',
       refreshTitle: '刷新推荐',
       reading: '读取中',
@@ -277,7 +289,7 @@ export const messages = {
       noDescription: '暂无说明',
       loadFailed: '未能加载数据',
       guideFallback: '英雄攻略',
-      tabs: { augments: '海克斯', builds: '出装' },
+      tabs: { augments: '海克斯', builds: '出装', patches: '版本改动' },
       rarities: { all: '全部', silver: '白银', gold: '金色', prismatic: '棱彩' },
       unknownAugment: '未知海克斯',
       unavailable: '不可用',
@@ -362,6 +374,11 @@ export const messages = {
     },
   },
   'en-US': {
+    patchEvidence: patchEvidenceMessages['en-US'],
+    mainNavigation: mainNavigationMessages['en-US'],
+    championRankings: championRankingsMessages['en-US'],
+    matchAnalysis: matchAnalysisMessages['en-US'],
+    matchDetail: matchDetailMessages['en-US'],
     common: {
       cancel: 'Cancel', close: 'Close', current: 'Current', exit: 'Exit', hide: 'Hide', loading: 'Loading...', minimize: 'Minimize', refresh: 'Refresh', unknown: 'Unknown', unknownError: 'Unknown error',
     },
@@ -387,10 +404,11 @@ export const messages = {
       title: 'BUILD RECOMMENDATIONS', autoApplyTitle: 'Configure items for the current champion by default', autoApplyDescription: "When enabled, ARAMGG builds are written to the in-game shop recommendations after a champion and build data are loaded. When disabled, use the manual action in champion details.", configuring: 'Configuring', waitingForData: 'Waiting for build data', currentChampion: 'current champion build', multipleSets: '{count} builds', configure: 'Configure {target}', reconfigure: 'Reconfigure {target}', autoAppliedMultiple: 'Automatically added {count} recommended builds', appliedMultiple: 'Added {count} recommended builds', autoApplied: 'Automatically added the recommended build', applied: 'Added the recommended build', autoConfiguring: 'Configuring items automatically...', configuringNow: 'Configuring items...', configurationFailed: 'Item configuration failed', autoEnabledWaiting: 'Automatic configuration is enabled and will run when the current champion is detected',
     },
     bench: {
+      ...benchEvidenceMessages['en-US'],
       title: 'Bench recommendations', refreshTitle: 'Refresh recommendations', reading: 'Loading', refreshing: 'Refreshing', readOnly: 'Read-only advice', noBench: 'No bench', noChampion: 'No champion', noCandidates: 'No candidates', waitingSelection: 'Waiting for selection', apiUnavailable: 'Electron API is unavailable', waitingClient: 'Waiting for the client', waitingChampSelect: 'Waiting for champion select', sourceCurrent: 'Current', sourceBench: 'Bench', sourceTeammate: 'Teammate', sourceCandidate: 'Candidate', winRate: 'Win {value}', pickRate: 'Pick {value}', timeout: 'Bench data took longer than {seconds} seconds', loadFailed: 'Failed to load recommendations', candidateList: 'Bench candidate list', scrollLeft: 'See more bench candidates to the left', scrollRight: 'See more bench candidates to the right',
     },
     augment: {
-      recommendation: 'Augment recommendations', championDetails: 'Champion details', loadingChampion: 'Loading champion data...', championFallback: 'Champion {id}', waitingChampion: 'Waiting for champion selection', openGuide: 'Open champion guide', guide: 'Guide', tier: 'Tier {tier}', rank: 'Rank', winRateValue: 'Win rate {value}', winRate: 'Win rate', insufficientGames: 'Insufficient games', pickRate: 'Pick rate', games: 'Games', reading: 'Loading', relatedGuides: 'Related guides', articleCount: '{count} articles', coreAugments: 'Core augments', itemCount: '{count} items', descriptionLabel: '{name} description', noAugments: 'No augment data', buildRoutes: 'Build paths', routeCount: '{count} builds', gameCount: '{count} games', startingItems: 'Starting items', coreItem: 'Core {index}', fullItems: 'Full builds', fullItem: 'Full build {index}', laterItems: 'Later items', alternativeItems: 'Alternative items', summonerSpells: 'Summoner spells', skillOrder: 'Skill order', skillPriority: 'Prioritize {primary} → {secondary} → {tertiary}', recommendationRank: 'Option {index}', summonerSpellFallback: 'Summoner spell {id}', skillLevel: 'Level {level}: {skill}', noBuilds: 'No build data', source: 'Source: {source}', updatedAt: 'Updated {time}', noDescription: 'No description', loadFailed: 'Unable to load data', guideFallback: 'Champion guide', tabs: { augments: 'Augments', builds: 'Builds' }, rarities: { all: 'All', silver: 'Silver', gold: 'Gold', prismatic: 'Prismatic' }, unknownAugment: 'Unknown augment', unavailable: 'Unavailable', itemFallback: 'Item {id}', dataLoadFailed: 'Data loading failed', loadError: 'Failed to load data', priority: 'TOP PICKS', pickRateShort: 'Pick rate', scoreUnknown: 'Unknown', scoreMustPick: 'Must pick', scoreStrong: 'Strong', scoreRecommended: 'Recommended', scoreOptional: 'Optional', scoreNiche: 'Niche', noData: 'No data available',
+      recommendation: 'Augment recommendations', championDetails: 'Champion details', loadingChampion: 'Loading champion data...', championFallback: 'Champion {id}', waitingChampion: 'Waiting for champion selection', openGuide: 'Open champion guide', guide: 'Guide', tier: 'Tier {tier}', rank: 'Rank', winRateValue: 'Win rate {value}', winRate: 'Win rate', insufficientGames: 'Insufficient games', pickRate: 'Pick rate', games: 'Games', reading: 'Loading', relatedGuides: 'Related guides', articleCount: '{count} articles', coreAugments: 'Core augments', itemCount: '{count} items', descriptionLabel: '{name} description', noAugments: 'No augment data', buildRoutes: 'Build paths', routeCount: '{count} builds', gameCount: '{count} games', startingItems: 'Starting items', coreItem: 'Core {index}', fullItems: 'Full builds', fullItem: 'Full build {index}', laterItems: 'Later items', alternativeItems: 'Alternative items', summonerSpells: 'Summoner spells', skillOrder: 'Skill order', skillPriority: 'Prioritize {primary} → {secondary} → {tertiary}', recommendationRank: 'Option {index}', summonerSpellFallback: 'Summoner spell {id}', skillLevel: 'Level {level}: {skill}', noBuilds: 'No build data', source: 'Source: {source}', updatedAt: 'Updated {time}', noDescription: 'No description', loadFailed: 'Unable to load data', guideFallback: 'Champion guide', tabs: { augments: 'Augments', builds: 'Builds', patches: 'Patch changes' }, rarities: { all: 'All', silver: 'Silver', gold: 'Gold', prismatic: 'Prismatic' }, unknownAugment: 'Unknown augment', unavailable: 'Unavailable', itemFallback: 'Item {id}', dataLoadFailed: 'Data loading failed', loadError: 'Failed to load data', priority: 'TOP PICKS', pickRateShort: 'Pick rate', scoreUnknown: 'Unknown', scoreMustPick: 'Must pick', scoreStrong: 'Strong', scoreRecommended: 'Recommended', scoreOptional: 'Optional', scoreNiche: 'Niche', noData: 'No data available',
     },
     postGame: {
       kicker: 'POST-GAME SHARE', title: 'ARAMGG Post-game Poster', copy: 'Copy', copyTitle: 'Copy poster', save: 'Save', saveTitle: 'Save image', footer: 'Shared from ARAMGG Assistant - aramgg.com', victory: 'VICTORY', defeat: 'DEFEAT', result: 'POST-GAME', championFallback: 'Match champion', rarityPrismatic: 'Prismatic', rarityGold: 'Gold', raritySilver: 'Silver', rarityUnknown: 'Unidentified', augment: 'Augment', unknownAugment: 'Unidentified augment', augmentSuffix: '{rarity} augment', stats: 'MATCH STATS', damage: 'Damage', damageTaken: 'Damage taken', gold: 'Gold', augments: 'MATCH AUGMENTS', notGenerated: 'Poster has not been generated', operationFailed: 'Operation failed', copyFailed: 'Copy failed', copied: 'Poster copied', saveFailed: 'Save failed', saved: 'Poster saved', generating: 'Generating', shareReport: 'Share report', unavailable: 'Post-game poster unavailable: {error}', noRecentGame: 'No recent match is available to share.', generateFailed: 'Failed to generate post-game poster: {error}', mockFailed: 'Mock poster generation failed', mockFailedWithReason: 'Mock generation failed: {error}',
@@ -403,6 +421,11 @@ export const messages = {
     },
   },
   'zh-TW': {
+    patchEvidence: patchEvidenceMessages['zh-TW'],
+    mainNavigation: mainNavigationMessages['zh-TW'],
+    championRankings: championRankingsMessages['zh-TW'],
+    matchAnalysis: matchAnalysisMessages['zh-TW'],
+    matchDetail: matchDetailMessages['zh-TW'],
     common: {
       cancel: '取消', close: '關閉', current: '目前', exit: '退出', hide: '隱藏', loading: '載入中...', minimize: '最小化', refresh: '重新整理', unknown: '未知', unknownError: '未知錯誤',
     },
@@ -428,10 +451,11 @@ export const messages = {
       title: '出裝推薦', autoApplyTitle: '預設設定目前英雄裝備', autoApplyDescription: '開啟後，選到英雄並載入出裝資料時，自動將該英雄的 ARAMGG 出裝寫入遊戲商店推薦。關閉後不會自動寫入，可在英雄詳情中手動設定。', configuring: '設定中', waitingForData: '等待出裝資料', currentChampion: '目前英雄裝備', multipleSets: '{count} 套裝備', configure: '設定 {target}', reconfigure: '重新設定 {target}', autoAppliedMultiple: '已自動寫入 {count} 套遊戲推薦', appliedMultiple: '已寫入 {count} 套遊戲推薦', autoApplied: '已自動寫入遊戲推薦', applied: '已寫入遊戲推薦', autoConfiguring: '正在自動設定裝備...', configuringNow: '正在設定裝備...', configurationFailed: '裝備設定失敗', autoEnabledWaiting: '自動設定已開啟，偵測到目前英雄後會寫入遊戲推薦',
     },
     bench: {
+      ...benchEvidenceMessages['zh-TW'],
       title: '席位推薦', refreshTitle: '重新整理推薦', reading: '讀取中', refreshing: '重新整理中', readOnly: '唯讀建議', noBench: '無席位', noChampion: '未選英雄', noCandidates: '暫無英雄', waitingSelection: '等待選角', apiUnavailable: 'Electron API 無法使用', waitingClient: '等待客戶端連線', waitingChampSelect: '等待進入選角階段', sourceCurrent: '目前', sourceBench: '席位', sourceTeammate: '隊友', sourceCandidate: '候選', winRate: '勝率 {value}', pickRate: '選取 {value}', timeout: '席位資料讀取超過 {seconds} 秒', loadFailed: '推薦讀取失敗', candidateList: '席位候選清單', scrollLeft: '向左查看更多席位候選', scrollRight: '向右查看更多席位候選',
     },
     augment: {
-      recommendation: '增幅裝置推薦', championDetails: '英雄詳情', loadingChampion: '正在載入英雄資料...', championFallback: '英雄 {id}', waitingChampion: '等待英雄選擇', openGuide: '開啟英雄攻略', guide: '攻略', tier: '梯隊 {tier}', rank: '排名', winRateValue: '勝率 {value}', winRate: '勝率', insufficientGames: '場次不足', pickRate: '選取率', games: '場次', reading: '讀取中', relatedGuides: '相關攻略', articleCount: '{count} 篇', coreAugments: '核心增幅裝置', itemCount: '{count} 項', descriptionLabel: '{name}說明', noAugments: '暫無增幅裝置資料', buildRoutes: '出裝路線', routeCount: '{count} 套', gameCount: '{count} 場', startingItems: '起始裝備', coreItem: '核心 {index}', fullItems: '完整出裝', fullItem: '完整出裝 {index}', laterItems: '後續裝備', alternativeItems: '備選裝備', summonerSpells: '召喚師技能', skillOrder: '技能加點', skillPriority: '優先 {primary} → {secondary} → {tertiary}', recommendationRank: '方案 {index}', summonerSpellFallback: '召喚師技能 {id}', skillLevel: '{level} 級：{skill}', noBuilds: '暫無出裝資料', source: '來源：{source}', updatedAt: '更新於 {time}', noDescription: '暫無說明', loadFailed: '無法載入資料', guideFallback: '英雄攻略', tabs: { augments: '增幅裝置', builds: '出裝' }, rarities: { all: '全部', silver: '白銀', gold: '黃金', prismatic: '稜彩' }, unknownAugment: '未知增幅裝置', unavailable: '無法使用', itemFallback: '裝備 {id}', dataLoadFailed: '資料載入失敗', loadError: '載入資料失敗', priority: '優先推薦', pickRateShort: '選取率', scoreUnknown: '未知', scoreMustPick: '必選', scoreStrong: '強推', scoreRecommended: '推薦', scoreOptional: '可選', scoreNiche: '冷門', noData: '無可用資料',
+      recommendation: '增幅裝置推薦', championDetails: '英雄詳情', loadingChampion: '正在載入英雄資料...', championFallback: '英雄 {id}', waitingChampion: '等待英雄選擇', openGuide: '開啟英雄攻略', guide: '攻略', tier: '梯隊 {tier}', rank: '排名', winRateValue: '勝率 {value}', winRate: '勝率', insufficientGames: '場次不足', pickRate: '選取率', games: '場次', reading: '讀取中', relatedGuides: '相關攻略', articleCount: '{count} 篇', coreAugments: '核心增幅裝置', itemCount: '{count} 項', descriptionLabel: '{name}說明', noAugments: '暫無增幅裝置資料', buildRoutes: '出裝路線', routeCount: '{count} 套', gameCount: '{count} 場', startingItems: '起始裝備', coreItem: '核心 {index}', fullItems: '完整出裝', fullItem: '完整出裝 {index}', laterItems: '後續裝備', alternativeItems: '備選裝備', summonerSpells: '召喚師技能', skillOrder: '技能加點', skillPriority: '優先 {primary} → {secondary} → {tertiary}', recommendationRank: '方案 {index}', summonerSpellFallback: '召喚師技能 {id}', skillLevel: '{level} 級：{skill}', noBuilds: '暫無出裝資料', source: '來源：{source}', updatedAt: '更新於 {time}', noDescription: '暫無說明', loadFailed: '無法載入資料', guideFallback: '英雄攻略', tabs: { augments: '增幅裝置', builds: '出裝', patches: '版本改動' }, rarities: { all: '全部', silver: '白銀', gold: '黃金', prismatic: '稜彩' }, unknownAugment: '未知增幅裝置', unavailable: '無法使用', itemFallback: '裝備 {id}', dataLoadFailed: '資料載入失敗', loadError: '載入資料失敗', priority: '優先推薦', pickRateShort: '選取率', scoreUnknown: '未知', scoreMustPick: '必選', scoreStrong: '強推', scoreRecommended: '推薦', scoreOptional: '可選', scoreNiche: '冷門', noData: '無可用資料',
     },
     postGame: {
       kicker: '賽後分享', title: 'ARAMGG 賽後海報', copy: '複製', copyTitle: '複製海報', save: '儲存', saveTitle: '儲存圖片', footer: '分享自ARAMGG助手-aramgg.com', victory: '勝利', defeat: '惜敗', result: '賽後', championFallback: '本局英雄', rarityPrismatic: '稜彩', rarityGold: '黃金', raritySilver: '白銀', rarityUnknown: '待辨識', augment: '增幅裝置', unknownAugment: '未辨識增幅裝置', augmentSuffix: '{rarity}增幅裝置', stats: '戰績', damage: '輸出', damageTaken: '承傷', gold: '經濟', augments: '本局增幅裝置', notGenerated: '海報尚未產生', operationFailed: '操作失敗', copyFailed: '複製失敗', copied: '海報已複製', saveFailed: '儲存失敗', saved: '海報已儲存', generating: '產生中', shareReport: '分享戰報', unavailable: '賽後海報暫時無法使用：{error}', noRecentGame: '暫未擷取到可分享的最近對局。', generateFailed: '產生賽後海報失敗：{error}', mockFailed: '模擬海報產生失敗', mockFailedWithReason: '模擬產生失敗：{error}',

@@ -12,7 +12,11 @@ vi.mock('electron', async () => {
     url = ''
     options: any
     setAlwaysOnTop = vi.fn()
-    hide = vi.fn(() => { this.visible = false })
+    setBounds = vi.fn()
+    focus = vi.fn()
+    isMinimized = vi.fn(() => false)
+    restore = vi.fn()
+    hide = vi.fn(() => { this.visible = false; this.emit('hide') })
     webContents = Object.assign(new EventEmitter(), {
       getURL: () => this.url,
       setWindowOpenHandler: vi.fn(),
@@ -63,6 +67,37 @@ async function setup() {
 }
 
 describe('champion window preferences', () => {
+  it('allows an explicit manual view with auto display off, then clears it on hide, closed and later game phases', async () => {
+    mocks.store.set('championInsight.showDetails', false)
+    const { manager, popup } = await setup()
+    popup.show()
+    expect(popup.isVisible()).toBe(false)
+    manager.showPopupWindowManually()
+    expect(popup.isVisible()).toBe(true)
+    ;(popup as any).emit('hide') // A delayed native hide must not clear the newer visible manual view.
+    manager.applyPopupWindowPreferences()
+    expect(popup.isVisible()).toBe(true)
+    expect(popup.focus).toHaveBeenCalledOnce()
+    ;(popup as any).isMinimized.mockReturnValueOnce(true)
+    manager.showPopupWindowManually()
+    expect(popup.restore).toHaveBeenCalledOnce()
+    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String))
+    manager.applyPopupWindowPreferences('GameStart')
+    expect(popup.isVisible()).toBe(false)
+    manager.showPopupWindowManually()
+    expect(popup.isVisible()).toBe(true)
+    manager.applyPopupWindowPreferences('InProgress')
+    expect(popup.isVisible()).toBe(false)
+    manager.showPopupWindowManually()
+    popup.hide(); popup.show()
+    expect(popup.isVisible()).toBe(false)
+    manager.showPopupWindowManually()
+    ;(popup as any).emit('closed')
+    const next = await manager.createPopupWindow(true, 'http://localhost:5173')
+    next.show()
+    expect(next.isVisible()).toBe(false)
+  })
+
   it('creates an unpinned window by default and applies saved pinning on each show', async () => {
     const { popup } = await setup()
     expect((popup as any).options.alwaysOnTop).toBe(false)

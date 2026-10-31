@@ -100,10 +100,6 @@
               <span>{{ t('augment.pickRate') }}</span>
               <strong>{{ championDataLoading ? t('augment.reading') : formatPercent(championStats?.pickRate) }}</strong>
             </div>
-            <div class="stat-box">
-              <span>{{ t('augment.games') }}</span>
-              <strong>{{ championDataLoading ? t('augment.reading') : formatNumber(championStats?.numGames) }}</strong>
-            </div>
           </section>
 
           <section v-if="!isSidePanel && championBlogs.length" class="related-blogs">
@@ -429,6 +425,19 @@
                 <p>{{ t('augment.noBuilds') }}</p>
               </div>
             </div>
+
+            <!-- 版本改动 Tab -->
+            <div v-if="!isSidePanel && activeTab === 'patches'" class="tab-panel">
+              <PatchTrendsPanel
+                v-if="championId && patchEvidence"
+                :evidence="patchEvidence"
+                :champion-id="Number(championId)"
+                :augment-names="patchAugmentNames"
+              />
+              <div v-else class="empty-state" role="status">
+                <p>{{ championDataLoading ? t('augment.reading') : t('augment.noData') }}</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -511,6 +520,7 @@ import {
 } from '../service/overlay-formatters.ts'
 import { useAugmentTooltip } from '../composables/use-augment-tooltip.ts'
 import AramBenchRecommendation from './AramBenchRecommendation.vue'
+import PatchTrendsPanel from './PatchTrendsPanel.vue'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps({
@@ -539,6 +549,8 @@ const champSelectMode = ref(false)
 
 // 英雄数据
 const championStats = ref(null)
+const patchEvidence = ref(null)
+const patchAugmentNames = computed(() => Object.fromEntries(augmentBase.value.filter(augment => augment?.name).map(augment => [Number(augment.id), augment.name])))
 const augmentBase = ref([])
 const augmentStats = ref({})
 const buildData = ref(null)
@@ -754,6 +766,7 @@ const configureCurrentChampionItems = async (automatic = false) => {
 const tabs = computed(() => [
   { key: 'augments', label: t('augment.tabs.augments') },
   { key: 'builds', label: t('augment.tabs.builds') },
+  ...(!isSidePanel.value ? [{ key: 'patches', label: t('augment.tabs.patches') }] : []),
 ])
 
 // 稀有度选项
@@ -873,6 +886,7 @@ const mapChampionAugmentRows = (augments = [], statsById = {}) => {
 }
 
 const applyFallbackChampionData = (data) => {
+  patchEvidence.value = null
   championStats.value = {
     championId: String(data?.championId || championId.value || ''),
     id: data?.championId || championId.value || null,
@@ -995,6 +1009,7 @@ const showOverlay = async (data) => {
   championDataLoading.value = false
   error.value = null
   championStats.value = null
+  patchEvidence.value = null
   buildData.value = null
   itemsData.value = {}
   championLinks.value = {}
@@ -1108,6 +1123,7 @@ const showOverlay = async (data) => {
         championLinks: linksData,
       } = result.data
       championStats.value = stats
+      patchEvidence.value = result.data.patchEvidence || null
       augmentBase.value = augments
       augmentStats.value = augStats
       buildData.value = { builds: Array.isArray(builds) ? builds : [] }
@@ -1218,6 +1234,7 @@ const closeOverlay = (reason = 'manual') => {
   visible.value = false
   championNameData.value = null
   championStats.value = null
+  patchEvidence.value = null
   championDataLoading.value = false
   champSelectMode.value = false
   benchPreviewRecommendation.value = null
@@ -2451,7 +2468,7 @@ defineExpose({
 
 .stat-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 12px 18px 0;
 }
@@ -2500,7 +2517,7 @@ defineExpose({
 
 .tabs-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   padding: 14px 18px 0;
   background: transparent;
@@ -2508,6 +2525,7 @@ defineExpose({
 }
 
 .side-panel-mode .tabs-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   padding-top: 12px;
 }
 

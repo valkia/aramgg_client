@@ -1,6 +1,7 @@
 import type {
   AramBenchRecommendation,
   AramRecommendationCandidate,
+  AramRecommendationDecisionReason,
   GameflowPhase,
 } from '../../../shared/ipc-contract.ts'
 
@@ -55,7 +56,7 @@ function toInteger(value: unknown): number | null {
 }
 
 function toNullableNumber(value: unknown): number | null {
-  if (value == null || value === '') {
+  if ((typeof value !== 'number' && typeof value !== 'string') || String(value).trim() === '') {
     return null
   }
 
@@ -65,7 +66,7 @@ function toNullableNumber(value: unknown): number | null {
 
 function normalizeRate(value: unknown): number | null {
   const numberValue = toNullableNumber(value)
-  if (numberValue == null) {
+  if (numberValue == null || numberValue < 0 || numberValue > 100) {
     return null
   }
 
@@ -111,14 +112,6 @@ function getChampionDisplayName(championId: number, stats: ChampionStats | null)
   )
 }
 
-function getAvailableStatsFields(stats: ChampionStats | null): string[] {
-  if (!stats) {
-    return []
-  }
-
-  return ['winRate', 'pickRate', 'numGames', 'tier', 'iconUrl'].filter((field) => stats[field] != null)
-}
-
 function getCandidateSourceLabel(source: CandidateSource): string {
   return CANDIDATE_SOURCE_LABELS[source]
 }
@@ -126,23 +119,24 @@ function getCandidateSourceLabel(source: CandidateSource): string {
 function scoreChampionStats(stats: ChampionStats | null) {
   const winRate = normalizeRate(getStatsField(stats, ['winRate', 'win_rate']))
   const pickRate = normalizeRate(getStatsField(stats, ['pickRate', 'pick_rate']))
-  const games = toNullableNumber(getStatsField(stats, ['numGames', 'games', 'playCount', 'num_games']))
-  const tier = toNullableNumber(stats?.tier)
+  const rawGames = toNullableNumber(getStatsField(stats, ['numGames', 'games', 'playCount', 'num_games']))
+  const games = rawGames != null && Number.isSafeInteger(rawGames) && rawGames >= 0 ? rawGames : null
+  const rawTier = toNullableNumber(stats?.tier)
+  const tier = rawTier != null && Number.isInteger(rawTier) && rawTier > 0 ? rawTier : null
 
   const winRateScore = winRate ?? 0.5
   const pickRateScore = pickRate ?? 0
-  const sampleScore = games ? clamp01(Math.log10(games + 1) / 4) : 0
   const tierScore = tier ? clamp01((6 - Math.min(tier, 6)) / 5) : 0
 
-  const dataAvailable = winRate != null || pickRate != null || games != null || tier != null
+  // Counts remain source metadata; only rate/tier fields affect ranking and availability.
+  const dataAvailable = winRate != null || pickRate != null || tier != null
   const score = dataAvailable
-    ? clamp01(winRateScore * 0.74 + pickRateScore * 0.08 + sampleScore * 0.1 + tierScore * 0.08)
+    ? clamp01((winRateScore * 0.74 + pickRateScore * 0.08 + tierScore * 0.08) / 0.9)
     : 0.45
 
   let confidence = 0.15
   if (winRate != null) confidence += 0.45
   if (pickRate != null) confidence += 0.1
-  if (games != null && games > 0) confidence += 0.2
   if (tier != null) confidence += 0.1
 
   return {
@@ -151,7 +145,7 @@ function scoreChampionStats(stats: ChampionStats | null) {
     games,
     tier,
     score,
-    confidence: clamp01(confidence),
+    confidence: clamp01(confidence / 0.8),
     dataAvailable,
   }
 }
@@ -170,8 +164,8 @@ function buildCandidate(
   if (scoredStats.winRate != null) {
     reasons.push(`胜率 ${(scoredStats.winRate * 100).toFixed(1)}%`)
   }
-  if (scoredStats.games != null) {
-    reasons.push(`样本 ${Math.round(scoredStats.games)}`)
+  if (scoredStats.pickRate != null) {
+    reasons.push(`登场率 ${(scoredStats.pickRate * 100).toFixed(1)}%`)
   }
   if (scoredStats.tier != null) {
     reasons.push(`梯队 ${scoredStats.tier}`)
@@ -196,7 +190,13 @@ function buildCandidate(
     score: scoredStats.score,
     confidence: scoredStats.confidence,
     dataAvailable: scoredStats.dataAvailable,
-    availableStatsFields: getAvailableStatsFields(stats),
+    availableStatsFields: [
+      ...(scoredStats.winRate != null ? ['winRate'] : []),
+      ...(scoredStats.pickRate != null ? ['pickRate'] : []),
+      ...(scoredStats.games != null ? ['numGames'] : []),
+      ...(scoredStats.tier != null ? ['tier'] : []),
+      ...(stats?.iconUrl ? ['iconUrl'] : []),
+    ],
     reasons,
   }
 }
@@ -301,6 +301,7 @@ function buildBaseRecommendation(
     readOnly: true,
     status,
     reason,
+    decisionReason: status === NO_CANDIDATES_STATUS ? 'no-candidates' : null,
     gameflowPhase: snapshot?.gameflowPhase || null,
     benchEnabled: snapshot?.benchEnabled === true,
     currentChampion: null,
@@ -396,6 +397,7 @@ export function getAramBenchRecommendation(
   if (!currentChampion) {
     return {
       ...buildBaseRecommendation(snapshot, NO_CURRENT_STATUS, 'no-current-champion'),
+      decisionReason: 'no-current-champion',
       recommendedChampion,
       candidates,
       confidence: recommendedChampion?.confidence || 0,
@@ -410,14 +412,21 @@ export function getAramBenchRecommendation(
   const noAlternativeCandidates = alternativeCandidateCount === 0
   const status = noAlternativeCandidates ? NO_BENCH_STATUS : READY_STATUS
   const reasons = []
+  let decisionReason: AramRecommendationDecisionReason
 
   if (noAlternativeCandidates) {
+    decisionReason = 'no-alternatives'
     reasons.push('没有可用席位或队友已选英雄，建议保留当前英雄')
   } else if (!recommendedChampion || recommendedChampion.championId === currentChampion.championId || deltaScore < 0.015) {
+    decisionReason = !recommendedChampion || recommendedChampion.championId === currentChampion.championId
+      ? 'current-best'
+      : 'small-difference'
     reasons.push(`${currentChampion.name} 当前评分最高或差距很小，建议保留`)
   } else if (recommendedChampion.source === 'teammate') {
+    decisionReason = 'teammate-higher'
     reasons.push(`${recommendedChampion.name} 是队友已选英雄，综合评分高于当前英雄，可作为只读沟通参考`)
   } else {
+    decisionReason = 'bench-higher'
     reasons.push(`${getCandidateFocusName(recommendedChampion)} 综合评分高于当前英雄，建议优先关注`)
   }
 
@@ -433,6 +442,7 @@ export function getAramBenchRecommendation(
     readOnly: true,
     status,
     reason: null,
+    decisionReason,
     gameflowPhase: snapshot.gameflowPhase,
     benchEnabled: snapshot.benchEnabled || benchChampionIds.length > 0,
     currentChampion,
