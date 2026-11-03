@@ -32,7 +32,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): 
  * @param {Array} sources - desktopCapturer 返回的源列表
  * @returns {Object|null} 匹配的游戏窗口源，未找到返回 null
  */
-const findGameWindow = findGameWindowSource<DesktopCapturerSource>
+const findGameWindow = (sources: DesktopCapturerSource[]) => findGameWindowSource(sources)
 
 function checkScreenRecordingPermission(): void {
     if (process.platform === 'darwin' &&

@@ -1491,7 +1491,9 @@ class AutoScreenshotService {
                 return url.includes('floating-overlay')
             })
             const wasFloatingWindowVisible = !!floatingWindow && !floatingWindow.isDestroyed() && floatingWindow.isVisible()
-            if (floatingWindow && !floatingWindow.isDestroyed()) {
+            // Mac 被游戏遮挡的面板 isVisible() 可能为 false，仍需显式隐藏。
+            if (floatingWindow && !floatingWindow.isDestroyed() &&
+                (wasFloatingWindowVisible || process.platform === 'darwin')) {
                 floatingWindow.hide()
                 logger.debug('Hidden augment floating window after selection disappeared')
             }
@@ -1501,7 +1503,8 @@ class AutoScreenshotService {
                 return url.includes('augment-side-panel')
             })
             const wasSidePanelWindowVisible = !!sidePanelWindow && !sidePanelWindow.isDestroyed() && sidePanelWindow.isVisible()
-            if (sidePanelWindow && !sidePanelWindow.isDestroyed()) {
+            if (sidePanelWindow && !sidePanelWindow.isDestroyed() &&
+                (wasSidePanelWindowVisible || process.platform === 'darwin')) {
                 sidePanelWindow.hide()
                 logger.debug('Hidden augment side panel window after selection disappeared')
             }
