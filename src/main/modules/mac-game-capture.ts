@@ -16,7 +16,10 @@ type NativeCapture = {
   onScreen: boolean
   bounds: Rectangle
 }
+export type MacTabState = { authorized: boolean; listening: boolean; gameFrontmost: boolean; held: boolean }
 type MacCaptureBinding = {
+  tabState(enabled: boolean): MacTabState
+  requestTabAccess(): boolean
   captureGame(width: number, height: number, timeoutMs: number): Promise<NativeCapture>
   inspectOverlay(handle: Buffer): Record<string, number | boolean>
 }
@@ -82,4 +85,12 @@ export function getMacCaptureDiagnostics(window?: BrowserWindow) {
     logger.debug('[mac-capture] overlay inspection unavailable:', error instanceof Error ? error.message : String(error))
   }
   return { game: lastWindow ? { id: lastWindow.windowId, layer: lastWindow.windowLayer, onScreen: lastWindow.onScreen } : null, overlay }
+}
+
+export function getMacTabState(enabled: boolean): MacTabState | null {
+  return getBinding()?.tabState(enabled) || null
+}
+
+export function requestMacTabAccess(): boolean {
+  return getBinding()?.requestTabAccess() || false
 }

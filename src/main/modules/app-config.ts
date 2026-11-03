@@ -1,5 +1,7 @@
 // @ts-nocheck
 import { app, globalShortcut, BrowserWindow } from 'electron'
+import { showCurrentChampionGuide } from './champion-guide.ts'
+import { startTabGuideMonitor, stopTabGuideMonitor } from './tab-champion-guide.ts'
 import { getLolGameStatus } from '../screenshot.ts'
 import { registerIpcHandlers } from './ipc-handlers.ts'
 import {
@@ -151,6 +153,8 @@ export async function init({ startBackgroundServices = true } = {}) {
 
     // 注册 IPC 处理器
     registerIpcHandlers(process.env.NODE_ENV === 'development')
+    // 仅 macOS 启动按住 Tab 速查的轮询；其他平台直接返回。
+    startTabGuideMonitor()
 
     // 创建主窗口
     const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
@@ -928,6 +932,7 @@ async function recoverChampionInsightForInProgress(lcuService, reason) {
         lastInProgressInsightChampionId = championId
         applyPopupWindowPreferences()
         if (!canRefreshVisiblePopup) {
+            await showCurrentChampionGuide('preference')
             return
         }
 
@@ -1480,7 +1485,10 @@ function registerAppEvents() {
 
     app.on('before-quit', (event) => {
         // macOS Quit & Reopen must not be blocked by the titlebar confirmation.
-        if (process.platform === 'darwin') allowMainWindowClose()
+        if (process.platform === 'darwin') {
+            allowMainWindowClose()
+            stopTabGuideMonitor()
+        }
         if (isAppUpdateInstallInProgress()) {
             logger.info('[app] before-quit allowed for app update install')
             return

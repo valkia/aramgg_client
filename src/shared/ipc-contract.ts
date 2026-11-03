@@ -8,6 +8,7 @@ export type AppStoreKey =
   | 'championInsight.showDetails'
   | 'championInsight.hideOnGameStart'
   | 'championInsight.alwaysOnTop'
+  | 'championInsight.tabGuide'
   | 'augments.showTopOverlay'
   | 'augments.showSidePanel'
   | 'postGameShare.autoShow'
@@ -408,7 +409,15 @@ export interface LocaleInfo extends LooseRecord {
   }>
 }
 
+/** 按住 Tab 局内速查状态；supported 仅在 macOS 原生监听可用时为 true。 */
+export interface TabGuideStatus {
+  supported: boolean
+  enabled: boolean
+  authorized: boolean
+}
+
 export interface OverlayPayload extends LooseRecord {
+  presentation?: 'in-game' | 'full'
   championId?: number | null
   championName?: string
   augments?: LooseRecord[]
@@ -481,6 +490,9 @@ export interface ElectronAPI {
   windows: {
     ready(): void
     showPopup(data: OverlayPayload): void
+    showCurrentChampion(): Promise<OperationResult>
+    getTabGuideStatus(): Promise<TabGuideStatus>
+    setTabGuideEnabled(enabled: boolean): Promise<TabGuideStatus>
     hidePopup(reason?: string): void
     hideFloating(reason?: string): void
     hideAugmentSidePanel(reason?: string): void

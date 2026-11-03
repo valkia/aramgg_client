@@ -1,4 +1,6 @@
 import { BrowserWindow, clipboard, dialog, nativeImage, type OpenDialogOptions } from 'electron'
+import { showCurrentChampionGuide } from './champion-guide.ts'
+import { getTabGuideStatus, setTabGuideEnabled } from './tab-champion-guide.ts'
 import { writeFile } from 'fs/promises'
 import path from 'path'
 import { captureScreenshot } from '../screenshot.ts'
@@ -359,6 +361,12 @@ async function buildRandomBenchRecommendation(currentChampionId: number | null =
 
 export function registerIpcHandlers(isDev: boolean): void {
     registerPreferencesIpcHandlers()
+    ipcMain.handle('show-current-champion', () => showCurrentChampionGuide())
+    ipcMain.handle('get-tab-guide-status', () => getTabGuideStatus())
+    ipcMain.handle('set-tab-guide-enabled', (_event, enabled: unknown) => {
+        if (typeof enabled !== 'boolean') throw new Error('Expected a boolean')
+        return setTabGuideEnabled(enabled)
+    })
     registerSystemIpcHandlers()
     registerFeedbackIpcHandlers()
     registerChampionRankingsIpcHandlers()

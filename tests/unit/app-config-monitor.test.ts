@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   logError: vi.fn(),
   popup: { show: vi.fn(), isVisible: () => false, isDestroyed: () => false, webContents: { send: vi.fn() } },
 }))
+vi.mock('../../src/main/modules/tab-champion-guide.ts', () => ({ startTabGuideMonitor: vi.fn(), stopTabGuideMonitor: vi.fn() }))
 vi.mock('electron', () => ({
   app: { isPackaged: false, getVersion: () => 'test', on: vi.fn(), quit: vi.fn() },
   BrowserWindow: { getAllWindows: () => [] },

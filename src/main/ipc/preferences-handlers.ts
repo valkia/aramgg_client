@@ -10,7 +10,8 @@ import {
 import { changeDataLocale } from '../modules/data-locale-controller.ts'
 import store from '../modules/app-store.ts'
 import logger from '../modules/logger.ts'
-import { applyPopupWindowPreferences, closeMatchDetailWindows, notifyAllWindows } from '../modules/window-manager.ts'
+import { applyPopupWindowPreferences, closeMatchDetailWindows, notifyAllWindows, setPopupPresentation } from '../modules/window-manager.ts'
+import { showCurrentChampionGuide } from '../modules/champion-guide.ts'
 import { trustedIpcMain as ipcMain } from '../security/trusted-ipc.ts'
 import { matchDetailSnapshots } from '../services/match-history/match-detail-snapshots.ts'
 
@@ -60,11 +61,18 @@ export function registerPreferencesIpcHandlers(): void {
     return store.get(key)
   })
 
-  ipcMain.handle('store-set', (_event, key: unknown, value: unknown) => {
+  ipcMain.handle('store-set', async (_event, key: unknown, value: unknown) => {
     assertRendererStoreKey(key)
+    const previous = store.get(key)
     store.set(key, value)
     if (key.startsWith('championInsight.')) {
-      applyPopupWindowPreferences()
+      // 偏好变化立即生效：先撤销主动打开状态，再在放宽显示条件时恢复当前英雄攻略。
+      setPopupPresentation(false)
+      if (previous !== value && ((key === 'championInsight.showDetails' && value === true) ||
+          (key === 'championInsight.hideOnGameStart' && value === false) ||
+          (key === 'championInsight.alwaysOnTop' && value === true))) {
+        await showCurrentChampionGuide('preference')
+      }
     }
   })
 
