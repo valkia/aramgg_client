@@ -1,4 +1,4 @@
-name: Build Windows Release
+name: Build Desktop Release
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-windows-${{ github.ref }}
+  group: release-desktop-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -69,44 +69,8 @@ jobs:
           $env:ELECTRON_BUILDER_CACHE = Join-Path $env:RUNNER_TEMP 'electron-builder-cache'
           npm run pack
 
-          $localeBundles = @(
-            @{ Locale = 'zh-CN'; Pointer = 'current.json'; VersionPrefix = 'versions' },
-            @{ Locale = 'en-US'; Pointer = 'current.en-US.json'; VersionPrefix = 'versions/en-US' },
-            @{ Locale = 'zh-TW'; Pointer = 'current.zh-TW.json'; VersionPrefix = 'versions/zh-TW' }
-          )
-
-          foreach ($bundle in $localeBundles) {
-            $clientDataCurrent = Join-Path $PWD "build/win-unpacked/resources/client-data/$($bundle.Pointer)"
-            if (!(Test-Path $clientDataCurrent)) {
-              Write-Error "Packaged client-data pointer was not found: $clientDataCurrent"
-              exit 1
-            }
-
-            $clientData = Get-Content $clientDataCurrent -Raw | ConvertFrom-Json
-            if ($clientData.locale -ne $bundle.Locale) {
-              Write-Error "Packaged client-data locale mismatch in $($bundle.Pointer): expected $($bundle.Locale), got $($clientData.locale)"
-              exit 1
-            }
-
-            $versionDir = Join-Path $PWD "build/win-unpacked/resources/client-data/$($bundle.VersionPrefix)/$($clientData.dataVersion)"
-            $requiredFiles = @('manifest.json', 'augments.json', 'champions.json', 'items.json', 'champion-shards/index.json')
-            foreach ($requiredFile in $requiredFiles) {
-              $requiredPath = Join-Path $versionDir $requiredFile
-              if (!(Test-Path $requiredPath)) {
-                Write-Error "Packaged $($bundle.Locale) client-data file was not found: $requiredPath"
-                exit 1
-              }
-            }
-
-            $shardDir = Join-Path $versionDir 'champion-shards'
-            $shardCount = @(Get-ChildItem $shardDir -Filter '*.json' -File | Where-Object { $_.Name -ne 'index.json' }).Count
-            Write-Host "Packaged client-data locale=$($bundle.Locale) dataVersion=$($clientData.dataVersion) gamePatch=$($clientData.gamePatch) files=$($clientData.bundledFileCount) shards=$shardCount bytes=$($clientData.bundledBytes)"
-
-            if ($shardCount -lt 40) {
-              Write-Error "Packaged $($bundle.Locale) client-data shard count is too low: $shardCount"
-              exit 1
-            }
-          }
+      - name: Verify packaged locale datasets
+        run: node scripts/verify-packaged-client-data.mjs build/win-unpacked/resources/client-data
 
       - name: Smoke test packaged Windows application
         timeout-minutes: 4
@@ -130,44 +94,125 @@ jobs:
             build/*.exe.blockmap
             build/latest.yml
 
+  build-mac:
+    name: Build macOS Apple silicon application
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+          cache: npm
+
+      - name: Validate platform and release tag
+        run: |
+          node --version
+          npm --version
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { readFileSync } from 'node:fs'
+          assert.equal(process.platform, 'darwin')
+          assert.equal(process.arch, 'arm64', 'Mac native capture must be built on Apple silicon')
+          if (process.env.GITHUB_REF.startsWith('refs/tags/v')) {
+            const { version } = JSON.parse(readFileSync('package.json', 'utf8'))
+            assert.equal(process.env.GITHUB_REF_NAME, `v${version}`)
+          }
+          NODE
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Package macOS application
+        run: |
+          export ELECTRON_CACHE="$RUNNER_TEMP/electron-cache"
+          export ELECTRON_BUILDER_CACHE="$RUNNER_TEMP/electron-builder-cache"
+          npm run pack:mac
+
+      - name: Verify packaged locale datasets
+        run: node scripts/verify-packaged-client-data.mjs build/mac-arm64/aramgg_client.app/Contents/Resources/client-data
+
+      - name: Smoke test packaged macOS application and OCR
+        timeout-minutes: 4
+        run: npm run test:packaged-mac
+
+      - name: Upload packaged smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aramgg-client-mac-smoke
+          if-no-files-found: warn
+          path: build/mac-smoke/
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aramgg-client-macos-arm64
+          if-no-files-found: error
+          path: build/ARAMGG-Mac-*-arm64.zip
+
+  publish:
+    name: Publish GitHub preview release
+    needs: [build, build-mac]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Download Windows installer
+        uses: actions/download-artifact@v4
+        with:
+          name: aramgg-client-windows
+          path: release-assets
+
+      - name: Download macOS application
+        uses: actions/download-artifact@v4
+        with:
+          name: aramgg-client-macos-arm64
+          path: release-assets
+
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          $tag = $env:GITHUB_REF_NAME
-          $assets = @(
-            Get-ChildItem -Path build -Filter '*.exe' -File
-            Get-ChildItem -Path build -Filter '*.exe.blockmap' -File
-            Get-Item -Path build/latest.yml
-          )
-
-          if ($assets.Count -lt 3) {
-            Write-Error "Expected release assets were not found in build/"
+          shopt -s nullglob
+          assets=(release-assets/*.exe release-assets/*.exe.blockmap release-assets/latest.yml release-assets/ARAMGG-Mac-*-arm64.zip)
+          if [ "${#assets[@]}" -ne 4 ] || [ ! -f release-assets/latest.yml ]; then
+            echo 'Expected Windows installer, blockmap, latest.yml and macOS ZIP'
             exit 1
-          }
+          fi
 
-          gh release view $tag *> $null
-          if ($LASTEXITCODE -ne 0) {
-            $notes = @(
-              'Windows installer generated by GitHub Actions.'
-              ''
-              'Assets:'
-              '- `aramgg_client Setup *.exe`'
-              '- `aramgg_client Setup *.exe.blockmap`'
-              '- `latest.yml`'
-            ) -join [Environment]::NewLine
-            gh release create $tag --title $tag --notes $notes
-            if ($LASTEXITCODE -ne 0) {
-              exit $LASTEXITCODE
-            }
-          }
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+          else
+            cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
+          GitHub-only preview for testing Windows and macOS packages. The stable Latest release and production client version configuration are not changed.
 
-          foreach ($asset in $assets) {
-            gh release upload $tag $asset.FullName --clobber
-            if ($LASTEXITCODE -ne 0) {
-              exit $LASTEXITCODE
-            }
-          }
+          - Windows x64: `aramgg_client Setup *.exe` (with blockmap and update metadata).
+          - Apple silicon, macOS 14+: `ARAMGG-Mac-*-arm64.zip`. Extract the ZIP to get `aramgg_client.app`.
+          - macOS builds are ad-hoc signed and not notarized. Screen Recording permission and borderless/windowed League are required for game capture; the optional Tab guide needs Input Monitoring.
+          - Both platforms passed packaged window smoke checks; the macOS smoke check also runs OCR against a committed fixture. Live game acceptance is separate.
+
+          macOS setup and known limits: https://github.com/valkia/aramgg_client/blob/master/docs/MACOS.md
+          NOTES
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+              --verify-tag --title "$GITHUB_REF_NAME" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" --prerelease --latest=false
+          fi

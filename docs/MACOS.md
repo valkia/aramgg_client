@@ -28,7 +28,12 @@ auto-update, the manual installer link and the check-update action are hidden on
 macOS because the upstream update feed serves Windows builds; Windows keeps its
 existing update and manual-download fallback. Versioned recommendation-data
 refresh remains separate from application updates.
-No public Mac binary release is included in this contribution.
+GitHub Actions builds the Apple silicon ZIP alongside the Windows installer in
+`.github/workflows/release-windows.yml`. Both packaged smoke checks must pass
+before a tag creates a GitHub **pre-release**, without replacing the stable
+Latest release. Test packages do not update the production client version
+configuration. Download the Mac ZIP from that preview release and extract it;
+the macOS CI also verifies all three bundled locale datasets and runs fixture OCR.
 
 ## Permissions and use
 
