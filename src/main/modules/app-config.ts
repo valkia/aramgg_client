@@ -16,6 +16,7 @@ import {
     getPopupWindow,
     raiseOverlayWindow,
     applyPopupWindowPreferences,
+    allowMainWindowClose,
 } from './window-manager.ts'
 import autoScreenshotService from '../auto-screenshot-service.ts'
 import { getLCUServiceInstance } from '../services/lcu/lcu-service.ts'
@@ -1478,6 +1479,8 @@ function registerAppEvents() {
     let appUpdateInstallOnQuitPromise = null
 
     app.on('before-quit', (event) => {
+        // macOS Quit & Reopen must not be blocked by the titlebar confirmation.
+        if (process.platform === 'darwin') allowMainWindowClose()
         if (isAppUpdateInstallInProgress()) {
             logger.info('[app] before-quit allowed for app update install')
             return

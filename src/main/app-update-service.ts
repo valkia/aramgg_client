@@ -41,6 +41,7 @@ type UpdateState = {
   feedConfigured: boolean
   autoUpdateEnabled: boolean
   manualDownloadUrl: string
+  platformUnsupported: boolean
   available: boolean
   downloaded: boolean
   gamePhase: string
@@ -110,6 +111,11 @@ let installingDownloadedUpdate = false
 let currentGamePhase = ''
 let downloadDeferredByGame = false
 
+// 远端更新源只分发 Windows 安装包，macOS 预览版不使用应用自动更新和手动下载地址。
+function isUpdatePlatformUnsupported(): boolean {
+  return process.platform === 'darwin'
+}
+
 let updateState: UpdateState = {
   phase: 'uninitialized',
   currentVersion: app.getVersion(),
@@ -118,6 +124,7 @@ let updateState: UpdateState = {
   feedConfigured: false,
   autoUpdateEnabled: false,
   manualDownloadUrl: '',
+  platformUnsupported: isUpdatePlatformUnsupported(),
   available: false,
   downloaded: false,
   gamePhase: '',
@@ -160,6 +167,7 @@ function createUpdateState(patch: Partial<UpdateState> = {}): UpdateState {
     feedConfigured,
     autoUpdateEnabled,
     manualDownloadUrl: patch.manualDownloadUrl ?? updateState?.manualDownloadUrl ?? '',
+    platformUnsupported: isUpdatePlatformUnsupported(),
     available: patch.available ?? updateState?.available ?? false,
     downloaded: patch.downloaded ?? updateState?.downloaded ?? false,
     gamePhase,
@@ -560,6 +568,14 @@ export function setAppUpdateGamePhase(phase: string | null | undefined): UpdateS
 }
 
 export async function refreshAppUpdateConfig(options: RefreshOptions = {}): Promise<UpdateActionResult> {
+  if (isUpdatePlatformUnsupported()) {
+    setUpdateState({
+      phase: 'disabled', autoUpdateEnabled: false, feedUrl: '', feedConfigured: false,
+      manualDownloadUrl: '', available: false, downloaded: false, error: '',
+      message: 'Mac 本地测试版请重新构建更新',
+    })
+    return { success: true, data: getAppUpdateState() }
+  }
   let config: any = null
 
   try {

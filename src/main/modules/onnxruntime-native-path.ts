@@ -40,9 +40,10 @@ export function getOnnxruntimeNativeDirCandidates({
   packageDir?: string | null
   configuredDir?: string
 } = {}) {
+  const pathApi = platform === 'win32' ? path.win32 : path.posix
   const nativeParts = [...ONNXRUNTIME_NATIVE_DIR_PARTS, platform, arch]
   const packageNativeDir = packageDir
-    ? path.join(packageDir, ...nativeParts)
+    ? pathApi.join(packageDir, ...nativeParts)
     : null
 
   return uniquePaths([
@@ -50,10 +51,10 @@ export function getOnnxruntimeNativeDirCandidates({
     packageNativeDir ? toAsarUnpackedPath(packageNativeDir) : null,
     packageNativeDir,
     resourcesPath
-      ? path.join(resourcesPath, 'app.asar.unpacked', 'node_modules', 'onnxruntime-node', ...nativeParts)
+      ? pathApi.join(resourcesPath, 'app.asar.unpacked', 'node_modules', 'onnxruntime-node', ...nativeParts)
       : null,
-    path.join(cwd, 'node_modules', 'onnxruntime-node', ...nativeParts),
-    path.resolve(moduleDir, '..', '..', 'node_modules', 'onnxruntime-node', ...nativeParts),
+    pathApi.join(cwd, 'node_modules', 'onnxruntime-node', ...nativeParts),
+    pathApi.resolve(moduleDir, '..', '..', 'node_modules', 'onnxruntime-node', ...nativeParts),
   ])
 }
 

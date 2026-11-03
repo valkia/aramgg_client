@@ -28,6 +28,10 @@ function uniqueExistingPaths(paths: string[]) {
 function getTrayIconPath() {
     const appPath = app.getAppPath()
     const candidates = uniqueExistingPaths([
+        ...(process.platform === 'darwin' ? [
+            path.join(appPath, 'dist', 'logo.jpg'),
+            path.join(appPath, 'public', 'logo.jpg'),
+        ] : []),
         path.join(appPath, 'dist', 'icon.ico'),
         path.join(appPath, 'public', 'icon.ico'),
         path.join(process.cwd(), 'dist', 'icon.ico'),
@@ -53,7 +57,7 @@ function createTrayIcon() {
     }
 
     logger.info('[tray] icon loaded', { iconPath })
-    return image
+    return process.platform === 'darwin' ? image.resize({ width: 18, height: 18 }) : image
 }
 
 function requestQuitConfirmation() {

@@ -9,6 +9,7 @@ vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events')
   class Window extends EventEmitter {
     visible = false
+    destroyed = false
     url = ''
     options: any
     setAlwaysOnTop = vi.fn()
@@ -17,13 +18,22 @@ vi.mock('electron', async () => {
     isMinimized = vi.fn(() => false)
     restore = vi.fn()
     hide = vi.fn(() => { this.visible = false; this.emit('hide') })
+    isVisibleOnAllWorkspaces() { return false }
+    setVisibleOnAllWorkspaces = vi.fn()
     webContents = Object.assign(new EventEmitter(), {
       getURL: () => this.url,
       setWindowOpenHandler: vi.fn(),
       openDevTools: vi.fn(),
     })
     constructor(options: any) { super(); this.options = options }
-    isDestroyed() { return false }
+    isDestroyed() { return this.destroyed }
+    setClosable(value: boolean) { this.options.closable = value }
+    close() {
+      // macOS refuses to close a closable:false window.
+      if (process.platform === 'darwin' && this.options.closable === false) return
+      this.destroyed = true
+      this.emit('closed')
+    }
     isVisible() { return this.visible }
     show() { this.visible = true; this.emit('show') }
     loadURL(url: string) { this.url = url; return Promise.resolve() }
@@ -66,7 +76,19 @@ async function setup() {
   return { manager, popup }
 }
 
+// macOS raises overlays one relative level above League's own screen-saver level.
+const macLevel = (onTop: boolean) => process.platform === 'darwin' ? [onTop ? 1 : 0] : []
+
 describe('champion window preferences', () => {
+  it('allows the hidden detail window to close when quitting', async () => {
+    const { manager, popup } = await setup()
+    expect(popup.isVisible()).toBe(false)
+    manager.allowMainWindowClose()
+    popup.close()
+    expect(popup.isDestroyed()).toBe(true)
+    expect(manager.getPopupWindow()).toBe(null)
+  })
+
   it('allows an explicit manual view with auto display off, then clears it on hide, closed and later game phases', async () => {
     mocks.store.set('championInsight.showDetails', false)
     const { manager, popup } = await setup()
@@ -81,7 +103,7 @@ describe('champion window preferences', () => {
     ;(popup as any).isMinimized.mockReturnValueOnce(true)
     manager.showPopupWindowManually()
     expect(popup.restore).toHaveBeenCalledOnce()
-    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String))
+    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String), ...macLevel(false))
     manager.applyPopupWindowPreferences('GameStart')
     expect(popup.isVisible()).toBe(false)
     manager.showPopupWindowManually()
@@ -102,11 +124,11 @@ describe('champion window preferences', () => {
     const { popup } = await setup()
     expect((popup as any).options.alwaysOnTop).toBe(false)
     popup.show()
-    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String))
+    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String), ...macLevel(false))
     mocks.store.set('championInsight.alwaysOnTop', true)
     popup.hide()
     popup.show()
-    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(true, expect.any(String))
+    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(true, expect.any(String), ...macLevel(true))
   })
 
   it.each(['GameStart', 'InProgress'] as const)('hides on %s by default without destroying the window', async phase => {
@@ -134,7 +156,7 @@ describe('champion window preferences', () => {
     for (const phase of ['GameStart', 'InProgress'] as const) {
       manager.applyPopupWindowPreferences(phase)
       expect(popup.isVisible()).toBe(true)
-      expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(pinned, expect.any(String))
+      expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(pinned, expect.any(String), ...macLevel(pinned))
     }
   })
 
@@ -145,13 +167,13 @@ describe('champion window preferences', () => {
     manager.applyPopupWindowPreferences('InProgress')
     const set = mocks.handlers.get('store-set')!
     set({}, 'championInsight.alwaysOnTop', true)
-    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(true, expect.any(String))
+    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(true, expect.any(String), ...macLevel(true))
     expect(popup.isVisible()).toBe(true)
     set({}, 'championInsight.alwaysOnTop', false)
-    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String))
+    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String), ...macLevel(false))
     set({}, 'championInsight.alwaysOnTop', true)
     mocks.handlers.get('store-delete')!({}, 'championInsight.alwaysOnTop')
-    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String))
+    expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String), ...macLevel(false))
     set({}, 'championInsight.alwaysOnTop', true)
     set({}, 'championInsight.hideOnGameStart', true)
     expect(popup.isVisible()).toBe(false)

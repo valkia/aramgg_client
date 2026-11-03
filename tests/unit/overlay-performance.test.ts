@@ -61,7 +61,7 @@ describe('augment overlay performance safeguards', () => {
 
     expect(windowManager).not.toContain('backgroundThrottling')
     expect(windowManager).toContain('!shouldRaiseOverlayWindow(window)')
-    expect(autoScreenshotService.match(/if \(shouldRaiseOverlayWindow\(/g)).toHaveLength(2)
+    expect(autoScreenshotService.match(/if \(process\.platform === 'darwin' \|\| shouldRaiseOverlayWindow\(/g)).toHaveLength(2)
     expect(appConfig.match(/if \(shouldRaiseOverlayWindow\(/g)).toHaveLength(2)
     expect(ipcHandlers.match(/if \(shouldRaiseOverlayWindow\(/g)).toHaveLength(4)
   })

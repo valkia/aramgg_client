@@ -33,6 +33,7 @@ import {
 } from './user-preferences.ts'
 import type { GameflowPhase } from '../../shared/ipc-contract.ts'
 import { MAX_MATCH_DETAIL_WINDOWS, type OwnedMatchDetailSnapshot } from '../services/match-history/match-detail-snapshots.ts'
+import { getMacCaptureDiagnostics } from './mac-game-capture.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -67,7 +68,14 @@ const POPUP_WINDOW_SIZE = { width: 360, height: 640 }
 const POPUP_WINDOW_POSITION_KEY = 'windows.championInsightPosition'
 const FLOATING_WINDOW_SIZE = { width: 760, height: 170 }
 const AUGMENT_SIDE_PANEL_WINDOW_SIZE = { width: 360, height: 640 }
-const OVERLAY_ALWAYS_ON_TOP_LEVEL = process.platform === 'win32' ? 'screen-saver' : 'floating'
+const OVERLAY_ALWAYS_ON_TOP_LEVEL = ['win32', 'darwin'].includes(process.platform) ? 'screen-saver' : 'floating'
+const macOverlayOrderRefreshedAt = new WeakMap<BrowserWindow, number>()
+const requestedOverlayVisibility = new WeakSet<BrowserWindow>()
+
+function trackOverlayVisibility(window: BrowserWindow): void {
+    window.on('hide', () => requestedOverlayVisibility.delete(window))
+    window.on('closed', () => requestedOverlayVisibility.delete(window))
+}
 const MIME_TYPES: Record<string, string> = {
     '.html': 'text/html; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
@@ -233,7 +241,18 @@ function setOverlayAlwaysOnTop(
     }
 
     try {
-        window.setAlwaysOnTop(Boolean(alwaysOnTop), OVERLAY_ALWAYS_ON_TOP_LEVEL)
+        if (process.platform === 'darwin' &&
+            window.isVisibleOnAllWorkspaces() !== Boolean(alwaysOnTop)) {
+            window.setVisibleOnAllWorkspaces(Boolean(alwaysOnTop), { visibleOnFullScreen: true })
+        }
+        if (process.platform === 'darwin' &&
+            (window === floatingWindow || window === augmentSidePanelWindow || window === popupWindow)) {
+            // League's fullscreen window is itself at screen-saver (1000).
+            // A same-level panel can be covered again as soon as the game activates.
+            window.setAlwaysOnTop(Boolean(alwaysOnTop), OVERLAY_ALWAYS_ON_TOP_LEVEL, alwaysOnTop ? 1 : 0)
+        } else {
+            window.setAlwaysOnTop(Boolean(alwaysOnTop), OVERLAY_ALWAYS_ON_TOP_LEVEL)
+        }
     } catch (error) {
         logger.debug(
             `[window:${name}] failed to apply high always-on-top level:`,
@@ -247,11 +266,13 @@ export function raiseOverlayWindow(
     window: BrowserWindow | null,
     name: string = 'overlay'
 ): void {
-    if (!window || window.isDestroyed() || !shouldRaiseOverlayWindow(window)) {
+    if (!window || window.isDestroyed() ||
+        (process.platform !== 'darwin' && !shouldRaiseOverlayWindow(window))) {
         return
     }
 
     setOverlayAlwaysOnTop(window, true, name)
+    requestedOverlayVisibility.add(window)
 
     if (window.isMinimized()) {
         window.restore()
@@ -265,6 +286,26 @@ export function raiseOverlayWindow(
 
     if (typeof window.moveTop === 'function') {
         window.moveTop()
+    }
+    if (process.platform === 'darwin') {
+        logger.info(`[window:${name}] Mac overlay requested`, getMacCaptureDiagnostics(window))
+    }
+}
+
+export function refreshVisibleMacAugmentOverlayOrder(now = Date.now()): void {
+    if (process.platform !== 'darwin') return
+    for (const [window, enabled, name] of [
+        [floatingWindow, shouldShowAugmentTopOverlay(), 'floating'],
+        [augmentSidePanelWindow, shouldShowAugmentSidePanel(), 'augment-side-panel'],
+    ] as const) {
+        if (!enabled || !window || window.isDestroyed() || !requestedOverlayVisibility.has(window)) continue
+        const lastRefresh = macOverlayOrderRefreshedAt.get(window)
+        if (lastRefresh !== undefined && now - lastRefresh < 1500) continue
+        // An occluded Mac window's isVisible() does not represent our requested state.
+        setOverlayAlwaysOnTop(window, true, name)
+        window.showInactive()
+        window.moveTop()
+        macOverlayOrderRefreshedAt.set(window, now)
     }
 }
 
@@ -607,6 +648,7 @@ export const createPopupWindow = async (
     const bounds = getPopupBounds()
 
     popupWindow = new BrowserWindow({
+        ...(process.platform === 'darwin' ? { type: 'panel' as const } : {}),
         show: false,
         frame: false,
         skipTaskbar: true,
@@ -660,6 +702,7 @@ export const createAugmentSidePanelWindow = async (
 
     augmentSidePanelWindow = new BrowserWindow({
         show: false,
+        ...(process.platform === 'darwin' ? { type: 'panel' } : {}),
         frame: false,
         transparent: true,
         skipTaskbar: true,
@@ -672,6 +715,7 @@ export const createAugmentSidePanelWindow = async (
     })
     setOverlayAlwaysOnTop(augmentSidePanelWindow, true, 'augment-side-panel')
     attachWindowDiagnostics('augment-side-panel', augmentSidePanelWindow)
+    trackOverlayVisibility(augmentSidePanelWindow)
 
     augmentSidePanelWindow.on('closed', () => {
         logger.info('Augment side panel window closed')
@@ -712,6 +756,7 @@ export const createFloatingWindow = async (
 
     floatingWindow = new BrowserWindow({
         show: false,
+        ...(process.platform === 'darwin' ? { type: 'panel' } : {}),
         frame: false,           // 无边框
         transparent: true,      // 透明背景
         skipTaskbar: true,      // 不在任务栏显示
@@ -724,9 +769,10 @@ export const createFloatingWindow = async (
     })
     setOverlayAlwaysOnTop(floatingWindow, true, 'floating')
     attachWindowDiagnostics('floating', floatingWindow)
+    trackOverlayVisibility(floatingWindow)
 
     // 设置窗口忽略鼠标事件（透传点击）
-    // floatingWindow.setIgnoreMouseEvents(true, { forward: true })
+    if (process.platform === 'darwin') floatingWindow.setIgnoreMouseEvents(true, { forward: true })
 
     floatingWindow.on('closed', () => {
         logger.info('Floating window closed')
@@ -874,6 +920,10 @@ export function notifyAllWindows(channel: string, data: unknown): void {
 
 export const allowMainWindowClose = () => {
     mainWindowCloseAllowed = true
+    // macOS otherwise refuses to close the non-closable hidden detail window.
+    if (process.platform === 'darwin' && popupWindow && !popupWindow.isDestroyed()) {
+        popupWindow.setClosable(true)
+    }
 }
 
 /**

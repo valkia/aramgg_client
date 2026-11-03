@@ -49,6 +49,7 @@ vi.mock('../../src/main/modules/window-manager.ts', () => ({
   applyAugmentSidePanelWindowLayout: vi.fn(),
   applyFloatingWindowLayout: vi.fn(),
   raiseOverlayWindow: vi.fn(),
+  refreshVisibleMacAugmentOverlayOrder: vi.fn(),
   ensureAugmentOverlayWindows: mocks.prepareWindows,
 }))
 vi.mock('../../src/main/modules/overlay-window-state.ts', () => ({
@@ -104,6 +105,73 @@ describe.sequential('automatic screenshot service lifecycle', () => {
   afterEach(() => {
     autoScreenshotService.reset()
     vi.restoreAllMocks()
+  })
+
+  it('redisplays the same cards after repeated in-game collapse and expand cycles', async () => {
+    const service = createRunningIdleService()
+    let now = 100000
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const detected = vi.spyOn(service, '_notifyAugmentDetected').mockImplementation(() => {})
+    const cleared = vi.spyOn(service, '_notifyAugmentCleared').mockImplementation(() => {})
+    const cards = {
+      success: true,
+      analysis: {
+        cardCount: 3, confidence: 0.95, isAugmentPhase: true,
+        augments: [{ id: 1 }, { id: 2 }, { id: 3 }],
+        augmentGate: { titleActivity: { likely: true }, rerollButtons: { visible: true } },
+      },
+    }
+    const collapsed = {
+      success: true,
+      analysis: {
+        cardCount: 0, confidence: 0, isAugmentPhase: false, augments: [],
+        augmentGate: { cardFramesVisible: false, ocrSkippedReason: 'no-likely-title-activity' },
+      },
+    }
+    for (let cycle = 0; cycle < 3; cycle++) {
+      mocks.analyzeScreenshot.mockResolvedValue(cards)
+      await service._analyzeScreenshot(Buffer.from('expanded-game-cards'))
+      expect(detected).toHaveBeenCalledTimes(cycle + 1)
+      expect(service.captureMode).toBe('active-selection')
+      now += 3000
+      mocks.analyzeScreenshot.mockResolvedValue(collapsed)
+      await service._analyzeScreenshot(Buffer.from('collapsed-game-cards'))
+      await service._analyzeScreenshot(Buffer.from('collapsed-game-cards'))
+      expect(cleared).toHaveBeenCalledTimes(cycle + 1)
+      expect(service.lastDetectedAugmentIds).toEqual([])
+      expect(service.captureMode).toBe('idle')
+      now += 1000
+    }
+  })
+
+  it('keeps recommendations through long tooltip occlusion and clears after cards disappear', async () => {
+    const service = createRunningIdleService()
+    service.captureMode = 'active-selection'
+    service.lastDetectedAugmentIds = ['1', '2', '3']
+    service.lastDetectedAugmentAt = Date.now() - 10000
+    const clear = vi.spyOn(service, '_notifyAugmentCleared').mockImplementation(() => {})
+    const result = {
+      success: true,
+      analysis: {
+        cardCount: 0, confidence: 0, isAugmentPhase: false, augments: [],
+        augmentGate: { cardFramesVisible: true, ocrSkippedReason: 'no-visible-reroll-buttons' },
+      },
+    }
+    mocks.analyzeScreenshot.mockResolvedValue(result)
+    for (let index = 0; index < 20; index++) {
+      await service._analyzeScreenshot(Buffer.from('tooltip-frame'))
+    }
+    expect(clear).not.toHaveBeenCalled()
+    expect(service.lastDetectedAugmentIds).toEqual(['1', '2', '3'])
+    expect(service.captureMode).toBe('active-selection')
+    expect(service.visibleAugmentMissCount).toBe(0)
+    result.analysis.augmentGate.cardFramesVisible = false
+    await service._analyzeScreenshot(Buffer.from('gameplay-frame'))
+    expect(clear).not.toHaveBeenCalled()
+    await service._analyzeScreenshot(Buffer.from('gameplay-frame'))
+    expect(clear).toHaveBeenCalledTimes(1)
+    expect(service.lastDetectedAugmentIds).toEqual([])
+    expect(service.captureMode).toBe('idle')
   })
 
   it('delivers the first detection only after the on-demand renderer is ready', async () => {

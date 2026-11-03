@@ -250,6 +250,8 @@ export interface AppUpdateState extends LooseRecord {
   phase?: string
   latestVersion?: string
   manualDownloadUrl?: string
+  /** 当前平台不使用远端更新源（macOS 预览版），renderer 不展示 Windows 下载入口和检查更新。 */
+  platformUnsupported?: boolean
   downloadDeferred?: boolean
   canCheck?: boolean
   canInstall?: boolean

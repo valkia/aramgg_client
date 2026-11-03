@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { copyFile, cp, mkdir, readFile, readdir, rm } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import net from 'node:net'
 import path from 'node:path'
 import process from 'node:process'
@@ -43,6 +45,66 @@ function run(command, args, options = {}) {
       resolve({ code, output })
     })
   })
+}
+
+const MAC_CAPTURE_MODULE = path.join('.runtime', 'mac-capture', 'aramgg_capture.node')
+const MAC_CAPTURE_EXPORTS = ['captureGame', 'inspectOverlay', 'requestScreenCaptureAccess']
+
+function fail(message) {
+  console.error(`\n[pack] ${message}`)
+  process.exit(1)
+}
+
+// Node-API 模块与 Electron ABI 无关，可直接在打包脚本的 Node 进程中加载校验导出。
+function verifyMacCaptureModule(file, label) {
+  if (!existsSync(file)) {
+    fail(`${label} 缺失：${file}`)
+  }
+  let binding
+  try {
+    binding = createRequire(import.meta.url)(path.resolve(file))
+  } catch (error) {
+    fail(`${label} 无法加载：${file}\n${error instanceof Error ? error.message : String(error)}`)
+  }
+  const missing = MAC_CAPTURE_EXPORTS.filter((name) => typeof binding?.[name] !== 'function')
+  if (missing.length) {
+    fail(`${label} 缺少导出 ${missing.join(', ')}：${file}`)
+  }
+  console.log(`[pack] verified ${label}: ${file}`)
+}
+
+// pack:mac 直接调用 electron-vite build，不会触发 npm 的 prebuild；
+// 每次都删掉旧产物并显式编译，避免依赖之前 dev/build 留下的模块。
+async function buildMacCaptureModule(env) {
+  if (process.platform !== 'darwin') {
+    fail('Mac 打包需要在 macOS 上编译 ScreenCaptureKit 原生模块')
+  }
+  await rm(MAC_CAPTURE_MODULE, { force: true })
+  const result = await run('node', ['scripts/build-mac-capture.mjs'], {
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  if (result.code !== 0) {
+    fail(`Mac 原生截图模块编译失败（exit=${result.code}）`)
+  }
+  verifyMacCaptureModule(MAC_CAPTURE_MODULE, 'Mac 原生截图模块')
+}
+
+async function verifyPackagedMacCaptureModule() {
+  const outputDir = path.resolve('build')
+  const appDirs = (await readdir(outputDir, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith('mac'))
+    .map((entry) => path.join(outputDir, entry.name, 'aramgg_client.app'))
+    .filter((appDir) => existsSync(appDir))
+  if (!appDirs.length) {
+    fail(`未在 ${outputDir} 找到 Mac 应用包`)
+  }
+  for (const appDir of appDirs) {
+    verifyMacCaptureModule(
+      path.join(appDir, 'Contents', 'Resources', 'mac-capture', 'aramgg_capture.node'),
+      '安装包内 Mac 原生截图模块',
+    )
+  }
 }
 
 function parseLocalProxy(value) {
@@ -251,6 +313,9 @@ async function main() {
   }
   await logPreparedClientData()
 
+  const isMacPack = process.argv.includes('--mac')
+  if (isMacPack) await buildMacCaptureModule(packEnv)
+
   const buildResult = await run('electron-vite', ['build'], {
     env: packEnv,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -260,14 +325,19 @@ async function main() {
     process.exit(buildResult.code ?? 1)
   }
 
-  await cleanRootPackageArtifacts(packageVersion)
+  if (!isMacPack) await cleanRootPackageArtifacts(packageVersion)
 
-  const packResult = await run('electron-builder', ['--publish', 'never'], {
+  const platformArgs = isMacPack ? ['--mac'] : []
+  if (process.env.ELECTRON_CACHE) {
+    platformArgs.push(`--config.electronDownload.cache=${path.resolve(process.env.ELECTRON_CACHE)}`)
+  }
+  const packResult = await run('electron-builder', [...platformArgs, '--publish', 'never'], {
     env: packEnv,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
   if (packResult.code === 0) {
+    if (isMacPack) await verifyPackagedMacCaptureModule()
     return
   }
 

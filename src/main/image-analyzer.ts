@@ -32,6 +32,7 @@ import {
 import logger from './modules/logger.ts'
 import { ensureOnnxruntimeNativeDllPath } from './modules/onnxruntime-native-path.ts'
 import { discoverLcuAuthFromProcess } from './services/lcu/process-auth-discovery.ts'
+import { hasVisibleAugmentCardFrames } from './augment-card-frame.ts'
 
 sharp.concurrency(Number(process.env.ARAMGG_SHARP_CONCURRENCY) || 2)
 
@@ -1774,6 +1775,8 @@ async function recognizeAugmentsFromImage(imageBuffer) {
             titleActivity,
             rerollButtons: null,
             ocrSkippedReason: null,
+            // 仅 Mac 预览启用：悬停说明遮住标题但三张卡框仍在时保留已有推荐，Windows 不计算也不改变清除逻辑。
+            cardFramesVisible: process.platform === 'darwin' && hasVisibleAugmentCardFrames(rawImage),
         }
 
         if (!titleActivity.likely) {

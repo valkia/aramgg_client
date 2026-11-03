@@ -28,7 +28,7 @@ describe('onnxruntime native path candidates', () => {
       arch: 'x64',
     })
 
-    const expected = path.join(
+    const expected = path.win32.join(
       'E:\\aramgg\\aramgg_client\\resources\\app.asar.unpacked',
       'node_modules',
       'onnxruntime-node',

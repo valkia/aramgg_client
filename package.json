@@ -24,7 +24,11 @@
     "release:patch": "npm version patch -m \"chore: release v%s\"",
     "release:minor": "npm version minor -m \"chore: release v%s\"",
     "release:major": "npm version major -m \"chore: release v%s\"",
-    "release:push": "git push origin master --follow-tags"
+    "release:push": "git push origin master --follow-tags",
+    "pack:mac": "node scripts/pack-electron.mjs --mac",
+    "test:packaged-mac": "node scripts/test-packaged-windows.mjs build/mac-arm64/aramgg_client.app build/mac-smoke tests/fixtures/augment-ocr/full-three-cards.png",
+    "prebuild": "node scripts/build-mac-capture.mjs",
+    "predev": "node scripts/build-mac-capture.mjs"
   },
   "build": {
     "productName": "aramgg_client",
@@ -57,7 +61,6 @@
       "!**/docs/**",
       "!**/example/**",
       "!**/examples/**",
-      "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
       "!node_modules/onnxruntime-node/bin/napi-v6/linux/**",
       "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**"
     ],
@@ -75,6 +78,9 @@
       }
     ],
     "win": {
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**"
+      ],
       "verifyUpdateCodeSignature": false,
       "target": [
         {
@@ -99,6 +105,27 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "aramgg_client"
+    },
+    "mac": {
+      "appId": "com.aramgg.client",
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.utilities",
+      "artifactName": "ARAMGG-Mac-${version}-${arch}.${ext}",
+      "identity": "-",
+      "minimumSystemVersion": "14.0",
+      "extraResources": [
+        {
+          "from": ".runtime/mac-capture/aramgg_capture.node",
+          "to": "mac-capture/aramgg_capture.node"
+        }
+      ]
     }
   },
   "dependencies": {

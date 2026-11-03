@@ -9,8 +9,12 @@ export function useAppUpdate(versionInfo: Ref<ClientVersionInfo | null>) {
   const updateActionPending = ref(false)
   let unsubscribe: Unsubscribe | null = null
 
+  // 远端更新源和下载地址只分发 Windows 安装包；主进程在 macOS 预览版上标记 platformUnsupported。
+  const updatesUnsupportedOnPlatform = computed(() => appUpdateState.value?.platformUnsupported === true)
   const manualUpdateDownloadUrl = computed(() =>
-    appUpdateState.value?.manualDownloadUrl || versionInfo.value?.downloadUrl || '')
+    updatesUnsupportedOnPlatform.value
+      ? ''
+      : appUpdateState.value?.manualDownloadUrl || versionInfo.value?.downloadUrl || '')
   const updatePhase = computed(() => appUpdateState.value?.phase || 'uninitialized')
   const updateDownloadDeferred = computed(() => Boolean(appUpdateState.value?.downloadDeferred))
   const updatePanelClass = computed(() => `phase-${updatePhase.value}`)
@@ -55,7 +59,7 @@ export function useAppUpdate(versionInfo: Ref<ClientVersionInfo | null>) {
   const canInstallUpdate = computed(() =>
     Boolean(appUpdateState.value?.canInstall) && !updateActionPending.value)
   const showCheckUpdateAction = computed(() =>
-    !['downloaded', 'installing'].includes(updatePhase.value))
+    !updatesUnsupportedOnPlatform.value && !['downloaded', 'installing'].includes(updatePhase.value))
   const showInstallUpdateAction = computed(() =>
     ['downloaded', 'installing'].includes(updatePhase.value))
   const installUpdateTitle = computed(() =>
