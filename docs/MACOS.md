@@ -46,10 +46,17 @@ No public Mac binary release is included in this contribution.
    on a two-display setup). Overlays also cannot appear above exclusive
    fullscreen. Change the mode before the match starts; switching mid-match may
    leave the game window in the fullscreen state.
+4. Optionally enable **Tab guide** in the assistant. This needs **Input Monitoring**.
+   Hold unmodified Tab while League is in front to show the in-game quick guide;
+   release it to hide the guide. The game's own scoreboard still receives the key.
+5. To reposition the guide, use **Open current champion guide**, then drag its
+   title bar. The position is saved. A guide opened by Tab is click-through.
 
-Renderer IPC stays behind the existing trusted sender checks; sandboxing and
-context isolation remain enabled. The native module only captures the game
-window and inspects overlay window levels; it does not monitor keyboard input.
+The listen-only native keyboard handler only retains Tab pressed/released state,
+ignores other key values, and does not record typed text. It stops outside an
+active match, when the feature is disabled, and on quit. Renderer IPC stays
+behind the existing trusted sender checks; sandboxing and context isolation
+remain enabled.
 
 Replacing an ad-hoc signed build may invalidate permissions even if Settings
 still shows them enabled. Quit the application, remove its old entry, add the
@@ -68,6 +75,14 @@ needed before shipping a supported installer.
   recommendations can remain visible while hover tooltips obscure titles if all
   three card frames are still present; this evidence does not identify new
   augments. Windows does not compute card frames and keeps its clearing logic.
+- In-game quick guide (this PR): a complete core-item combination, later items,
+  skill order and two augment recommendations per rarity, based on common
+  champion data rather than live inventory. The guide uses the current match
+  identity; pending opens are cancelled on Tab release or state change. Opening
+  the current champion guide reuses the upstream manual-open semantics.
+- Hold-Tab is Mac-only (`supported: false` elsewhere). The in-game guide and
+  the **Open current champion guide** button are shared UI and also apply to
+  Windows; they have not been verified on Windows.
 - Windows behavior remains on its platform path: every change in this port is
   guarded by `process.platform === 'darwin'` or only runs on macOS. Shared UI
   changes (in-game quick guide, hold-Tab, candidate layout) are proposed in a

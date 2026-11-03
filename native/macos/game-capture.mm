@@ -235,6 +235,79 @@ napi_value InspectOverlay(napi_env env, napi_callback_info info) {
     return js;
 }
 
+// Listen-only: Tab still reaches League; no typed text is stored or exposed.
+CFMachPortRef tabTap = nullptr;
+CFRunLoopSourceRef tabSource = nullptr;
+bool tabDown = false;
+
+bool GameIsFrontmost() {
+    return [NSWorkspace.sharedWorkspace.frontmostApplication.bundleIdentifier
+        isEqualToString:@"com.riotgames.LeagueofLegends.GameClient"];
+}
+
+CGEventRef OnTabEvent(CGEventTapProxy, CGEventType type, CGEventRef event, void*) {
+    if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) {
+        tabDown = false;
+        if (tabTap) CGEventTapEnable(tabTap, true);
+        return event;
+    }
+    if (CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode) != 48) return event;
+    if (type == kCGEventKeyUp) { tabDown = false; return event; }
+    if (type != kCGEventKeyDown) return event;
+    const bool repeat = CGEventGetIntegerValueField(event, kCGKeyboardEventAutorepeat) != 0;
+    const auto modifiers = CGEventGetFlags(event) &
+        (kCGEventFlagMaskCommand | kCGEventFlagMaskAlternate | kCGEventFlagMaskControl | kCGEventFlagMaskShift);
+    if (!repeat) tabDown = !modifiers && GameIsFrontmost();
+    return event;
+}
+
+void StopTabTap(void*) {
+    if (tabSource) {
+        CFRunLoopRemoveSource(CFRunLoopGetMain(), tabSource, kCFRunLoopCommonModes);
+        CFRelease(tabSource);
+        tabSource = nullptr;
+    }
+    if (tabTap) { CFMachPortInvalidate(tabTap); CFRelease(tabTap); tabTap = nullptr; }
+    tabDown = false;
+}
+
+napi_value TabState(napi_env env, napi_callback_info info) {
+    size_t count = 1;
+    napi_value arg;
+    bool enabled = false;
+    napi_get_cb_info(env, info, &count, &arg, nullptr, nullptr);
+    if (count != 1 || napi_get_value_bool(env, arg, &enabled) != napi_ok || !NSThread.isMainThread) {
+        napi_throw_type_error(env, nullptr, "Expected enabled boolean on the main thread");
+        return nullptr;
+    }
+    const bool authorized = CGPreflightListenEventAccess();
+    if (!enabled || !authorized) StopTabTap(nullptr);
+    if (enabled && authorized && !tabTap) {
+        tabTap = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap,
+            kCGEventTapOptionListenOnly, CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventKeyUp),
+            OnTabEvent, nullptr);
+        if (tabTap) {
+            tabSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tabTap, 0);
+            if (tabSource) CFRunLoopAddSource(CFRunLoopGetMain(), tabSource, kCFRunLoopCommonModes);
+            else StopTabTap(nullptr);
+        }
+    }
+    napi_value js;
+    napi_create_object(env, &js);
+    SetBoolean(env, js, "authorized", authorized);
+    SetBoolean(env, js, "listening", tabTap != nullptr);
+    SetBoolean(env, js, "gameFrontmost", GameIsFrontmost());
+    if (!GameIsFrontmost()) tabDown = false;
+    SetBoolean(env, js, "held", tabDown);
+    return js;
+}
+
+napi_value RequestTabAccess(napi_env env, napi_callback_info) {
+    napi_value value;
+    napi_get_boolean(env, CGRequestListenEventAccess(), &value);
+    return value;
+}
+
 // Electron 的 getMediaAccessStatus('screen') 分不清“未询问”和“拒绝”；
 // 主动请求一次，系统只会在未询问时弹出授权框，已拒绝时直接返回 false。
 napi_value RequestScreenCaptureAccess(napi_env env, napi_callback_info) {
@@ -247,9 +320,12 @@ napi_value Init(napi_env env, napi_value exports) {
     napi_property_descriptor properties[] = {
         {"captureGame", nullptr, Capture, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"inspectOverlay", nullptr, InspectOverlay, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"tabState", nullptr, TabState, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"requestTabAccess", nullptr, RequestTabAccess, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"requestScreenCaptureAccess", nullptr, RequestScreenCaptureAccess, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
-    napi_define_properties(env, exports, 3, properties);
+    napi_define_properties(env, exports, 5, properties);
+    napi_add_env_cleanup_hook(env, StopTabTap, nullptr);
     return exports;
 }
 }

@@ -18,7 +18,7 @@ vi.mock('../../src/renderer/native/electron-api.ts', () => ({
     lcu: { getChampionMonitorState: mocks.getState, getChampionId: mocks.getChampionId, getChampSelectSnapshot: mocks.getSnapshot },
     store: { set: mocks.writeStore },
     winrate: { get: mocks.getWinrate },
-    windows: { showPopup: mocks.showPopup },
+    windows: { showPopup: mocks.showPopup, getTabGuideStatus: async () => ({ supported: false, enabled: false, authorized: false }) },
     events: { on: (_channel, callback) => {
       mocks.handlers.add(callback)
       return () => mocks.handlers.delete(callback)
