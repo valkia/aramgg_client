@@ -1,5 +1,5 @@
 <template>
-  <section class="match-history-panel">
+  <section class="match-history-panel" :aria-busy="loading">
     <header class="match-history-header">
       <div>
         <p class="section-kicker">{{ t('matchHistory.title') }}</p>
@@ -31,14 +31,40 @@
       <small>{{ t('matchHistory.queriedAt', { time: formatTime(page.queriedAt) }) }}</small>
     </div>
 
-    <div v-if="loading && !page" class="match-history-loading" role="status">
-      <RefreshCw class="match-history-loading-icon spinning" aria-hidden="true" />
-      <span>{{ t('matchHistory.querying') }}</span>
+    <MatchHistoryOverview v-if="page?.matches.length" :matches="page.matches" />
+    <MatchEncounters v-if="page?.matches.length" :matches="page.matches" :loading="loading" @select-game="openEncounter" />
+
+    <div v-if="page?.matches.length" class="mt-3 space-y-2">
+      <div class="flex flex-wrap items-end gap-2">
+        <label class="min-w-32 flex-1 text-xs text-muted-foreground">
+          {{ t('matchAnalysis.championFilter') }}
+          <select v-model="championFilter" :disabled="loading" class="analysis-control mt-1 block h-8 w-full px-2">
+            <option :value="0">{{ t('matchAnalysis.allChampions') }}</option>
+            <option v-for="champion in champions" :key="champion.championId" :value="champion.championId">{{ championName(champion) }}</option>
+          </select>
+        </label>
+        <label class="min-w-28 flex-1 text-xs text-muted-foreground">
+          {{ t('matchAnalysis.resultFilter') }}
+          <select v-model="resultFilter" :disabled="loading" class="analysis-control mt-1 block h-8 w-full px-2">
+            <option value="all">{{ t('matchAnalysis.allResults') }}</option>
+            <option v-for="result in results" :key="result" :value="result">{{ resultLabel(result) }}</option>
+          </select>
+        </label>
+        <button type="button" class="analysis-control h-8 px-3" :disabled="loading || !hasFilters" @click="resetFilters">{{ t('matchAnalysis.resetFilters') }}</button>
+      </div>
+      <p class="text-xs text-muted-foreground" aria-live="polite">{{ t('matchAnalysis.filterScope', { count: visibleMatches.length, total: page.matches.length }) }}</p>
     </div>
 
-    <div v-else-if="page?.matches.length" class="recent-match-list">
+    <div v-if="loading && !page" class="mt-3" role="status">
+      <p class="text-xs text-muted-foreground">{{ t('matchHistory.querying') }}</p>
+      <div class="mt-2 space-y-2" aria-hidden="true">
+        <div v-for="index in 3" :key="index" class="h-24 w-full animate-pulse rounded bg-muted motion-reduce:animate-none" />
+      </div>
+    </div>
+
+    <div v-else-if="visibleMatches.length" class="recent-match-list" :class="{ 'opacity-50 pointer-events-none': loading }" :inert="loading">
       <article
-        v-for="match in page.matches"
+        v-for="match in visibleMatches"
         :key="match.gameId"
         class="recent-match"
         :class="match.result"
@@ -76,12 +102,13 @@
                 :key="augment.id"
                 class="match-asset"
                 role="listitem"
-                :title="assetName(augment, 'augment')"
               >
-                <span class="match-asset-icon" aria-hidden="true">
-                  <img v-if="augment.iconUrl" :src="augment.iconUrl" alt="" />
-                  <span v-else class="match-asset-placeholder">?</span>
-                </span>
+                <MatchAssetTooltip :asset="augment" kind="augment" :disabled="loading">
+                  <span class="match-asset-icon" aria-hidden="true">
+                    <img v-if="augment.iconUrl" :src="augment.iconUrl" alt="" />
+                    <span v-else class="match-asset-placeholder">?</span>
+                  </span>
+                </MatchAssetTooltip>
                 <span class="match-asset-name">{{ assetName(augment, 'augment') }}</span>
               </span>
             </div>
@@ -100,23 +127,32 @@
                 :key="`${item.id}:${index}`"
                 class="match-asset"
                 role="listitem"
-                :title="assetName(item, 'item')"
               >
-                <span class="match-asset-icon" aria-hidden="true">
-                  <img v-if="item.iconUrl" :src="item.iconUrl" alt="" />
-                  <span v-else class="match-asset-placeholder">?</span>
-                </span>
+                <MatchAssetTooltip :asset="item" kind="item" :disabled="loading">
+                  <span class="match-asset-icon" aria-hidden="true">
+                    <img v-if="item.iconUrl" :src="item.iconUrl" alt="" />
+                    <span v-else class="match-asset-placeholder">?</span>
+                  </span>
+                </MatchAssetTooltip>
                 <span class="match-asset-name">{{ assetName(item, 'item') }}</span>
               </span>
             </div>
             <small v-else>{{ t('matchHistory.noItems') }}</small>
           </div>
         </div>
+        <div class="mt-3 flex justify-end">
+          <button type="button" class="analysis-control flex items-center gap-1.5 px-3 py-1.5" :disabled="loading || !page?.snapshotId || opening.has(match.gameId)" @click="openDetail(match.gameId)">
+            <ExternalLink class="h-3.5 w-3.5" aria-hidden="true" />
+            {{ t(opening.has(match.gameId) ? 'matchDetail.opening' : 'matchDetail.open') }}
+          </button>
+        </div>
+        <MatchScoreboard :ref="(instance) => setScoreboardRef(match.gameId, instance)" :match="match" :loading="loading" />
       </article>
     </div>
 
     <p v-else-if="page && !loading" class="match-history-empty">
-      {{ t('matchHistory.noMatches') }}
+      {{ hasFilters ? t('matchAnalysis.noFilteredMatches') : t('matchHistory.noMatches') }}
+      <button v-if="hasFilters" type="button" class="ml-2 text-primary underline" @click="resetFilters">{{ t('matchAnalysis.resetFilters') }}</button>
     </p>
 
     <footer v-if="page" class="match-history-pagination">
@@ -142,23 +178,78 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, type ComponentPublicInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from 'lucide-vue-next'
 import type {
+  GamePhaseChangedPayload,
   HextechAramMatchHistoryAsset,
   HextechAramMatchHistoryMatch,
   HextechAramMatchHistoryPage,
   HextechAramMatchResult,
 } from '../../shared/ipc-contract.ts'
 import { electronAPI, hasElectronAPI } from '../native/electron-api.ts'
+import MatchHistoryOverview from './MatchHistoryOverview.vue'
+import MatchScoreboard from './MatchScoreboard.vue'
+import MatchEncounters from './MatchEncounters.vue'
+import MatchAssetTooltip from './MatchAssetTooltip.vue'
 
 const PAGE_SIZE = 10
+const POST_GAME_REFRESH_DELAY_MS = 1200
+const POST_GAME_PHASES = new Set(['WaitingForStats', 'PreEndOfGame', 'EndOfGame'])
 
 const { t } = useI18n()
 const page = ref<HextechAramMatchHistoryPage | null>(null)
 const loading = ref(false)
 const status = ref('')
+const opening = ref(new Set<number>())
+let querySequence = 0
+let firstPageReloadPending = false
+let active = true
+let gameObserved = false
+let postGameRefreshScheduled = false
+let postGameRefreshTimer: ReturnType<typeof setTimeout> | undefined
+const subscriptions: (() => void)[] = []
+const championFilter = ref(0)
+const resultFilter = ref<HextechAramMatchResult | 'all'>('all')
+const scoreboards = new Map<number, InstanceType<typeof MatchScoreboard>>()
+const results: HextechAramMatchResult[] = ['win', 'loss', 'remake']
+const champions = computed(() => [...new Map((page.value?.matches || []).map((match) => [match.championId, match])).values()])
+const hasFilters = computed(() => championFilter.value !== 0 || resultFilter.value !== 'all')
+const visibleMatches = computed(() => (page.value?.matches || []).filter((match) =>
+  (!championFilter.value || match.championId === championFilter.value)
+  && (resultFilter.value === 'all' || match.result === resultFilter.value),
+))
+
+function resetFilters(): void {
+  championFilter.value = 0
+  resultFilter.value = 'all'
+}
+
+function setScoreboardRef(gameId: number, instance: Element | ComponentPublicInstance | null): void {
+  if (instance) scoreboards.set(gameId, instance as InstanceType<typeof MatchScoreboard>)
+  else scoreboards.delete(gameId)
+}
+
+async function openEncounter(gameId: number): Promise<void> {
+  if (loading.value || !page.value?.matches.some((match) => match.gameId === gameId)) return
+  resetFilters()
+  await nextTick()
+  await scoreboards.get(gameId)?.open()
+}
+
+async function openDetail(gameId: number): Promise<void> {
+  if (loading.value || opening.value.has(gameId) || !page.value?.snapshotId || !hasElectronAPI()) return
+  opening.value.add(gameId)
+  try {
+    const result = await electronAPI.matchHistory.openDetail({ snapshotId: page.value.snapshotId, gameId })
+    if (!result.success) status.value = t('matchDetail.openFailed')
+  } catch {
+    status.value = t('matchDetail.openFailed')
+  } finally {
+    opening.value.delete(gameId)
+  }
+}
 
 function formatTime(timestamp: number): string {
   return new Intl.DateTimeFormat(undefined, {
@@ -196,36 +287,91 @@ function resultLabel(result: HextechAramMatchResult): string {
   return t('matchHistory.defeat')
 }
 
+function requestFirstPageReload(): void {
+  if (!active) return
+  if (loading.value) firstPageReloadPending = true
+  else void queryPage(0)
+}
+
+function handleGamePhaseChanged({ phase, prevPhase }: GamePhaseChangedPayload): void {
+  if (!active) return
+  if (phase === 'ChampSelect' || phase === 'GameStart' || phase === 'InProgress') {
+    postGameRefreshScheduled = false
+    gameObserved = phase === 'InProgress'
+    return
+  }
+  if (phase && POST_GAME_PHASES.has(phase)) gameObserved = true
+  const returnedFromGame = (phase === 'None' || phase === 'Lobby') && (
+    gameObserved || prevPhase === 'InProgress' || (prevPhase !== null && POST_GAME_PHASES.has(prevPhase))
+  )
+  if (postGameRefreshScheduled || (phase !== 'EndOfGame' && !returnedFromGame)) return
+
+  postGameRefreshScheduled = true
+  gameObserved = false
+  if (postGameRefreshTimer) clearTimeout(postGameRefreshTimer)
+  // EndOfGame is later than WaitingForStats; allow a short buffer before the single SGP query.
+  postGameRefreshTimer = setTimeout(() => {
+    postGameRefreshTimer = undefined
+    requestFirstPageReload()
+  }, POST_GAME_REFRESH_DELAY_MS)
+}
+
 async function queryPage(startIndex: number): Promise<void> {
-  if (loading.value) return
+  if (!active || loading.value) return
   if (!hasElectronAPI()) {
     status.value = t('matchHistory.apiUnavailable')
     return
   }
 
   loading.value = true
+  const sequence = ++querySequence
   status.value = ''
   try {
     const result = await electronAPI.matchHistory.queryCurrent({
       startIndex,
       count: PAGE_SIZE,
     })
+    if (sequence !== querySequence || !active) return
     if (!result.success || !result.data) {
-      status.value = t('matchHistory.queryFailed', { error: result.error || '' })
+      status.value = result.errorCode === 'snapshot-invalid'
+        ? t('matchDetail.expired')
+        : t('matchHistory.queryFailed', { error: result.error || '' })
       return
     }
     page.value = result.data
+    resetFilters()
   } catch (error) {
+    if (sequence !== querySequence || !active) return
     status.value = t('matchHistory.queryFailed', {
       error: error instanceof Error ? error.message : String(error),
     })
   } finally {
     loading.value = false
+    if (firstPageReloadPending && active) {
+      firstPageReloadPending = false
+      void queryPage(0)
+    }
   }
 }
 
 onMounted(() => {
+  if (hasElectronAPI()) subscriptions.push(
+    electronAPI.events.on('game-phase-changed', handleGamePhaseChanged),
+    electronAPI.events.on('locale-changed', () => {
+      querySequence += 1
+      page.value = null
+      status.value = ''
+      resetFilters()
+      requestFirstPageReload()
+    }),
+  )
   void queryPage(0)
+})
+onBeforeUnmount(() => {
+  active = false
+  querySequence += 1
+  if (postGameRefreshTimer) clearTimeout(postGameRefreshTimer)
+  subscriptions.splice(0).forEach(unsubscribe => unsubscribe())
 })
 </script>
 

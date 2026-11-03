@@ -67,6 +67,15 @@ assert.equal(betterBench.recommendedChampion.championId, 99)
 assert.ok(betterBench.deltaScore > 0)
 assert.deepEqual(collectAramCandidateChampionIds(makeSnapshot()), [63, 99, 101])
 
+const unknownGames = getAramBenchRecommendation(makeSnapshot(), Object.fromEntries(
+  Object.entries(championStatsById).map(([id, stats]) => [id, { ...stats, numGames: null }])
+))
+const rankingEvidence = (result) => result.candidates.map(({ championId, score, confidence, dataAvailable }) => ({ championId, score, confidence, dataAvailable }))
+assert.deepEqual(rankingEvidence(unknownGames), rankingEvidence(betterBench), 'Unavailable counts must not weaken otherwise identical strength metrics')
+assert.equal(unknownGames.deltaScore, betterBench.deltaScore)
+assert.equal(unknownGames.decisionReason, betterBench.decisionReason)
+assert.ok(unknownGames.candidates.every((candidate) => candidate.games === null))
+
 const noBench = getAramBenchRecommendation(
   makeSnapshot({ benchEnabled: false, benchChampions: [] }),
   championStatsById

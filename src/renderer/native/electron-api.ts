@@ -58,6 +58,10 @@ export const electronAPI: ElectronAPI = {
     get: (...args) => requireElectronAPI().winrate.get(...args),
     loadChampionData: (...args) => requireElectronAPI().winrate.loadChampionData(...args),
   },
+  champions: {
+    getRankings: () => requireElectronAPI().champions.getRankings(),
+    openDetail: (championId) => requireElectronAPI().champions.openDetail(championId),
+  },
   autoScreenshot: {
     start: (...args) => requireElectronAPI().autoScreenshot.start(...args),
     stop: (...args) => requireElectronAPI().autoScreenshot.stop(...args),
@@ -72,11 +76,14 @@ export const electronAPI: ElectronAPI = {
   matchHistory: {
     getLocalSummary: (...args) => requireElectronAPI().matchHistory.getLocalSummary(...args),
     queryCurrent: (...args) => requireElectronAPI().matchHistory.queryCurrent(...args),
+    openDetail: (...args) => requireElectronAPI().matchHistory.openDetail(...args),
+    getDetailSnapshot: () => requireElectronAPI().matchHistory.getDetailSnapshot(),
   },
   feedback: {
     submit: (...args) => requireElectronAPI().feedback.submit(...args),
   },
   lcu: {
+    getConnectionState: () => requireElectronAPI().lcu.getConnectionState(),
     getChampionMonitorState: () => requireElectronAPI().lcu.getChampionMonitorState(),
     getChampionId: (...args) => requireElectronAPI().lcu.getChampionId(...args),
     getStatus: (...args) => requireElectronAPI().lcu.getStatus(...args),

@@ -55,6 +55,7 @@ import {
     setChampionMonitorPhase,
 } from './champion-monitor-state.ts'
 import { getAppDataDir } from './app-paths.ts'
+import { getLcuConnectionState, observeLcuGameflow, setLcuConnectionState } from './lcu-connection-state.ts'
 import { logDiagnosticSnapshot } from './diagnostic-logger.ts'
 import {
     startPerformanceMonitor,
@@ -1172,6 +1173,7 @@ async function initGameFlowMonitor() {
         logger.debug('获取 LCU Token...')
         let currentAuth = await lcuService.getAuthToken()
         let lastAuthUrl = currentAuth?.url || lcuService.getUrl()
+        setLcuConnectionState(currentAuth ? 'connected' : 'disconnected')
 
         if (!lcuService.isActive()) {
             logger.error('LCU 连接失败！')
@@ -1194,9 +1196,11 @@ async function initGameFlowMonitor() {
         let websocketReconnectAttempts = 0
         let websocketConnecting = false
         let pollInFlight = false
+        let websocketObservationRevision = 0
 
         const handleGameflowPhase = async (phase, source) => {
-            if (!phase) {
+            const connectionState = observeLcuGameflow(phase, lcuService.isActive())
+            if (!connectionState.phase) {
                 return
             }
 
@@ -1318,19 +1322,24 @@ async function initGameFlowMonitor() {
             try {
                 const subscription = await lcuService.subscribeGameflowPhase(
                     async (phase) => {
+                        websocketObservationRevision += 1
                         websocketLastEventAt = Date.now()
                         await handleGameflowPhase(phase, 'websocket')
                     },
                     {
                         forceRefresh,
                         onOpen: () => {
+                            websocketObservationRevision += 1
                             websocketConnected = true
+                            setLcuConnectionState('connected', getLcuConnectionState().phase)
                             websocketLastEventAt = Date.now()
                             websocketReconnectAttempts = 0
                             logger.info('LCU OnJsonApiEvent WebSocket 已订阅 gameflow phase')
                         },
                         onClose: (reason) => {
+                            websocketObservationRevision += 1
                             websocketConnected = false
+                            setLcuConnectionState('checking')
                             lcuGameflowSubscription = null
                             if (!lcuGameflowMonitorStopping) {
                                 logger.debug(`LCU OnJsonApiEvent WebSocket 已关闭: ${reason}`)
@@ -1345,6 +1354,7 @@ async function initGameFlowMonitor() {
 
                 if (!subscription) {
                     websocketConnected = false
+                    if (!lcuService.isActive()) setLcuConnectionState('disconnected')
                     scheduleWebSocketReconnect('lcu-auth-unavailable')
                     return
                 }
@@ -1352,6 +1362,7 @@ async function initGameFlowMonitor() {
                 lcuGameflowSubscription = subscription
             } catch (error) {
                 websocketConnected = false
+                setLcuConnectionState(lcuService.isActive() ? 'unavailable' : 'disconnected')
                 logger.debug('LCU OnJsonApiEvent WebSocket 初始化失败:', error.message)
                 scheduleWebSocketReconnect('connect-error')
             } finally {
@@ -1366,6 +1377,7 @@ async function initGameFlowMonitor() {
         lcuPollingTimer = setInterval(async () => {
             if (lcuGameflowMonitorStopping || pollInFlight) return
             pollInFlight = true
+            const pollObservationRevision = websocketObservationRevision
             try {
                 const now = Date.now()
 
@@ -1376,9 +1388,11 @@ async function initGameFlowMonitor() {
                     // stale-endpoint discovery while League is closed.
                     currentAuth = await lcuService.getAuthToken(false)
                     if (lcuGameflowMonitorStopping) return
+                    if (!currentAuth) setLcuConnectionState('disconnected')
                     lastTokenRefreshAt = now
 
                     if (currentAuth && currentAuth.url !== lastAuthUrl) {
+                        setLcuConnectionState('checking')
                         lastAuthUrl = currentAuth.url
                         websocketConnected = false
                         stopGameflowWebSocket('LCU auth endpoint changed')
@@ -1392,9 +1406,12 @@ async function initGameFlowMonitor() {
                     now - websocketLastEventAt <= GAMEFLOW_WS_STALE_MS
 
                 if (!websocketFresh) {
+                    const observationRevision = websocketObservationRevision
                     const phase = await lcuService.getGameflowPhase()
                     if (lcuGameflowMonitorStopping) return
-                    await handleGameflowPhase(phase, 'poll')
+                    if (observationRevision === websocketObservationRevision) {
+                        await handleGameflowPhase(phase, 'poll')
+                    }
 
                     if (!lcuGameflowSubscription && !lcuGameflowReconnectTimer) {
                         scheduleWebSocketReconnect('fallback-poll')
@@ -1406,6 +1423,9 @@ async function initGameFlowMonitor() {
                 }
             } catch (error) {
                 logger.warn('游戏流程轮询出错:', error.message)
+                if (pollObservationRevision === websocketObservationRevision) {
+                    setLcuConnectionState(lcuService.isActive() ? 'unavailable' : 'disconnected')
+                }
             } finally {
                 pollInFlight = false
             }
@@ -1416,6 +1436,7 @@ async function initGameFlowMonitor() {
         )
     } catch (error) {
         logger.error('初始化游戏流程监控失败:', error)
+        setLcuConnectionState('unavailable')
     }
 }
 

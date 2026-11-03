@@ -167,6 +167,7 @@ const router = createRouter({
   routes: [
     { path: '/', redirect: '/display' },
     { path: '/display', name: 'Display', component: () => import('./components/Display.vue') },
+    { path: '/match-detail', name: 'MatchDetail', component: () => import('./components/MatchDetailView.vue') },
     {
       path: '/augment-overlay',
       name: 'AugmentOverlay',
@@ -225,7 +226,7 @@ async function mountApp() {
   app.mount('#app')
   appMounted = true
   await nextTick()
-  if (hasElectronAPI()) electronAPI.windows.ready()
+  if (hasElectronAPI() && router.currentRoute.value.path !== '/match-detail') electronAPI.windows.ready()
 }
 
 void mountApp()

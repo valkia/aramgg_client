@@ -64,6 +64,21 @@ describe('real renderer facade and preload bridge', () => {
     expect(ipc.invoke).toHaveBeenCalledExactlyOnceWith('lcu-get-champion-monitor-state')
   })
 
+  it('reads and subscribes to connection state through the real facade and preload', async () => {
+    const state = { connection: 'connected', phase: 'ChampSelect', revision: 7 } as const
+    ipc.invoke.mockResolvedValueOnce(state)
+    await expect(electronAPI.lcu.getConnectionState()).resolves.toEqual(state)
+    expect(ipc.invoke).toHaveBeenCalledExactlyOnceWith('lcu-get-connection-state')
+    const changed = vi.fn()
+    const unsubscribe = electronAPI.events.on('lcu-connection-changed', changed)
+    const [channel, listener] = ipc.on.mock.calls.at(-1)!
+    expect(channel).toBe('lcu-connection-changed')
+    listener({}, state)
+    expect(changed).toHaveBeenCalledExactlyOnceWith(state)
+    unsubscribe()
+    expect(ipc.removeListener).toHaveBeenCalledExactlyOnceWith(channel, listener)
+  })
+
   it('resolves the bridge at call time and reports an unavailable preload clearly', () => {
     vi.stubGlobal('window', {})
     expect(hasElectronAPI()).toBe(false)

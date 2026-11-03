@@ -32,12 +32,22 @@
         </div>
 
         <div v-else class="recommendation-body">
-            <div class="candidate-scroller">
+            <div
+                v-if="topCandidates.length"
+                class="candidate-scroller"
+                :class="{
+                    'can-scroll-left': canScrollLeft,
+                    'can-scroll-right': canScrollRight,
+                }"
+            >
                 <div
+                    ref="candidateListRef"
                     class="candidate-list"
                     role="region"
                     :aria-label="t('bench.candidateList')"
                     :tabindex="compact ? 0 : undefined"
+                    @scroll.passive="updateCandidateScrollState"
+                    @wheel="handleCandidateWheel"
                 >
                     <article
                         v-for="candidate in topCandidates"
@@ -68,19 +78,59 @@
                             <div class="stat-line">
                                 <div>{{ t('bench.winRate', { value: formatPercent(candidate.winRate) }) }}</div>
                                 <div>{{ t('bench.pickRate', { value: formatPercent(candidate.pickRate) }) }}</div>
+                                <div>{{ t('bench.tier', { value: formatTier(candidate.tier) }) }}</div>
                             </div>
                         </div>
                     </article>
                 </div>
-
+            </div>
+            <div class="recommendation-footer">
+                <details v-if="topCandidates.length" class="evidence-method">
+                    <summary>{{ t('bench.methodTitle') }}</summary>
+                    <div class="recommendation-evidence">
+                        <p class="decision-line">{{ decisionMessage }}</p>
+                        <p v-if="hasNoStats" class="data-warning">{{ t('bench.noStats') }}</p>
+                        <p v-else-if="hasLimitedComparison" class="data-warning">{{ t('bench.limitedComparison') }}</p>
+                        <p v-if="hasTeammates" class="evidence-note">{{ t('bench.teammateNote') }}</p>
+                        <p>{{ t('bench.methodDescription') }}</p>
+                        <ul v-if="candidateDataNotes.length" class="candidate-data-notes">
+                            <li v-for="note in candidateDataNotes" :key="note.championId">
+                                <strong>{{ note.name }}</strong>{{ t('bench.noteSeparator') }}{{ note.text }}
+                            </li>
+                        </ul>
+                    </div>
+                </details>
+                <p v-else class="decision-line">{{ decisionMessage }}</p>
+                <div v-if="compact && (canScrollLeft || canScrollRight)" class="candidate-navigation">
+                    <button
+                        class="candidate-scroll-nav"
+                        type="button"
+                        :disabled="!canScrollLeft"
+                        :aria-label="t('bench.scrollLeft')"
+                        @click="scrollCandidates(-1)"
+                    >
+                        <ChevronLeft class="candidate-scroll-icon" />
+                    </button>
+                    <button
+                        class="candidate-scroll-nav"
+                        type="button"
+                        :disabled="!canScrollRight"
+                        :aria-label="t('bench.scrollRight')"
+                        @click="scrollCandidates(1)"
+                    >
+                        <ChevronRight class="candidate-scroll-icon" />
+                    </button>
+                </div>
             </div>
         </div>
     </section>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
+    ChevronLeft,
+    ChevronRight,
     CircleAlert,
     CircleDashed,
     LoaderCircle,
@@ -109,9 +159,13 @@ const error = ref('')
 const refreshTimer = ref(null)
 const previewMode = ref(false)
 const requestInFlight = ref(false)
+const candidateListRef = ref(null)
+const canScrollLeft = ref(false)
+const canScrollRight = ref(false)
 const unsubscribeEvents = []
 const BENCH_REFRESH_TIMEOUT_MS = 8 * 1000
 let mounted = false
+let candidateResizeObserver = null
 
 const isChampSelect = computed(() => recommendation.value?.gameflowPhase === 'ChampSelect')
 
@@ -143,6 +197,19 @@ const emptyMessage = computed(() => {
 
 const topCandidates = computed(() => recommendation.value?.candidates || [])
 const recommended = computed(() => recommendation.value?.recommendedChampion || null)
+const hasTeammates = computed(() => topCandidates.value.some((candidate) => candidate.source === 'teammate'))
+const hasNoStats = computed(() => topCandidates.value.length > 0 && topCandidates.value.every((candidate) => missingStats(candidate).length === 3))
+const hasLimitedComparison = computed(() => [recommendation.value?.currentChampion, recommended.value]
+    .some((candidate) => candidate && missingStats(candidate).length > 0))
+const decisionMessage = computed(() => {
+    const key = recommendation.value?.decisionReason
+    if (hasNoStats.value && key !== 'no-current-champion') return t('bench.decisions.noStats')
+    const knownReasons = ['no-candidates', 'no-current-champion', 'no-alternatives', 'current-best', 'small-difference', 'teammate-higher', 'bench-higher']
+    return t(`bench.decisions.${knownReasons.includes(key) ? key : 'reference'}`, {
+        current: recommendation.value?.currentChampion?.name || '',
+        recommended: recommended.value?.name || '',
+    })
+})
 const candidateSourceLabels = computed(() => ({
     current: t('bench.sourceCurrent'),
     bench: t('bench.sourceBench'),
@@ -225,14 +292,76 @@ const refresh = async (showLoading = true) => {
 }
 
 const isRecommended = (candidate) =>
-    recommended.value && candidate.championId === recommended.value.championId
+    !hasNoStats.value && recommended.value && candidate.championId === recommended.value.championId
 
 const candidateSourceLabel = (candidate) =>
     candidateSourceLabels.value[candidate?.source] || candidate?.sourceLabel || t('bench.sourceCandidate')
 
 const formatPercent = (value) => {
-    if (value == null || Number.isNaN(Number(value))) return '--'
-    return `${(Number(value) * 100).toFixed(1)}%`
+    if (!Number.isFinite(value) || value < 0 || value > 1) return '—'
+    return `${(value * 100).toFixed(1)}%`
+}
+
+const formatTier = (value) => Number.isInteger(value) && value > 0 ? value : '—'
+const missingStats = (candidate) => [
+    ...(formatPercent(candidate.winRate) === '—' ? [t('bench.fields.winRate')] : []),
+    ...(formatPercent(candidate.pickRate) === '—' ? [t('bench.fields.pickRate')] : []),
+    ...(formatTier(candidate.tier) === '—' ? [t('bench.fields.tier')] : []),
+]
+const candidateDataNotes = computed(() => topCandidates.value.flatMap((candidate) => {
+    const fields = missingStats(candidate)
+    return fields.length ? [{ championId: candidate.championId, name: candidate.name, text: t('bench.missingFields', { fields: fields.join(t('bench.fieldSeparator')) }) }] : []
+}))
+
+const updateCandidateScrollState = () => {
+    const candidateList = candidateListRef.value
+    if (!props.compact || !candidateList) {
+        canScrollLeft.value = false
+        canScrollRight.value = false
+        return
+    }
+
+    const maxScrollLeft = Math.max(candidateList.scrollWidth - candidateList.clientWidth, 0)
+    canScrollLeft.value = candidateList.scrollLeft > 2
+    canScrollRight.value = candidateList.scrollLeft < maxScrollLeft - 2
+}
+
+const scrollCandidates = (direction) => {
+    const candidateList = candidateListRef.value
+    if (!candidateList) {
+        return
+    }
+
+    candidateList.scrollBy({
+        left: direction * Math.max(candidateList.clientWidth * 0.72, 96),
+        behavior: 'smooth',
+    })
+}
+
+const handleCandidateWheel = (event) => {
+    const candidateList = candidateListRef.value
+    if (!props.compact || !candidateList) {
+        return
+    }
+
+    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.deltaY
+    if (!delta) {
+        return
+    }
+
+    const maxScrollLeft = Math.max(candidateList.scrollWidth - candidateList.clientWidth, 0)
+    const canScrollInDirection = delta < 0
+        ? candidateList.scrollLeft > 0
+        : candidateList.scrollLeft < maxScrollLeft
+
+    if (!canScrollInDirection) {
+        return
+    }
+
+    event.preventDefault()
+    candidateList.scrollLeft += delta
 }
 
 watch(
@@ -255,6 +384,28 @@ watch(
     { immediate: true }
 )
 
+watch(topCandidates, async () => {
+    await nextTick()
+    updateCandidateScrollState()
+})
+
+watch(candidateListRef, async (candidateList) => {
+    candidateResizeObserver?.disconnect()
+    candidateResizeObserver = null
+
+    await nextTick()
+    updateCandidateScrollState()
+
+    if (
+        candidateList &&
+        candidateList === candidateListRef.value &&
+        typeof ResizeObserver !== 'undefined'
+    ) {
+        candidateResizeObserver = new ResizeObserver(updateCandidateScrollState)
+        candidateResizeObserver.observe(candidateList)
+    }
+})
+
 onMounted(() => {
     mounted = true
 
@@ -271,6 +422,7 @@ onMounted(() => {
     }
     refreshTimer.value = setInterval(() => refresh(false), 3000)
 
+    nextTick(updateCandidateScrollState)
 })
 
 onBeforeUnmount(() => {
@@ -280,6 +432,8 @@ onBeforeUnmount(() => {
     }
 
     unsubscribeEvents.splice(0).forEach((unsubscribe) => unsubscribe())
+    candidateResizeObserver?.disconnect()
+    candidateResizeObserver = null
     mounted = false
 })
 </script>
@@ -428,6 +582,80 @@ h3 {
 .recommendation-body {
     display: grid;
     gap: 10px;
+}
+
+.recommendation-footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px;
+}
+
+.recommendation-evidence {
+    display: grid;
+    gap: 4px;
+    margin-top: 6px;
+    padding: 9px 10px;
+    border-left: 2px solid var(--lol-primary);
+    border-radius: var(--radius-sm);
+    background: var(--lol-bg-2);
+    overflow-wrap: anywhere;
+}
+
+.decision-line,
+.data-warning,
+.evidence-note,
+.evidence-method p {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.decision-line {
+    color: var(--lol-ivory);
+    font-weight: 700;
+}
+
+.data-warning {
+    color: var(--lol-gold-2);
+}
+
+.evidence-note,
+.evidence-method {
+    color: var(--lol-muted);
+}
+
+.evidence-method {
+    min-width: 0;
+    grid-column: 1 / -1;
+    grid-row: 1;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.evidence-method summary {
+    width: fit-content;
+    min-height: 24px;
+    padding-right: 68px;
+    cursor: pointer;
+    color: var(--lol-primary-2);
+}
+
+.evidence-method summary:focus-visible {
+    outline: 2px solid var(--lol-primary);
+    outline-offset: 2px;
+}
+
+.evidence-method p {
+    overflow-wrap: anywhere;
+}
+
+.candidate-data-notes {
+    display: grid;
+    gap: 4px;
+    margin: 4px 0 0;
+    padding-left: 16px;
+    overflow-wrap: anywhere;
 }
 
 .candidate-scroller {
@@ -579,6 +807,8 @@ h3 {
 }
 
 .stat-line {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     flex-wrap: wrap;
     gap: 6px 10px;
     color: #bacac6;
@@ -652,22 +882,26 @@ h3 {
 }
 
 .aram-panel.compact .candidate-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-auto-rows: 128px;
-    gap: 6px;
-    max-height: 396px;
-    overflow-y: auto;
-    overflow-x: hidden;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 3px 8px;
+    overscroll-behavior-inline: contain;
+    scroll-behavior: smooth;
+    scroll-snap-type: x proximity;
 }
 
 .aram-panel.compact .candidate-row {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 5px;
+    flex: 0 0 88px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 4px;
     padding: 7px;
+    align-items: center;
+    align-content: start;
+    scroll-snap-align: start;
+    scroll-snap-stop: normal;
 }
 
 .aram-panel.compact .champion-mark {
@@ -676,21 +910,35 @@ h3 {
     flex-basis: 34px;
 }
 
+.aram-panel.compact .candidate-main {
+    display: grid;
+    gap: 3px;
+}
+
 .aram-panel.compact .candidate-title {
+    margin-bottom: 0;
     flex-direction: column;
     align-items: flex-start;
-    gap: 3px;
-    margin-bottom: 3px;
+    gap: 2px;
 }
 
 .aram-panel.compact .candidate-title strong {
+    width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.aram-panel.compact .source-tag {
     max-width: 100%;
-    font-size: 11px;
+    overflow-wrap: anywhere;
 }
 
 .aram-panel.compact .stat-line {
-    gap: 4px 8px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
     font-size: 10px;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
 }
 
 .aram-panel.compact .score-box {
@@ -704,13 +952,66 @@ h3 {
     min-height: 58px;
 }
 
+.candidate-navigation {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    z-index: 1;
+}
+
+.candidate-scroll-nav {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--lol-border);
+    border-radius: var(--radius-sm);
+    background: var(--lol-bg-2);
+    color: var(--lol-primary-2);
+    cursor: pointer;
+    transition-property: background-color, color, box-shadow, scale;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+}
+
+.candidate-scroll-nav:hover:not(:disabled) {
+    background: rgba(31, 43, 53, 0.98);
+    box-shadow:
+        0 0 0 1px rgba(226, 192, 143, 0.5),
+        0 6px 18px rgba(0, 0, 0, 0.42);
+    color: #f4ecdc;
+}
+
+.candidate-scroll-nav:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.candidate-scroll-nav:active {
+    scale: 0.96;
+}
+
+.candidate-scroll-nav:focus-visible {
+    outline: 2px solid rgba(226, 192, 143, 0.82);
+    outline-offset: 2px;
+}
+
+.candidate-scroll-icon {
+    width: 17px;
+    height: 17px;
+}
+
 .aram-panel.compact .candidate-list:focus-visible {
     outline: 2px solid rgba(226, 192, 143, 0.72);
     outline-offset: 2px;
 }
 
 .aram-panel.compact .candidate-list::-webkit-scrollbar {
-    width: 5px;
+    height: 7px;
 }
 
 .aram-panel.compact .candidate-list::-webkit-scrollbar-track {

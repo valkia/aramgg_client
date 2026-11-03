@@ -85,6 +85,7 @@
   --lol-primary: #c29c6d;
   --lol-primary-2: #e2c08f;
   --lol-crimson: #e5534b;
+  --lol-danger: #ffb4ab;
   --lol-success: #54d884;
   --lol-border: rgba(200, 169, 106, 0.24);
   --lol-border-soft: rgba(244, 236, 220, 0.1);
@@ -208,6 +209,91 @@
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
+  .analysis-panel {
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 4px;
+    background: linear-gradient(145deg, rgba(31, 43, 53, 0.62), rgba(7, 10, 13, 0.32));
+    box-shadow: inset 0 0 18px rgba(194, 156, 109, 0.04);
+    color: var(--lol-ivory);
+  }
+
+  .analysis-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--lol-gold-2);
+    font-weight: 800;
+    line-height: 1.4;
+  }
+
+  .analysis-heading > svg {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 auto;
+  }
+
+  .analysis-inset {
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 4px;
+    background: rgba(4, 15, 24, 0.36);
+  }
+
+  .analysis-control {
+    min-height: 32px;
+    border: 1px solid var(--lol-border);
+    border-radius: 4px;
+    background: rgba(4, 15, 24, 0.48);
+    color: var(--lol-ivory);
+    font-size: 12px;
+  }
+
+  button.analysis-control {
+    color: var(--lol-primary-2);
+    cursor: pointer;
+  }
+
+  .analysis-control:enabled:hover {
+    border-color: rgba(226, 192, 143, 0.4);
+    background: rgba(194, 156, 109, 0.1);
+  }
+
+  .analysis-control:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+
+  .analysis-control:focus-visible,
+  .analysis-disclosure:focus-visible {
+    outline: 2px solid var(--lol-gold-2);
+    outline-offset: 2px;
+  }
+
+  .analysis-disclosure {
+    border-radius: 4px;
+    color: var(--lol-primary-2);
+  }
+
+  .analysis-disclosure:hover {
+    color: var(--lol-gold-2);
+  }
+
+  .analysis-table {
+    color: var(--lol-ivory);
+  }
+
+  .analysis-table thead {
+    background: var(--lol-bg-2);
+    color: var(--lol-muted);
+  }
+
+  .analysis-table tbody tr {
+    border-color: var(--lol-border-soft);
+  }
+
+  .analysis-table tbody tr:hover {
+    background: rgba(194, 156, 109, 0.06);
+  }
+
   .tag {
     @apply inline-flex items-center gap-xs px-sm py-xs rounded-sm text-xs font-medium;
   }
@@ -257,6 +343,143 @@
 
   .text-subtle {
     color: var(--lol-faint);
+  }
+
+  /* 主页设置卡片：ItemSetInstaller / OverlayPreferences / ChampionMonitor 共用 */
+  .config-card {
+    flex: 0 0 auto;
+    padding: 14px;
+    overflow: hidden;
+    color: var(--lol-ivory);
+    background: linear-gradient(145deg, rgba(31, 43, 53, 0.62), rgba(7, 10, 13, 0.34));
+    border: 1px solid var(--lol-border-soft);
+    border-radius: 4px;
+    box-shadow: inset 0 0 18px rgba(194, 156, 109, 0.04);
+  }
+
+  .config-card .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 0 12px;
+    background: transparent;
+    border-bottom: 0;
+  }
+
+  .config-card .card-title {
+    flex: 1;
+    margin: 0;
+    color: var(--lol-gold-2);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .config-card .card-icon {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    color: var(--lol-gold-2);
+  }
+
+  .config-card .card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 0;
+  }
+
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+  }
+
+  .setting-copy {
+    min-width: 0;
+  }
+
+  .setting-copy strong {
+    display: block;
+    color: var(--lol-ivory);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  .setting-copy span {
+    display: block;
+    margin-top: 4px;
+    color: var(--lol-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.45;
+  }
+
+  .switch-control {
+    position: relative;
+    width: 42px;
+    height: 24px;
+    flex: 0 0 auto;
+    padding: 2px;
+    border: 1px solid rgba(244, 236, 220, 0.16);
+    border-radius: 999px;
+    background: rgba(4, 15, 24, 0.64);
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease, transform 0.15s ease-out;
+  }
+
+  /* 扩大点击热区到 42x40，不改变视觉尺寸 */
+  .switch-control::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 42px;
+    height: 40px;
+    transform: translate(-50%, -50%);
+  }
+
+  .switch-control:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+
+  .switch-control:focus-visible {
+    outline: 2px solid var(--lol-gold-2);
+    outline-offset: 2px;
+  }
+
+  .switch-control.active {
+    border-color: rgba(226, 192, 143, 0.5);
+    background: rgba(194, 156, 109, 0.36);
+  }
+
+  .switch-control:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+
+  .switch-thumb {
+    display: block;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--lol-muted);
+    transition: transform 0.18s ease, background 0.18s ease;
+  }
+
+  .switch-control.active .switch-thumb {
+    transform: translateX(18px);
+    background: var(--lol-ivory);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .switch-control,
+    .switch-thumb {
+      transition: none;
+    }
   }
 }
 

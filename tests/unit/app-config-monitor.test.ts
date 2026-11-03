@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  active: true,
   store: new Map<string, unknown>(),
   write: vi.fn(),
   phase: vi.fn(),
@@ -44,8 +45,8 @@ vi.mock('../../src/main/auto-screenshot-service.ts', () => ({ default: {
   setConfig: vi.fn(), start: vi.fn(async () => true),
 } }))
 vi.mock('../../src/main/services/lcu/lcu-service.ts', () => ({ getLCUServiceInstance: () => ({
-  getAuthToken: async () => ({ url: 'https://127.0.0.1:2999' }),
-  getUrl: () => 'https://127.0.0.1:2999', isActive: () => true,
+  getAuthToken: async () => mocks.active ? { url: 'https://127.0.0.1:2999' } : null,
+  getUrl: () => 'https://127.0.0.1:2999', isActive: () => mocks.active,
   getGameflowPhase: mocks.phase, getChampSelectSnapshot: mocks.snapshot,
   subscribeGameflowPhase: mocks.subscribe,
 }) }))
@@ -80,6 +81,7 @@ beforeEach(() => {
   vi.resetModules()
   vi.useFakeTimers()
   mocks.store.clear()
+  mocks.active = true
   mocks.store.set('diagnostics.lcuHeartbeat', false)
   mocks.store.set('itemSets.autoApplyAram', false)
   mocks.write.mockImplementation((key, value) => mocks.store.set(key, value))
@@ -105,6 +107,80 @@ async function start() {
 }
 
 describe('main-process monitoring ownership', () => {
+  it('reports unavailable state if monitoring cannot initialize', async () => {
+    mocks.phase.mockRejectedValueOnce(new Error('isolated monitor failure'))
+    const { init } = await import('../../src/main/modules/app-config.ts')
+    await init()
+    await vi.advanceTimersByTimeAsync(2000)
+    const { getLcuConnectionState } = await import('../../src/main/modules/lcu-connection-state.ts')
+    expect(getLcuConnectionState()).toMatchObject({ connection: 'unavailable', phase: null })
+  })
+
+  it('publishes actual idle, selection and game phases and clears them when the connection drops', async () => {
+    await start()
+    const { getLcuConnectionState } = await import('../../src/main/modules/lcu-connection-state.ts')
+    expect(getLcuConnectionState()).toMatchObject({ connection: 'connected', phase: 'None' })
+    const [changed, options] = mocks.subscribe.mock.calls[0]
+    await changed('ChampSelect')
+    expect(getLcuConnectionState()).toMatchObject({ connection: 'connected', phase: 'ChampSelect' })
+    await changed('InProgress')
+    const revision = getLcuConnectionState().revision
+    await changed('InProgress')
+    expect(getLcuConnectionState().revision).toBe(revision)
+    options.onClose('socket-closed')
+    expect(getLcuConnectionState()).toMatchObject({ connection: 'checking', phase: null })
+    mocks.active = false
+    mocks.phase.mockResolvedValue(null)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(getLcuConnectionState()).toMatchObject({ connection: 'disconnected', phase: null })
+    options.onOpen()
+    expect(getLcuConnectionState()).toMatchObject({ connection: 'connected', phase: null })
+    expect(mocks.notify).toHaveBeenCalledWith('lcu-connection-changed', expect.objectContaining({ connection: 'disconnected', phase: null }))
+  })
+
+  it('does not treat failed or malformed phase responses as connected game stages', async () => {
+    await start()
+    const { getLcuConnectionState } = await import('../../src/main/modules/lcu-connection-state.ts')
+    const changed = mocks.subscribe.mock.calls[0][0]
+    await changed('InProgress')
+    for (const invalid of [null, { errorCode: 'RPC_ERROR' }, 'UnknownPhase', 123]) {
+      await changed(invalid)
+      expect(getLcuConnectionState()).toMatchObject({ connection: 'unavailable', phase: null })
+    }
+    expect(mocks.applyPopupPreferences.mock.calls.map(([phase]) => phase)).toEqual(['None', 'InProgress'])
+    await changed('Lobby')
+    expect(getLcuConnectionState()).toMatchObject({ connection: 'connected', phase: 'Lobby' })
+    mocks.phase.mockRejectedValueOnce(new Error('isolated polling failure'))
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(getLcuConnectionState()).toMatchObject({ connection: 'unavailable', phase: null })
+  })
+
+  it('discards a slow fallback response after a newer websocket phase or close', async () => {
+    await start()
+    const { getLcuConnectionState } = await import('../../src/main/modules/lcu-connection-state.ts')
+    const [changed, options] = mocks.subscribe.mock.calls[0]
+    let finish!: (phase: string) => void
+    mocks.phase.mockReturnValueOnce(new Promise<string>(resolve => { finish = resolve }))
+    await vi.advanceTimersByTimeAsync(1000)
+    await changed('ReadyCheck')
+    finish('Lobby')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getLcuConnectionState()).toMatchObject({ connection: 'connected', phase: 'ReadyCheck' })
+    mocks.phase.mockReturnValueOnce(new Promise<string>(resolve => { finish = resolve }))
+    await vi.advanceTimersByTimeAsync(1000)
+    options.onClose('client-closed')
+    finish('InProgress')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getLcuConnectionState()).toMatchObject({ connection: 'checking', phase: null })
+    let fail!: (error: Error) => void
+    mocks.phase.mockReturnValueOnce(new Promise<string>((_resolve, reject) => { fail = reject }))
+    await vi.advanceTimersByTimeAsync(1000)
+    await changed('ReadyCheck')
+    fail(new Error('obsolete poll failure'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getLcuConnectionState()).toMatchObject({ connection: 'connected', phase: 'ReadyCheck' })
+  })
+
   it('applies champion window preferences on game loading and in-progress transitions', async () => {
     await start()
     const phaseChanged = mocks.subscribe.mock.calls[0][0]

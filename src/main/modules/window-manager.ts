@@ -6,6 +6,7 @@ import {
     type Event,
     type Rectangle,
     type WebPreferences,
+    type WebContents,
 } from 'electron'
 import { createServer } from 'http'
 import { createReadStream, existsSync } from 'fs'
@@ -31,6 +32,7 @@ import {
     shouldShowAugmentTopOverlay,
 } from './user-preferences.ts'
 import type { GameflowPhase } from '../../shared/ipc-contract.ts'
+import { MAX_MATCH_DETAIL_WINDOWS, type OwnedMatchDetailSnapshot } from '../services/match-history/match-detail-snapshots.ts'
 import { getMacCaptureDiagnostics } from './mac-game-capture.ts'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -52,26 +54,17 @@ const RENDERER_CONTENT_SECURITY_POLICY = [
 let mainWindow: BrowserWindow | null = null
 let popupWindow: BrowserWindow | null = null
 let popupGameflowPhase: GameflowPhase | null = null
-let popupExplicit = false
+let popupOpenedManually = false
+// 按住 Tab 打开的局内速查点击穿透；松开、隐藏或阶段变化后恢复。
 let popupClickThrough = false
 let popupRequestedVisible = false
-
-export function getPopupPresentation() {
-    return { visible: popupRequestedVisible, explicit: popupExplicit, clickThrough: popupClickThrough }
-}
-
-export function setPopupPresentation(explicit: boolean, clickThrough = false): void {
-    popupExplicit = explicit
-    popupClickThrough = clickThrough
-    if (popupWindow && !popupWindow.isDestroyed()) {
-        popupWindow.setIgnoreMouseEvents(clickThrough, { forward: true })
-    }
-    applyPopupWindowPreferences()
-}
 let floatingWindow: BrowserWindow | null = null
 let augmentSidePanelWindow: BrowserWindow | null = null
 let mainWindowCloseAllowed = false
 let rendererServerPromise: Promise<string> | null = null
+const matchDetailWindows = new Map<string, BrowserWindow>()
+const matchDetailInflight = new Map<string, Promise<void>>()
+const matchDetailOwners = new Map<WebContents, OwnedMatchDetailSnapshot>()
 
 const MAIN_WINDOW_SIZE = { width: 472, height: 752 }
 const POPUP_WINDOW_SIZE = { width: 360, height: 640 }
@@ -217,9 +210,8 @@ export function applyAugmentSidePanelWindowLayout() {
 
 export function applyPopupWindowPreferences(phase: GameflowPhase | null = popupGameflowPhase): void {
     if (phase !== popupGameflowPhase) {
-        popupExplicit = false
-        popupClickThrough = false
-        if (popupWindow && !popupWindow.isDestroyed()) popupWindow.setIgnoreMouseEvents(false)
+        if (popupClickThrough) setPopupClickThrough(false)
+        if (phase === 'GameStart' || phase === 'InProgress') popupOpenedManually = false
     }
     popupGameflowPhase = phase
     if (!popupWindow || popupWindow.isDestroyed()) {
@@ -227,10 +219,42 @@ export function applyPopupWindowPreferences(phase: GameflowPhase | null = popupG
     }
 
     const inGame = phase === 'GameStart' || phase === 'InProgress'
-    setOverlayAlwaysOnTop(popupWindow, popupClickThrough || (popupExplicit && inGame) || shouldKeepChampionInsightOnTop(), 'popup')
-    if (!popupExplicit && (!shouldShowChampionDetails() || (inGame && shouldHideChampionInsightOnGameStart()))) {
+    // 局内主动打开的攻略需要压在全屏游戏上方，不受“强制置顶”偏好限制。
+    setOverlayAlwaysOnTop(popupWindow,
+        popupClickThrough || (popupOpenedManually && inGame) || shouldKeepChampionInsightOnTop(), 'popup')
+    if (!popupOpenedManually && (!shouldShowChampionDetails() || (inGame && shouldHideChampionInsightOnGameStart())) &&
+        popupWindow.isVisible()) {
         popupWindow.hide()
     }
+}
+
+export function getPopupPresentation() {
+    return { visible: popupRequestedVisible, explicit: popupOpenedManually, clickThrough: popupClickThrough }
+}
+
+function setPopupClickThrough(clickThrough: boolean): void {
+    popupClickThrough = clickThrough
+    if (popupWindow && !popupWindow.isDestroyed()) {
+        popupWindow.setIgnoreMouseEvents(clickThrough, { forward: true })
+    }
+}
+
+/**
+ * 当前英雄攻略/局内速查的展示方式：explicit 复用手动打开语义，clickThrough 仅用于 Tab 速查。
+ */
+export function setPopupPresentation(explicit: boolean, clickThrough = false): void {
+    popupOpenedManually = explicit
+    setPopupClickThrough(clickThrough)
+    applyPopupWindowPreferences()
+}
+
+export function showPopupWindowManually(): void {
+    if (!popupWindow || popupWindow.isDestroyed()) return
+    popupOpenedManually = true
+    if (popupWindow.isMinimized()) popupWindow.restore()
+    applyPopupWindowLayout()
+    popupWindow.show()
+    popupWindow.focus()
 }
 
 function setOverlayAlwaysOnTop(
@@ -606,6 +630,7 @@ export const createMainWindow = async (
         }
 
         logger.info('Main window closing...')
+        closeMatchDetailWindows()
         // 关闭主窗口时，同时关闭 popup 窗口和浮动窗口
         if (popupWindow && !popupWindow.isDestroyed()) {
             logger.info('Closing popup window...')
@@ -663,10 +688,12 @@ export const createPopupWindow = async (
     applyPopupWindowPreferences()
     popupWindow.on('show', () => { popupRequestedVisible = true; applyPopupWindowPreferences() })
     popupWindow.on('hide', () => {
-        popupRequestedVisible = false
-        popupExplicit = false
-        popupClickThrough = false
-        popupWindow?.setIgnoreMouseEvents(false)
+        // macOS may deliver an earlier hide after a new explicit show.
+        if (!popupWindow?.isVisible()) {
+            popupOpenedManually = false
+            popupRequestedVisible = false
+            setPopupClickThrough(false)
+        }
     })
     attachWindowDiagnostics('popup', popupWindow)
 
@@ -677,10 +704,10 @@ export const createPopupWindow = async (
     }
 
     popupWindow.on('closed', () => {
-        popupRequestedVisible = false
-        popupExplicit = false
-        popupClickThrough = false
         logger.info('Popup window closed')
+        popupOpenedManually = false
+        popupClickThrough = false
+        popupRequestedVisible = false
         popupWindow = null
     })
 
@@ -815,6 +842,71 @@ export const getPopupWindow = () => popupWindow
 export const getFloatingWindow = () => floatingWindow
 
 export const getAugmentSidePanelWindow = () => augmentSidePanelWindow
+
+export function getMatchDetailWindowBounds(area: Rectangle): Rectangle {
+    const width = Math.max(1, Math.min(1200, area.width))
+    const height = Math.max(1, Math.min(840, area.height))
+    return { width, height, x: area.x + Math.round((area.width - width) / 2), y: area.y + Math.round((area.height - height) / 2) }
+}
+
+export function getOwnedMatchDetailSnapshot(contents: WebContents): OwnedMatchDetailSnapshot | undefined {
+    return matchDetailOwners.get(contents)
+}
+
+export function closeMatchDetailWindows(): void {
+    for (const window of matchDetailWindows.values()) if (!window.isDestroyed()) window.destroy()
+    matchDetailWindows.clear()
+    matchDetailOwners.clear()
+    matchDetailInflight.clear()
+}
+
+export function openMatchDetailWindow(snapshot: OwnedMatchDetailSnapshot): Promise<void> {
+    const key = `${snapshot.accountKey}:${snapshot.data.locale}:${snapshot.data.match.gameId}`
+    const pending = matchDetailInflight.get(key)
+    if (pending) return pending
+    const existing = matchDetailWindows.get(key)
+    if (existing && !existing.isDestroyed()) {
+        if (existing.isMinimized()) existing.restore()
+        existing.show()
+        existing.focus()
+        return Promise.resolve()
+    }
+    if (matchDetailWindows.size >= MAX_MATCH_DETAIL_WINDOWS) return Promise.reject(new Error('Close a match detail window before opening another'))
+    const task = createMatchDetailWindow(key, snapshot).finally(() => {
+        if (matchDetailInflight.get(key) === task) matchDetailInflight.delete(key)
+    })
+    matchDetailInflight.set(key, task)
+    return task
+}
+
+async function createMatchDetailWindow(key: string, snapshot: OwnedMatchDetailSnapshot): Promise<void> {
+    const [isDev, devServerUrl] = getRendererRuntime()
+    const webPreferences = getWebPreferences(isDev)
+    const display = getDisplayForMainWindow()
+    const bounds = getMatchDetailWindowBounds(display.workArea || display.bounds)
+    const window = new BrowserWindow({
+        ...bounds, minWidth: Math.min(360, bounds.width), minHeight: Math.min(400, bounds.height),
+        show: false, frame: true, resizable: true, fullscreenable: false,
+        backgroundColor: '#0a1015', title: 'ARAMGG', webPreferences,
+    })
+    const contents = window.webContents
+    matchDetailWindows.set(key, window)
+    matchDetailOwners.set(contents, structuredClone(snapshot))
+    attachWindowDiagnostics('match-detail', window)
+    window.once('closed', () => {
+        if (matchDetailWindows.get(key) === window) matchDetailWindows.delete(key)
+        matchDetailOwners.delete(contents)
+    })
+    try {
+        await loadRendererRoute(window, 'match-detail', isDev, devServerUrl, '/match-detail', webPreferences.preload)
+        if (window.isDestroyed() || !matchDetailOwners.has(contents)) throw new Error('Match detail window was closed')
+        window.show()
+        window.focus()
+    } catch (error) {
+        if (!window.isDestroyed()) window.destroy()
+        throw error
+    }
+}
 
 function getRendererRuntime(): [boolean, string] {
     const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
