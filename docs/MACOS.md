@@ -128,6 +128,9 @@ Chinese text, borderless mode on a two-display setup):
   two rerolls updated the recommendations; overlays cleared after selection.
 - In exclusive fullscreen the same build captured only black frames (see
   Permissions and use); switching to borderless before the next match fixed it.
+- After resetting Screen Recording (`tccutil reset ScreenCapture
+  com.aramgg.client`) the packaged app showed the system prompt on first
+  capture; capture worked after enabling it and restarting.
 
 Manual (earlier live testing of the platform port):
 
@@ -145,8 +148,6 @@ Not yet verified:
 - Windows packaging and window smoke (`npm run test:packaged-windows`) — no
   Windows environment; to be accepted through the repository CI.
 - Hover-tooltip retention was not re-checked in the 2026-11-03 live test.
-- Screen Recording first-run prompt: implemented and unit tested, not yet
-  verified with a fresh permission state.
 - Forge/anvil choice screens, additional resolutions/displays, and repeated
   first-selection and fullscreen/collapse recovery checks.
 - Intel Macs (not claimed).
