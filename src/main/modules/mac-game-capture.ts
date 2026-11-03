@@ -19,6 +19,7 @@ type NativeCapture = {
 type MacCaptureBinding = {
   captureGame(width: number, height: number, timeoutMs: number): Promise<NativeCapture>
   inspectOverlay(handle: Buffer): Record<string, number | boolean>
+  requestScreenCaptureAccess(): boolean
 }
 const require = createRequire(import.meta.url)
 let binding: MacCaptureBinding | null | undefined
@@ -82,4 +83,9 @@ export function getMacCaptureDiagnostics(window?: BrowserWindow) {
     logger.debug('[mac-capture] overlay inspection unavailable:', error instanceof Error ? error.message : String(error))
   }
   return { game: lastWindow ? { id: lastWindow.windowId, layer: lastWindow.windowLayer, onScreen: lastWindow.onScreen } : null, overlay }
+}
+
+/** 请求屏幕录制授权：仅在系统从未询问过时弹出授权框，授权后需重启应用生效。 */
+export function requestMacScreenCaptureAccess(): boolean {
+  return getBinding()?.requestScreenCaptureAccess() || false
 }

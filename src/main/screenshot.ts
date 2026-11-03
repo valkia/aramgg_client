@@ -2,7 +2,7 @@ import { execFile } from 'child_process'
 import { desktopCapturer, systemPreferences, type DesktopCapturerSource, type Size } from 'electron'
 import { findGameWindowSource, hasDarwinGameProcess } from './modules/game-window-source.ts'
 import logger from './modules/logger.ts'
-import { captureMacGameWindow, getMacGameWindowInfo } from './modules/mac-game-capture.ts'
+import { captureMacGameWindow, getMacGameWindowInfo, requestMacScreenCaptureAccess } from './modules/mac-game-capture.ts'
 
 let lastCaptureSourceKey: string | null = null
 export const CAPTURE_THUMBNAIL_SIZE = { width: 1280, height: 720 }
@@ -34,9 +34,16 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): 
  */
 const findGameWindow = (sources: DesktopCapturerSource[]) => findGameWindowSource(sources)
 
+let screenCaptureAccessRequested = false
+
 function checkScreenRecordingPermission(): void {
     if (process.platform === 'darwin' &&
         systemPreferences.getMediaAccessStatus('screen') === 'denied') {
+        // macOS 上“未询问”也报告为 denied；每次运行主动请求一次，首次使用或重新签名后才会弹出系统授权框。
+        if (!screenCaptureAccessRequested) {
+            screenCaptureAccessRequested = true
+            requestMacScreenCaptureAccess()
+        }
         throw new Error('macOS Screen Recording permission is denied. Enable ARAMGG in System Settings > Privacy & Security > Screen Recording, then restart the app.')
     }
 }

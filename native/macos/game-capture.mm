@@ -235,12 +235,21 @@ napi_value InspectOverlay(napi_env env, napi_callback_info info) {
     return js;
 }
 
+// Electron 的 getMediaAccessStatus('screen') 分不清“未询问”和“拒绝”；
+// 主动请求一次，系统只会在未询问时弹出授权框，已拒绝时直接返回 false。
+napi_value RequestScreenCaptureAccess(napi_env env, napi_callback_info) {
+    napi_value value;
+    napi_get_boolean(env, CGRequestScreenCaptureAccess(), &value);
+    return value;
+}
+
 napi_value Init(napi_env env, napi_value exports) {
     napi_property_descriptor properties[] = {
         {"captureGame", nullptr, Capture, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"inspectOverlay", nullptr, InspectOverlay, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"requestScreenCaptureAccess", nullptr, RequestScreenCaptureAccess, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
-    napi_define_properties(env, exports, 2, properties);
+    napi_define_properties(env, exports, 3, properties);
     return exports;
 }
 }

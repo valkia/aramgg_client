@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   captureMacGameWindow: vi.fn(),
   getMacGameWindowInfo: vi.fn(),
   getMediaAccessStatus: vi.fn(() => 'granted'),
+  requestMacScreenCaptureAccess: vi.fn(() => false),
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../src/main/modules/mac-game-capture.ts', () => ({
   captureMacGameWindow: mocks.captureMacGameWindow,
   getMacGameWindowInfo: mocks.getMacGameWindowInfo,
+  requestMacScreenCaptureAccess: mocks.requestMacScreenCaptureAccess,
 }))
 
 vi.mock('electron', () => ({
@@ -38,6 +40,7 @@ const createThumbnail = (width = 1280, height = 720) => ({
 describe('captureScreenshot', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.resetModules()
     mocks.getMediaAccessStatus.mockReturnValue('granted')
     mocks.captureMacGameWindow.mockResolvedValue(null)
     mocks.getMacGameWindowInfo.mockResolvedValue(null)
@@ -106,6 +109,21 @@ describe('captureScreenshot', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain('Screen Recording permission')
     expect(mocks.getSources).not.toHaveBeenCalled()
+  })
+
+  it.skipIf(process.platform !== 'darwin')('requests Screen Recording access once per run when not granted', async () => {
+    mocks.getMediaAccessStatus.mockReturnValue('denied')
+    const { captureScreenshot } = await import('../../src/main/screenshot.ts')
+    await captureScreenshot()
+    await captureScreenshot()
+    expect(mocks.requestMacScreenCaptureAccess).toHaveBeenCalledTimes(1)
+  })
+
+  it('never requests Screen Recording access when it is already granted', async () => {
+    const { captureScreenshot } = await import('../../src/main/screenshot.ts')
+    mocks.getSources.mockResolvedValue([])
+    await captureScreenshot()
+    expect(mocks.requestMacScreenCaptureAccess).not.toHaveBeenCalled()
   })
 
   it('accepts a smaller thumbnail only when the caller requests it', async () => {
