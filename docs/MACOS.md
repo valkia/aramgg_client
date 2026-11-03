@@ -19,10 +19,15 @@ npm run pack:mac
 
 The packaging script prepares the three locale datasets and produces a ZIP in
 `build/`. Extract it to obtain `aramgg_client.app`. The native Node-API capture
-module is built by `predev`/`prebuild` and bundled as a Mac-only resource. Local
+module is built by `predev`/`prebuild`. `pack:mac` always rebuilds it explicitly
+(it does not rely on npm `prebuild`), verifies that it loads and exposes the
+expected exports, and checks the packaged copy under
+`Contents/Resources/mac-capture/`; packaging fails if any step is missing. Local
 packages are ad-hoc signed, not Developer ID signed or notarized. Mac application
-auto-update is disabled because the upstream update feed serves Windows builds;
-versioned recommendation-data refresh remains separate from application updates.
+auto-update, the manual installer link and the check-update action are hidden on
+macOS because the upstream update feed serves Windows builds; Windows keeps its
+existing update and manual-download fallback. Versioned recommendation-data
+refresh remains separate from application updates.
 No public Mac binary release is included in this contribution.
 
 ## Permissions and use
@@ -32,16 +37,10 @@ No public Mac binary release is included in this contribution.
 2. Enable **Privacy & Security → Screen Recording** for the application when
    prompted, then restart it. Automatic capture reads only the Riot game window;
    it does not fall back to desktop contents or capture audio.
-3. Optionally enable **Tab guide** in the assistant. This needs **Input Monitoring**.
-   Hold unmodified Tab while League is in front to show the guide; release it to
-   hide the guide. The game's own scoreboard still receives the key normally.
-4. To reposition the guide, use **Open current champion guide**, then drag its
-   title bar. The position is saved. A guide opened by Tab is click-through.
 
-The listen-only native keyboard handler only retains Tab pressed/released state,
-ignores other key values, and does not record typed text. It stops outside an
-active match or when the feature is disabled. Renderer IPC stays behind the
-existing trusted sender checks; sandboxing and context isolation remain enabled.
+Renderer IPC stays behind the existing trusted sender checks; sandboxing and
+context isolation remain enabled. The native module only captures the game
+window and inspects overlay window levels; it does not monitor keyboard input.
 
 Replacing an ad-hoc signed build may invalidate permissions even if Settings
 still shows them enabled. Quit the application, remove its old entry, add the
@@ -56,19 +55,14 @@ needed before shipping a supported installer.
 - Nonactivating Mac panels appear across fullscreen Spaces above the game's
   observed window level. Requested visibility is tracked separately from native
   occlusion, with bounded reordering that does not reopen manually hidden panels.
-- OCR preserves left/center/right title ordering. Existing recommendations can
-  remain visible while hover tooltips obscure titles if all three card frames
-  are still present; this evidence does not identify new augments.
-- The current champion guide uses the current match identity rather than the
-  previous match's cached hero. Pending opens are cancelled on release or state
-  change. Display-preference changes apply immediately.
-- In-game quick reference shows a complete core-item combination, later items,
-  skill order and two augment recommendations per rarity. It is based on common
-  champion data, not live inventory or selected-augment-aware recommendations.
-- Champion selection retains the full detail page. Candidate recommendations
-  use three columns and a three-row viewport; extra candidates scroll vertically.
-- Windows behavior remains on its platform path. Tab hold support is Mac-only.
-  Local builds retain the upstream production-upload gate.
+- OCR preserves left/center/right title ordering. On macOS only, existing
+  recommendations can remain visible while hover tooltips obscure titles if all
+  three card frames are still present; this evidence does not identify new
+  augments. Windows does not compute card frames and keeps its clearing logic.
+- Windows behavior remains on its platform path: every change in this port is
+  guarded by `process.platform === 'darwin'` or only runs on macOS. Shared UI
+  changes (in-game quick guide, hold-Tab, candidate layout) are proposed in a
+  separate PR. Local builds retain the upstream production-upload gate.
 
 ## Validation
 
@@ -78,32 +72,48 @@ npm run lint
 npm run type-check
 npm run build
 npm run test:augment-ocr
-# Separate packaged smoke probe (see current limitation below):
+# Clean native state, then package and run the packaged smoke probe:
+rm -rf .runtime/mac-capture
+npm run pack:mac
 npm run test:packaged-mac
 ```
 
-Verified on Apple silicon with the NA League client and Chinese game text:
+Verified on an Apple M2 Pro (macOS 15.0) with the NA League client and Chinese
+game text. Only macOS was available; **no Windows environment was used**.
 
-- 267 unit tests, lint, type checks, native compilation and renderer build pass.
+Automated (re-run on 2026-11-03 after rebasing onto upstream v0.2.19):
+
+- 470 unit tests (83 files), lint, type checks and renderer build pass.
 - PaddleOCR fixtures pass for full, partial and unmatched title regions.
+- From a clean `.runtime/mac-capture`, `npm run pack:mac` compiles, loads and
+  verifies the native module and the packaged copy.
+- `npm run test:packaged-mac` passes: all four windows become ready in the
+  packaged app and packaged OCR reads the fixture (`[1390, 1129]`; augment 1032
+  is no longer in the bundled season data, so the check only requires an
+  ordered subset of the fixture IDs).
+- The unit suite was additionally run on macOS with `process.platform` faked as
+  `win32`; failures matched upstream master under the same conditions (native
+  `sharp`/temp-dir environment issues), with no new platform-logic failures.
+  This is not a substitute for running on Windows.
+
+Manual (earlier live testing of the platform port):
+
 - Local packaged application launches, connects to LCU, captures game-window
   frames and detects card selections/rerolls. App quit/relaunch and deep code
   signature verification were checked.
 - Both recommendation panels were observed over the game during live testing.
-- The compact Teemo guide fits the 360×640 window without clipping. The tester
-  subsequently confirmed that holding/releasing Tab shows/hides the guide.
 - A sanitized card-only hover fixture covers retention without publishing desktop
   contents or player identity:
 
 ![Hover tooltip obscuring card titles](../tests/fixtures/augment-ocr/hover-tooltip-card-frames.png)
 
-Remaining validation before a supported Mac release:
+Not yet verified:
 
+- Windows packaging and window smoke (`npm run test:packaged-windows`) — no
+  Windows environment; to be accepted through the repository CI.
+- In-game re-verification after the rebase: live OCR, reroll refresh and
+  always-on-top ordering over the fullscreen game.
 - Forge/anvil choice screens, additional resolutions/displays, and repeated
   first-selection and fullscreen/collapse recovery checks.
-- The three-column candidate layout in a real champion-selection session.
-- Windows packaged regression testing and Intel Mac support (not claimed).
+- Intel Macs (not claimed).
 - Developer ID signing, notarization, and a Mac update channel.
-- The shell-driven packaged smoke test previously aborted in LaunchServices in
-  the restricted test environment before reaching application code. Manual
-  packaged testing does not turn that automated check into a passing result.
