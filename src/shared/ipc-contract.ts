@@ -8,7 +8,6 @@ export type AppStoreKey =
   | 'championInsight.showDetails'
   | 'championInsight.hideOnGameStart'
   | 'championInsight.alwaysOnTop'
-  | 'championInsight.tabGuide'
   | 'augments.showTopOverlay'
   | 'augments.showSidePanel'
   | 'postGameShare.autoShow'
@@ -251,6 +250,8 @@ export interface AppUpdateState extends LooseRecord {
   phase?: string
   latestVersion?: string
   manualDownloadUrl?: string
+  /** 当前平台不使用远端更新源（macOS 预览版），renderer 不展示 Windows 下载入口和检查更新。 */
+  platformUnsupported?: boolean
   downloadDeferred?: boolean
   canCheck?: boolean
   canInstall?: boolean
@@ -408,7 +409,6 @@ export interface LocaleInfo extends LooseRecord {
 }
 
 export interface OverlayPayload extends LooseRecord {
-  presentation?: 'in-game' | 'full'
   championId?: number | null
   championName?: string
   augments?: LooseRecord[]
@@ -481,9 +481,6 @@ export interface ElectronAPI {
   windows: {
     ready(): void
     showPopup(data: OverlayPayload): void
-    showCurrentChampion(): Promise<OperationResult>
-    getTabGuideStatus(): Promise<{ supported: boolean; enabled: boolean; authorized: boolean }>
-    setTabGuideEnabled(enabled: boolean): Promise<{ supported: boolean; enabled: boolean; authorized: boolean }>
     hidePopup(reason?: string): void
     hideFloating(reason?: string): void
     hideAugmentSidePanel(reason?: string): void

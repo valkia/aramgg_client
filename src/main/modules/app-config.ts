@@ -1,6 +1,5 @@
 // @ts-nocheck
 import { app, globalShortcut, BrowserWindow } from 'electron'
-import { showCurrentChampionGuide } from './champion-guide.ts'
 import { getLolGameStatus } from '../screenshot.ts'
 import { registerIpcHandlers } from './ipc-handlers.ts'
 import {
@@ -929,7 +928,6 @@ async function recoverChampionInsightForInProgress(lcuService, reason) {
         lastInProgressInsightChampionId = championId
         applyPopupWindowPreferences()
         if (!canRefreshVisiblePopup) {
-            await showCurrentChampionGuide('preference')
             return
         }
 

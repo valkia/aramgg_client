@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events')
   class Window extends EventEmitter {
-    static getAllWindows() { return [] }
     visible = false
     destroyed = false
     url = ''
@@ -21,12 +20,8 @@ vi.mock('electron', async () => {
     hide = vi.fn(() => { this.visible = false; this.emit('hide') })
     isVisibleOnAllWorkspaces() { return false }
     setVisibleOnAllWorkspaces = vi.fn()
-    setIgnoreMouseEvents = vi.fn()
-    showInactive() { this.show() }
-    moveTop = vi.fn()
     webContents = Object.assign(new EventEmitter(), {
       getURL: () => this.url,
-      send: vi.fn(),
       setWindowOpenHandler: vi.fn(),
       openDevTools: vi.fn(),
     })
@@ -165,37 +160,25 @@ describe('champion window preferences', () => {
     }
   })
 
-  it('restores the current game hero immediately when close-in-game is turned off', async () => {
-    const { manager, popup } = await setup()
-    const state = await import('../../src/main/modules/champion-monitor-state.ts')
-    state.setChampionMonitorPhase('InProgress')
-    state.setChampionMonitorChampion(112)
-    manager.applyPopupWindowPreferences('InProgress')
-    expect(popup.isVisible()).toBe(false)
-    await mocks.handlers.get('store-set')!({}, 'championInsight.hideOnGameStart', false)
-    expect(popup.isVisible()).toBe(true)
-    expect(popup.webContents.send).toHaveBeenCalledWith('for-popup', expect.objectContaining({ championId: 112 }))
-  })
-
   it('applies setting changes immediately through IPC and restores defaults on deletion', async () => {
     mocks.store.set('championInsight.hideOnGameStart', false)
     const { manager, popup } = await setup()
     popup.show()
     manager.applyPopupWindowPreferences('InProgress')
     const set = mocks.handlers.get('store-set')!
-    await set({}, 'championInsight.alwaysOnTop', true)
+    set({}, 'championInsight.alwaysOnTop', true)
     expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(true, expect.any(String), ...macLevel(true))
     expect(popup.isVisible()).toBe(true)
-    await set({}, 'championInsight.alwaysOnTop', false)
+    set({}, 'championInsight.alwaysOnTop', false)
     expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String), ...macLevel(false))
-    await set({}, 'championInsight.alwaysOnTop', true)
+    set({}, 'championInsight.alwaysOnTop', true)
     mocks.handlers.get('store-delete')!({}, 'championInsight.alwaysOnTop')
     expect(popup.setAlwaysOnTop).toHaveBeenLastCalledWith(false, expect.any(String), ...macLevel(false))
-    await set({}, 'championInsight.alwaysOnTop', true)
-    await set({}, 'championInsight.hideOnGameStart', true)
+    set({}, 'championInsight.alwaysOnTop', true)
+    set({}, 'championInsight.hideOnGameStart', true)
     expect(popup.isVisible()).toBe(false)
-    await set({}, 'championInsight.hideOnGameStart', false)
+    set({}, 'championInsight.hideOnGameStart', false)
     expect(popup.isVisible()).toBe(false)
-    await expect(set({}, 'championInsight.unrecognized', true)).rejects.toThrow('Unsupported renderer store key')
+    expect(() => set({}, 'championInsight.unrecognized', true)).toThrow('Unsupported renderer store key')
   })
 })

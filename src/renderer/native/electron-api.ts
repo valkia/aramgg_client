@@ -21,9 +21,6 @@ export const electronAPI: ElectronAPI = {
   windows: {
     ready: () => requireElectronAPI().windows.ready(),
     showPopup: (...args) => requireElectronAPI().windows.showPopup(...args),
-    showCurrentChampion: () => requireElectronAPI().windows.showCurrentChampion(),
-    getTabGuideStatus: () => requireElectronAPI().windows.getTabGuideStatus(),
-    setTabGuideEnabled: (enabled) => requireElectronAPI().windows.setTabGuideEnabled(enabled),
     hidePopup: (...args) => requireElectronAPI().windows.hidePopup(...args),
     hideFloating: (...args) => requireElectronAPI().windows.hideFloating(...args),
     hideAugmentSidePanel: (...args) => requireElectronAPI().windows.hideAugmentSidePanel(...args),

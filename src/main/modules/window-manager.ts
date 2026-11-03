@@ -55,9 +55,6 @@ let mainWindow: BrowserWindow | null = null
 let popupWindow: BrowserWindow | null = null
 let popupGameflowPhase: GameflowPhase | null = null
 let popupOpenedManually = false
-// 按住 Tab 打开的局内速查点击穿透；松开、隐藏或阶段变化后恢复。
-let popupClickThrough = false
-let popupRequestedVisible = false
 let floatingWindow: BrowserWindow | null = null
 let augmentSidePanelWindow: BrowserWindow | null = null
 let mainWindowCloseAllowed = false
@@ -209,43 +206,20 @@ export function applyAugmentSidePanelWindowLayout() {
 }
 
 export function applyPopupWindowPreferences(phase: GameflowPhase | null = popupGameflowPhase): void {
-    if (phase !== popupGameflowPhase) {
-        if (popupClickThrough) setPopupClickThrough(false)
-        if (phase === 'GameStart' || phase === 'InProgress') popupOpenedManually = false
+    if (phase !== popupGameflowPhase && (phase === 'GameStart' || phase === 'InProgress')) {
+        popupOpenedManually = false
     }
     popupGameflowPhase = phase
     if (!popupWindow || popupWindow.isDestroyed()) {
         return
     }
 
+    setOverlayAlwaysOnTop(popupWindow, shouldKeepChampionInsightOnTop(), 'popup')
     const inGame = phase === 'GameStart' || phase === 'InProgress'
-    // 局内主动打开的攻略需要压在全屏游戏上方，不受“强制置顶”偏好限制。
-    setOverlayAlwaysOnTop(popupWindow,
-        popupClickThrough || (popupOpenedManually && inGame) || shouldKeepChampionInsightOnTop(), 'popup')
     if (!popupOpenedManually && (!shouldShowChampionDetails() || (inGame && shouldHideChampionInsightOnGameStart())) &&
         popupWindow.isVisible()) {
         popupWindow.hide()
     }
-}
-
-export function getPopupPresentation() {
-    return { visible: popupRequestedVisible, explicit: popupOpenedManually, clickThrough: popupClickThrough }
-}
-
-function setPopupClickThrough(clickThrough: boolean): void {
-    popupClickThrough = clickThrough
-    if (popupWindow && !popupWindow.isDestroyed()) {
-        popupWindow.setIgnoreMouseEvents(clickThrough, { forward: true })
-    }
-}
-
-/**
- * 当前英雄攻略/局内速查的展示方式：explicit 复用手动打开语义，clickThrough 仅用于 Tab 速查。
- */
-export function setPopupPresentation(explicit: boolean, clickThrough = false): void {
-    popupOpenedManually = explicit
-    setPopupClickThrough(clickThrough)
-    applyPopupWindowPreferences()
 }
 
 export function showPopupWindowManually(): void {
@@ -686,14 +660,10 @@ export const createPopupWindow = async (
         webPreferences,
     })
     applyPopupWindowPreferences()
-    popupWindow.on('show', () => { popupRequestedVisible = true; applyPopupWindowPreferences() })
+    popupWindow.on('show', () => applyPopupWindowPreferences())
     popupWindow.on('hide', () => {
         // macOS may deliver an earlier hide after a new explicit show.
-        if (!popupWindow?.isVisible()) {
-            popupOpenedManually = false
-            popupRequestedVisible = false
-            setPopupClickThrough(false)
-        }
+        if (!popupWindow?.isVisible()) popupOpenedManually = false
     })
     attachWindowDiagnostics('popup', popupWindow)
 
@@ -706,8 +676,6 @@ export const createPopupWindow = async (
     popupWindow.on('closed', () => {
         logger.info('Popup window closed')
         popupOpenedManually = false
-        popupClickThrough = false
-        popupRequestedVisible = false
         popupWindow = null
     })
 
