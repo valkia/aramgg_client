@@ -22,6 +22,7 @@ type MacCaptureBinding = {
   requestTabAccess(): boolean
   captureGame(width: number, height: number, timeoutMs: number): Promise<NativeCapture>
   inspectOverlay(handle: Buffer): Record<string, number | boolean>
+  requestScreenCaptureAccess(): boolean
 }
 const require = createRequire(import.meta.url)
 let binding: MacCaptureBinding | null | undefined
@@ -93,4 +94,9 @@ export function getMacTabState(enabled: boolean): MacTabState | null {
 
 export function requestMacTabAccess(): boolean {
   return getBinding()?.requestTabAccess() || false
+}
+
+/** 请求屏幕录制授权：仅在系统从未询问过时弹出授权框，授权后需重启应用生效。 */
+export function requestMacScreenCaptureAccess(): boolean {
+  return getBinding()?.requestScreenCaptureAccess() || false
 }

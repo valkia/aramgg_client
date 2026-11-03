@@ -48,7 +48,7 @@ function run(command, args, options = {}) {
 }
 
 const MAC_CAPTURE_MODULE = path.join('.runtime', 'mac-capture', 'aramgg_capture.node')
-const MAC_CAPTURE_EXPORTS = ['captureGame', 'inspectOverlay']
+const MAC_CAPTURE_EXPORTS = ['captureGame', 'inspectOverlay', 'requestScreenCaptureAccess']
 
 function fail(message) {
   console.error(`\n[pack] ${message}`)

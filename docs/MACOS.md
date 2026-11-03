@@ -35,12 +35,21 @@ No public Mac binary release is included in this contribution.
 1. Start League and ARAMGG. LCU discovery is process-first; selecting
    `League of Legends.app` is an optional fallback, not a required setting.
 2. Enable **Privacy & Security → Screen Recording** for the application when
-   prompted, then restart it. Automatic capture reads only the Riot game window;
-   it does not fall back to desktop contents or capture audio.
-3. Optionally enable **Tab guide** in the assistant. This needs **Input Monitoring**.
+   prompted, then restart it. The app requests access once per run when it is
+   not granted; macOS only shows the prompt if it has never asked before, so a
+   previously denied or stale entry must be fixed in System Settings. Automatic
+   capture reads only the Riot game window; it does not fall back to desktop
+   contents or capture audio.
+3. Set League's **Video → Window Mode** to **Borderless** (or Windowed).
+   Exclusive fullscreen is not supported: the game takes over the display, its
+   windows are not composited, and window capture returns black frames (observed
+   on a two-display setup). Overlays also cannot appear above exclusive
+   fullscreen. Change the mode before the match starts; switching mid-match may
+   leave the game window in the fullscreen state.
+4. Optionally enable **Tab guide** in the assistant. This needs **Input Monitoring**.
    Hold unmodified Tab while League is in front to show the in-game quick guide;
    release it to hide the guide. The game's own scoreboard still receives the key.
-4. To reposition the guide, use **Open current champion guide**, then drag its
+5. To reposition the guide, use **Open current champion guide**, then drag its
    title bar. The position is saved. A guide opened by Tab is click-through.
 
 The listen-only native keyboard handler only retains Tab pressed/released state,
@@ -111,6 +120,15 @@ Automated (re-run on 2026-11-03 after rebasing onto upstream v0.2.19):
   `sharp`/temp-dir environment issues), with no new platform-logic failures.
   This is not a substitute for running on Windows.
 
+Live re-test on 2026-11-03 after the rebase (packaged app, NA client,
+Chinese text, borderless mode on a two-display setup):
+
+- LCU connection, champion-select bench recommendations and item-set sync work.
+- First augment choice recognized all three cards (95% confidence, ~270 ms);
+  two rerolls updated the recommendations; overlays cleared after selection.
+- In exclusive fullscreen the same build captured only black frames (see
+  Permissions and use); switching to borderless before the next match fixed it.
+
 Manual (earlier live testing of the platform port):
 
 - Local packaged application launches, connects to LCU, captures game-window
@@ -126,8 +144,9 @@ Not yet verified:
 
 - Windows packaging and window smoke (`npm run test:packaged-windows`) — no
   Windows environment; to be accepted through the repository CI.
-- In-game re-verification after the rebase: live OCR, reroll refresh and
-  always-on-top ordering over the fullscreen game.
+- Hover-tooltip retention was not re-checked in the 2026-11-03 live test.
+- Screen Recording first-run prompt: implemented and unit tested, not yet
+  verified with a fresh permission state.
 - Forge/anvil choice screens, additional resolutions/displays, and repeated
   first-selection and fullscreen/collapse recovery checks.
 - Intel Macs (not claimed).
