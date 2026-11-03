@@ -90,43 +90,6 @@ onBeforeUnmount(stopChampionMonitor)
 </script>
 
 <style scoped>
-.config-card {
-    flex: 0 0 auto;
-    background:
-        linear-gradient(145deg, rgba(31, 43, 53, 0.62), rgba(7, 10, 13, 0.34));
-    border: 1px solid var(--lol-border-soft);
-    border-radius: 4px;
-    padding: 14px;
-    overflow: hidden;
-    color: var(--lol-ivory);
-    box-shadow: inset 0 0 18px rgba(194, 156, 109, 0.04);
-}
-
-.card-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0 0 12px;
-    background: transparent;
-    border-bottom: 0;
-}
-
-.card-icon {
-    width: 16px;
-    height: 16px;
-    color: var(--lol-gold-2);
-}
-
-.card-title {
-    margin: 0;
-    color: var(--lol-gold-2);
-    font-size: 12px;
-    font-weight: 900;
-    letter-spacing: 0;
-    text-transform: uppercase;
-    flex: 1;
-}
-
 .monitor-status {
     display: flex;
     align-items: center;
@@ -135,7 +98,7 @@ onBeforeUnmount(stopChampionMonitor)
     background: rgba(4, 15, 24, 0.42);
     border: 1px solid var(--lol-border-soft);
     border-radius: 4px;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--lol-muted);
 }
 
@@ -169,10 +132,6 @@ onBeforeUnmount(stopChampionMonitor)
     }
 }
 
-.card-content {
-    padding: 0;
-}
-
 .monitor-controls {
     display: flex;
     gap: 8px;
@@ -190,7 +149,7 @@ onBeforeUnmount(stopChampionMonitor)
     border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
-    font-weight: 900;
+    font-weight: 700;
     transition: all 0.2s;
 }
 
@@ -242,7 +201,7 @@ onBeforeUnmount(stopChampionMonitor)
 }
 
 .info-label {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--lol-faint);
     text-transform: uppercase;
     letter-spacing: 0;
@@ -250,7 +209,7 @@ onBeforeUnmount(stopChampionMonitor)
 
 .info-value {
     font-size: 14px;
-    font-weight: 800;
+    font-weight: 700;
     color: var(--lol-ivory);
     overflow: hidden;
     text-overflow: ellipsis;

@@ -110,3 +110,4 @@ node tests/electron/test-augment-ocr-fixtures.js
 - 全项目代码审查与整改状态：`docs/CODE_REVIEW_2026-07-10.md`
 - Electron 更新方案：`docs/ELECTRON_APP_UPDATE_STRATEGY.md`
 - 项目改进建议与实施进度：`docs/PROJECT_RECOMMENDATIONS_2026-07-10.md`
+- 界面与交互审查及待办：`docs/UI_UX_REVIEW_2026-11-03.md`
