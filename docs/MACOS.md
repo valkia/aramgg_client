@@ -30,8 +30,8 @@ existing update and manual-download fallback. Versioned recommendation-data
 refresh remains separate from application updates.
 GitHub Actions builds the Apple silicon ZIP alongside the Windows installer in
 `.github/workflows/release-windows.yml`. Both packaged smoke checks must pass
-before a tag creates a regular GitHub release, without replacing the stable
-Latest release. GitHub-only packages do not update the production client version
+before a tag creates a regular GitHub release marked as Latest.
+GitHub-only packages do not update the production client version
 configuration. Download the Mac ZIP from that release and extract it;
 the macOS CI also verifies all three bundled locale datasets and runs fixture OCR.
 

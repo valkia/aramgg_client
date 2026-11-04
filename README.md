@@ -126,7 +126,7 @@ npm run build
 <details>
 <summary><strong>维护者：发布与质量检查</strong></summary>
 
-GitHub Actions 会在 Windows 和 Apple silicon macOS Runner 上执行 lint、type-check、unit tests、打包与安装包启动检查；Mac 还会运行内置 OCR 样本检查。使用 `npm run release:patch|minor|major` 创建版本提交与 annotated tag，再运行 `npm run release:push`。tag 默认创建普通 GitHub Release，不设为 Latest；线上客户端的版本提示通过远端配置单独发布。
+GitHub Actions 会在 Windows 和 Apple silicon macOS Runner 上执行 lint、type-check、unit tests、打包与安装包启动检查；Mac 还会运行内置 OCR 样本检查。使用 `npm run release:patch|minor|major` 创建版本提交与 annotated tag，再运行 `npm run release:push`。tag 默认创建普通 GitHub Release 并设为 Latest；线上客户端的版本提示通过远端配置单独发布。
 
 源码开发和普通本地打包不会向生产服上传战绩；只有该 GitHub 官方发布 workflow 会注入官方通道标记和生产写接口 origin。
 

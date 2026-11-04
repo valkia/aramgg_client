@@ -203,7 +203,7 @@ jobs:
             gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
           else
             cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
-          GitHub-only release of Windows and macOS packages. The stable Latest release and production client version configuration are not changed.
+          Windows and macOS packages published as the latest GitHub release. Production client version configuration is managed separately and is not changed by this workflow.
 
           - Windows x64: `aramgg_client Setup *.exe` (with blockmap and update metadata).
           - Apple silicon, macOS 14+: `ARAMGG-Mac-*-arm64.zip`. Extract the ZIP to get `aramgg_client.app`.
@@ -214,5 +214,5 @@ jobs:
           NOTES
             gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
               --verify-tag --title "$GITHUB_REF_NAME" \
-              --notes-file "$RUNNER_TEMP/release-notes.md" --latest=false
+              --notes-file "$RUNNER_TEMP/release-notes.md" --latest
           fi
