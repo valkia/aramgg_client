@@ -109,6 +109,7 @@ const expectNextCaptureToUseGate = (service) => {
 describe.sequential('automatic screenshot service lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('ARAMGG_GAME_DIAGNOSTICS', undefined)
     mocks.tencentSource.getCandidates.mockReturnValue(null)
     mocks.windows.length = 0
     mocks.prepareWindows.mockResolvedValue([])
@@ -118,6 +119,7 @@ describe.sequential('automatic screenshot service lifecycle', () => {
     autoScreenshotService.reset()
     vi.useRealTimers()
     vi.restoreAllMocks()
+    vi.unstubAllEnvs()
   })
 
   it('redisplays the same cards after repeated in-game collapse and expand cycles', async () => {
@@ -235,6 +237,7 @@ describe.sequential('automatic screenshot service lifecycle', () => {
     const notify = vi.spyOn(service, '_notifyAugmentDetected').mockResolvedValue(undefined)
     const pending = service._analyzeGateScreenshot(Buffer.from('old-gate'))
     mocks.onTencentSelection!({ at: Date.now(), index: 2, key: 'test_3', id: 3 })
+    expect(mocks.logger.info).toHaveBeenCalledWith('[tencent augments]', expect.objectContaining({ event: 'selection-completed', selectedAugmentId: 3 }))
     finish({ success: true, likely: true, rerollVisible: true })
     await pending
     expect(notify).not.toHaveBeenCalled()
@@ -536,7 +539,8 @@ describe.sequential('automatic screenshot service lifecycle', () => {
     expectNextCaptureToUseGate(service)
   })
 
-  it('logs observed partial selection slots without shifting the unread middle slot', async () => {
+  it.each([undefined, '1'])('keeps partial slot diagnostics opt-in without changing recognition: %s', async (flag) => {
+    vi.stubEnv('ARAMGG_GAME_DIAGNOSTICS', flag)
     const service = createRunningIdleService()
     vi.spyOn(service, '_savePartialOcrScreenshot').mockImplementation(() => {})
     mocks.analyzeScreenshot.mockResolvedValue({
@@ -547,8 +551,13 @@ describe.sequential('automatic screenshot service lifecycle', () => {
       },
     })
     await service._analyzeScreenshot(Buffer.from('partial-frame'))
-    expect(mocks.logger.debug).toHaveBeenCalledWith('Augment selection UI observed', {
-      candidateSlots: [1413, null, 1048], cardCount: 2, confidence: 0.2, recognitionSource: 'ocr',
-    })
+    if (flag === '1') {
+      expect(mocks.logger.debug).toHaveBeenCalledWith('Augment selection UI observed', {
+        candidateSlots: [1413, null, 1048], cardCount: 2, confidence: 0.2, recognitionSource: 'ocr',
+      })
+    } else {
+      expect(mocks.logger.debug.mock.calls.some(([message]) => message === 'Augment selection UI observed')).toBe(false)
+    }
+    expect(service.captureMode).toBe('active-selection')
   })
 })

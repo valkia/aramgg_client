@@ -6,6 +6,7 @@ import { TencentAugmentSource } from './tencent-augment-source.ts'
 import { isTencentRegion } from './tencent-log-codec.ts'
 import { watchTencentLog } from './tencent-log-watch.ts'
 import logger from '../../modules/logger.ts'
+import { isGameDiagnosticsEnabled } from '../diagnostics/diagnostic-settings.ts'
 
 const execute = promisify(execFile)
 
@@ -68,6 +69,10 @@ export function createTencentAugmentSource(
     watch: watchTencentLog,
     selected,
     candidatesReady,
-    diagnostic: (event, details) => logger.debug('[tencent augments]', { event, ...details }),
+    diagnostic: (event, details) => {
+      // Source status is already deduplicated by TencentAugmentSource.
+      if (event === 'source-status') logger.info('[tencent augments]', { event, ...details })
+      else if (isGameDiagnosticsEnabled()) logger.debug('[tencent augments]', { event, ...details })
+    },
   })
 }

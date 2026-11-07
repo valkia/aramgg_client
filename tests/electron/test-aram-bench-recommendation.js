@@ -18,6 +18,7 @@ function makeSnapshot(overrides = {}) {
     champSelectSession: {},
     localPlayerCellId: 1,
     selfChampionId,
+    subsetChampionIds: overrides.subsetChampionIds ?? [],
     benchEnabled: overrides.benchEnabled ?? benchChampions.length > 0,
     benchChampions,
     myTeam: overrides.myTeam ?? [{ cellId: 1, championId: selfChampionId }],
@@ -66,6 +67,14 @@ assert.equal(betterBench.currentChampion.championId, 63)
 assert.equal(betterBench.recommendedChampion.championId, 99)
 assert.ok(betterBench.deltaScore > 0)
 assert.deepEqual(collectAramCandidateChampionIds(makeSnapshot()), [63, 99, 101])
+
+const offeredSnapshot = makeSnapshot({ selfChampionId: null, subsetChampionIds: [63, 99, 101], benchChampions: [], myTeam: [] })
+const offered = getAramBenchRecommendation(offeredSnapshot, championStatsById)
+assert.equal(offered.status, 'ready')
+assert.equal(offered.decisionReason, 'subset-pick')
+assert.equal(offered.recommendedChampion.championId, 99)
+assert.deepEqual(collectAramCandidateChampionIds(offeredSnapshot), [63, 99, 101])
+assert.ok(offered.candidates.every((candidate) => candidate.source === 'subset'))
 
 const unknownGames = getAramBenchRecommendation(makeSnapshot(), Object.fromEntries(
   Object.entries(championStatsById).map(([id, stats]) => [id, { ...stats, numGames: null }])

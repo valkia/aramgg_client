@@ -19,8 +19,10 @@ import axios from 'axios'
 import logger from '../../modules/logger.ts'
 import { getLcuToken } from './token-loader.ts'
 import { LcuJsonApiEvent, LcuWampSocket } from './lcu-wamp-socket.ts'
-import { ChampSelectDiagnostics, SUBSET_CHAMPIONS_PATH } from './champ-select-diagnostics.ts'
+import { ChampSelectDiagnostics } from './champ-select-diagnostics.ts'
+import { SubsetChampions, SUBSET_CHAMPIONS_PATH } from './subset-champions.ts'
 import { collectAramCandidateChampionIds } from '../aram/bench-recommendation.ts'
+import { isGameDiagnosticsEnabled } from '../diagnostics/diagnostic-settings.ts'
 import {
   LCUAuthResult,
   LCUAuthConfig,
@@ -94,6 +96,7 @@ const createEmptyChampSelectSnapshot = (
   champSelectSession: null,
   localPlayerCellId: null,
   selfChampionId: null,
+  subsetChampionIds: [],
   benchEnabled: false,
   benchChampions: [],
   myTeam: [],
@@ -353,6 +356,7 @@ const logChampSelectSessionDiagnostic = (
   session: ChampSelectSession | null,
   snapshot: ChampSelectSnapshot
 ): void => {
+  if (!isGameDiagnosticsEnabled()) return
   if (!session || snapshot.status !== 'ready') {
     lastChampSelectSessionDiagnosticSignature = ''
     return
@@ -522,6 +526,7 @@ const buildChampSelectSnapshot = (
     champSelectSession: session,
     localPlayerCellId,
     selfChampionId: getSelfChampionId(session),
+    subsetChampionIds: [],
     benchEnabled: session.benchEnabled === true || benchChampions.length > 0,
     benchChampions,
     myTeam: Array.isArray(session.myTeam) ? session.myTeam : [],
@@ -559,21 +564,22 @@ export interface GameflowPhaseSubscriptionOptions {
  * 统一的 LCU 服务类
  */
 export class LCUService {
+  private readonly subsetChampions = new SubsetChampions(async () => {
+    if (!this.active || !this.url || !this.auth) return { status: null, errorCode: 'lcu-unavailable' }
+    try {
+      const response = await axios.get(`${this.url}${SUBSET_CHAMPIONS_PATH}`, {
+        ...this.auth, httpsAgent: this.httpsAgent, proxy: false,
+        timeout: 1500, validateStatus: () => true,
+      })
+      return { status: response.status, data: response.data }
+    } catch (error) {
+      return { status: null, errorCode: getLcuRequestErrorCode(error) || 'request-failed' }
+    }
+  })
   private readonly champSelectDiagnostics = new ChampSelectDiagnostics({
-    enabled: process.env.ARAMGG_GAME_DIAGNOSTICS !== '0',
-    log: (message, details) => logger.info(message, details),
-    readSubset: async () => {
-      if (!this.active || !this.url || !this.auth) return { status: null, errorCode: 'lcu-unavailable' }
-      try {
-        const response = await axios.get(`${this.url}${SUBSET_CHAMPIONS_PATH}`, {
-          ...this.auth, httpsAgent: this.httpsAgent, proxy: false,
-          timeout: 1500, validateStatus: () => true,
-        })
-        return { status: response.status, data: response.data }
-      } catch (error) {
-        return { status: null, errorCode: getLcuRequestErrorCode(error) || 'request-failed' }
-      }
-    },
+    enabled: isGameDiagnosticsEnabled(),
+    log: (message, details) => logger.debug(message, details),
+    readSubset: () => this.subsetChampions.read(),
   })
   private active: boolean = false
   private url: string | null = null
@@ -613,7 +619,10 @@ export class LCUService {
    * 设置内部变量（认证信息和 API URLs）
    */
   private setVars(token: string | null, port: string | null, url: string | null): void {
-    if (this.port !== port || !token) this.champSelectDiagnostics.observePhase(null, 'connection-reset')
+    if (this.port !== port || this.token !== token || !token) {
+      this.subsetChampions.reset()
+      this.champSelectDiagnostics.observePhase(null, 'connection-reset')
+    }
     this.active = !!token
     this.url = url
     this.token = token
@@ -901,18 +910,28 @@ export class LCUService {
 
   /**
    * 获取标准化后的只读选人快照。
-   * 该入口只读取 gameflow 和 champ-select session，不执行任何选人写入操作。
+   * 只读取阶段、选人会话和本人候选卡，不执行选人写入操作。
    */
   async getChampSelectSnapshot(): Promise<ChampSelectSnapshot> {
     const gameflowPhase = await this.getGameflowPhase()
     const diagnosticRevision = this.champSelectDiagnostics.revision
+    const subsetRevision = this.subsetChampions.revision
     const session = gameflowPhase === 'ChampSelect' ? await this.getCurrentSession() : null
-
-    this.champSelectSnapshot = buildChampSelectSnapshot({
+    const snapshot = buildChampSelectSnapshot({
       connected: this.active,
       gameflowPhase,
       session,
     })
+    // The endpoint retains initial cards after picking. Only expose them while still choosing.
+    if (snapshot.status === 'ready' && session?.allowSubsetChampionPicks === true && !snapshot.selfChampionId) {
+      snapshot.subsetChampionIds = await this.subsetChampions.getForSnapshot()
+    }
+    if (subsetRevision !== this.subsetChampions.revision) {
+      return createEmptyChampSelectSnapshot({
+        connected: this.active, gameflowPhase: null, status: 'empty', reason: 'session-changed',
+      })
+    }
+    this.champSelectSnapshot = snapshot
     logChampSelectSessionDiagnostic(session, this.champSelectSnapshot)
     this.champSelectDiagnostics.observeSnapshot(
       this.champSelectSnapshot, collectAramCandidateChampionIds(this.champSelectSnapshot), diagnosticRevision
@@ -1259,6 +1278,7 @@ export class LCUService {
     }
 
     const diagnosticRevision = this.champSelectDiagnostics.revision
+    const subsetRevision = this.subsetChampions.revision
     try {
       const res = await axios.get<GameflowPhase>(this.urls.gameflowPhase, {
         ...this.auth,
@@ -1266,6 +1286,8 @@ export class LCUService {
         validateStatus: (status) => status < 500,
         timeout: 5000, // 添加超时
       })
+
+      if (subsetRevision !== this.subsetChampions.revision) return null
 
       if (res.status === 404 || res.status === 401) {
         // 重新获取 token
@@ -1276,6 +1298,7 @@ export class LCUService {
       }
 
       logger.debug('Current gameflow phase:', res.data)
+      this.subsetChampions.observePhase(res.data)
       if (diagnosticRevision === this.champSelectDiagnostics.revision) {
         this.champSelectDiagnostics.observePhase(res.data, 'http')
       }
@@ -1521,16 +1544,27 @@ export class LCUService {
       return null
     }
 
+    const connectionToken = this.token
+    const connectionPort = this.port
+    const isCurrentConnection = () => this.token === connectionToken && this.port === connectionPort
     const socket = new LcuWampSocket({
       token: this.token,
       port: this.port,
       onGameflowPhase: async (phase, event) => {
+        if (!isCurrentConnection()) return
+        this.subsetChampions.observePhase(phase)
         this.champSelectDiagnostics.observePhase(phase, 'websocket')
         await callback(phase as GameflowPhase, event as LcuJsonApiEvent<GameflowPhase>)
       },
-      onJsonApiEvent: (event) => this.champSelectDiagnostics.observeEvent(event),
+      onJsonApiEvent: (event) => {
+        if (!isCurrentConnection()) return
+        this.subsetChampions.observeEvent(event)
+        this.champSelectDiagnostics.observeEvent(event)
+      },
       onOpen: options.onOpen,
       onClose: (reason) => {
+        if (!isCurrentConnection()) return
+        this.subsetChampions.reset()
         this.champSelectDiagnostics.observePhase(null, 'websocket-closed')
         options.onClose?.(reason)
       },

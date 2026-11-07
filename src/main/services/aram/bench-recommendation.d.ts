@@ -10,7 +10,7 @@ export type AramBenchRecommendationStatus =
 
 export interface AramBenchCandidate {
   championId: number
-  source: 'current' | 'bench' | 'teammate'
+  source: 'current' | 'subset' | 'bench' | 'teammate'
   sourceLabel: string
   isCurrent: boolean
   isBench: boolean

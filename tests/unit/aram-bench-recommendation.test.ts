@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createEmptyAramBenchRecommendation,
+  collectAramCandidateChampionIds,
   getAramBenchRecommendation,
 } from '../../src/main/services/aram/bench-recommendation.ts'
 
@@ -15,6 +16,40 @@ const snapshot = (overrides = {}) => ({
 })
 
 describe('ARAM recommendation evidence', () => {
+  it.each([[105, 26], [875, 111, 266]])('ranks the recorded offered cards before any champion is picked: %j', (...ids) => {
+    const offered = snapshot({ selfChampionId: null, subsetChampionIds: ids, benchChampions: [], myTeam: [] })
+    const data = Object.fromEntries(ids.map((id, i) => [id, stats(0.5 + i * 0.04)]))
+    expect(collectAramCandidateChampionIds(offered)).toEqual(ids)
+    const result = getAramBenchRecommendation(offered, data)
+    expect(result).toMatchObject({ status: 'ready', decisionReason: 'subset-pick', currentChampion: null, readOnly: true })
+    expect(result.recommendedChampion?.championId).toBe(ids.at(-1))
+    expect(result.candidates).toHaveLength(ids.length)
+    expect(result.candidates.every((candidate) => candidate.source === 'subset')).toBe(true)
+  })
+
+  it('deduplicates offered cards against current, bench and teammates while keeping each available hero', () => {
+    const offered = snapshot({
+      subsetChampionIds: [99, 103, 99, 63], benchChampions: [{ championId: 99 }, { championId: 101 }],
+      myTeam: [{ cellId: 1, championId: 63 }, { cellId: 2, championId: 103 }, { cellId: 3, championId: 22 }],
+    })
+    expect(collectAramCandidateChampionIds(offered)).toEqual([63, 99, 103, 101, 22])
+    const result = getAramBenchRecommendation(offered, { 63: stats(), 99: stats(0.6) })
+    expect(result.decisionReason).toBe('subset-higher')
+    expect(result.candidates.map(({ championId, source }) => [championId, source])).toEqual([
+      [99, 'subset'], [63, 'current'], [22, 'teammate'], [101, 'bench'], [103, 'subset'],
+    ])
+  })
+
+  it('recommends the best personal card before picking, keeping higher-ranked bench and teammate heroes visible', () => {
+    const result = getAramBenchRecommendation(snapshot({
+      selfChampionId: null, subsetChampionIds: [63, 101], benchChampions: [{ championId: 99 }],
+      myTeam: [{ cellId: 1, championId: 0 }, { cellId: 2, championId: 103 }],
+    }), { 63: stats(0.5), 101: stats(0.54), 99: stats(0.56), 103: stats(0.6) })
+    expect(result.candidates.map(({ championId }) => championId)).toEqual([103, 99, 101, 63])
+    expect(result.recommendedChampion).toMatchObject({ championId: 101, source: 'subset' })
+    expect(result.decisionReason).toBe('subset-pick')
+  })
+
   it('retains the relative strength weights without a game-count dimension', () => {
     const result = getAramBenchRecommendation(snapshot(), { 63: stats(), 99: stats(0.56) })
     expect(result.decisionReason).toBe('bench-higher')

@@ -97,6 +97,7 @@ export interface ChampSelectSession {
   theirTeam: TeamMember[]
   actions: ChampSelectAction[][]
   benchEnabled?: boolean
+  allowSubsetChampionPicks?: boolean
   benchChampions?: ChampSelectBenchChampion[]
   timer?: ChampSelectTimer
   errorCode?: string
@@ -111,6 +112,7 @@ export interface ChampSelectSnapshot {
   champSelectSession: ChampSelectSession | null
   localPlayerCellId: number | null
   selfChampionId: number | null
+  subsetChampionIds: number[]
   benchEnabled: boolean
   benchChampions: ChampSelectBenchChampion[]
   myTeam: TeamMember[]

@@ -5,13 +5,14 @@ import type {
   GameflowPhase,
 } from '../../../shared/ipc-contract.ts'
 
-type CandidateSource = 'current' | 'bench' | 'teammate'
+type CandidateSource = AramRecommendationCandidate['source']
 
 interface RecommendationSnapshot {
   status?: string
   reason?: string | null
   gameflowPhase?: GameflowPhase | null
   selfChampionId?: unknown
+  subsetChampionIds?: number[]
   localPlayerCellId?: unknown
   benchEnabled?: boolean
   benchChampions?: Array<{ championId?: unknown }>
@@ -37,6 +38,7 @@ const NO_BENCH_STATUS = 'no-bench'
 const NO_CANDIDATES_STATUS = 'no-candidates'
 const CANDIDATE_SOURCE_LABELS: Record<CandidateSource, string> = {
   current: '当前',
+  subset: '候选卡',
   bench: '席位',
   teammate: '队友',
 }
@@ -289,6 +291,8 @@ function getCandidateFocusName(candidate: AramRecommendationCandidate | null): s
     return `席位英雄 ${candidate.name}`
   }
 
+  if (candidate.source === 'subset') return `候选卡英雄 ${candidate.name}`
+
   return candidate.name
 }
 
@@ -332,7 +336,7 @@ export function collectAramCandidateChampionIds(snapshot: RecommendationSnapshot
   }
 
   addChampionId(snapshot.selfChampionId)
-
+  collectUniqueChampionIds(snapshot.subsetChampionIds || []).forEach(addChampionId)
   collectBenchChampionIds(snapshot).forEach(addChampionId)
   collectTeammateChampionIds(snapshot).forEach(addChampionId)
 
@@ -356,10 +360,11 @@ export function getAramBenchRecommendation(
   }
 
   const currentChampionId = toPositiveInteger(snapshot.selfChampionId)
+  const subsetChampionIds = collectUniqueChampionIds(snapshot.subsetChampionIds || [])
   const benchChampionIds = collectBenchChampionIds(snapshot)
   const teammateChampionIds = collectTeammateChampionIds(snapshot)
 
-  if (!currentChampionId && !benchChampionIds.length && !teammateChampionIds.length) {
+  if (!currentChampionId && !subsetChampionIds.length && !benchChampionIds.length && !teammateChampionIds.length) {
     return buildBaseRecommendation(snapshot, NO_CANDIDATES_STATUS, 'no-champion-candidates')
   }
 
@@ -371,6 +376,12 @@ export function getAramBenchRecommendation(
       buildCandidate(currentChampionId, 'current', snapshot, championStatsById)
     )
   }
+
+  subsetChampionIds.forEach((championId) => {
+    if (!candidatesById.has(championId)) {
+      candidatesById.set(championId, buildCandidate(championId, 'subset', snapshot, championStatsById))
+    }
+  })
 
   benchChampionIds.forEach((championId) => {
     if (!candidatesById.has(championId)) {
@@ -392,17 +403,22 @@ export function getAramBenchRecommendation(
 
   const candidates = sortCandidates([...candidatesById.values()])
   const currentChampion = currentChampionId ? candidatesById.get(currentChampionId) || null : null
-  const recommendedChampion = candidates[0] || null
+  const recommendedChampion = !currentChampion && subsetChampionIds.length
+    ? candidates.find((candidate) => candidate.source === 'subset') || null
+    : candidates[0] || null
 
   if (!currentChampion) {
     return {
-      ...buildBaseRecommendation(snapshot, NO_CURRENT_STATUS, 'no-current-champion'),
-      decisionReason: 'no-current-champion',
+      ...buildBaseRecommendation(snapshot, subsetChampionIds.length ? READY_STATUS : NO_CURRENT_STATUS,
+        subsetChampionIds.length ? null : 'no-current-champion'),
+      decisionReason: recommendedChampion?.source === 'subset' ? 'subset-pick' : 'no-current-champion',
       recommendedChampion,
       candidates,
       confidence: recommendedChampion?.confidence || 0,
       reasons: recommendedChampion
-        ? [`当前英雄尚未稳定读取，候选中优先关注 ${getCandidateFocusName(recommendedChampion)}`]
+        ? [recommendedChampion.source === 'subset'
+          ? `${getCandidateFocusName(recommendedChampion)} 综合排序最高，可优先考虑`
+          : `当前英雄尚未稳定读取，候选中优先关注 ${getCandidateFocusName(recommendedChampion)}`]
         : ['当前英雄尚未稳定读取'],
     }
   }
@@ -416,7 +432,7 @@ export function getAramBenchRecommendation(
 
   if (noAlternativeCandidates) {
     decisionReason = 'no-alternatives'
-    reasons.push('没有可用席位或队友已选英雄，建议保留当前英雄')
+    reasons.push('没有其他可用候选，建议保留当前英雄')
   } else if (!recommendedChampion || recommendedChampion.championId === currentChampion.championId || deltaScore < 0.015) {
     decisionReason = !recommendedChampion || recommendedChampion.championId === currentChampion.championId
       ? 'current-best'
@@ -426,7 +442,7 @@ export function getAramBenchRecommendation(
     decisionReason = 'teammate-higher'
     reasons.push(`${recommendedChampion.name} 是队友已选英雄，综合评分高于当前英雄，可作为只读沟通参考`)
   } else {
-    decisionReason = 'bench-higher'
+    decisionReason = recommendedChampion.source === 'subset' ? 'subset-higher' : 'bench-higher'
     reasons.push(`${getCandidateFocusName(recommendedChampion)} 综合评分高于当前英雄，建议优先关注`)
   }
 

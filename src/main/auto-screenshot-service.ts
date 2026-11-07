@@ -35,6 +35,7 @@ import {
 import { shouldRaiseOverlayWindow } from './modules/overlay-window-state.ts'
 import store from './modules/app-store.ts'
 import { createTencentAugmentSource } from './services/augments/tencent-augment-runtime.ts'
+import { isGameDiagnosticsEnabled } from './services/diagnostics/diagnostic-settings.ts'
 import { getPartialOcrScreenshotDir } from './modules/app-paths.ts'
 import {
     createInitialPartialAugmentSelection,
@@ -199,7 +200,7 @@ class AutoScreenshotService {
             this.tencentPickSuppressUntil = Date.now() + 2000
             this.tencentCaptureRequested = false
             this.tencentCaptureUntil = 0
-            logger.debug('[tencent augments]', { event: 'selection-completed',
+            logger.info('[tencent augments]', { event: 'selection-completed',
                 observedAt: new Date(details.at).toISOString(), candidateIndex: details.index,
                 augmentKey: details.key, selectedAugmentId: details.id, idSource: 'local-catalogue',
             })
@@ -541,7 +542,7 @@ class AutoScreenshotService {
         this.tencentCaptureRequested = true
         this.tencentCaptureUntil = Date.now() + 2000
         this.pendingAnalysisBuffer = null
-        logger.debug('[tencent augments]', { event: 'capture-requested',
+        if (isGameDiagnosticsEnabled()) logger.debug('[tencent augments]', { event: 'capture-requested',
             observedAt: new Date(timing.observedAt).toISOString(),
             readerDelayMs: timing.receivedAt - timing.observedAt,
             captureBusy: this.isCapturing, analysisBusy: this.isAnalyzing,
@@ -713,7 +714,7 @@ class AutoScreenshotService {
             const gateLikely = gateResult.likely === true
             const rerollVisible = gateResult.rerollVisible === true
             if (this.tencentSource.getCandidates()) {
-                logger.debug('[tencent augments]', { event: 'visibility-checked', likely: gateLikely,
+                if (isGameDiagnosticsEnabled()) logger.debug('[tencent augments]', { event: 'visibility-checked', likely: gateLikely,
                     rerollVisible, durationMs: gateResult.durationMs, captureMode: this.captureMode,
                     strongTitleRegions: gateResult.strongTitleRegions ?? null,
                     weakCardRegions: gateResult.weakCardRegions ?? null,
@@ -909,7 +910,7 @@ class AutoScreenshotService {
                 this._savePartialOcrScreenshot(imageBuffer, analysisResult, analysisDuration, runId)
             }
 
-            if (isConfirmedAugmentSelectionUi(analysisResult.analysis)) {
+            if (isGameDiagnosticsEnabled() && isConfirmedAugmentSelectionUi(analysisResult.analysis)) {
                 const candidateSlots = [null, null, null]
                 const observedAugments = Array.isArray(augments) ? augments : []
                 observedAugments.slice(0, 3).forEach((augment, index) => {
@@ -951,7 +952,7 @@ class AutoScreenshotService {
                     this.visibleAugmentMissCount = 0
                     if (analysisResult.recognitionSource === 'tencent-log') {
                         this.tencentCaptureUntil = 0
-                        logger.debug('[tencent augments]', { event: 'candidates-applied',
+                        if (isGameDiagnosticsEnabled()) logger.debug('[tencent augments]', { event: 'candidates-applied',
                             candidateSlots: normalizedAugments.map(augment => augment.id),
                             augmentKeys: normalizedAugments.map(augment => augment.key),
                             visibilitySource: 'screenshot-gate',
@@ -960,7 +961,7 @@ class AutoScreenshotService {
                         })
                     }
 
-                    logger.info(`Augment detected: count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, augments=${getAugmentSummary(normalizedAugments)}`)
+                    logger.info(`Augment detected: source=${analysisResult.recognitionSource || 'ocr'}, count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, augments=${getAugmentSummary(normalizedAugments)}`)
                     this._logFirstDetectionLatency('full', analysisDuration)
                     this._notifyAugmentDetected({
                         ...analysisResult,
@@ -1196,6 +1197,7 @@ class AutoScreenshotService {
         analysisDuration = 0,
         changed = false,
     }) {
+        if (!isGameDiagnosticsEnabled()) return
         const now = Date.now()
         const slotFingerprints = getSlotFingerprints(analysisResult.analysis.slotDiagnostics || [])
         const recognitionSource = analysisResult.recognitionSource || 'ocr'
@@ -1257,6 +1259,7 @@ class AutoScreenshotService {
     }
 
     _savePartialOcrScreenshot(imageBuffer, analysisResult, analysisDuration, runId = this.runId) {
+        if (!isGameDiagnosticsEnabled()) return
         const now = Date.now()
         if (this.partialOcrSaveInFlight || now - this.lastPartialOcrSaveAt < PARTIAL_OCR_SAVE_INTERVAL_MS) {
             return

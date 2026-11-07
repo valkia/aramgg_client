@@ -1,6 +1,8 @@
 # 选人卡片与局内海克斯的统一诊断
 
-本次诊断默认随 client 启动。选人英雄卡片、局内原生接口响应、腾讯组件日志、实验性 WebSocket 事件和已有 OCR 的海克斯识别结果共用一个 `capture.jsonl`，无需单独运行监听器、打开第二个终端或设置 `LOG_LEVEL=DEBUG`。当前采集协议为 v5。
+详细诊断默认关闭。正常运行只在主日志保留候选变化、腾讯来源启用/回退原因、选择完成以及异常，不创建 `capture.jsonl`，不启动局内 API/Swagger/实验性 WebSocket 探测，也不保存 OCR 部分识别的调试截图。选人候选卡、腾讯日志识别与 OCR 回退照常运行。
+
+排查时在启动前设置 `ARAMGG_GAME_DIAGNOSTICS=1`，选人英雄卡片、局内接口响应、腾讯组件事件和 OCR 诊断会共用一个 `capture.jsonl`，无需另开监听器。统一记录会接收 DEBUG 事件，不要求设置 `LOG_LEVEL=DEBUG`；当前协议为 v5。
 
 目标是验证三个节点：初始英雄卡片 ID；游戏中海克斯可选时机及左中右候选；游戏中选完海克斯后的已选 ID 或选择完成信号。第一项已有 HTTP 与 WebSocket 实测证据；国服腾讯组件日志已实测包含候选 key 和本地选择下标，数字 ID 由本地数据映射，属于可选日志通道，并非已公开承诺稳定的 API。局内结果必须在游戏进行时可获取；结算接口和战绩数据不属于本次目标，已移除额外结算采集。
 
@@ -24,7 +26,7 @@
 
 有日志时监听其所在目录的 `main.log` 文件变化，唤醒只读尾部读取；密集通知按至少 50 ms 的读取间隔合并，并保留 500 ms 轮询兜底。目录监听覆盖文件轮转，不递归扫描；通知不可用、丢失或报错不影响轮询，失败后最多每分钟重试监听。缺少日志时每 5 秒重试，身份及目录数据每 15 秒刷新。目录在后台读取最小的 manifest 和 augments 数据，加载慢或失败不阻塞本地选完事件，暂时保留 `selectedAugmentId: null`。单次最多读取 256 KiB，缓冲半行最多 256 KiB，日志文件每轮打开后关闭；退出对局、关闭识别、账号切换或读取失败时关闭目录监听。有效游戏记录超过 15 秒不更新，或候选超过 60 秒，回退 OCR；恢复心跳不会复活旧候选。启动前记录、超过 15 秒的延迟记录不会执行；轮转、截断、读取失败和账号切换清空缓存，等待新记录，避免重放历史选择。
 
-所有状态都写进现有 `capture.jsonl` 的 `source: tencent-log`：`source-status` 记录启用/回退原因，`file-watch-status` 记录文件通知可用性及轮询兜底，`event` 记录有限字段，`candidates-applied` 记录实际使用的槽位，`selection-completed` 记录本地选择动作及可选的 key/ID。`capture-requested`、`visibility-checked` 和 `candidates-applied` 的 `eventToAppliedMs` / `readerToAppliedMs` 用于区分日志等待与截图等待。门禁记录也包含强标题区域和弱卡片区域计数，便于分析首次面板出现但按钮门禁未通过的情形。统一采集也保留 `Augment detection notification sent`，记录窗口准备耗时及分析到通知的耗时；它表示主进程发送 IPC，不等于 renderer 已完成首帧绘制。既有截图诊断增加 `recognitionSource` 区分 `ocr` 和 `tencent-log`。该来源与选人诊断共用一份文件，无需另开监听器。
+正常主日志的 `source-status` 仅在状态变化时记录启用/回退原因，`selection-completed` 记录本地选择动作及可选的 key/ID；`Augment detected` 记录候选变化和实际识别来源。详细诊断开启后，`capture.jsonl` 的 `source: tencent-log` 还包含 `file-watch-status`、`event`、`candidates-applied`、`capture-requested` 和 `visibility-checked`。其中 `eventToAppliedMs` / `readerToAppliedMs` 用于区分日志等待与截图等待。门禁记录包含强标题区域和弱卡片区域计数；`Augment detection notification sent` 记录窗口准备及分析到 IPC 通知的耗时，不等于 renderer 已完成首帧绘制。该来源与选人诊断共用一份文件。
 
 通过 `ARAMGG_TENCENT_AUGMENTS=0` 可单独禁用腾讯日志来源，完整保留 OCR。`ARAMGG_GAME_DIAGNOSTICS=0` 只关闭统一诊断记录与额外 API 探测，不关闭这个业务来源。关闭自动识别或离开 `InProgress` 会停止日志读取。
 
@@ -32,14 +34,14 @@
 
 ## 如何测试
 
-1. 在进入选人前启动本次代码的 client：`npm run dev`，或运行用本次代码构建的客户端。旧安装包不包含这些改动。
+1. 仅在需要录制时，先在 PowerShell 执行 `$env:ARAMGG_GAME_DIAGNOSTICS = '1'`，再从同一终端运行 `npm run dev` 或本次代码构建的客户端。旧安装包不包含这些改动。
 2. 启动日志出现 `[game diagnostics] 统一监听已启动`，其中 `directory` 是本次唯一的采集目录。
 3. 正常进入海克斯大乱斗。选人阶段自动记录卡片接口与会话；`GameStart`、`InProgress`、`Reconnect` 阶段自动读取局内接口。
 4. 正常选择海克斯。如果时机允许，面板出现或重投后保留约 3–5 秒再选，以便采集足够响应。不必为测试额外消耗重投机会。
 5. 保持 client 的自动识别开启；选择后继续正常游戏至少 15 秒，采集会自动对比选择后的接口变化。无需切出游戏手工打标记。当前代码改动需重启 client 才生效。
-6. 完成局内录制后正常退出 client，保留这一个采集目录供分析，无需停留结算界面。关闭终端或强制结束进程可能来不及生成汇总文件。
+6. 完成局内录制后正常退出 client，保留这一个采集目录供分析，无需停留结算界面。关闭终端或强制结束进程可能来不及生成汇总文件。排查完执行 `Remove-Item Env:ARAMGG_GAME_DIAGNOSTICS -ErrorAction SilentlyContinue`，下次启动恢复默认；既有录制不会自动删除。
 
-client 退出会等待有界的在途请求和写入队列，然后保存汇总。大厅和选人阶段不轮询 2999；进入对局后启动，离开对局后停止。每次启动 client 建立新目录，不覆盖历史记录。发布烟测的 `startBackgroundServices: false` 不启动这项采集。
+详细诊断开启时，client 退出会等待有界的在途请求和写入队列，然后保存汇总。大厅和选人阶段不轮询 2999；进入对局后启动，离开对局后停止。每次启用采集的 client 建立新目录，不覆盖历史记录。发布烟测的 `startBackgroundServices: false` 不启动这项采集。
 
 ## 文件位置与内容
 
@@ -106,7 +108,7 @@ client 退出会等待有界的在途请求和写入队列，然后保存汇总�
 
 WebSocket 握手与等待 WAMP 欢迎各限时 1.5 秒，单消息最多 1 MiB，每秒最多 120 条消息，超过即关闭本次连接。关闭压缩、不跟随重定向。离开游戏阶段或统一采集停止时立即关闭事件连接及重试定时器；晚到回调不再写入。事件与 HTTP 共用上面的 128 MiB 文件和 8 MiB 待写上限。
 
-通过 `ARAMGG_GAME_DIAGNOSTICS=0` 可同时关闭选人额外探测与统一采集；默认不需要设置任何开关。一般主日志与既有 OCR 功能不受此开关影响。原独立 `diagnose:augments` 命令已移除。
+上述采样、心跳与限额只在 `ARAMGG_GAME_DIAGNOSTICS=1` 时启用。未设置或设为 `0` 均关闭详细诊断；一般主日志、选人候选卡和腾讯/OCR 识别不受此开关影响。原独立 `diagnose:augments` 命令已移除。
 
 ## 访问边界
 

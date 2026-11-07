@@ -41,9 +41,62 @@ const connectionRefused = (port: number) => Object.assign(
 afterEach(() => {
   vi.useRealTimers()
   vi.clearAllMocks()
+  vi.unstubAllEnvs()
 })
 
 describe('LCU connection verification and recovery', () => {
+  it.each([undefined, '0', '1'])('includes only the local unpicked cards with diagnostics=%s and keeps writes untouched', async (diagnostics) => {
+    vi.stubEnv('ARAMGG_GAME_DIAGNOSTICS', diagnostics)
+    vi.mocked(getLcuToken).mockResolvedValue(['private-token', '59000', 'https://riot:private-token@127.0.0.1:59000'])
+    let championId = 0
+    let allowSubsetChampionPicks = true
+    vi.mocked(axios.get).mockImplementation(async (url) => {
+      if (String(url).endsWith(SUBSET_CHAMPIONS_PATH)) return { status: 200, data: [105, 26] }
+      if (String(url).endsWith('/lol-gameflow/v1/gameflow-phase')) return { status: 200, data: 'ChampSelect' }
+      if (String(url).endsWith('/lol-champ-select/v1/session')) return { status: 200, data: {
+        localPlayerCellId: 0, myTeam: [{ cellId: 0, championId }, { cellId: 1, championId: 99 }],
+        theirTeam: [], actions: [], allowSubsetChampionPicks,
+        benchChampions: championId ? [{ championId: 26 }] : [],
+      } }
+      return { status: 200, data: {} }
+    })
+    const service = new LCUService({ failCooldown: 0 })
+    await service.getAuthToken()
+    expect(await service.getChampSelectSnapshot()).toMatchObject({ selfChampionId: null, subsetChampionIds: [105, 26], benchChampions: [] })
+    championId = 105
+    // The endpoint still holds the original cards; they must now come only from the real bench/team.
+    expect(await service.getChampSelectSnapshot()).toMatchObject({ selfChampionId: 105, subsetChampionIds: [], benchChampions: [{ championId: 26 }] })
+    championId = 0
+    allowSubsetChampionPicks = false
+    expect((await service.getChampSelectSnapshot()).subsetChampionIds).toEqual([])
+    expect(vi.mocked(axios.get).mock.calls.filter(([url]) => String(url).endsWith(SUBSET_CHAMPIONS_PATH))).toHaveLength(1)
+    expect(axios.post).not.toHaveBeenCalled()
+    expect(axios.put).not.toHaveBeenCalled()
+    expect(axios.delete).not.toHaveBeenCalled()
+    const diagnosticLogs = vi.mocked(logger.debug).mock.calls.filter(([message]) => String(message).startsWith('[champ-select diagnostics]'))
+    expect(diagnosticLogs.length > 0).toBe(diagnostics === '1')
+    expect(vi.mocked(logger.info).mock.calls.some(([message]) => String(message).startsWith('[champ-select diagnostics]'))).toBe(false)
+  })
+
+  it.each([{ status: 404, data: {} }, { status: 200, data: ['105', 26] }])('falls back to the existing session when the card endpoint is unavailable: %j', async (response) => {
+    vi.mocked(getLcuToken).mockResolvedValue(['private-token', '59000', 'https://riot:private-token@127.0.0.1:59000'])
+    vi.mocked(axios.get).mockImplementation(async (url) => {
+      if (String(url).endsWith(SUBSET_CHAMPIONS_PATH)) return response
+      if (String(url).endsWith('/lol-gameflow/v1/gameflow-phase')) return { status: 200, data: 'ChampSelect' }
+      if (String(url).endsWith('/lol-champ-select/v1/session')) return { status: 200, data: {
+        localPlayerCellId: 0, myTeam: [{ cellId: 0, championId: 0 }, { cellId: 1, championId: 99 }],
+        theirTeam: [], actions: [], allowSubsetChampionPicks: true, benchChampions: [{ championId: 26 }],
+      } }
+      return { status: 200, data: {} }
+    })
+    const service = new LCUService({ failCooldown: 0 })
+    await service.getAuthToken()
+    expect(await service.getChampSelectSnapshot()).toMatchObject({
+      status: 'ready', subsetChampionIds: [], benchChampions: [{ championId: 26 }],
+      myTeam: [{ championId: 0 }, { championId: 99 }],
+    })
+  })
+
   it('probes champion cards in the background with a bounded GET and keeps the snapshot unchanged', async () => {
     vi.mocked(getLcuToken).mockResolvedValue(['private-token', '59000', 'https://riot:private-token@127.0.0.1:59000'])
     let completeProbe!: (value: { status: number; data: number[] }) => void

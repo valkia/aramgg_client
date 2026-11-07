@@ -1,7 +1,8 @@
 import type { ChampSelectSnapshot } from './types.ts'
 import type { LcuJsonApiEvent } from './lcu-wamp-socket.ts'
+import { SUBSET_CHAMPIONS_PATH, type SubsetChampionResult } from './subset-champions.ts'
 
-export const SUBSET_CHAMPIONS_PATH = '/lol-lobby-team-builder/champ-select/v1/subset-champion-list'
+export { SUBSET_CHAMPIONS_PATH } from './subset-champions.ts'
 const SESSION_PATHS = new Set([
   '/lol-champ-select/v1/session',
   '/lol-lobby-team-builder/champ-select/v1/session',
@@ -10,7 +11,7 @@ const PROBE_INTERVAL_MS = 2000
 const HEARTBEAT_MS = 10000
 const MAX_IDS = 24
 
-type ProbeResult = { status: number | null; data?: unknown; errorCode?: string }
+type ProbeResult = SubsetChampionResult
 type Options = {
   enabled: boolean
   readSubset: () => Promise<ProbeResult>
@@ -148,6 +149,7 @@ export class ChampSelectDiagnostics {
       this.lastSubset = result.status === 200 && summary.validIdArray ? summary : null
       this.changed('subset-http', { status: result.status, errorCode: result.errorCode || null, ...summary }, {
         endpoint: SUBSET_CHAMPIONS_PATH, durationMs: Date.now() - startedAt, requestCount: this.requests,
+        responseSource: result.source ?? null, cacheHit: result.cacheHit ?? false,
       })
       this.compareCandidates()
     }).catch(() => {

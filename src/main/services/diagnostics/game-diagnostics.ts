@@ -4,11 +4,12 @@ import { getGameDiagnosticCaptureDir } from '../../modules/app-paths.ts'
 import logger, { subscribeLogEvents } from '../../modules/logger.ts'
 import { createLocalGameReader } from './augment-api-capture.ts'
 import { GameDiagnosticSession } from './game-diagnostic-session.ts'
+import { isGameDiagnosticsEnabled } from './diagnostic-settings.ts'
 
 let session: GameDiagnosticSession | null = null
 
 export function startGameDiagnostics(metadata: Record<string, unknown>): void {
-  if (session || process.env.ARAMGG_GAME_DIAGNOSTICS === '0') return
+  if (session || !isGameDiagnosticsEnabled()) return
   try {
     const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomBytes(3).toString('hex')}`
     const directory = path.join(getGameDiagnosticCaptureDir(), runId)

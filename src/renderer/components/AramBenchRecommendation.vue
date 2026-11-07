@@ -204,7 +204,7 @@ const hasLimitedComparison = computed(() => [recommendation.value?.currentChampi
 const decisionMessage = computed(() => {
     const key = recommendation.value?.decisionReason
     if (hasNoStats.value && key !== 'no-current-champion') return t('bench.decisions.noStats')
-    const knownReasons = ['no-candidates', 'no-current-champion', 'no-alternatives', 'current-best', 'small-difference', 'teammate-higher', 'bench-higher']
+    const knownReasons = ['no-candidates', 'no-current-champion', 'no-alternatives', 'current-best', 'small-difference', 'teammate-higher', 'bench-higher', 'subset-higher', 'subset-pick']
     return t(`bench.decisions.${knownReasons.includes(key) ? key : 'reference'}`, {
         current: recommendation.value?.currentChampion?.name || '',
         recommended: recommended.value?.name || '',
@@ -212,6 +212,7 @@ const decisionMessage = computed(() => {
 })
 const candidateSourceLabels = computed(() => ({
     current: t('bench.sourceCurrent'),
+    subset: t('bench.sourceSubset'),
     bench: t('bench.sourceBench'),
     teammate: t('bench.sourceTeammate'),
 }))

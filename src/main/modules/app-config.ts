@@ -59,6 +59,7 @@ import { getAppDataDir } from './app-paths.ts'
 import { getLcuConnectionState, observeLcuGameflow, setLcuConnectionState } from './lcu-connection-state.ts'
 import { logDiagnosticSnapshot } from './diagnostic-logger.ts'
 import { startGameDiagnostics, observeGameDiagnosticPhase, stopGameDiagnostics } from '../services/diagnostics/game-diagnostics.ts'
+import { isGameDiagnosticsEnabled } from '../services/diagnostics/diagnostic-settings.ts'
 import {
     startPerformanceMonitor,
     stopPerformanceMonitor,
@@ -399,7 +400,7 @@ function getLcuDiagnosticEndpoints(phase) {
 }
 
 async function logReadOnlyGameApiDiagnostics(lcuService, phase, reason, force = false) {
-    if (!phase || gameApiDiagnosticInFlight) {
+    if (!isGameDiagnosticsEnabled() || !phase || gameApiDiagnosticInFlight) {
         return
     }
 

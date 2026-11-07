@@ -310,6 +310,8 @@ export interface ChampSelectSnapshot extends LooseRecord {
   champSelectSession: ChampSelectSession | null
   localPlayerCellId: number | null
   selfChampionId: number | null
+  /** Local offered cards, only while the player has not selected a champion. */
+  subsetChampionIds: number[]
   benchEnabled: boolean
   benchChampions: ChampSelectBenchChampion[]
   myTeam: TeamMember[]
@@ -333,7 +335,7 @@ export interface PerkPage extends LooseRecord {
 export interface AramRecommendationCandidate extends LooseRecord {
   championId: number
   name: string
-  source: 'current' | 'bench' | 'teammate'
+  source: 'current' | 'subset' | 'bench' | 'teammate'
   sourceLabel: string
   isCurrent: boolean
   winRate: number | null
@@ -355,6 +357,8 @@ export type AramRecommendationDecisionReason =
   | 'small-difference'
   | 'teammate-higher'
   | 'bench-higher'
+  | 'subset-higher'
+  | 'subset-pick'
 
 export interface AramBenchRecommendation extends LooseRecord {
   readOnly: true

@@ -44,6 +44,20 @@ function render(data: AramBenchRecommendation | null, locale = 'zh-CN') {
 
 describe('ARAM recommendation panel', () => {
   it.each([
+    ['zh-CN', '候选卡', '候选卡中的 Lux 综合排序最高'],
+    ['en-US', 'Offered card', 'Lux among your offered cards ranks highest'],
+    ['zh-TW', '候選卡', '候選卡中的 Lux 綜合排序最高'],
+  ])('shows offered cards and an initial-pick recommendation in %s', (locale, label, decision) => {
+    const view = render(recommendation({ selfChampionId: null, subsetChampionIds: [63, 99], benchChampions: [], myTeam: [] }), locale)
+    expect(view.findAll('.candidate-row')).toHaveLength(2)
+    expect(view.findAll('.source-subset').map((tag) => tag.text())).toEqual([label, label])
+    expect(view.get('.decision-line').text()).toContain(decision)
+    expect(view.find('.candidate-row.current').exists()).toBe(false)
+    expect(view.text()).not.toContain('bench.')
+    expect(lcuWrite).not.toHaveBeenCalled()
+  })
+
+  it.each([
     ['zh-CN', '席位中的 Lux 综合评分更高', '推荐与数据说明', '获胜概率'],
     ['en-US', 'Lux on the bench scores higher', 'Recommendation details', 'chance of winning'],
     ['zh-TW', '席位中的 Lux 綜合評分更高', '推薦與資料說明', '獲勝機率'],

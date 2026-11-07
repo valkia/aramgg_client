@@ -68,6 +68,20 @@ beforeEach(() => {
 })
 
 describe('ARAM recommendation IPC data paths', () => {
+  it('loads local statistics for offered cards before the player picks and returns them read-only', async () => {
+    mocks.snapshot.mockResolvedValue({
+      gameflowPhase: 'ChampSelect', selfChampionId: null, localPlayerCellId: 1,
+      subsetChampionIds: [63, 99], benchChampions: [], myTeam: [{ cellId: 1, championId: 0 }],
+    })
+    const result = await mocks.handlers.get('lcu-get-aram-bench-recommendation')!({})
+    expect(result).toMatchObject({ success: true, recommendation: {
+      status: 'ready', readOnly: true, decisionReason: 'subset-pick', currentChampion: null,
+      candidates: [ { championId: 63, name: 'Brand', source: 'subset' }, { championId: 99, name: 'Lux', source: 'subset' } ],
+    } })
+    expect(mocks.loadRankings).toHaveBeenCalledExactlyOnceWith('en-US')
+    expect(mocks.lcuWrite).not.toHaveBeenCalled()
+  })
+
   it.each(['lcu-get-aram-bench-recommendation', 'test-show-bench-recommendation'])(
     'preserves source null and true zero through the real %s handler', async (channel) => {
       const result = await mocks.handlers.get(channel)!({})
