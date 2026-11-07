@@ -148,9 +148,32 @@ lcu-get-aram-bench-recommendation
 3. 确认 `benchEnabled` 和 `benchChampions` 是否符合当前模式。
 4. 确认网络或缓存能加载英雄统计；缺数据时会降级展示，不应中断。
 
-选人结构排查时，查看当天主日志中的 `[LCU] champ-select raw session diagnostic`。该日志只记录顶层字段、候选数组摘要和 championId 路径，不写完整 LCU session payload；如果字段或候选结构没有变化，会自动去重。阶段切换时的 `[LCU diagnostics] read-only endpoint snapshot` 会保留默认可见，持续 heartbeat 诊断则需要 `LOG_LEVEL=DEBUG`。
+选人结构排查时，设置 `LOG_LEVEL=DEBUG` 可查看 `[LCU] champ-select raw session diagnostic` 和 `[LCU diagnostics] read-only endpoint snapshot`。前者只记录顶层字段、候选数组摘要和 championId 路径，不写完整 LCU session payload；如果字段或候选结构没有变化，会自动去重。
+
+## 初始英雄卡片的诊断日志
+
+`[champ-select diagnostics]` 默认以 INFO 写入主日志，同时归入统一采集的 `capture.jsonl`。使用本次代码构建的客户端，在进入选人前启动，完成一局并正常退出后保留 `logs/game-diagnostics/<runId>/` 这一个目录即可。启动日志 `[game diagnostics] 统一监听已启动` 中的 `directory` 给出实际位置；路径由 `app-paths.ts` 解析。默认日志级别即可采集两项及详细 OCR 诊断，见 [统一采集说明](./AUGMENT_API_CAPTURE.md)。
+
+所有记录包含本地 `runId`、日志时间和选人持续毫秒数，连接重建会产生新分组：
+
+| 记录后缀 | 用途 |
+| --- | --- |
+| `start` / `end` | 选人进入、退出及请求数、收到的相关推送数 |
+| `session-http` / `session-websocket` | queueId、allowSubsetChampionPicks、自选/队伍/公共 bench 英雄、动作完成状态和 timer.phase |
+| `subset-http` | 独立卡片接口的 HTTP 状态、耗时、按响应顺序保留的 ID、长度和格式校验；404、失败、空数组分别记录 |
+| `subset-websocket` | 实际收到的卡片资源 uri、事件类型和 ID 顺序，删除事件也保留 |
+| `candidate-coverage` | 当前推荐输入和卡片 ID 的差异，`missingFromRecommendation` 显示尚未进入推荐输入的卡片 |
+| `stale-response` | 退出选人后才返回的请求，被丢弃且不会记到下一组选人中 |
+
+只有选人期间会后台 GET `/lol-lobby-team-builder/champ-select/v1/subset-champion-list`，最多每 2 秒一次、单次超时 1.5 秒，同一时刻只有一个探测；不等待该请求再展示英雄。日志对变化立即记录，未变化时每 10 秒保留心跳，不因倒计时每秒刷屏。卡片保留前 24 个 ID，截断会明确标记。`ARAMGG_GAME_DIAGNOSTICS=0` 同时关闭选人额外探测与统一采集。
+
+`[LCU] ARAM bench recommendation completed` 另记录实际输出的 `candidateSources`。本轮诊断没有将卡片自动加入推荐，因此 `missingFromRecommendation` 非空是待核对证据，不代表探测失败。日志不保存完整会话、聊天内容、玩家身份或认证信息。
+
+验收时核对：进入选人是否有 start；`allowSubsetChampionPicks` 为真时是否获得 200 和正确的卡片顺序；选择/交换后 session 与候选来源是否一致；退出选人是否有 end。推送计数为 0 只说明本轮未收到该事件，HTTP 探测仍能提供证据。局内接口、腾讯日志和截图/OCR 记录在同一时间线。国服已接入腾讯日志候选与本地选完事件，日志不可用或候选映射不完整时自动使用 OCR；触发条件、回退及测试步骤见 [AUGMENT_API_CAPTURE.md](./AUGMENT_API_CAPTURE.md#腾讯日志优先与-ocr-回退)。
 
 ## 安全边界
+
+选人及局内采集均随 client 启停，采集范围与测试步骤见 [AUGMENT_API_CAPTURE.md](./AUGMENT_API_CAPTURE.md)。
 
 排障时不要为了“修复推荐”接入会改变选人结果的 LCU 接口。禁止推荐链路调用：
 

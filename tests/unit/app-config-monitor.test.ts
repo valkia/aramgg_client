@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
   notify: vi.fn(),
   applyPopupPreferences: vi.fn(),
   logError: vi.fn(),
+  startDiagnostics: vi.fn(),
+  diagnosticPhase: vi.fn(),
+  stopDiagnostics: vi.fn(),
   popup: { show: vi.fn(), isVisible: () => false, isDestroyed: () => false, webContents: { send: vi.fn() } },
 }))
 vi.mock('../../src/main/modules/tab-champion-guide.ts', () => ({ startTabGuideMonitor: vi.fn(), stopTabGuideMonitor: vi.fn() }))
@@ -59,8 +62,9 @@ vi.mock('../../src/main/app-update-service.ts', () => ({
   initializeAppUpdateService: vi.fn(), setAppUpdateInstallCleanup: vi.fn(),
   refreshAppUpdateConfig: vi.fn(async () => {}), checkForAppUpdate: vi.fn(async () => {}),
   setAppUpdateGamePhase: vi.fn(),
+  isAppUpdateInstallInProgress: () => false, shouldInstallDownloadedAppUpdateOnQuit: () => false,
 }))
-vi.mock('../../src/main/services/analytics-service.ts', () => ({ initAnalyticsService: vi.fn(async () => {}) }))
+vi.mock('../../src/main/services/analytics-service.ts', () => ({ initAnalyticsService: vi.fn(async () => {}), markAnalyticsAppCleanExit: vi.fn() }))
 vi.mock('../../src/main/services/aram/bench-recommendation.ts', () => ({
   collectAramCandidateChampionIds: () => [], getAramBenchRecommendation: () => ({}),
 }))
@@ -70,7 +74,11 @@ vi.mock('../../src/main/services/post-game-share.ts', () => ({
 }))
 vi.mock('../../src/main/modules/app-paths.ts', () => ({ getAppDataDir: () => '/tmp/isolated-monitor-test' }))
 vi.mock('../../src/main/modules/diagnostic-logger.ts', () => ({ logDiagnosticSnapshot: vi.fn(async () => {}) }))
-vi.mock('../../src/main/modules/performance-monitor.ts', () => ({ startPerformanceMonitor: vi.fn() }))
+vi.mock('../../src/main/services/diagnostics/game-diagnostics.ts', () => ({
+  startGameDiagnostics: mocks.startDiagnostics, observeGameDiagnosticPhase: mocks.diagnosticPhase,
+  stopGameDiagnostics: mocks.stopDiagnostics,
+}))
+vi.mock('../../src/main/modules/performance-monitor.ts', () => ({ startPerformanceMonitor: vi.fn(), stopPerformanceMonitor: vi.fn() }))
 vi.mock('../../src/main/modules/tray.ts', () => ({ createAppTray: vi.fn() }))
 vi.mock('../../src/main/modules/user-preferences.ts', () => ({
   shouldShowChampionDetails: () => true,
@@ -108,6 +116,45 @@ async function start() {
 }
 
 describe('main-process monitoring ownership', () => {
+  it('keeps unified capture disabled during release smoke initialization', async () => {
+    const { init } = await import('../../src/main/modules/app-config.ts')
+    await init({ startBackgroundServices: false })
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(mocks.startDiagnostics).not.toHaveBeenCalled()
+    expect(mocks.diagnosticPhase).not.toHaveBeenCalled()
+    expect(mocks.phase).not.toHaveBeenCalled()
+  })
+
+  it('starts one unified capture and forwards validated gameflow observations', async () => {
+    await start()
+    expect(mocks.startDiagnostics).toHaveBeenCalledExactlyOnceWith({ version: 'test', packaged: false })
+    const changed = mocks.subscribe.mock.calls[0][0]
+    await changed('ChampSelect')
+    await changed('InProgress')
+    const count = mocks.diagnosticPhase.mock.calls.length
+    await changed('UnknownPhase')
+    expect(mocks.diagnosticPhase).toHaveBeenCalledTimes(count)
+    expect(mocks.diagnosticPhase).toHaveBeenCalledWith('ChampSelect', expect.any(String))
+    expect(mocks.diagnosticPhase).toHaveBeenLastCalledWith('InProgress', expect.any(String))
+  })
+
+  it('waits for unified capture to flush before exiting the app', async () => {
+    await start()
+    let flushed!: () => void
+    mocks.stopDiagnostics.mockReturnValueOnce(new Promise<void>((resolve) => { flushed = resolve }))
+    const { app } = await import('electron')
+    const beforeQuit = vi.mocked(app.on).mock.calls.find(([name]) => name === 'before-quit')![1]
+    const event = { preventDefault: vi.fn() }
+    beforeQuit(event)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(event.preventDefault).toHaveBeenCalledOnce()
+    expect(mocks.stopDiagnostics).toHaveBeenCalledExactlyOnceWith('before-quit')
+    expect(app.quit).not.toHaveBeenCalled()
+    flushed()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(app.quit).toHaveBeenCalledOnce()
+  })
+
   it('reports unavailable state if monitoring cannot initialize', async () => {
     mocks.phase.mockRejectedValueOnce(new Error('isolated monitor failure'))
     const { init } = await import('../../src/main/modules/app-config.ts')

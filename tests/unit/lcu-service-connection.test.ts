@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import logger from '../../src/main/modules/logger.ts'
 import { LCUService } from '../../src/main/services/lcu/lcu-service.ts'
 import { getLcuToken } from '../../src/main/services/lcu/token-loader.ts'
+import { SUBSET_CHAMPIONS_PATH } from '../../src/main/services/lcu/champ-select-diagnostics.ts'
 
 vi.mock('axios', () => ({
   default: {
@@ -43,6 +44,35 @@ afterEach(() => {
 })
 
 describe('LCU connection verification and recovery', () => {
+  it('probes champion cards in the background with a bounded GET and keeps the snapshot unchanged', async () => {
+    vi.mocked(getLcuToken).mockResolvedValue(['private-token', '59000', 'https://riot:private-token@127.0.0.1:59000'])
+    let completeProbe!: (value: { status: number; data: number[] }) => void
+    vi.mocked(axios.get).mockImplementation(async (url) => {
+      if (String(url).endsWith(SUBSET_CHAMPIONS_PATH)) {
+        return new Promise((resolve) => { completeProbe = resolve })
+      }
+      if (String(url).endsWith('/lol-gameflow/v1/gameflow-phase')) return { status: 200, data: 'ChampSelect' }
+      if (String(url).endsWith('/lol-champ-select/v1/session')) return {
+        status: 200, data: { localPlayerCellId: 1, myTeam: [{ cellId: 1, championId: 22 }], theirTeam: [], actions: [], allowSubsetChampionPicks: true, benchChampions: [] },
+      }
+      return { status: 200, data: {} }
+    })
+    const service = new LCUService({ failCooldown: 0 })
+    await service.getAuthToken()
+    const snapshot = await service.getChampSelectSnapshot()
+    expect(snapshot.selfChampionId).toBe(22)
+    expect(snapshot.benchChampions).toEqual([])
+    expect(axios.get).toHaveBeenCalledWith(`https://127.0.0.1:59000${SUBSET_CHAMPIONS_PATH}`, expect.objectContaining({ timeout: 1500, proxy: false }))
+    completeProbe({ status: 200, data: [22, 99] })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(snapshot.benchChampions).toEqual([])
+    expect(axios.post).not.toHaveBeenCalled()
+    expect(axios.put).not.toHaveBeenCalled()
+    expect(axios.delete).not.toHaveBeenCalled()
+    expect(JSON.stringify(vi.mocked(logger.info).mock.calls)).not.toContain('private-token')
+  })
+
   it('rejects discovered credentials when their endpoint is unreachable', async () => {
     vi.mocked(getLcuToken).mockResolvedValue([
       'stale-private-token',

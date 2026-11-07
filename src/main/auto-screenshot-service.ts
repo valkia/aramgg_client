@@ -34,6 +34,7 @@ import {
 } from './modules/window-manager.ts'
 import { shouldRaiseOverlayWindow } from './modules/overlay-window-state.ts'
 import store from './modules/app-store.ts'
+import { createTencentAugmentSource } from './services/augments/tencent-augment-runtime.ts'
 import { getPartialOcrScreenshotDir } from './modules/app-paths.ts'
 import {
     createInitialPartialAugmentSelection,
@@ -187,6 +188,23 @@ function isKnownSubsetOfPrevious(currentIds = [], previousIds = []) {
 
 class AutoScreenshotService {
     constructor() {
+        this.tencentSelectionRevision = 0
+        this.tencentPickSuppressUntil = 0
+        this.tencentCaptureRequested = false
+        this.tencentCaptureUntil = 0
+        this.tencentCandidateTiming = null
+        this.tencentSource = createTencentAugmentSource(details => {
+            if (!this.isRunning || !this.enableAnalysis || this.gameflowPhase !== 'InProgress') return
+            this.tencentSelectionRevision++
+            this.tencentPickSuppressUntil = Date.now() + 2000
+            this.tencentCaptureRequested = false
+            this.tencentCaptureUntil = 0
+            logger.debug('[tencent augments]', { event: 'selection-completed',
+                observedAt: new Date(details.at).toISOString(), candidateIndex: details.index,
+                augmentKey: details.key, selectedAugmentId: details.id, idSource: 'local-catalogue',
+            })
+            this.clearAugmentState('tencent-selection-completed')
+        }, timing => this._onTencentCandidatesReady(timing))
         this.isRunning = false
         this.intervalId = null
         this.interval = 5000 // 默认5秒
@@ -267,6 +285,11 @@ class AutoScreenshotService {
         }
         this.runId++
         this.isRunning = true
+        this.tencentPickSuppressUntil = 0
+        this.tencentCaptureRequested = false
+        this.tencentCaptureUntil = 0
+        this.tencentCandidateTiming = null
+        if (this.enableAnalysis && this.gameflowPhase === 'InProgress') this.tencentSource.start()
         this.controlOwner = owner
         this.captureMode = owner === 'gameflow' ? 'idle' : 'manual'
         this.candidateStreak = 0
@@ -341,6 +364,9 @@ class AutoScreenshotService {
         }
 
         clearTimeout(this.intervalId)
+        this.tencentSource.stop()
+        this.tencentCaptureRequested = false
+        this.tencentCaptureUntil = 0
         this.isRunning = false
         this.runId++
         this.intervalId = null
@@ -360,6 +386,12 @@ class AutoScreenshotService {
      */
     setGameflowPhase(phase) {
         this.gameflowPhase = phase || null
+        if (this.isRunning && this.enableAnalysis && phase === 'InProgress') this.tencentSource.start()
+        else {
+            this.tencentSource.stop()
+            this.tencentCaptureRequested = false
+            this.tencentCaptureUntil = 0
+        }
 
         if (phase && phase !== 'InProgress' && phase !== 'None') {
             this.pendingAnalysisBuffer = null
@@ -449,6 +481,7 @@ class AutoScreenshotService {
 
     _getCurrentCaptureInterval() {
         if (this.controlOwner === 'gameflow') {
+            if (Date.now() < this.tencentCaptureUntil && this.tencentSource.getCandidates()) return Math.min(this.interval, 500)
             return resolveGameflowCaptureInterval(
                 this.captureMode,
                 this.interval,
@@ -501,6 +534,29 @@ class AutoScreenshotService {
         }
     }
 
+    _onTencentCandidatesReady(timing) {
+        if (!this.isRunning || !this.enableAnalysis || this.gameflowPhase !== 'InProgress') return
+        this.tencentSelectionRevision++
+        this.tencentCandidateTiming = timing
+        this.tencentCaptureRequested = true
+        this.tencentCaptureUntil = Date.now() + 2000
+        this.pendingAnalysisBuffer = null
+        logger.debug('[tencent augments]', { event: 'capture-requested',
+            observedAt: new Date(timing.observedAt).toISOString(),
+            readerDelayMs: timing.receivedAt - timing.observedAt,
+            captureBusy: this.isCapturing, analysisBusy: this.isAnalyzing,
+        })
+        this._wakeTencentCapture()
+    }
+
+    _wakeTencentCapture() {
+        if (!this.tencentCaptureRequested || !this.isRunning || !this.enableAnalysis
+            || this.gameflowPhase !== 'InProgress' || this.isCapturing || this.isAnalyzing) return
+        clearTimeout(this.intervalId)
+        this.intervalId = null
+        this._scheduleNextCapture(0, this.runId)
+    }
+
     /**
      * 内部方法：执行单次截图
      * 【注意】浮窗已调整到屏幕顶部，与OCR区域不重叠，无需隐藏
@@ -529,7 +585,10 @@ class AutoScreenshotService {
 
         try {
             if (this.lastDetectedAugmentIds.length > 0) refreshVisibleMacAugmentOverlayOrder()
-            const stage = this.enableAnalysis && this.controlOwner === 'gameflow'
+            const tencentGate = this.enableAnalysis && this.controlOwner === 'gameflow'
+                && (this.tencentCaptureRequested || this.captureMode === 'idle') && !!this.tencentSource.getCandidates()
+            this.tencentCaptureRequested = false
+            const stage = tencentGate ? 'gate' : this.enableAnalysis && this.controlOwner === 'gameflow'
                 ? resolveCaptureStage({
                     mode: this.captureMode,
                     pendingFullCapture: this.pendingFullCapture,
@@ -623,6 +682,7 @@ class AutoScreenshotService {
         } finally {
             if (runId === this.runId) {
                 this.isCapturing = false
+                this._wakeTencentCapture()
             }
         }
     }
@@ -652,6 +712,18 @@ class AutoScreenshotService {
 
             const gateLikely = gateResult.likely === true
             const rerollVisible = gateResult.rerollVisible === true
+            if (this.tencentSource.getCandidates()) {
+                logger.debug('[tencent augments]', { event: 'visibility-checked', likely: gateLikely,
+                    rerollVisible, durationMs: gateResult.durationMs, captureMode: this.captureMode,
+                    strongTitleRegions: gateResult.strongTitleRegions ?? null,
+                    weakCardRegions: gateResult.weakCardRegions ?? null,
+                })
+                if (gateLikely && rerollVisible) {
+                    // Fresh native candidates plus one visible gate need no title OCR/full-size recapture.
+                    await this._analyzeScreenshot(imageBuffer, runId, { gateResult, tencentOnly: true })
+                    return
+                }
+            }
             this.candidateStreak = resolveCandidateStreak({
                 gateLikely,
                 rerollVisible,
@@ -750,6 +822,7 @@ class AutoScreenshotService {
         } finally {
             if (runId === this.runId) {
                 this.isAnalyzing = false
+                this._wakeTencentCapture()
 
                 if (this.pendingAnalysisBuffer && this.isRunning && this.enableAnalysis) {
                     const latestBuffer = this.pendingAnalysisBuffer
@@ -764,11 +837,34 @@ class AutoScreenshotService {
      * 内部方法：分析截图
      * @private
      */
-    async _analyzeScreenshot(imageBuffer, runId = this.runId) {
+    async _analyzeScreenshot(imageBuffer, runId = this.runId, { gateResult = null, tencentOnly = false } = {}) {
         try {
+            const selectionRevision = this.tencentSelectionRevision
+            if (Date.now() < this.tencentPickSuppressUntil) return
             this.analysisCount++
             const analysisStart = performance.now()
-            const analysisResult = await analyzeScreenshot(imageBuffer)
+            let analysisResult = null
+            if (this.tencentSource.getCandidates()) {
+                // 693 is candidate availability, not panel visibility. Keep the visual gate.
+                try {
+                    const gate = gateResult || await analyzeScreenshotGate(imageBuffer)
+                    const candidates = this.tencentSource.getCandidates()
+                    if (gate.success && gate.likely && gate.rerollVisible && candidates) {
+                        analysisResult = {
+                            success: true, timestamp: Date.now(), recognitionSource: 'tencent-log',
+                            analysis: {
+                                cardCount: 3, confidence: 1, isAugmentPhase: true, augments: candidates,
+                                slotDiagnostics: [],
+                                augmentGate: { ocrSkippedReason: null, titleActivity: { likely: true }, rerollButtons: { visible: true } },
+                            },
+                        }
+                    }
+                } catch { /* The optional gate must not prevent the existing OCR fallback. */ }
+            }
+            if (!analysisResult && tencentOnly) return
+            if (!analysisResult) analysisResult = await analyzeScreenshot(imageBuffer)
+            // A pick can arrive while OCR/gating is awaiting a result.
+            if (selectionRevision !== this.tencentSelectionRevision || Date.now() < this.tencentPickSuppressUntil) return
             const analysisDuration = performance.now() - analysisStart
             if (!this._isCurrentAnalysisRun(runId)) {
                 logger.debug('Discarded stale augment OCR result', {
@@ -813,6 +909,18 @@ class AutoScreenshotService {
                 this._savePartialOcrScreenshot(imageBuffer, analysisResult, analysisDuration, runId)
             }
 
+            if (isConfirmedAugmentSelectionUi(analysisResult.analysis)) {
+                const candidateSlots = [null, null, null]
+                const observedAugments = Array.isArray(augments) ? augments : []
+                observedAugments.slice(0, 3).forEach((augment, index) => {
+                    const slot = Number.isInteger(augment?.detectedSlot) ? augment.detectedSlot : index
+                    if (slot >= 0 && slot < 3 && !augment?.missing) candidateSlots[slot] = augment?.id ?? null
+                })
+                logger.debug('Augment selection UI observed', {
+                    candidateSlots, cardCount, confidence, recognitionSource: analysisResult.recognitionSource || 'ocr',
+                })
+            }
+
             // ✅ 严格的通知条件：
             // 1. 必须检测到 3 张卡片
             // 2. 必须通过间距验证（isAugmentPhase = true）
@@ -841,6 +949,16 @@ class AutoScreenshotService {
                     this.lastDetectedAugmentSlotFingerprints = getSlotFingerprints(analysisResult.analysis.slotDiagnostics)
                     this.lastDetectedAugmentAt = Date.now()
                     this.visibleAugmentMissCount = 0
+                    if (analysisResult.recognitionSource === 'tencent-log') {
+                        this.tencentCaptureUntil = 0
+                        logger.debug('[tencent augments]', { event: 'candidates-applied',
+                            candidateSlots: normalizedAugments.map(augment => augment.id),
+                            augmentKeys: normalizedAugments.map(augment => augment.key),
+                            visibilitySource: 'screenshot-gate',
+                            eventToAppliedMs: this.tencentCandidateTiming ? Date.now() - this.tencentCandidateTiming.observedAt : null,
+                            readerToAppliedMs: this.tencentCandidateTiming ? Date.now() - this.tencentCandidateTiming.receivedAt : null,
+                        })
+                    }
 
                     logger.info(`Augment detected: count=${cardCount}, confidence=${(confidence * 100).toFixed(1)}%, duration=${analysisDuration.toFixed(1)}ms, augments=${getAugmentSummary(normalizedAugments)}`)
                     this._logFirstDetectionLatency('full', analysisDuration)
@@ -1080,7 +1198,8 @@ class AutoScreenshotService {
     }) {
         const now = Date.now()
         const slotFingerprints = getSlotFingerprints(analysisResult.analysis.slotDiagnostics || [])
-        const diagnosticKey = `${currentIds.join(',')}:${slotFingerprints.join(',')}`
+        const recognitionSource = analysisResult.recognitionSource || 'ocr'
+        const diagnosticKey = `${recognitionSource}:${currentIds.join(',')}:${slotFingerprints.join(',')}`
 
         if (
             !changed &&
@@ -1094,6 +1213,7 @@ class AutoScreenshotService {
         this.lastFullDetectionDiagnosticLogAt = now
 
         logger.debug('Augment full detection diagnostics', {
+            recognitionSource,
             changed,
             changedSlots,
             currentIds,
@@ -1308,7 +1428,9 @@ class AutoScreenshotService {
     async _sendAugmentDetectedPayload(winrateData, notifyMode = 'detected', expectedRunId = this.runId) {
         try {
             if (!this.isRunning || expectedRunId !== this.runId || !this._isCurrentAugmentPayload(winrateData)) return
+            const readyStartedAt = Date.now()
             await ensureAugmentOverlayWindows()
+            const windowReadyWaitMs = Date.now() - readyStartedAt
             if (!this.isRunning || expectedRunId !== this.runId || !this._isCurrentAugmentPayload(winrateData)) return
             if (this._isManualHiddenAugmentSuppressed(winrateData)) {
                 return
@@ -1371,6 +1493,8 @@ class AutoScreenshotService {
                 winratePending: winrateData.winratePending === true,
                 winrateResultCount: winrateData.winrateResultCount ?? null,
                 floatingWindowFound: !!floatingWindow && !floatingWindow.isDestroyed(),
+                windowReadyWaitMs,
+                sinceAnalysisMs: Number.isFinite(winrateData.timestamp) ? Date.now() - winrateData.timestamp : null,
                 sinceStartMs: this.startedAt ? Date.now() - this.startedAt : 0,
                 sinceLastCaptureMs: this.lastScreenshotTime ? Date.now() - this.lastScreenshotTime : 0,
             })
@@ -1704,6 +1828,12 @@ class AutoScreenshotService {
         }
         if (config.enableAnalysis !== undefined) {
             this.enableAnalysis = config.enableAnalysis
+            if (this.isRunning && this.enableAnalysis && this.gameflowPhase === 'InProgress') this.tencentSource.start()
+            else {
+                this.tencentSource.stop()
+                this.tencentCaptureRequested = false
+                this.tencentCaptureUntil = 0
+            }
         }
         if (config.captureTimeoutMs !== undefined && config.captureTimeoutMs > 0) {
             this.captureTimeoutMs = config.captureTimeoutMs
@@ -1773,6 +1903,12 @@ class AutoScreenshotService {
      */
     reset() {
         this.stop()
+        this.tencentSource.stop()
+        this.tencentSelectionRevision++
+        this.tencentPickSuppressUntil = 0
+        this.tencentCaptureRequested = false
+        this.tencentCaptureUntil = 0
+        this.tencentCandidateTiming = null
         this.screenshotCount = 0
         this.analysisCount = 0
         this.detectionCount = 0

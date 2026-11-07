@@ -135,11 +135,13 @@
     "fs-extra": "^11.3.5",
     "onnxruntime-node": "^1.26.0",
     "paddleocr": "^1.1.1",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "ws": "8.21.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.3.2",
+    "@types/ws": "8.18.1",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vue/test-utils": "^2.4.10",
     "@vue/tsconfig": "^0.9.1",

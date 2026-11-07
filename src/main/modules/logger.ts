@@ -21,6 +21,15 @@ const LOG_LEVELS = {
 } as const
 type LogLevel = keyof typeof LOG_LEVELS
 
+export type LogEvent = { observedAt: string; level: LogLevel; message: string; args: unknown[] }
+const logObservers = new Set<(event: LogEvent) => void>()
+
+/** Diagnostic observers also receive DEBUG events when the normal log level is INFO. */
+export function subscribeLogEvents(observer: (event: LogEvent) => void): () => void {
+    logObservers.add(observer)
+    return () => { logObservers.delete(observer) }
+}
+
 // 当前日志级别（可通过环境变量设置）
 const requestedLogLevel = process.env.LOG_LEVEL?.toUpperCase()
 const currentLevel = requestedLogLevel && requestedLogLevel in LOG_LEVELS
@@ -231,6 +240,12 @@ const logWithLevel = (
     message: unknown,
     ...args: unknown[]
 ): void => {
+    if (logObservers.size && typeof message === 'string') {
+        const event = { observedAt: new Date().toISOString(), level, message, args }
+        for (const observer of logObservers) {
+            try { observer(event) } catch { /* Diagnostics must not interrupt the caller. */ }
+        }
+    }
     if (levelValue < currentLevel) return
     
     const formattedMessage = formatLogMessage(level, message, ...args)

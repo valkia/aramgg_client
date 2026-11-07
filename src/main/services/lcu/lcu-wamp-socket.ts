@@ -12,6 +12,7 @@ export interface LcuWampSocketOptions {
   token: string
   port: string
   onGameflowPhase: (phase: string, event: LcuJsonApiEvent<string>) => void | Promise<void>
+  onJsonApiEvent?: (event: LcuJsonApiEvent) => void
   onOpen?: () => void
   onClose?: (reason: string) => void
   onError?: (error: Error) => void
@@ -261,6 +262,13 @@ export class LcuWampSocket {
     }
 
     const event = extractJsonApiEvent(message)
+    if (event) {
+      try {
+        this.options.onJsonApiEvent?.(event)
+      } catch (error) {
+        this.notifyError(error instanceof Error ? error : new Error(String(error)))
+      }
+    }
     if (!event || event.uri !== GAMEFLOW_PHASE_URI || typeof event.data !== 'string') {
       return
     }

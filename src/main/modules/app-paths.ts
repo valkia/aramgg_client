@@ -184,6 +184,12 @@ export function getLogDir(): string {
     return logDir
 }
 
+export function getGameDiagnosticCaptureDir(): string {
+    const directory = path.join(getLogDir(), 'game-diagnostics')
+    fs.ensureDirSync(directory)
+    return directory
+}
+
 export function getPartialOcrScreenshotDir(): string {
     const screenshotDir = path.join(getAppDataDir(), 'ocr-partial-screenshots')
     fs.ensureDirSync(screenshotDir)
