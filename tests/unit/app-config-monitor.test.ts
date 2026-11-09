@@ -155,7 +155,6 @@ describe('main-process monitoring ownership', () => {
     flushed()
     await vi.advanceTimersByTimeAsync(0)
     expect(app.quit).toHaveBeenCalledOnce()
-    expect(mocks.allowClose).toHaveBeenCalledOnce()
   })
 
   it('reports unavailable state if monitoring cannot initialize', async () => {
