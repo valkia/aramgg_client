@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   startDiagnostics: vi.fn(),
   diagnosticPhase: vi.fn(),
   stopDiagnostics: vi.fn(),
+  allowClose: vi.fn(),
   popup: { show: vi.fn(), isVisible: () => false, isDestroyed: () => false, webContents: { send: vi.fn() } },
 }))
 vi.mock('../../src/main/modules/tab-champion-guide.ts', () => ({ startTabGuideMonitor: vi.fn(), stopTabGuideMonitor: vi.fn() }))
@@ -41,6 +42,7 @@ vi.mock('../../src/main/modules/window-manager.ts', () => ({
   getPopupWindow: () => null, getFloatingWindow: () => null, getAugmentSidePanelWindow: () => null,
   toggleMainWindow: vi.fn(), applyPopupWindowLayout: vi.fn(), applyPopupWindowPreferences: mocks.applyPopupPreferences,
   notifyAllWindows: mocks.notify,
+  allowMainWindowClose: mocks.allowClose,
 }))
 vi.mock('../../src/main/screenshot.ts', () => ({ getLolGameStatus: async () => ({ isGameOpen: false }) }))
 vi.mock('../../src/main/modules/ipc-handlers.ts', () => ({ registerIpcHandlers: vi.fn() }))
@@ -153,6 +155,7 @@ describe('main-process monitoring ownership', () => {
     flushed()
     await vi.advanceTimersByTimeAsync(0)
     expect(app.quit).toHaveBeenCalledOnce()
+    expect(mocks.allowClose).toHaveBeenCalledOnce()
   })
 
   it('reports unavailable state if monitoring cannot initialize', async () => {
