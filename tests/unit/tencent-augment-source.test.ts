@@ -113,6 +113,32 @@ describe('Tencent log codec and selection state', () => {
     state.observe({ kind: 'candidates', at: now + 61_001, keys: [...keys, 'fourth'] })
     expect(state.getCandidates(now + 61_001, catalogue)).toBeNull()
   })
+
+  it('maps four ordered nonempty candidates and a fourth pick while preserving padded three-card offers', () => {
+    const fourth = { id: 1320, key: 'ARAM_Collector', name: 'D' }
+    const entries = [...catalogue, fourth]
+    const state = new TencentAugmentState()
+    const secret = createTencentLogKey(puuid)
+    const observeOffer = (offeredKeys: string[], at: number) => {
+      const event = decodeTencentLogLine(line({ ...offers, params: {
+        astAugments: offeredKeys.map(szAugmentName => ({ szAugmentName })),
+      } }, at), secret)?.event
+      expect(event?.kind).toBe('candidates')
+      if (event) state.observe(event)
+      return state.getCandidates(at, entries)
+    }
+    state.heartbeat(now)
+    expect(observeOffer([...keys, '', ''], now)?.map(a => a.id)).toEqual(catalogue.map(a => a.id))
+    expect(observeOffer([...keys, '', fourth.key], now + 1)).toBeNull()
+    expect(observeOffer([keys[0], '', keys[1], fourth.key, ''], now + 2)).toBeNull()
+    expect(observeOffer([...keys, fourth.key, ''], now + 3)?.map(a => [a.id, a.detectedSlot]))
+      .toEqual(entries.map((a, slot) => [a.id, slot]))
+    const event = decodeTencentLogLine(line({ ...pick, params: { dwAugmentIndex: 3 } }, now + 4), secret)?.event
+    expect(event?.kind).toBe('selected')
+    if (event) expect(state.observe(event)).toMatchObject({ selected: true, key: fourth.key, index: 3 })
+    expect(state.getCandidates(now + 4, entries)).toBeNull()
+    expect(observeOffer([...keys, '', ''], now + 5)?.map(a => a.id)).toEqual(catalogue.map(a => a.id))
+  })
   it('does not infer the local selected augment from someone else in 696', () => {
     const state = new TencentAugmentState()
     expect(state.observe({ kind: 'owned', at: now, players: [{ netId: 42, keys: [keys[2]] }] })).toBeNull()

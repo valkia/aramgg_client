@@ -34,7 +34,7 @@ type DiagnosticAugment = {
 }
 
 function summarizeAugments(augments: DiagnosticAugment[] = []) {
-    return augments.slice(0, 3).map((augment, index) => ({
+    return augments.map((augment, index) => ({
         slot: Number.isInteger(augment?.detectedSlot) ? augment.detectedSlot : index,
         id: augment?.id ?? augment?.augmentId ?? null,
         name: augment?.name || '',

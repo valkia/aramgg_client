@@ -72,6 +72,9 @@ async function assertFixtureResult(analyzeScreenshot, input, sample, variant) {
     const result = await analyzeScreenshot(input)
 
     assert.equal(result.success, true, `${sample.file} (${variant}): analysis should succeed`)
+    assert.equal(result.analysis.slotCount, sample.expectedSlotCount ?? 3, `${sample.file} (${variant}): layout size`)
+    assert.equal(result.analysis.isAugmentPhase, sample.expectedCardCount === (sample.expectedSlotCount ?? 3),
+        `${sample.file} (${variant}): recognition should only be complete when all slots match`)
     assert.equal(
         result.analysis.cardCount,
         sample.expectedCardCount,
@@ -87,9 +90,13 @@ async function assertFixtureResult(analyzeScreenshot, input, sample, variant) {
         sample.expectedNames,
         `${sample.file} (${variant}): augment names should remain stable`
     )
+    if (sample.expectedDetectedSlots || result.analysis.isAugmentPhase) {
+        assert.deepEqual(result.analysis.augments.map(augment => augment.detectedSlot),
+            sample.expectedDetectedSlots ?? sample.expectedIds.map((_, slot) => slot), `${sample.file} (${variant}): slot order`)
+    }
 
     const engines = enginesOf(result.analysis.slotDiagnostics)
-    if (variant === '1280x720' || engines.length > 0) {
+    if (variant === 'source' || engines.length > 0) {
         assert.deepEqual(engines, ['paddleocr'], `${sample.file} (${variant}): OCR engine should be PaddleOCR only`)
     }
 
@@ -107,6 +114,7 @@ async function assertGateResult(analyzeScreenshotGate, input, sample, variant) {
     const result = await analyzeScreenshotGate(input)
 
     assert.equal(result.success, true, `${sample.file} (${variant}): gate analysis should succeed`)
+    assert.equal(result.slotCount, sample.expectedSlotCount ?? 3, `${sample.file} (${variant}): gate layout size`)
     assert.equal(
         result.likely,
         true,
@@ -143,7 +151,7 @@ async function main() {
 
     for (const sample of manifest) {
         const imagePath = path.join(fixturesDir, sample.file)
-        await assertFixtureResult(analyzeScreenshot, imagePath, sample, '1280x720')
+        await assertFixtureResult(analyzeScreenshot, imagePath, sample, 'source')
         if (sample.expectedCardCount > 0) {
             const gateBuffer = await sharp(imagePath)
                 .resize(640, 360, { fit: 'fill' })
@@ -156,6 +164,21 @@ async function main() {
             .png()
             .toBuffer()
         await assertFixtureResult(analyzeScreenshot, automaticCaptureBuffer, sample, '1024x576')
+
+        if (sample.expectedSlotCount === 4) {
+            // Cover only the second card title, leaving the four frames and reroll controls visible.
+            const blockedTitle = await sharp(imagePath).composite([{
+                input: { create: { width: 110, height: 25, channels: 3, background: '#091114' } },
+                left: 268, top: 168,
+            }]).png().toBuffer()
+            await assertFixtureResult(analyzeScreenshot, blockedTitle, {
+                ...sample,
+                expectedCardCount: 3,
+                expectedIds: [sample.expectedIds[0], ...sample.expectedIds.slice(2)],
+                expectedNames: [sample.expectedNames[0], ...sample.expectedNames.slice(2)],
+                expectedDetectedSlots: [0, 2, 3],
+            }, 'covered-title')
+        }
     }
 }
 

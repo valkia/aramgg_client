@@ -1,4 +1,5 @@
 import type { TencentAugmentEvent } from './tencent-log-codec.ts'
+import { isAugmentSlotCount } from '../../../shared/augment-slots.ts'
 
 export type AugmentEntry = { id: number | string; key?: string | null; name: string; rarity?: string; [key: string]: unknown }
 export const TENCENT_SOURCE_STALE_MS = 15_000
@@ -56,13 +57,15 @@ export class TencentAugmentState {
     }
     const offer = this.candidates
     if (!offer || now - offer.at > TENCENT_CANDIDATE_MAX_AGE_MS) return null
-    if (offer.keys.length > 3 && offer.keys.slice(3).some(Boolean)) return null
+    let slotCount = offer.keys.length
+    while (slotCount > 0 && !offer.keys[slotCount - 1]) slotCount--
+    if (!isAugmentSlotCount(slotCount)) return null
     const result: AugmentEntry[] = []
-    for (const [slot, key] of offer.keys.slice(0, 3).entries()) {
+    for (const [slot, key] of offer.keys.slice(0, slotCount).entries()) {
       const matches = catalogue.filter(a => a.key === key && Number.isSafeInteger(Number(a.id)) && Number(a.id) > 0)
       if (!key || matches.length !== 1 || !matches[0].name) return null
       result.push({ ...matches[0], detectedSlot: slot, missing: false, confidence: 1 })
     }
-    return result.length === 3 ? result : null
+    return result
   }
 }

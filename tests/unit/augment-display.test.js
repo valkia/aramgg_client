@@ -54,6 +54,19 @@ describe('augment floating display merge', () => {
     expect(getTopPickKey(result)).toBeNull()
   })
 
+  it('retains the fourth slot stats during a reroll and can recommend that slot', () => {
+    const previous = [0, 1, 2, 3].map(slot => displayed(101 + slot, slot, 0.42 + slot * 0.09))
+    const result = mergeWinrateWithDetectedSlots([], [
+      detected(101, 0),
+      { id: null, missing: true, detectedSlot: 1 },
+      detected(103, 2),
+      detected(104, 3),
+    ], previous)
+    expect(result.map(augment => augment.id)).toEqual([101, null, 103, 104])
+    expect(result[3].winRate).toBe(previous[3].winRate)
+    expect(getTopPickKey(result)).toBe(104)
+  })
+
   it('keeps unread slots empty instead of carrying stale data', () => {
     const previous = [
       displayed(101, 0, 0.42),

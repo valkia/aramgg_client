@@ -1,13 +1,18 @@
 import type { LogEvent } from '../../modules/logger.ts'
 import { changedJsonPaths, LIVE_DATA_PATH } from './augment-api-capture.ts'
 import type { CaptureRow } from './augment-api-capture.ts'
+import { DEFAULT_AUGMENT_SLOT_COUNT, MAX_AUGMENT_SLOT_COUNT } from '../../../shared/augment-slots.ts'
 
 export const POST_SELECTION_WINDOW_MS = 15000
 const HISTORY_MS = 12000
 const HISTORY_BYTES = 4 * 1024 * 1024
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 const positiveId = (value: unknown): number | null => (typeof value === 'number' || typeof value === 'string') && Number.isSafeInteger(Number(value)) && Number(value) > 0 ? Number(value) : null
-const ids = (value: unknown): Array<number | null> => [0, 1, 2].map((slot) => Array.isArray(value) ? positiveId(value[slot]) : null)
+const ids = (value: unknown): Array<number | null> => {
+  const slots = Array.isArray(value) ? value : []
+  const length = Math.max(DEFAULT_AUGMENT_SLOT_COUNT, Math.min(slots.length, MAX_AUGMENT_SLOT_COUNT))
+  return Array.from({ length }, (_, slot) => positiveId(slots[slot]))
+}
 const time = (value: unknown): number => typeof value === 'string' ? Date.parse(value) : NaN
 
 type Sample = { sequence: unknown; at: number; startedAt: number; data: unknown; bytes: number }

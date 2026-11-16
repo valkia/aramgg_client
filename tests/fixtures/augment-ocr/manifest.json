@@ -19,5 +19,23 @@
     "expectedCardCount": 0,
     "expectedIds": [],
     "expectedNames": []
+  },
+  {
+    "file": "pbe-four-cards.jpg",
+    "description": "Four gold options in 16.23 preview footage, with used rerolls.",
+    "source": "https://www.bilibili.com/video/BV1jHWj6iEy3/?t=327",
+    "expectedSlotCount": 4,
+    "expectedCardCount": 4,
+    "expectedIds": [1353, 1358, 1020, 2140],
+    "expectedNames": ["坦克引擎", "弹球", "黎明使者的坚决", "升级：贪欲九头蛇"]
+  },
+  {
+    "file": "pbe-three-cards.jpg",
+    "description": "Three silver options at the wider spacing in the same preview.",
+    "source": "https://www.bilibili.com/video/BV1jHWj6iEy3/?t=360",
+    "expectedSlotCount": 3,
+    "expectedCardCount": 3,
+    "expectedIds": [1025, 1320, 2157],
+    "expectedNames": ["俯冲轰炸", "升级：收集者", "升级：死亡之舞"]
   }
 ]

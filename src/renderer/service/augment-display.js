@@ -1,5 +1,6 @@
 import { sortAugmentsByDetectedOrder } from './augment-order.js'
 import { compareAugmentPriority } from '../../shared/augment-ranking.ts'
+import { isAugmentSlotIndex } from '../../shared/augment-slots.ts'
 
 export const getAugmentId = (augment) => augment?.augmentId ?? augment?.id ?? null
 
@@ -66,7 +67,7 @@ const createPreviousSlotMap = (augments = []) => {
 
     const id = getAugmentId(augment)
     const slot = getDetectedSlot(augment, index)
-    if (id == null || slot < 0 || slot >= 3) {
+    if (id == null || !isAugmentSlotIndex(slot)) {
       return
     }
 
@@ -77,7 +78,7 @@ const createPreviousSlotMap = (augments = []) => {
 }
 
 export const mapDetectedAugmentsForFallback = (augments = [], previousAugments = []) => {
-  const previousBySlotAndId = createPreviousSlotMap(previousAugments)
+  const previousBySlotAndId = createPreviousSlotMap(previousAugments.length === augments.length ? previousAugments : [])
 
   return augments.map((augment, index) => {
     const detectedSlot = getDetectedSlot(augment, index)

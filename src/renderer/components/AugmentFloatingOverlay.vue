@@ -12,7 +12,12 @@
       </div>
 
       <!-- 海克斯推荐列表 -->
-      <div v-else-if="previewAugments.length > 0" class="augments-grid">
+      <div
+        v-else-if="previewAugments.length > 0"
+        class="augments-grid"
+        :class="{ 'four-slots': previewAugments.length === MAX_AUGMENT_SLOT_COUNT }"
+        :style="{ '--augment-columns': previewAugments.length }"
+      >
         <div
           v-for="(augment, index) in previewAugments"
           :key="getAugmentKey(augment, index)"
@@ -35,7 +40,7 @@
           </div>
 
           <div class="content">
-            <h3 class="name">{{ augment.missing ? '' : augment.name }}</h3>
+            <h3 class="name" :title="augment.missing ? undefined : augment.name">{{ augment.missing ? '' : augment.name }}</h3>
             <div v-if="!augment.missing" class="stats-lines">
               <div class="stat-line">
                 <span>{{ t('augment.pickRateShort') }}</span>
@@ -77,6 +82,7 @@ import {
 } from '../service/augment-display.js'
 import { getAugmentIconUrl } from '../service/cdn'
 import { formatAugmentWinRate, formatPercent } from '../service/overlay-formatters.ts'
+import { MAX_AUGMENT_SLOT_COUNT } from '../../shared/augment-slots.ts'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -88,7 +94,7 @@ const championId = ref(null)
 const unsubscribeEvents = []
 let overlayRequestId = 0
 
-const previewAugments = computed(() => displayAugments.value.slice(0, 3))
+const previewAugments = computed(() => displayAugments.value.slice(0, MAX_AUGMENT_SLOT_COUNT))
 
 const topPickKey = computed(() => getTopPickKey(previewAugments.value))
 
@@ -570,7 +576,7 @@ onBeforeUnmount(() => {
 
 .augments-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--augment-columns), minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -753,7 +759,6 @@ onBeforeUnmount(() => {
 
 @media (max-width: 760px) {
   .augments-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
   }
 }
@@ -815,7 +820,6 @@ onBeforeUnmount(() => {
 .augments-grid {
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   align-items: stretch;
 }
@@ -1008,7 +1012,6 @@ onBeforeUnmount(() => {
   }
 
   .augments-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
   }
 
@@ -1017,6 +1020,12 @@ onBeforeUnmount(() => {
     grid-template-columns: 48px minmax(0, 1fr);
     gap: 10px;
     padding: 10px 10px 14px;
+  }
+
+  .four-slots .augment-item {
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 8px;
+    padding-inline: 8px;
   }
 
   .top-pick-badge {
@@ -1041,12 +1050,27 @@ onBeforeUnmount(() => {
     height: 48px;
   }
 
+  .four-slots .augment-icon-frame {
+    width: 40px;
+    height: 40px;
+  }
+
   .content {
     gap: 5px;
   }
 
   .name {
     font-size: 18px;
+  }
+
+  .four-slots .name {
+    min-height: 2.2em;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    font-size: 16px;
+    overflow-wrap: anywhere;
+    white-space: normal;
   }
 
   .stats-lines {

@@ -32,7 +32,8 @@ import {
 import logger from './modules/logger.ts'
 import { ensureOnnxruntimeNativeDllPath } from './modules/onnxruntime-native-path.ts'
 import { discoverLcuAuthFromProcess } from './services/lcu/process-auth-discovery.ts'
-import { hasVisibleAugmentCardFrames } from './augment-card-frame.ts'
+import { detectAugmentCardLayout } from './augment-card-frame.ts'
+import { getAugmentCardGeometry, LEGACY_THREE_CARD_LAYOUT } from './augment-card-layout.ts'
 
 sharp.concurrency(Number(process.env.ARAMGG_SHARP_CONCURRENCY) || 2)
 
@@ -438,6 +439,7 @@ const OCR_TITLE_DARK_RATIO = 0.72
 const OCR_TITLE_MAX_EXTRA_NORMALIZED_CHARS = 8
 const AUGMENT_REROLL_BUTTON_SAMPLE = { width: 120, height: 48 }
 const AUGMENT_REROLL_BUTTON_MIN_RATIO = 0.08
+const AUGMENT_MUTED_REROLL_EDGE_MIN_CONTRAST = 7
 const AUGMENT_REROLL_BUTTON_MIN_VISIBLE_SLOTS = 2
 
 const MATCH_BLACKLIST = new Set([
@@ -1089,29 +1091,15 @@ function clampRegion(region, imageWidth, imageHeight) {
     }
 }
 
-function createCardLayout(width, height) {
-    const cardWidth = width * 0.168
-    const cardGap = width * 0.0175
-    const groupWidth = cardWidth * 3 + cardGap * 2
-    const groupLeft = (width - groupWidth) / 2
+function createIndividualTitleRegions(width, height, layout = LEGACY_THREE_CARD_LAYOUT) {
+    const { cardWidth, cardGap, groupLeft } = getAugmentCardGeometry(width, layout)
 
-    return {
-        cardWidth,
-        cardGap,
-        groupWidth,
-        groupLeft,
-    }
-}
-
-function createIndividualTitleRegions(width, height) {
-    const { cardWidth, cardGap, groupLeft } = createCardLayout(width, height)
-
-    return [0, 1, 2].map(index => ({
+    return Array.from({ length: layout.slotCount }, (_, index) => ({
         name: `card-title-${index + 1}`,
         left: groupLeft + index * (cardWidth + cardGap) + cardWidth * 0.08,
-        top: height * 0.37,
+        top: height * (layout.modern ? 0.38 : 0.37),
         width: cardWidth * 0.84,
-        height: height * 0.07,
+        height: height * (layout.modern ? 0.05 : 0.07),
         scale: 3,
         threshold: 170,
         invert: true,
@@ -1119,33 +1107,34 @@ function createIndividualTitleRegions(width, height) {
     }))
 }
 
-function createPaddleOcrTitleRegions(width, height) {
-    const { cardWidth, cardGap, groupLeft } = createCardLayout(width, height)
+function createPaddleOcrTitleRegions(width, height, layout) {
+    const { cardWidth, cardGap, groupLeft } = getAugmentCardGeometry(width, layout)
 
-    return [0, 1, 2].map(index => ({
+    return Array.from({ length: layout.slotCount }, (_, index) => ({
         name: `paddleocr-card-title-${index + 1}`,
         left: groupLeft + index * (cardWidth + cardGap) + cardWidth * 0.02,
-        top: height * 0.35,
+        top: height * (layout.modern ? 0.375 : 0.35),
         width: cardWidth * 0.96,
-        height: height * 0.095,
+        height: height * (layout.modern ? 0.052 : 0.095),
         scale: 3,
+        sharpen: layout.modern,
     }))
 }
 
-function createAugmentRerollButtonRegions(width, height) {
-    const { cardWidth, cardGap, groupLeft } = createCardLayout(width, height)
+function createAugmentRerollButtonRegions(width, height, layout) {
+    const { cardWidth, cardGap, groupLeft } = getAugmentCardGeometry(width, layout)
 
-    return [0, 1, 2].map(index => ({
+    return Array.from({ length: layout.slotCount }, (_, index) => ({
         name: `augment-reroll-button-${index + 1}`,
-        left: groupLeft + index * (cardWidth + cardGap) + cardWidth * 0.56,
-        top: height * 0.63,
-        width: cardWidth * 0.34,
-        height: height * 0.045,
+        left: groupLeft + index * (cardWidth + cardGap) + cardWidth * (layout.modern ? 0.37 : 0.56),
+        top: height * (layout.modern ? 0.695 : 0.63),
+        width: cardWidth * (layout.modern ? 0.29 : 0.34),
+        height: height * (layout.modern ? 0.05 : 0.045),
     }))
 }
 
 function createOcrRegions(width, height) {
-    const { groupWidth, groupLeft } = createCardLayout(width, height)
+    const { groupWidth, groupLeft } = getAugmentCardGeometry(width, LEGACY_THREE_CARD_LAYOUT)
     const individualTitleRegions = createIndividualTitleRegions(width, height)
 
     const titleStack = {
@@ -1221,14 +1210,15 @@ async function prepareRawOcrRegion(imageBuffer, region, imageWidth, imageHeight)
     const scale = region.scale || 1
     const targetWidth = Math.max(1, Math.round(rect.width * scale))
     const targetHeight = Math.max(1, Math.round(rect.height * scale))
-    const { data, info } = await sharpFromImage(imageBuffer)
+    const pipeline = sharpFromImage(imageBuffer)
         .extract(rect)
         .resize({
             width: targetWidth,
             height: targetHeight,
             fit: 'fill',
         })
-        .ensureAlpha()
+    if (region.sharpen) pipeline.sharpen()
+    const { data, info } = await pipeline.ensureAlpha()
         .raw()
         .toBuffer({ resolveWithObject: true })
 
@@ -1363,9 +1353,9 @@ async function composeStackedTitleRows(preparedRows, minRowGap = 10) {
     }
 }
 
-async function preparePaddleOcrStackedTitleRegion(imageBuffer, imageWidth, imageHeight) {
+async function preparePaddleOcrStackedTitleRegion(imageBuffer, imageWidth, imageHeight, layout) {
     const preparedRows = await Promise.all(
-        createPaddleOcrTitleRegions(imageWidth, imageHeight)
+        createPaddleOcrTitleRegions(imageWidth, imageHeight, layout)
             .map(region => prepareRawOcrRegion(imageBuffer, region, imageWidth, imageHeight))
     )
 
@@ -1470,10 +1460,10 @@ export function isLikelyTitleSlotText(rawText, match) {
     return normalizedText.length <= normalizedName.length + OCR_TITLE_MAX_EXTRA_NORMALIZED_CHARS
 }
 
-async function readPaddleOcrTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
+async function readPaddleOcrTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight, layout) {
     const startedAt = performance.now()
     const prepareStartedAt = performance.now()
-    const prepared = await preparePaddleOcrStackedTitleRegion(imageBuffer, imageWidth, imageHeight)
+    const prepared = await preparePaddleOcrStackedTitleRegion(imageBuffer, imageWidth, imageHeight, layout)
     const { rect, rowBounds, rowFingerprints } = prepared
     const prepareMs = performance.now() - prepareStartedAt
     logger.debug(`PaddleOCR ordered title stack: x=${rect.left}, y=${rect.top}, width=${rect.width}, height=${rect.height}`)
@@ -1518,9 +1508,9 @@ async function readPaddleOcrTitleAugments(imageBuffer, groupRegion, imageWidth, 
     return result
 }
 
-async function readStackedTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight) {
+async function readStackedTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight, layout) {
     try {
-        const paddleResult = await readPaddleOcrTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight)
+        const paddleResult = await readPaddleOcrTitleAugments(imageBuffer, groupRegion, imageWidth, imageHeight, layout)
         if (paddleResult) {
             return paddleResult
         }
@@ -1581,8 +1571,8 @@ async function measureTitleRegionActivity(imageBuffer, region, imageWidth, image
     }
 }
 
-async function getAugmentTitleActivity(imageBuffer, width, height) {
-    const titleRegions = createIndividualTitleRegions(width, height)
+async function getAugmentTitleActivity(imageBuffer, width, height, layout) {
+    const titleRegions = createIndividualTitleRegions(width, height, layout)
     const samples = await Promise.all(
         titleRegions.map(region => measureTitleRegionActivity(imageBuffer, region, width, height))
     )
@@ -1602,7 +1592,7 @@ async function getAugmentTitleActivity(imageBuffer, width, height) {
     }
 }
 
-async function measureRerollButtonRegion(imageBuffer, region, imageWidth, imageHeight) {
+async function measureRerollButtonRegion(imageBuffer, region, imageWidth, imageHeight, layout) {
     const rect = clampRegion(region, imageWidth, imageHeight)
     const { data, info } = await sharpFromImage(imageBuffer)
         .extract(rect)
@@ -1643,16 +1633,35 @@ async function measureRerollButtonRegion(imageBuffer, region, imageWidth, imageH
     }
 
     const buttonLikeRatio = buttonLikePixels / pixelCount
+    // Used rerolls in the newer layout are too dark for the color threshold.
+    // Their straight top edge is still brighter than the button interior.
+    let mutedButtonVisible = false
+    if (layout.modern && buttonLikeRatio < AUGMENT_REROLL_BUTTON_MIN_RATIO) {
+        const rowBrightness = Array.from({ length: info.height }, (_, row) => {
+            let total = 0
+            const left = Math.floor(info.width * 0.22)
+            const right = Math.ceil(info.width * 0.78)
+            for (let col = left; col < right; col++) {
+                const offset = (row * info.width + col) * channels
+                total += (data[offset] + data[offset + 1] + data[offset + 2]) / 3
+            }
+            return total / (right - left)
+        })
+        const topEdge = Math.max(...rowBrightness.slice(3, 15))
+        const interior = rowBrightness.slice(17, 35)
+        const interiorAverage = interior.reduce((sum, row) => sum + row, 0) / interior.length
+        mutedButtonVisible = topEdge - interiorAverage >= AUGMENT_MUTED_REROLL_EDGE_MIN_CONTRAST
+    }
 
     return {
         name: region.name,
         buttonLikeRatio,
         darkRatio: darkPixels / pixelCount,
-        active: buttonLikeRatio >= AUGMENT_REROLL_BUTTON_MIN_RATIO,
+        active: buttonLikeRatio >= AUGMENT_REROLL_BUTTON_MIN_RATIO || mutedButtonVisible,
     }
 }
 
-export async function detectAugmentRerollButtons(imageBuffer, imageWidth = null, imageHeight = null) {
+export async function detectAugmentRerollButtons(imageBuffer, imageWidth = null, imageHeight = null, layout = LEGACY_THREE_CARD_LAYOUT) {
     const metadata = isRawImageInput(imageBuffer)
         ? { width: imageBuffer.width, height: imageBuffer.height }
         : !imageWidth || !imageHeight
@@ -1670,8 +1679,8 @@ export async function detectAugmentRerollButtons(imageBuffer, imageWidth = null,
     }
 
     const samples = await Promise.all(
-        createAugmentRerollButtonRegions(width, height)
-            .map(region => measureRerollButtonRegion(imageBuffer, region, width, height))
+        createAugmentRerollButtonRegions(width, height, layout)
+            .map(region => measureRerollButtonRegion(imageBuffer, region, width, height, layout))
     )
     const activeSlots = samples
         .map((sample, index) => sample.active ? index : null)
@@ -1703,27 +1712,8 @@ export async function detectAugmentRerollButtons(imageBuffer, imageWidth = null,
     }
 }
 
-function orderAugmentsByDetectedSlot(augments = []) {
-    return augments
-        .slice()
-        .sort((a, b) => {
-            const slotA = Number.isInteger(a?.detectedSlot) ? a.detectedSlot : 99
-            const slotB = Number.isInteger(b?.detectedSlot) ? b.detectedSlot : 99
-            return slotA - slotB
-        })
-        .slice(0, 3)
-}
-
-function hasCompleteDetectedSlots(augments = []) {
-    const slots = new Set()
-
-    for (const augment of augments.slice(0, 3)) {
-        if (Number.isInteger(augment?.detectedSlot) && augment.detectedSlot >= 0 && augment.detectedSlot < 3) {
-            slots.add(augment.detectedSlot)
-        }
-    }
-
-    return slots.size === 3
+function hasCompleteDetectedSlots(augments, slotCount) {
+    return augments.length === slotCount && augments.every((augment, slot) => augment.detectedSlot === slot)
 }
 
 function logOcrQueueError(error) {
@@ -1767,21 +1757,25 @@ async function recognizeAugmentsFromImage(imageBuffer) {
     try {
         const rawImage = await decodeImageToRaw(imageBuffer)
         const { width, height } = rawImage
+        const detectedLayout = detectAugmentCardLayout(rawImage)
+        const layout = detectedLayout ?? LEGACY_THREE_CARD_LAYOUT
+        const { slotCount } = layout
 
         logger.debug(`OCR augment recognition started: ${width}x${height}`)
 
-        const titleActivity = await getAugmentTitleActivity(rawImage, width, height)
+        const titleActivity = await getAugmentTitleActivity(rawImage, width, height, layout)
         const gate = {
             titleActivity,
             rerollButtons: null,
             ocrSkippedReason: null,
-            // 仅 Mac 预览启用：悬停说明遮住标题但三张卡框仍在时保留已有推荐，Windows 不计算也不改变清除逻辑。
-            cardFramesVisible: process.platform === 'darwin' && hasVisibleAugmentCardFrames(rawImage),
+            // 仅 Mac 在悬停说明挡住标题时使用卡框作为浮窗保留信号。
+            cardFramesVisible: process.platform === 'darwin' && !!detectedLayout,
         }
 
         if (!titleActivity.likely) {
             logger.debug('OCR augment recognition skipped: no likely augment title card activity')
             return {
+                slotCount,
                 augments: [],
                 slotDiagnostics: [],
                 rerollButtons: null,
@@ -1792,11 +1786,12 @@ async function recognizeAugmentsFromImage(imageBuffer) {
             }
         }
 
-        const rerollButtons = await detectAugmentRerollButtons(rawImage, width, height)
+        const rerollButtons = await detectAugmentRerollButtons(rawImage, width, height, layout)
         gate.rerollButtons = rerollButtons
         if (!rerollButtons.visible) {
             logger.debug('OCR augment recognition skipped: no visible augment reroll buttons')
             return {
+                slotCount,
                 augments: [],
                 slotDiagnostics: [],
                 rerollButtons,
@@ -1810,38 +1805,38 @@ async function recognizeAugmentsFromImage(imageBuffer) {
         const individualTitleGroup = {
             name: 'card-title-individual-group',
             type: 'individual-title-group',
-            regions: createIndividualTitleRegions(width, height),
+            regions: createIndividualTitleRegions(width, height, layout),
             psm: 'SINGLE_LINE',
         }
         const {
-            augments: orderedTitleAugments,
+            augments: result,
             slotDiagnostics,
-        } = await readStackedTitleAugments(rawImage, individualTitleGroup, width, height)
-        const result = orderAugmentsByDetectedSlot(orderedTitleAugments)
+        } = await readStackedTitleAugments(rawImage, individualTitleGroup, width, height, layout)
 
         if (result.length === 0) {
             logger.debug('OCR returned no text in ordered augment title slots')
-            return { augments: [], slotDiagnostics, rerollButtons, gate }
+            return { slotCount, augments: [], slotDiagnostics, rerollButtons, gate }
         }
 
-        if (hasCompleteDetectedSlots(result)) {
-            logger.debug('OCR augment recognition completed from ordered individual titles: 3 augments')
+        if (hasCompleteDetectedSlots(result, slotCount)) {
+            logger.debug(`OCR augment recognition completed from ordered individual titles: ${slotCount} augments`)
         } else {
             const detectedSlots = result
                 .filter(augment => Number.isInteger(augment?.detectedSlot))
                 .map(augment => augment.detectedSlot)
             logger.debug('OCR augment recognition partial from ordered title slots', {
                 detectedSlots,
-                missingSlots: [0, 1, 2].filter(slot => !detectedSlots.includes(slot)),
+                missingSlots: [...slotDiagnostics.keys()].filter(slot => !detectedSlots.includes(slot)),
                 augmentIds: result.map(augment => augment.id),
                 slotDiagnostics,
             })
         }
 
-        return { augments: result, slotDiagnostics, rerollButtons, gate }
+        return { slotCount, augments: result, slotDiagnostics, rerollButtons, gate }
     } catch (error) {
         logger.error('❌ OCR 识别失败:', error)
         return {
+            slotCount: LEGACY_THREE_CARD_LAYOUT.slotCount,
             augments: [],
             slotDiagnostics: [],
             rerollButtons: null,
@@ -2148,7 +2143,7 @@ export async function matchAugmentDatabase(recognizedText) {
         logger.debug(`   [#${i + 1}] "${c.matchName}" (${c.matchLocale}) @位置 ${c.start}`)
     })
 
-    // 选择前 3 个（海克斯选择界面固定是 3 张卡片）
+    // Limit text matches from a single title crop.
     const augments = []
     for (const candidate of selectedCandidates.slice(0, 3)) {
         const confidence = candidate.match.distance === 0 ? 0.95 : 0.80
@@ -2178,9 +2173,9 @@ export async function matchAugmentDatabase(recognizedText) {
  * @param {boolean} isAugmentPhase - 是否识别为海克斯阶段
  * @returns {number} 0-1之间的置信度
  */
-function calculateConfidence(cardCount, isAugmentPhase) {
+function calculateConfidence(cardCount, slotCount, isAugmentPhase) {
     // ✅ 只有完全通过所有验证的情况才给高置信度
-    if (cardCount === 3 && isAugmentPhase) {
+    if (cardCount === slotCount && isAugmentPhase) {
         return 0.95  // 通过了所有验证
     }
 
@@ -2257,14 +2252,16 @@ export const analyzeScreenshotGate = async (imageInput) => {
 
         const rawImage = await decodeImageToRaw(imageBuffer)
         const { width, height } = rawImage
-        const titleActivity = await getAugmentTitleActivity(rawImage, width, height)
-        const rerollButtons = await detectAugmentRerollButtons(rawImage, width, height)
+        const layout = detectAugmentCardLayout(rawImage) ?? LEGACY_THREE_CARD_LAYOUT
+        const titleActivity = await getAugmentTitleActivity(rawImage, width, height, layout)
+        const rerollButtons = await detectAugmentRerollButtons(rawImage, width, height, layout)
         // 小尺寸门禁帧的标题区域更小，放宽到至少一个候选区域即可触发升级；
         // 连续候选帧阈值和完整 OCR 冷却会过滤普通 HUD 误报。
         const likely = titleActivity.strongTitleRegions >= 1 || titleActivity.weakCardRegions >= 1
 
         return {
             success: true,
+            slotCount: layout.slotCount,
             likely,
             rerollVisible: rerollButtons.visible,
             strongTitleRegions: titleActivity.strongTitleRegions,
@@ -2307,7 +2304,7 @@ export const analyzeScreenshot = async (imageInput) => {
 
         // 【新方案】使用OCR识别海克斯名称
         const recognition = await recognizeAugmentsFromImage(imageBuffer)
-        const recognizedAugments = recognition.augments
+        const { slotCount, augments: recognizedAugments } = recognition
         const slotDiagnostics = recognition.slotDiagnostics || []
         const rerollButtons = recognition.rerollButtons || null
         const augmentGate = recognition.gate || null
@@ -2315,8 +2312,8 @@ export const analyzeScreenshot = async (imageInput) => {
         logger.debug(`OCR augment result count: ${recognizedAugments.length}`)
 
         // 判断是否为海克斯选择界面
-        const isAugmentPhase = recognizedAugments.length === 3
-        const confidence = calculateConfidence(recognizedAugments.length, isAugmentPhase)
+        const isAugmentPhase = hasCompleteDetectedSlots(recognizedAugments, slotCount)
+        const confidence = calculateConfidence(recognizedAugments.length, slotCount, isAugmentPhase)
 
         // 整合结果
         const analysisResult = {
@@ -2324,6 +2321,7 @@ export const analyzeScreenshot = async (imageInput) => {
             timestamp,
             analysis: {
                 augments: recognizedAugments,         // OCR识别到的海克斯
+                slotCount,                            // 界面上的槽位数（不受漏读影响）
                 cardCount: recognizedAugments.length, // 识别到的海克斯数量
                 cardColors: [],                       // 不再使用颜色检测
                 confidence: confidence,                // 简化的置信度（0 或 0.95）

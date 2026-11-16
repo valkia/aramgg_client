@@ -1,3 +1,6 @@
+import { DEFAULT_AUGMENT_SLOT_COUNT, isAugmentSlotIndex, MAX_AUGMENT_SLOT_COUNT } from '../shared/augment-slots.ts'
+import type { AugmentSlotCount } from '../shared/augment-slots.ts'
+
 export type PartialAugment = {
     id?: string | number | null
     name?: string
@@ -16,12 +19,14 @@ export type AugmentSlotDiagnostic = {
 }
 
 type InitialPartialSelectionOptions = {
+    slotCount?: AugmentSlotCount
     augments?: PartialAugment[]
     slotDiagnostics?: AugmentSlotDiagnostic[]
     minimumKnownAugments?: number
 }
 
 type MergePartialAugmentsOptions = {
+    slotCount?: AugmentSlotCount
     augments?: PartialAugment[]
     slotDiagnostics?: AugmentSlotDiagnostic[]
     lastDetectedAugmentIds?: string[]
@@ -30,13 +35,18 @@ type MergePartialAugmentsOptions = {
 }
 
 export function getAugmentIds(augments: PartialAugment[] = []): string[] {
-    return augments.slice(0, 3).map(augment => {
-        if (augment?.id == null) {
+    return augments.map(augment => {
+        if (augment?.id == null || augment.missing) {
             return null
         }
 
         return String(augment.id)
     }).filter((id): id is string => Boolean(id))
+}
+
+// Include gaps and the layout size in comparisons, even when known IDs are identical.
+export function getAugmentSlotIds(augments: PartialAugment[] = []): Array<string | null> {
+    return augments.map(augment => augment?.id == null || augment.missing ? null : String(augment.id))
 }
 
 export function createEmptyAugmentSlot(slot: number): PartialAugment {
@@ -66,10 +76,6 @@ export function hasMeaningfulSlotText(text: unknown): boolean {
     return cjkCount >= 2 || normalized.length >= 4
 }
 
-function isValidDetectedSlot(slot: unknown): slot is number {
-    return typeof slot === 'number' && Number.isInteger(slot) && slot >= 0 && slot < 3
-}
-
 function findSlotDiagnostic(
     slotDiagnostics: AugmentSlotDiagnostic[] = [],
     slot: number
@@ -78,33 +84,36 @@ function findSlotDiagnostic(
 }
 
 export function createInitialPartialAugmentSelection({
+    slotCount = DEFAULT_AUGMENT_SLOT_COUNT,
     augments = [],
     slotDiagnostics = [],
     minimumKnownAugments = 2,
 }: InitialPartialSelectionOptions = {}) {
     const knownAugments = augments.filter(augment =>
-        augment?.id != null && isValidDetectedSlot(augment.detectedSlot)
+        augment?.id != null && isAugmentSlotIndex(augment.detectedSlot, slotCount)
     )
 
-    if (knownAugments.length < minimumKnownAugments || knownAugments.length >= 3) {
+    if (knownAugments.length < minimumKnownAugments || knownAugments.length >= slotCount) {
         return null
     }
 
     const knownSlots = new Set(knownAugments.map(augment => augment.detectedSlot))
-    const missingSlots = [0, 1, 2].filter(slot => !knownSlots.has(slot))
+    const merged = Array.from({ length: slotCount }, (_, slot) => createEmptyAugmentSlot(slot))
+    const missingSlots = [...merged.keys()].filter(slot => !knownSlots.has(slot))
     const hasMeaningfulUnmatchedTitle = missingSlots.some(slot => {
         const diagnostic = findSlotDiagnostic(slotDiagnostics, slot)
         return diagnostic?.matchedId == null && hasMeaningfulSlotText(diagnostic?.text)
     })
 
-    if (!hasMeaningfulUnmatchedTitle) {
+    // The four-card layout is confirmed from the frames, even with one unreadable title.
+    const oneUnreadFourCardSlot = slotCount === MAX_AUGMENT_SLOT_COUNT && missingSlots.length === 1
+    if (!hasMeaningfulUnmatchedTitle && !oneUnreadFourCardSlot) {
         return null
     }
 
-    const merged: PartialAugment[] = [0, 1, 2].map(createEmptyAugmentSlot)
     for (const augment of knownAugments) {
         const slot = augment.detectedSlot
-        if (isValidDetectedSlot(slot)) {
+        if (isAugmentSlotIndex(slot, slotCount)) {
             merged[slot] = augment
         }
     }
@@ -148,6 +157,7 @@ function hasTitleFingerprintChanged(
 }
 
 function getChangedUnmatchedSlots({
+    slotCount = DEFAULT_AUGMENT_SLOT_COUNT,
     slotDiagnostics = [],
     lastDetectedAugments = [],
     lastDetectedSlotFingerprints = [],
@@ -159,7 +169,7 @@ function getChangedUnmatchedSlots({
 
     return slotDiagnostics.flatMap((diagnostic) => {
         const slot = diagnostic.slot
-        if (!isValidDetectedSlot(slot)) {
+        if (!isAugmentSlotIndex(slot, slotCount)) {
             return []
         }
 
@@ -173,13 +183,14 @@ function getChangedUnmatchedSlots({
 }
 
 export function mergePartialAugments({
+    slotCount = DEFAULT_AUGMENT_SLOT_COUNT,
     augments = [],
     slotDiagnostics = [],
     lastDetectedAugmentIds = [],
     lastDetectedAugments = [],
     lastDetectedSlotFingerprints = [],
 }: MergePartialAugmentsOptions = {}) {
-    if (augments.length >= 3) {
+    if (augments.length >= slotCount || (lastDetectedAugments.length > 0 && lastDetectedAugments.length !== slotCount)) {
         return null
     }
 
@@ -190,12 +201,13 @@ export function mergePartialAugments({
     const partialIds = new Set(getAugmentIds(augments))
     const hasStablePreviousId = [...partialIds].some(id => lastDetectedAugmentIds.includes(id))
     const changedUnmatchedSlots = getChangedUnmatchedSlots({
+        slotCount,
         slotDiagnostics,
         lastDetectedAugments,
         lastDetectedSlotFingerprints,
         hasStablePreviousId,
     })
-    const hasDetectedSlot = augments.some(augment => Number.isInteger(augment?.detectedSlot))
+    const hasDetectedSlot = augments.some(augment => isAugmentSlotIndex(augment?.detectedSlot, slotCount))
     if (!hasDetectedSlot && changedUnmatchedSlots.length === 0) {
         return null
     }
@@ -205,15 +217,15 @@ export function mergePartialAugments({
         return null
     }
 
-    const merged: PartialAugment[] = [0, 1, 2].map(createEmptyAugmentSlot)
+    const merged = Array.from({ length: slotCount }, (_, slot) => createEmptyAugmentSlot(slot))
     for (const augment of augments) {
-        if (isValidDetectedSlot(augment?.detectedSlot)) {
+        if (isAugmentSlotIndex(augment?.detectedSlot, slotCount)) {
             merged[augment.detectedSlot] = augment
         }
     }
 
     return {
-        augments: merged.slice(0, 3),
+        augments: merged,
         reason: hasNewId ? 'new-id' : 'slot-visual-changed',
         changedUnmatchedSlots,
     }

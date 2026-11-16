@@ -21,6 +21,7 @@ import {
     shouldActivateSelectionCapture,
 } from './auto-screenshot-policy.ts'
 import { analyzeScreenshot, analyzeScreenshotGate, warmupImageAnalyzer } from './image-analyzer.ts'
+import { isAugmentSlotIndex } from '../shared/augment-slots.ts'
 import { BrowserWindow } from 'electron'
 import fs from 'fs-extra'
 import path from 'path'
@@ -40,6 +41,7 @@ import { getPartialOcrScreenshotDir } from './modules/app-paths.ts'
 import {
     createInitialPartialAugmentSelection,
     getAugmentIds,
+    getAugmentSlotIds,
     mergePartialAugments,
 } from './augment-partial-merge.ts'
 import {
@@ -77,7 +79,7 @@ function getSlotFingerprints(slotDiagnostics = []) {
     const fingerprints = []
     for (const diagnostic of slotDiagnostics || []) {
         const slot = diagnostic?.slot
-        if (Number.isInteger(slot) && slot >= 0 && slot < 3 && diagnostic.titleFingerprint) {
+        if (isAugmentSlotIndex(slot) && diagnostic.titleFingerprint) {
             fingerprints[slot] = diagnostic.titleFingerprint
         }
     }
@@ -85,10 +87,9 @@ function getSlotFingerprints(slotDiagnostics = []) {
 }
 
 function summarizeSlotDiagnostics(slotDiagnostics = []) {
-    return [0, 1, 2].map(slot => {
-        const diagnostic = (slotDiagnostics || []).find(item => item?.slot === slot) || {}
+    return slotDiagnostics.map(diagnostic => {
         return {
-            slot,
+            slot: diagnostic.slot,
             matchedId: diagnostic.matchedId ?? null,
             matchedName: diagnostic.matchedName || null,
             rejectedMatchedId: diagnostic.rejectedMatchedId ?? null,
@@ -150,8 +151,8 @@ function summarizeAugmentGate(gate) {
 
 function getChangedSlots(currentIds = [], previousIds = []) {
     const changed = []
-    for (let slot = 0; slot < 3; slot++) {
-        if ((currentIds[slot] || null) !== (previousIds[slot] || null)) {
+    for (let slot = 0; slot < Math.max(currentIds.length, previousIds.length); slot++) {
+        if (currentIds[slot] !== previousIds[slot]) {
             changed.push(slot)
         }
     }
@@ -169,9 +170,9 @@ function wait(ms) {
 
 function getPayloadAugmentIds(augments = []) {
     return augments
-        .slice(0, 3)
+        .filter(augment => augment && !augment.missing)
         .map(augment => Number(augment?.id ?? augment?.augmentId))
-        .filter(id => Number.isFinite(id))
+        .filter(id => Number.isSafeInteger(id) && id > 0)
 }
 
 function isConfirmedAugmentSelectionUi(analysis = {}) {
@@ -179,12 +180,6 @@ function isConfirmedAugmentSelectionUi(analysis = {}) {
     return gate.ocrSkippedReason == null &&
         gate.titleActivity?.likely === true &&
         gate.rerollButtons?.visible === true
-}
-
-function isKnownSubsetOfPrevious(currentIds = [], previousIds = []) {
-    return previousIds.length > 0 &&
-        currentIds.length > 0 &&
-        currentIds.every(id => previousIds.includes(id))
 }
 
 class AutoScreenshotService {
@@ -850,11 +845,11 @@ class AutoScreenshotService {
                 try {
                     const gate = gateResult || await analyzeScreenshotGate(imageBuffer)
                     const candidates = this.tencentSource.getCandidates()
-                    if (gate.success && gate.likely && gate.rerollVisible && candidates) {
+                    if (gate.success && gate.likely && gate.rerollVisible && candidates && candidates.length === gate.slotCount) {
                         analysisResult = {
                             success: true, timestamp: Date.now(), recognitionSource: 'tencent-log',
                             analysis: {
-                                cardCount: 3, confidence: 1, isAugmentPhase: true, augments: candidates,
+                                slotCount: candidates.length, cardCount: candidates.length, confidence: 1, isAugmentPhase: true, augments: candidates,
                                 slotDiagnostics: [],
                                 augmentGate: { ocrSkippedReason: null, titleActivity: { likely: true }, rerollButtons: { visible: true } },
                             },
@@ -884,8 +879,9 @@ class AutoScreenshotService {
                 return  // 分析失败，不继续处理
             }
 
-            const { cardCount, confidence, isAugmentPhase, augments } = analysisResult.analysis
+            const { slotCount, cardCount, confidence, isAugmentPhase, augments } = analysisResult.analysis
             const hasVisibleAugments = this.lastDetectedAugmentIds.length > 0
+            const sameLayout = this.lastDetectedAugments.length === slotCount
             if (hasVisibleAugments && (cardCount > 0 ||
                 analysisResult.analysis.augmentGate?.cardFramesVisible === true)) {
                 refreshVisibleMacAugmentOverlayOrder()
@@ -906,43 +902,37 @@ class AutoScreenshotService {
                 )
             }
 
-            if (cardCount > 0 && cardCount < 3) {
+            if (cardCount > 0 && cardCount < slotCount) {
                 this._savePartialOcrScreenshot(imageBuffer, analysisResult, analysisDuration, runId)
             }
 
             if (isGameDiagnosticsEnabled() && isConfirmedAugmentSelectionUi(analysisResult.analysis)) {
-                const candidateSlots = [null, null, null]
+                const candidateSlots = Array(slotCount).fill(null)
                 const observedAugments = Array.isArray(augments) ? augments : []
-                observedAugments.slice(0, 3).forEach((augment, index) => {
+                observedAugments.forEach((augment, index) => {
                     const slot = Number.isInteger(augment?.detectedSlot) ? augment.detectedSlot : index
-                    if (slot >= 0 && slot < 3 && !augment?.missing) candidateSlots[slot] = augment?.id ?? null
+                    if (isAugmentSlotIndex(slot, slotCount) && !augment?.missing) candidateSlots[slot] = augment?.id ?? null
                 })
                 logger.debug('Augment selection UI observed', {
-                    candidateSlots, cardCount, confidence, recognitionSource: analysisResult.recognitionSource || 'ocr',
+                    candidateSlots, slotCount, cardCount, confidence, recognitionSource: analysisResult.recognitionSource || 'ocr',
                 })
             }
 
-            // ✅ 严格的通知条件：
-            // 1. 必须检测到 3 张卡片
-            // 2. 必须通过间距验证（isAugmentPhase = true）
-            // 3. 置信度必须 > 90%（更严格）
-            if (cardCount === 3 && isAugmentPhase && confidence > 0.9) {
-                const normalizedAugments = augments.slice(0, 3)
+            if (cardCount === slotCount && isAugmentPhase && confidence > 0.9) {
+                const normalizedAugments = augments
                 // 检查是否与上次检测到的海克斯相同（避免重复通知）
                 const currentIds = getAugmentIds(normalizedAugments)
-                const currentIdList = currentIds.join(',')
-                const lastIds = this.lastDetectedAugmentIds.join(',')
-                const changedSlots = getChangedSlots(currentIds, this.lastDetectedAugmentIds)
+                const changedSlots = getChangedSlots(getAugmentSlotIds(normalizedAugments), getAugmentSlotIds(this.lastDetectedAugments))
                 this._logFullDetectionDiagnostics({
                     analysisResult,
                     augments: normalizedAugments,
                     currentIds,
                     changedSlots,
                     analysisDuration,
-                    changed: currentIdList !== lastIds,
+                    changed: changedSlots.length > 0,
                 })
 
-                if (currentIdList !== lastIds) {
+                if (changedSlots.length > 0) {
                     // 新的海克斯组合，更新显示
                     this.detectionCount++
                     this.lastDetectedAugmentIds = currentIds
@@ -978,13 +968,14 @@ class AutoScreenshotService {
                 }
             } else {
                 // 检测结果不满足通知条件
-                if (cardCount < 3) {
-                    // 切换/刷新海克斯时会有短暂动画帧，OCR 可能只读到 0-2 张。
+                if (cardCount < slotCount) {
+                    // 切换或刷新时可能只读到部分标题。
                     // 保留上一轮已显示结果，只有连续 miss 超过宽限才清空。
                     const hadVisibleAugmentOverlay = this.lastDetectedAugmentIds.length > 0
                     const partialMerge = this._mergePartialAugments(
                         augments,
-                        analysisResult.analysis.slotDiagnostics || []
+                        analysisResult.analysis.slotDiagnostics || [],
+                        slotCount
                     )
                     if (partialMerge) {
                         const mergedAugments = partialMerge.augments
@@ -1010,6 +1001,7 @@ class AutoScreenshotService {
 
                     const initialPartial = isConfirmedAugmentSelectionUi(analysisResult.analysis)
                         ? createInitialPartialAugmentSelection({
+                            slotCount,
                             augments,
                             slotDiagnostics: analysisResult.analysis.slotDiagnostics || [],
                         })
@@ -1018,11 +1010,11 @@ class AutoScreenshotService {
                     if (initialPartial) {
                         const partialAugments = initialPartial.augments
                         const currentIds = getAugmentIds(partialAugments)
-                        const currentIdList = currentIds.join(',')
-                        const lastIds = this.lastDetectedAugmentIds.join(',')
-                        const knownSubsetOfPrevious = isKnownSubsetOfPrevious(currentIds, this.lastDetectedAugmentIds)
+                        const currentSlots = getAugmentSlotIds(partialAugments)
+                        const previousSlots = getAugmentSlotIds(this.lastDetectedAugments)
+                        const knownSubsetOfPrevious = sameLayout && currentSlots.every((id, slot) => id === null || id === previousSlots[slot])
 
-                        if (currentIdList === lastIds) {
+                        if (!getChangedSlots(currentSlots, previousSlots).length) {
                             this.lastDetectedAugmentAt = Date.now()
                             this.visibleAugmentMissCount = 0
                             logger.debug(`[自动分析 ${this.analysisCount}] Partial augment selection unchanged, skipping notification`)
@@ -1164,8 +1156,9 @@ class AutoScreenshotService {
         return true
     }
 
-    _mergePartialAugments(augments = [], slotDiagnostics = []) {
+    _mergePartialAugments(augments = [], slotDiagnostics = [], slotCount) {
         return mergePartialAugments({
+            slotCount,
             augments,
             slotDiagnostics,
             lastDetectedAugmentIds: this.lastDetectedAugmentIds,
@@ -1320,13 +1313,12 @@ class AutoScreenshotService {
     }
 
     _isCurrentAugmentPayload(winrateData) {
-        const payloadIds = getPayloadAugmentIds(winrateData?.augments).map(String)
-        return payloadIds.join(',') === this.lastDetectedAugmentIds.join(',')
+        return !getChangedSlots(getAugmentSlotIds(winrateData?.augments), getAugmentSlotIds(this.lastDetectedAugments)).length
     }
 
     suppressCurrentAugmentOverlay(reason = 'manual-hide') {
         const now = Date.now()
-        this.manualHiddenAugmentIds = this.lastDetectedAugmentIds.map(String)
+        this.manualHiddenAugmentIds = getAugmentSlotIds(this.lastDetectedAugments)
         this.manualHiddenAugmentUntil = now + MANUAL_AUGMENT_HIDE_MIN_SUPPRESS_MS
         this.lastManualHiddenSuppressLogAt = 0
 
@@ -1338,15 +1330,15 @@ class AutoScreenshotService {
     }
 
     _isManualHiddenAugmentSuppressed(winrateData) {
-        const payloadIds = getPayloadAugmentIds(winrateData?.augments).map(String)
-        if (!payloadIds.length) {
+        const payloadIds = getAugmentSlotIds(winrateData?.augments)
+        if (!payloadIds.some(Boolean)) {
             return false
         }
 
         const now = Date.now()
         const minimumSuppressActive = now < this.manualHiddenAugmentUntil
         const sameHiddenSelection = this.manualHiddenAugmentIds.length > 0 &&
-            payloadIds.join(',') === this.manualHiddenAugmentIds.join(',')
+            !getChangedSlots(payloadIds, this.manualHiddenAugmentIds).length
 
         if (!minimumSuppressActive && !sameHiddenSelection) {
             if (this.manualHiddenAugmentIds.length > 0) {
@@ -1528,7 +1520,7 @@ class AutoScreenshotService {
                 success: true,
                 gamePhase: 'augment-select',
                 championId: championId || null, // 添加英雄ID
-                augments: analysisResult.analysis.augments.slice(0, 3).map((aug, index) => ({
+                augments: analysisResult.analysis.augments.map((aug, index) => ({
                     id: aug.id ?? null,
                     name: aug.name || '',
                     rarity: aug.rarity || 'unknown',
