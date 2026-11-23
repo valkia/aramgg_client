@@ -166,18 +166,33 @@ async function main() {
         await assertFixtureResult(analyzeScreenshot, automaticCaptureBuffer, sample, '1024x576')
 
         if (sample.expectedSlotCount === 4) {
-            // Cover only the second card title, leaving the four frames and reroll controls visible.
-            const blockedTitle = await sharp(imagePath).composite([{
-                input: { create: { width: 110, height: 25, channels: 3, background: '#091114' } },
-                left: 268, top: 168,
-            }]).png().toBuffer()
-            await assertFixtureResult(analyzeScreenshot, blockedTitle, {
+            const missingSecondCard = {
                 ...sample,
                 expectedCardCount: 3,
                 expectedIds: [sample.expectedIds[0], ...sample.expectedIds.slice(2)],
                 expectedNames: [sample.expectedNames[0], ...sample.expectedNames.slice(2)],
                 expectedDetectedSlots: [0, 2, 3],
-            }, 'covered-title')
+            }
+            // Cover only the second card title, leaving the four frames and reroll controls visible.
+            const blockedTitle = await sharp(imagePath).composite([{
+                input: { create: { width: 110, height: 25, channels: 3, background: '#091114' } },
+                left: 268, top: 168,
+            }]).png().toBuffer()
+            await assertFixtureResult(analyzeScreenshot, blockedTitle, missingSecondCard, 'covered-title')
+
+            // A tooltip or animation can obscure a whole frame as well as its title.
+            const blockedCard = await sharp(imagePath).composite([{
+                input: { create: { width: 150, height: 270, channels: 3, background: '#091114' } },
+                left: 251, top: 68,
+            }]).png().toBuffer()
+            await assertGateResult(analyzeScreenshotGate, await sharp(blockedCard).resize(640, 360).png().toBuffer(), sample, 'covered-card')
+            await assertFixtureResult(analyzeScreenshot, blockedCard, missingSecondCard, 'covered-card')
+
+            // Center the same cards at the tighter spacing of the regular client frames.
+            const compact = await sharp(imagePath).resize(758, 450, { fit: 'fill' })
+                .extend({ left: 29, right: 29, top: 0, bottom: 0, background: '#101820' }).png().toBuffer()
+            await assertGateResult(analyzeScreenshotGate, await sharp(compact).resize(640, 360).png().toBuffer(), sample, 'compact')
+            await assertFixtureResult(analyzeScreenshot, await sharp(compact).resize(1024, 576).png().toBuffer(), sample, 'compact')
         }
     }
 }

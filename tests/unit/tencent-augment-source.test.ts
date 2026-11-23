@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createCipheriv } from 'node:crypto'
+import { gunzipSync } from 'node:zlib'
 import { appendFile, mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -8,9 +9,11 @@ import { TencentAugmentState } from '../../src/main/services/augments/tencent-au
 import { TencentLogTail } from '../../src/main/services/augments/tencent-log-tail.ts'
 import { TencentAugmentSource } from '../../src/main/services/augments/tencent-augment-source.ts'
 import { watchTencentLog } from '../../src/main/services/augments/tencent-log-watch.ts'
-import { parseTencentLogDirectory } from '../../src/main/services/augments/tencent-augment-runtime.ts'
+import { logTencentAugmentDiagnostic, parseTencentLogDirectory } from '../../src/main/services/augments/tencent-augment-runtime.ts'
+import { collectRecentFeedbackLogs } from '../../src/main/services/feedback-log-collector.ts'
+import logger from '../../src/main/modules/logger.ts'
 
-vi.mock('../../src/main/modules/logger.ts', () => ({ default: { debug: vi.fn() } }))
+vi.mock('../../src/main/modules/app-paths.ts', () => ({ getLogDir: () => directory }))
 
 const puuid = 'synthetic-current-player'
 const catalogue = [{ id: 2005, key: 'ARAM_InfernoTriggered', name: 'A' }, { id: 1079, key: 'ARAM_SymphonyofWar', name: 'B' }, { id: 1361, key: 'ARAM_Quest_VoidImmolation', name: 'C' }]
@@ -57,6 +60,7 @@ beforeEach(async () => {
 afterEach(async () => {
   sources.splice(0).forEach(source => source.stop())
   vi.restoreAllMocks()
+  vi.unstubAllEnvs()
   vi.useRealTimers()
   // Only remove the test-owned directory created above, never a caller path.
   if (path.dirname(directory) !== os.tmpdir() || !path.basename(directory).startsWith('aramgg-tencent-test-')) throw new Error('Unexpected fixture directory')
@@ -155,6 +159,33 @@ describe('Tencent log codec and selection state', () => {
 })
 
 describe('bounded read-only tail and failover', () => {
+  it('exports ordered 693 offers even without a complete mapping or a visible panel', async () => {
+    vi.stubEnv('ARAMGG_GAME_DIAGNOSTICS', '0')
+    const { source } = createSource({ diagnostic: logTencentAugmentDiagnostic })
+    const offer = (slots: string[], at: number) => line({
+      ...offers, params: { astAugments: slots.map(szAugmentName => ({ szAugmentName })) },
+    }, at)
+    const fourth = 'GoH_PentakillAug_E'
+    const four = [...keys, fourth, '']
+    await appendFile(file, line(offers) + offer(four, now + 1) + offer(four, now + 2)
+      + offer([keys[0], '', keys[2], fourth, ''], now + 3) + offer(['', '', '', '', ''], now + 4)
+      + line(pick, now + 5) + offer(four, now + 6))
+    await source.poll()
+    await logger.cleanupOldLogs() // Wait for queued INFO writes before collecting the feedback archive.
+    const archive = await collectRecentFeedbackLogs()
+    const feedback = gunzipSync(archive.data).toString('utf8')
+    const observations = feedback.split('\n').filter(row => row.includes('"event":"candidates-observed"'))
+      .map(row => JSON.parse(row.slice(row.indexOf('{'))))
+    expect(observations.map(row => row.candidateCount)).toEqual([3, 4, 3, 0, 4])
+    expect(observations[1]).toMatchObject({
+      dwSubCmd: 693, observedAt: new Date(now + 1).toISOString(),
+      slots: [...catalogue, { key: fourth, id: null, name: null }, null],
+    })
+    expect(observations[2].slots[1]).toBeNull()
+    expect(feedback).not.toContain(puuid)
+    expect(feedback).not.toContain('chSpellSlot')
+  })
+
   it('reads a file change before the polling deadline and coalesces a notification burst', async () => {
     vi.setSystemTime(now)
     let changed!: () => void

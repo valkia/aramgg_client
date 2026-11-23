@@ -15,6 +15,9 @@ export const LEGACY_THREE_CARD_LAYOUT: AugmentCardLayout = {
 export const FOUR_CARD_LAYOUT: AugmentCardLayout = {
     slotCount: 4, cardWidthRatio: 0.174, gapRatio: 0.026, modern: true,
 }
+export const COMPACT_FOUR_CARD_LAYOUT: AugmentCardLayout = {
+    ...LEGACY_THREE_CARD_LAYOUT, slotCount: 4, modern: true,
+}
 export const THREE_CARD_LAYOUT: AugmentCardLayout = { ...FOUR_CARD_LAYOUT, slotCount: 3 }
 
 export function getAugmentCardGeometry(width: number, layout: AugmentCardLayout) {

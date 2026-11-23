@@ -1,6 +1,7 @@
+import { isDeepStrictEqual } from 'node:util'
 import { createTencentLogKey, decodeTencentLogLine, isTencentRegion } from './tencent-log-codec.ts'
 import { TencentLogTail } from './tencent-log-tail.ts'
-import { TencentAugmentState, TENCENT_SOURCE_STALE_MS } from './tencent-augment-state.ts'
+import { findTencentCandidate, TencentAugmentState, TENCENT_SOURCE_STALE_MS } from './tencent-augment-state.ts'
 import type { AugmentEntry } from './tencent-augment-state.ts'
 
 type Identity = { region: string; puuid: string }
@@ -166,6 +167,17 @@ export class TencentAugmentSource {
     this.options.diagnostic('source-status', { source: reason === 'ready' ? 'tencent-log' : 'ocr', reason })
   }
 
+  private logCandidateOffer(keys: readonly string[], observedAt: string): void {
+    const slots = keys.map(key => {
+      if (!key) return null
+      const entry = findTencentCandidate(key, this.entries)
+      return { key, id: entry ? Number(entry.id) : null, name: entry?.name ?? null }
+    })
+    this.options.diagnostic('candidates-observed', {
+      observedAt, dwSubCmd: 693, candidateCount: keys.filter(Boolean).length, slots,
+    })
+  }
+
   private refreshCatalogue(generation: number): void {
     if (this.cataloguePending) return
     // A data download must not delay reading a local pick; its ID can remain null.
@@ -238,9 +250,14 @@ export class TencentAugmentSource {
         if (!record || record.at < this.since || this.now() - record.at > TENCENT_SOURCE_STALE_MS || record.at > this.now() + 2000) continue
         this.state.heartbeat(record.at)
         if (!record.event) continue
+        const previousKeys = this.state.candidateKeys
         const selection = this.state.observe(record.event)
-        if (record.event.kind === 'candidates' && this.state.candidateObservedAt === record.at) this.candidateReceivedAt = this.now()
-        this.options.diagnostic('event', { observedAt: new Date(record.at).toISOString(), ...record.event })
+        const observedAt = new Date(record.at).toISOString()
+        if (record.event.kind === 'candidates') {
+          if (this.state.candidateObservedAt === record.at) this.candidateReceivedAt = this.now()
+          if (!isDeepStrictEqual(previousKeys, this.state.candidateKeys)) this.logCandidateOffer(record.event.keys, observedAt)
+        }
+        this.options.diagnostic('event', { observedAt, ...record.event })
         if (selection?.selected) {
           const matches = this.entries.filter(a => a.key === selection.key)
           const id = matches.length === 1 && Number.isSafeInteger(Number(matches[0].id)) && Number(matches[0].id) > 0 ? Number(matches[0].id) : null

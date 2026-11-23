@@ -5,6 +5,12 @@ export type AugmentEntry = { id: number | string; key?: string | null; name: str
 export const TENCENT_SOURCE_STALE_MS = 15_000
 export const TENCENT_CANDIDATE_MAX_AGE_MS = 60_000
 
+export function findTencentCandidate(key: string, catalogue: AugmentEntry[]): AugmentEntry | null {
+  if (!key) return null
+  const matches = catalogue.filter(entry => entry.key === key && Number.isSafeInteger(Number(entry.id)) && Number(entry.id) > 0)
+  return matches.length === 1 && matches[0].name ? matches[0] : null
+}
+
 export class TencentAugmentState {
   private candidates: { at: number; keys: string[] } | null = null
   private lastNonempty: { at: number; keys: string[] } | null = null
@@ -14,6 +20,7 @@ export class TencentAugmentState {
   private seen = new Set<string>()
 
   get candidateObservedAt(): number | null { return this.candidates?.at ?? null }
+  get candidateKeys(): readonly string[] | null { return this.candidates?.keys ?? null }
 
   reset(): void {
     this.candidates = this.lastNonempty = null
@@ -62,9 +69,9 @@ export class TencentAugmentState {
     if (!isAugmentSlotCount(slotCount)) return null
     const result: AugmentEntry[] = []
     for (const [slot, key] of offer.keys.slice(0, slotCount).entries()) {
-      const matches = catalogue.filter(a => a.key === key && Number.isSafeInteger(Number(a.id)) && Number(a.id) > 0)
-      if (!key || matches.length !== 1 || !matches[0].name) return null
-      result.push({ ...matches[0], detectedSlot: slot, missing: false, confidence: 1 })
+      const entry = findTencentCandidate(key, catalogue)
+      if (!entry) return null
+      result.push({ ...entry, detectedSlot: slot, missing: false, confidence: 1 })
     }
     return result
   }

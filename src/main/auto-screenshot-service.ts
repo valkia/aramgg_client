@@ -582,7 +582,7 @@ class AutoScreenshotService {
         try {
             if (this.lastDetectedAugmentIds.length > 0) refreshVisibleMacAugmentOverlayOrder()
             const tencentGate = this.enableAnalysis && this.controlOwner === 'gameflow'
-                && (this.tencentCaptureRequested || this.captureMode === 'idle') && !!this.tencentSource.getCandidates()
+                && this.tencentCaptureRequested && !!this.tencentSource.getCandidates()
             this.tencentCaptureRequested = false
             const stage = tencentGate ? 'gate' : this.enableAnalysis && this.controlOwner === 'gameflow'
                 ? resolveCaptureStage({
@@ -708,13 +708,14 @@ class AutoScreenshotService {
 
             const gateLikely = gateResult.likely === true
             const rerollVisible = gateResult.rerollVisible === true
-            if (this.tencentSource.getCandidates()) {
+            const candidates = this.tencentSource.getCandidates()
+            if (candidates) {
                 if (isGameDiagnosticsEnabled()) logger.debug('[tencent augments]', { event: 'visibility-checked', likely: gateLikely,
                     rerollVisible, durationMs: gateResult.durationMs, captureMode: this.captureMode,
                     strongTitleRegions: gateResult.strongTitleRegions ?? null,
                     weakCardRegions: gateResult.weakCardRegions ?? null,
                 })
-                if (gateLikely && rerollVisible) {
+                if (gateLikely && rerollVisible && candidates.length === gateResult.slotCount) {
                     // Fresh native candidates plus one visible gate need no title OCR/full-size recapture.
                     await this._analyzeScreenshot(imageBuffer, runId, { gateResult, tencentOnly: true })
                     return
@@ -730,6 +731,11 @@ class AutoScreenshotService {
                 fullOcrCooldownUntil: this.fullOcrCooldownUntil,
                 now: Date.now(),
             })
+            if (this.pendingFullCapture && candidates && candidates.length !== gateResult.slotCount) {
+                logger.info('[tencent augments] checking full-size frame after slot count mismatch', {
+                    candidateCount: candidates.length, gateSlotCount: gateResult.slotCount,
+                })
+            }
 
             logger.debug('Augment selection gate frame analyzed', {
                 runId,

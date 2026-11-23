@@ -284,6 +284,40 @@ describe.sequential('automatic screenshot service lifecycle', () => {
     expect(mocks.analyzeScreenshot).toHaveBeenCalledWith(frame)
   })
 
+  it.each([3, 4])('escalates a small-frame mismatch with %i native candidates to a full-size frame', async nativeCount => {
+    const service = createRunningIdleService()
+    service.pendingFullCapture = false
+    service.candidateStreak = 0
+    const native = [1, 2, 3, 4].slice(0, nativeCount).map((id, detectedSlot) => ({ id, detectedSlot }))
+    mocks.tencentSource.getCandidates.mockReturnValue(native)
+    const small = Buffer.from('small')
+    const full = Buffer.from('full')
+    const smallSlotCount = nativeCount === 4 ? 3 : 4
+    mocks.analyzeScreenshotGate.mockImplementation(async frame => ({
+      success: true, likely: true, rerollVisible: true, slotCount: frame === small ? smallSlotCount : 4,
+    }))
+    mocks.captureScreenshot.mockImplementation(async ({ thumbnailSize }) =>
+      ({ success: true, buffer: thumbnailSize.width === 640 ? small : full }))
+    const augments = [11, 12, 13, 14].map((id, detectedSlot) => ({ id, detectedSlot }))
+    mocks.analyzeScreenshot.mockResolvedValue({ success: true, analysis: {
+      slotCount: 4, cardCount: 4, augments, isAugmentPhase: true, confidence: 0.95,
+      augmentGate: { titleActivity: { likely: true }, rerollButtons: { visible: true } },
+    } })
+    const notify = vi.spyOn(service, '_notifyAugmentDetected').mockResolvedValue(undefined)
+    expect((await service._captureScreenshot()).stage).toBe('gate')
+    expect((await service._captureScreenshot()).stage).toBe('gate')
+    expect(notify).not.toHaveBeenCalled()
+    expect((await service._captureScreenshot()).stage).toBe('full')
+    await vi.waitFor(() => expect(notify).toHaveBeenCalledTimes(1))
+    if (nativeCount === 4) {
+      expect(mocks.analyzeScreenshot).not.toHaveBeenCalled()
+      expect(service.lastDetectedAugmentIds).toEqual(['1', '2', '3', '4'])
+    } else {
+      expect(mocks.analyzeScreenshot).toHaveBeenCalledExactlyOnceWith(full)
+      expect(service.lastDetectedAugmentIds).toEqual(['11', '12', '13', '14'])
+    }
+  })
+
   it('publishes a partial four-slot offer between complete three-slot offers', async () => {
     const service = createRunningIdleService()
     vi.spyOn(service, '_savePartialOcrScreenshot').mockImplementation(() => {})

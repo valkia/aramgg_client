@@ -21,6 +21,11 @@ async function readable(file: string): Promise<boolean> {
   try { await access(file); return true } catch { return false }
 }
 
+export function logTencentAugmentDiagnostic(event: string, details: Record<string, unknown>): void {
+  if (event === 'source-status' || event === 'candidates-observed') logger.info('[tencent augments]', { event, ...details })
+  else if (isGameDiagnosticsEnabled()) logger.debug('[tencent augments]', { event, ...details })
+}
+
 /** No game path setting, remote auth, or SDK execution is needed. */
 export function createTencentAugmentSource(
   selected: ConstructorParameters<typeof TencentAugmentSource>[0]['selected'],
@@ -69,10 +74,6 @@ export function createTencentAugmentSource(
     watch: watchTencentLog,
     selected,
     candidatesReady,
-    diagnostic: (event, details) => {
-      // Source status is already deduplicated by TencentAugmentSource.
-      if (event === 'source-status') logger.info('[tencent augments]', { event, ...details })
-      else if (isGameDiagnosticsEnabled()) logger.debug('[tencent augments]', { event, ...details })
-    },
+    diagnostic: logTencentAugmentDiagnostic,
   })
 }

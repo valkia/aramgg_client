@@ -1,4 +1,4 @@
-import { FOUR_CARD_LAYOUT, getAugmentCardGeometry, LEGACY_THREE_CARD_LAYOUT, THREE_CARD_LAYOUT } from './augment-card-layout.ts'
+import { COMPACT_FOUR_CARD_LAYOUT, FOUR_CARD_LAYOUT, getAugmentCardGeometry, LEGACY_THREE_CARD_LAYOUT, THREE_CARD_LAYOUT } from './augment-card-layout.ts'
 import type { AugmentCardLayout } from './augment-card-layout.ts'
 
 type RawFrame = { buffer: Buffer; width: number; height: number; channels: number }
@@ -22,8 +22,7 @@ export function hasVisibleAugmentCardFrames(frame: RawFrame, layout = LEGACY_THR
         return r >= minR && g >= minG && b >= minB && Math.max(r, g, b) - Math.min(r, g, b) <= 120
     }
 
-    for (let slot = 0; slot < layout.slotCount; slot++) {
-        const left = groupLeft + slot * (cardWidth + cardGap)
+    const hasCardAt = (left: number) => {
         let topCoverage = 0
         for (let row = 0; row < 32; row++) {
             let hits = 0
@@ -55,13 +54,22 @@ export function hasVisibleAugmentCardFrames(frame: RawFrame, layout = LEGACY_THR
                 if (Math.max(buffer[offset], buffer[offset + 1], buffer[offset + 2]) < 85) darkInterior++
             }
         }
-        if (darkInterior / 64 < 0.5) return false
+        return darkInterior / 64 >= 0.5
     }
-    return true
+
+    // Three intact frames at the four-column positions still identify the
+    // layout when a tooltip or reroll animation covers the remaining card.
+    let visible = 0
+    for (let slot = 0; slot < layout.slotCount; slot++) {
+        if (hasCardAt(groupLeft + slot * (cardWidth + cardGap))) visible++
+        if (visible === 3) return true
+        if (visible + layout.slotCount - slot - 1 < 3) return false
+    }
+    return false
 }
 
 export function detectAugmentCardLayout(frame: RawFrame): AugmentCardLayout | null {
-    for (const layout of [FOUR_CARD_LAYOUT, LEGACY_THREE_CARD_LAYOUT, THREE_CARD_LAYOUT]) {
+    for (const layout of [FOUR_CARD_LAYOUT, LEGACY_THREE_CARD_LAYOUT, THREE_CARD_LAYOUT, COMPACT_FOUR_CARD_LAYOUT]) {
         if (hasVisibleAugmentCardFrames(frame, layout)) return layout
     }
     return null
